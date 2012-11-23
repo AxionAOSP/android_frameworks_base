@@ -18,6 +18,7 @@ package com.android.server.power;
 
 import static android.hardware.display.DisplayManagerInternal.DisplayPowerRequest.policyToString;
 import static android.os.IServiceManager.DUMP_FLAG_PRIORITY_CRITICAL;
+import static android.os.PowerManager.BRIGHTNESS_OFF_FLOAT;
 import static android.os.PowerManager.GO_TO_SLEEP_REASON_DISPLAY_GROUPS_TURNED_OFF;
 import static android.os.PowerManager.GO_TO_SLEEP_REASON_DISPLAY_GROUP_REMOVED;
 import static android.os.PowerManager.WAKE_REASON_DISPLAY_GROUP_ADDED;
@@ -332,6 +333,8 @@ public final class PowerManagerService extends SystemService
     private static final IntArray DEFAULT_DISPLAY_GROUP_IDS =
             IntArray.wrap(new int[]{Display.DEFAULT_DISPLAY_GROUP});
 
+    private static final int DEFAULT_BUTTON_ON_DURATION = 5 * 1000;
+
     private final Context mContext;
     private final ServiceThread mHandlerThread;
     private final Handler mHandler;
@@ -369,6 +372,10 @@ public final class PowerManagerService extends SystemService
     private SettingsObserver mSettingsObserver;
     private DreamManagerInternal mDreamManager;
     private LogicalLight mAttentionLight;
+    private LogicalLight mButtonsLight;
+
+    private int mButtonTimeout;
+    private float mButtonBrightness;
 
     private final InattentiveSleepWarningController mInattentiveSleepWarningOverlayController;
     private final AmbientDisplaySuppressionController mAmbientDisplaySuppressionController;
@@ -626,6 +633,9 @@ public final class PowerManagerService extends SystemService
     // (when {@link #mProximityPositive} is set to false).
     private boolean mInterceptedPowerKeyForProximity;
 
+    // Button brightness
+    public final float mButtonBrightnessDefault;
+
     // Screen brightness setting limits.
     public final float mScreenBrightnessMinimum;
     public final float mScreenBrightnessMaximum;
@@ -636,6 +646,11 @@ public final class PowerManagerService extends SystemService
     @VisibleForTesting
     boolean mIsFaceDown = false;
     private long mLastFlipTime = 0L;
+
+    // The button brightness setting override from the window manager
+    // to allow the current foreground activity to override the button brightness.
+    private float mButtonBrightnessOverrideFromWindowManager =
+            PowerManager.BRIGHTNESS_INVALID_FLOAT;
 
     // The window manager has determined the user to be inactive via other means.
     // Set this to false to disable.
@@ -1263,6 +1278,10 @@ public final class PowerManagerService extends SystemService
         mUseAutoSuspend = mContext.getResources().getBoolean(com.android.internal.R.bool
                 .config_useAutoSuspend);
 
+        mButtonBrightnessDefault = mContext.getResources().getFloat(
+                org.lineageos.platform.internal.R.dimen
+                        .config_buttonBrightnessSettingDefaultFloat);
+
         // Save brightness values:
         // Get float values from config.
         // Store float if valid
@@ -1444,6 +1463,7 @@ public final class PowerManagerService extends SystemService
 
             mLightsManager = getLocalService(LightsManager.class);
             mAttentionLight = mLightsManager.getLight(LightsManager.LIGHT_ID_ATTENTION);
+            mButtonsLight = mLightsManager.getLight(LightsManager.LIGHT_ID_BUTTONS);
             updateDeviceConfigLocked();
             mDeviceConfigProvider.addOnPropertiesChangedListener(BackgroundThread.getExecutor(),
                     properties -> {
@@ -1551,6 +1571,12 @@ public final class PowerManagerService extends SystemService
                 false, mSettingsObserver, UserHandle.USER_ALL);
         resolver.registerContentObserver(LineageSettings.Global.getUriFor(
                 LineageSettings.Global.WAKE_WHEN_PLUGGED_OR_UNPLUGGED),
+                false, mSettingsObserver, UserHandle.USER_ALL);
+        resolver.registerContentObserver(LineageSettings.Secure.getUriFor(
+                LineageSettings.Secure.BUTTON_BRIGHTNESS),
+                false, mSettingsObserver, UserHandle.USER_ALL);
+        resolver.registerContentObserver(LineageSettings.Secure.getUriFor(
+                LineageSettings.Secure.BUTTON_BACKLIGHT_TIMEOUT),
                 false, mSettingsObserver, UserHandle.USER_ALL);
 
         // Register for broadcasts from other components of the system.
@@ -1685,6 +1711,13 @@ public final class PowerManagerService extends SystemService
         mProximityWakeEnabled = LineageSettings.System.getIntForUser(resolver,
                 LineageSettings.System.PROXIMITY_ON_WAKE,
                 mProximityWakeEnabledByDefaultConfig ? 1 : 0, UserHandle.USER_CURRENT) == 1;
+
+        mButtonTimeout = LineageSettings.Secure.getIntForUser(resolver,
+                LineageSettings.Secure.BUTTON_BACKLIGHT_TIMEOUT,
+                DEFAULT_BUTTON_ON_DURATION, UserHandle.USER_CURRENT);
+        mButtonBrightness = LineageSettings.Secure.getFloatForUser(resolver,
+                LineageSettings.Secure.BUTTON_BRIGHTNESS, mButtonBrightnessDefault,
+                UserHandle.USER_CURRENT);
 
         mDirty |= DIRTY_SETTINGS;
     }
@@ -3137,10 +3170,41 @@ public final class PowerManagerService extends SystemService
                     groupNextTimeout = lastUserActivityTime + screenOffTimeout - screenDimDuration;
                     if (now < groupNextTimeout) {
                         groupUserActivitySummary = USER_ACTIVITY_SCREEN_BRIGHT;
+                        if (wakefulness == WAKEFULNESS_AWAKE) {
+                            if (mButtonsLight != null) {
+                                float buttonBrightness = BRIGHTNESS_OFF_FLOAT;
+                                if (isValidBrightness(
+                                        mButtonBrightnessOverrideFromWindowManager)) {
+                                    if (mButtonBrightnessOverrideFromWindowManager >
+                                            PowerManager.BRIGHTNESS_MIN) {
+                                        buttonBrightness =
+                                                mButtonBrightnessOverrideFromWindowManager;
+                                    }
+                                } else if (isValidButtonBrightness(mButtonBrightness)) {
+                                    buttonBrightness = mButtonBrightness;
+                                }
+
+                                if (mButtonTimeout != 0 &&
+                                        now > lastUserActivityTime + mButtonTimeout) {
+                                    mButtonsLight.setBrightness(BRIGHTNESS_OFF_FLOAT);
+                                } else {
+                                    mButtonsLight.setBrightness(buttonBrightness);
+                                    if (buttonBrightness != BRIGHTNESS_OFF_FLOAT &&
+                                            mButtonTimeout != 0) {
+                                        groupNextTimeout = now + mButtonTimeout;
+                                    }
+                                }
+                            }
+                        }
                     } else {
                         groupNextTimeout = lastUserActivityTime + screenOffTimeout;
                         if (now < groupNextTimeout) {
                             groupUserActivitySummary = USER_ACTIVITY_SCREEN_DIM;
+                            if (wakefulness == WAKEFULNESS_AWAKE) {
+                                if (mButtonsLight != null) {
+                                    mButtonsLight.setBrightness(BRIGHTNESS_OFF_FLOAT);
+                                }
+                            }
                         }
                     }
                 }
@@ -3902,6 +3966,10 @@ public final class PowerManagerService extends SystemService
         return value >= PowerManager.BRIGHTNESS_MIN && value <= PowerManager.BRIGHTNESS_MAX;
     }
 
+    private static boolean isValidButtonBrightness(float value) {
+        return value > PowerManager.BRIGHTNESS_MIN && value <= PowerManager.BRIGHTNESS_MAX;
+    }
+
     @VisibleForTesting
     int getDreamsBatteryLevelDrain() {
         return mDreamsBatteryLevelDrain;
@@ -4635,6 +4703,17 @@ public final class PowerManagerService extends SystemService
         }
     }
 
+    private void setButtonBrightnessOverrideFromWindowManagerInternal(float brightness) {
+        synchronized (mLock) {
+            if (!BrightnessSynchronizer.floatEquals(mButtonBrightnessOverrideFromWindowManager,
+                    brightness)) {
+                mButtonBrightnessOverrideFromWindowManager = brightness;
+                mDirty |= DIRTY_SETTINGS;
+                updatePowerStateLocked();
+            }
+        }
+    }
+
     private void setUserInactiveOverrideFromWindowManagerInternal() {
         synchronized (mLock) {
             mUserInactiveOverrideFromWindowManager = true;
@@ -4984,6 +5063,10 @@ public final class PowerManagerService extends SystemService
             pw.println("  mBrightWhenDozingConfig=" + mBrightWhenDozingConfig);
             pw.println("  mAttentiveWarningDurationConfig=" + mAttentiveWarningDurationConfig);
             pw.println("  mStayOnWhilePluggedInSetting=" + mStayOnWhilePluggedInSetting);
+            pw.println("  mButtonTimeout=" + mButtonTimeout);
+            pw.println("  mButtonBrightness=" + mButtonBrightness);
+            pw.println("  mButtonBrightnessOverrideFromWindowManager="
+                    + mButtonBrightnessOverrideFromWindowManager);
             pw.println("  mUserActivityTimeoutOverrideFromWindowManager="
                     + mUserActivityTimeoutOverrideFromWindowManager);
             pw.println("  mUserInactiveOverrideFromWindowManager="
@@ -6481,6 +6564,8 @@ public final class PowerManagerService extends SystemService
                     return android.companion.virtualdevice.flags.Flags.deviceAwareDisplayPower()
                             && info != null && isValidBrightnessValue(info.brightnessDim)
                             ? info.brightnessDim : mScreenBrightnessDim;
+                case PowerManager.BRIGHTNESS_CONSTRAINT_TYPE_DEFAULT_BUTTON:
+                    return mButtonBrightnessDefault;
                 default:
                     return PowerManager.BRIGHTNESS_INVALID_FLOAT;
             }
@@ -7548,6 +7633,18 @@ public final class PowerManagerService extends SystemService
 
     @VisibleForTesting
     final class LocalService extends PowerManagerInternal {
+        @Override
+        public void setButtonBrightnessOverrideFromWindowManager(float screenBrightness) {
+            mContext.enforceCallingOrSelfPermission(android.Manifest.permission.DEVICE_POWER, null);
+
+            final long ident = Binder.clearCallingIdentity();
+            try {
+                setButtonBrightnessOverrideFromWindowManagerInternal(screenBrightness);
+            } finally {
+                Binder.restoreCallingIdentity(ident);
+            }
+        }
+
         @Override
         public void setDozeOverrideFromDreamManager(
                 int screenState, int reason, float screenBrightnessFloat, int screenBrightnessInt,
