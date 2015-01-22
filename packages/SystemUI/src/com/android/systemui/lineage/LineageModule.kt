@@ -26,6 +26,7 @@ import com.android.systemui.qs.tiles.CaffeineTile
 import com.android.systemui.qs.tiles.CellularTile
 import com.android.systemui.qs.tiles.HeadsUpTile
 import com.android.systemui.qs.tiles.PowerShareTile
+import com.android.systemui.qs.tiles.ProfilesTile
 import com.android.systemui.qs.tiles.ReadingModeTile
 import com.android.systemui.qs.tiles.SyncTile
 import com.android.systemui.qs.tiles.UsbTetherTile
@@ -78,6 +79,12 @@ interface LineageModule {
     @StringKey(PowerShareTile.TILE_SPEC)
     fun bindPowerShareTile(powerShareTile: PowerShareTile): QSTileImpl<*>
 
+    /** Inject ProfilesTile into tileMap in QSModule */
+    @Binds
+    @IntoMap
+    @StringKey(ProfilesTile.TILE_SPEC)
+    fun bindProfilesTile(profilesTile: ProfilesTile): QSTileImpl<*>
+
     /** Inject ReadingModeTile into tileMap in QSModule */
     @Binds
     @IntoMap
@@ -109,6 +116,7 @@ interface LineageModule {
         const val CELLULAR_TILE_SPEC = "cell"
         const val HEADS_UP_TILE_SPEC = "heads_up"
         const val POWERSHARE_TILE_SPEC = "powershare"
+        const val PROFILES_TILE_SPEC = "profiles"
         const val READING_MODE_TILE_SPEC = "reading_mode"
         const val SYNC_TILE_SPEC = "sync"
         const val USB_TETHER_TILE_SPEC = "usb_tether"
@@ -199,6 +207,21 @@ interface LineageModule {
                     QSTileUIConfig.Resource(
                         iconRes = R.drawable.ic_qs_powershare,
                         labelRes = R.string.quick_settings_powershare_label
+                    ),
+                instanceId = uiEventLogger.getNewInstanceId(),
+                category = TileCategory.UTILITIES,
+            )
+
+        @Provides
+        @IntoMap
+        @StringKey(PROFILES_TILE_SPEC)
+        fun provideProfilesTileConfig(uiEventLogger: QsEventLogger): QSTileConfig =
+            QSTileConfig(
+                tileSpec = TileSpec.create(PROFILES_TILE_SPEC),
+                uiConfig =
+                    QSTileUIConfig.Resource(
+                        iconRes = R.drawable.ic_qs_profiles,
+                        labelRes = R.string.quick_settings_profiles_label
                     ),
                 instanceId = uiEventLogger.getNewInstanceId(),
                 category = TileCategory.UTILITIES,
