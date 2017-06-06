@@ -19,6 +19,7 @@ package android.hardware.camera2.impl;
 import static com.android.internal.util.function.pooled.PooledLambda.obtainRunnable;
 
 import android.annotation.FlaggedApi;
+import android.app.ActivityThread;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.ActivityThread;
