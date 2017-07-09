@@ -52,4 +52,7 @@
 
      <!-- Mock Oplus LinearmotorVibratorService -->
     <java-symbol type="bool" name="config_mockOplusLinearmotorVibratorService" />
+
+     <!-- Sensor block -->
+     <java-symbol type="array" name="config_blockPackagesSensorDrain" />
 </resources>
