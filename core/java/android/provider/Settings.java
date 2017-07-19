@@ -6586,6 +6586,12 @@ public final class Settings {
         public static final String DATA_DISABLED_ICON = "data_disabled_icon";
 
         /**
+         * Whether to display 4G icon instead LTE
+         * @hide
+         */
+        public static final String SHOW_FOURG_ICON = "show_fourg_icon";
+
+        /**
          * Override max volume for {@link android.media.AudioSystem.STREAM_VOICE_CALL}
          * see {@link com.android.server.audio.AudioService} for defaults in priority
          * -1 = disabled
