@@ -28,6 +28,8 @@ import static com.android.internal.widget.LockPatternUtils.StrongAuthTracker.SOM
 import static com.android.internal.widget.LockPatternUtils.StrongAuthTracker.STRONG_AUTH_NOT_REQUIRED;
 import static com.android.internal.widget.LockPatternUtils.StrongAuthTracker.STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN;
 
+import static org.lineageos.internal.util.PowerMenuConstants.*;
+
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
@@ -156,6 +158,8 @@ import com.android.systemui.util.settings.SecureSettings;
 
 import dagger.Lazy;
 
+import org.lineageos.internal.util.PowerMenuUtils;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -184,24 +188,13 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
 
     private static final boolean SHOW_SILENT_TOGGLE = true;
 
-    /* Valid settings for global actions keys.
-     * see config.xml config_globalActionList */
-    @VisibleForTesting
-    static final String GLOBAL_ACTION_KEY_POWER = "power";
-    private static final String GLOBAL_ACTION_KEY_AIRPLANE = "airplane";
-    static final String GLOBAL_ACTION_KEY_BUGREPORT = "bugreport";
-    private static final String GLOBAL_ACTION_KEY_SILENT = "silent";
-    private static final String GLOBAL_ACTION_KEY_USERS = "users";
-    private static final String GLOBAL_ACTION_KEY_SETTINGS = "settings";
-    static final String GLOBAL_ACTION_KEY_LOCKDOWN = "lockdown";
-    private static final String GLOBAL_ACTION_KEY_VOICEASSIST = "voiceassist";
-    private static final String GLOBAL_ACTION_KEY_ASSIST = "assist";
-    static final String GLOBAL_ACTION_KEY_RESTART = "restart";
-    private static final String GLOBAL_ACTION_KEY_LOGOUT = "logout";
-    static final String GLOBAL_ACTION_KEY_EMERGENCY = "emergency";
-    static final String GLOBAL_ACTION_KEY_SCREENSHOT = "screenshot";
-    static final String GLOBAL_ACTION_KEY_SYSTEM_UPDATE = "system_update";
-    static final String GLOBAL_ACTION_KEY_STANDBY = "standby";
+    /* Valid settings for restart actions keys.
+     * see lineage-sdk config.xml config_restartActionsList */
+    private static final String RESTART_ACTION_KEY_RESTART = "restart";
+    private static final String RESTART_ACTION_KEY_RESTART_RECOVERY = "restart_recovery";
+    private static final String RESTART_ACTION_KEY_RESTART_BOOTLOADER = "restart_bootloader";
+    private static final String RESTART_ACTION_KEY_RESTART_DOWNLOAD = "restart_download";
+    private static final String RESTART_ACTION_KEY_RESTART_FASTBOOT = "restart_fastboot";
 
     // See NotificationManagerService#scheduleDurationReachedLocked
     private static final long TOAST_FADE_TIME = 333;
@@ -240,6 +233,8 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
     protected final ArrayList<Action> mOverflowItems = new ArrayList<>();
     @VisibleForTesting
     protected final ArrayList<Action> mPowerItems = new ArrayList<>();
+    @VisibleForTesting
+    protected final ArrayList<Action> mRestartItems = new ArrayList<>();
 
     @VisibleForTesting
     protected ActionsDialogLite mDialog;
@@ -250,6 +245,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
     protected MyAdapter mAdapter;
     protected MyOverflowAdapter mOverflowAdapter;
     protected MyPowerOptionsAdapter mPowerAdapter;
+    protected MyRestartOptionsAdapter mRestartAdapter;
 
     private boolean mKeyguardShowing = false;
     private boolean mDeviceProvisioned = false;
@@ -623,6 +619,10 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         return action.shouldShow();
     }
 
+    private boolean shouldShowRestartSubmenu() {
+        return PowerMenuUtils.isAdvancedRestartPossible(mContext);
+    }
+
     /**
      * Returns the maximum number of power menu items to show based on which GlobalActions
      * layout is being used.
@@ -657,6 +657,12 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
     }
 
     @VisibleForTesting
+    protected String[] getRestartActions() {
+        return mResources.getStringArray(
+                org.lineageos.platform.internal.R.array.config_restartActionsList);
+    }
+
+    @VisibleForTesting
     protected void createActionItems() {
         // Simple toggle style if there's no vibrator, otherwise use a tri-state
         if (!mHasVibrator) {
@@ -671,11 +677,19 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         mItems.clear();
         mOverflowItems.clear();
         mPowerItems.clear();
+        mRestartItems.clear();
         String[] defaultActions = getDefaultActions();
+        String[] restartActions = getRestartActions();
 
         ShutDownAction shutdownAction = new ShutDownAction();
         RestartAction restartAction = new RestartAction();
+        RestartSystemAction sysAction = new RestartSystemAction();
+        RestartRecoveryAction recAction = new RestartRecoveryAction();
+        RestartBootloaderAction blAction = new RestartBootloaderAction();
+        RestartDownloadAction dlAction = new RestartDownloadAction();
+        RestartFastbootAction fbAction = new RestartFastbootAction();
         ArraySet<String> addedKeys = new ArraySet<>();
+        ArraySet<String> addedRestartKeys = new ArraySet<String>();
         List<Action> tempActions = new ArrayList<>();
         CurrentUserProvider currentUser = new CurrentUserProvider();
 
@@ -740,6 +754,27 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             addedKeys.add(actionKey);
         }
 
+        for (int i = 0; i < restartActions.length; i++) {
+            String actionKey = restartActions[i];
+            if (addedRestartKeys.contains(actionKey)) {
+                // If we already have added this, don't add it again.
+                continue;
+            }
+            if (RESTART_ACTION_KEY_RESTART.equals(actionKey)) {
+                addIfShouldShowAction(mRestartItems, sysAction);
+            } else if (RESTART_ACTION_KEY_RESTART_RECOVERY.equals(actionKey)) {
+                addIfShouldShowAction(mRestartItems, recAction);
+            } else if (RESTART_ACTION_KEY_RESTART_BOOTLOADER.equals(actionKey)) {
+                addIfShouldShowAction(mRestartItems, blAction);
+            } else if (RESTART_ACTION_KEY_RESTART_DOWNLOAD.equals(actionKey)) {
+                addIfShouldShowAction(mRestartItems, dlAction);
+            } else if (RESTART_ACTION_KEY_RESTART_FASTBOOT.equals(actionKey)) {
+                addIfShouldShowAction(mRestartItems, fbAction);
+            }
+            // Add here so we don't add more than one.
+            addedRestartKeys.add(actionKey);
+        }
+
         // replace power and restart with a single power options action, if needed
         if (tempActions.contains(shutdownAction) && tempActions.contains(restartAction)
                 && tempActions.size() > getMaxShownPowerItems()) {
@@ -769,6 +804,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         mAdapter = new MyAdapter();
         mOverflowAdapter = new MyOverflowAdapter();
         mPowerAdapter = new MyPowerOptionsAdapter();
+        mRestartAdapter = new MyRestartOptionsAdapter();
     }
 
 
@@ -827,6 +863,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
                 this::onRefresh,
                 mKeyguardShowing,
                 mPowerAdapter,
+                mRestartAdapter,
                 mUiEventLogger,
                 mShadeController,
                 mKeyguardUpdateMonitor,
@@ -951,7 +988,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             }
             mUiEventLogger.log(GlobalActionsEvent.GA_SHUTDOWN_LONG_PRESS);
             if (!mUserManager.hasUserRestriction(UserManager.DISALLOW_SAFE_BOOT)) {
-                mWindowManagerFuncs.reboot(true);
+                mWindowManagerFuncs.reboot(true, null);
                 return true;
             }
             return false;
@@ -1084,7 +1121,9 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
     @VisibleForTesting
     final class RestartAction extends SinglePressAction implements LongPressAction {
         RestartAction() {
-            super(R.drawable.ic_restart, R.string.global_action_restart);
+            super(R.drawable.ic_restart, shouldShowRestartSubmenu()
+                    ? com.android.systemui.res.R.string.global_action_restart_more
+                    : R.string.global_action_restart);
         }
 
         @Override
@@ -1096,7 +1135,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             }
             mUiEventLogger.log(GlobalActionsEvent.GA_REBOOT_LONG_PRESS);
             if (!mUserManager.hasUserRestriction(UserManager.DISALLOW_SAFE_BOOT)) {
-                mWindowManagerFuncs.reboot(true);
+                mWindowManagerFuncs.reboot(true, null);
                 return true;
             }
             return false;
@@ -1120,7 +1159,130 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
                 return;
             }
             mUiEventLogger.log(GlobalActionsEvent.GA_REBOOT_PRESS);
-            mWindowManagerFuncs.reboot(false);
+            if (mDialog != null && shouldShowRestartSubmenu()) {
+                mDialog.showRestartOptionsMenu();
+            } else {
+                mWindowManagerFuncs.reboot(false, null);
+            }
+        }
+    }
+
+    private final class RestartSystemAction extends SinglePressAction implements LongPressAction {
+        public RestartSystemAction() {
+            super(R.drawable.ic_restart,
+                    com.android.systemui.res.R.string.global_action_restart_system);
+        }
+
+        @Override
+        public boolean onLongPress() {
+            if (!mUserManager.hasUserRestriction(UserManager.DISALLOW_SAFE_BOOT)) {
+                mWindowManagerFuncs.reboot(true, null);
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean showDuringKeyguard() {
+            return true;
+        }
+
+        @Override
+        public boolean showBeforeProvisioning() {
+            return true;
+        }
+
+        @Override
+        public void onPress() {
+            mWindowManagerFuncs.reboot(false, null);
+        }
+    }
+
+    private final class RestartRecoveryAction extends SinglePressAction {
+        private RestartRecoveryAction() {
+            super(com.android.systemui.res.R.drawable.ic_lock_restart_recovery,
+                    com.android.systemui.res.R.string.global_action_restart_recovery);
+        }
+
+        @Override
+        public boolean showDuringKeyguard() {
+            return true;
+        }
+
+        @Override
+        public boolean showBeforeProvisioning() {
+            return true;
+        }
+
+        @Override
+        public void onPress() {
+            mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_RECOVERY);
+        }
+    }
+
+    private final class RestartBootloaderAction extends SinglePressAction {
+        private RestartBootloaderAction() {
+            super(com.android.systemui.res.R.drawable.ic_lock_restart_bootloader,
+                    com.android.systemui.res.R.string.global_action_restart_bootloader);
+        }
+
+        @Override
+        public boolean showDuringKeyguard() {
+            return true;
+        }
+
+        @Override
+        public boolean showBeforeProvisioning() {
+            return true;
+        }
+
+        @Override
+        public void onPress() {
+            mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_BOOTLOADER);
+        }
+    }
+
+    private final class RestartFastbootAction extends SinglePressAction {
+        private RestartFastbootAction() {
+            super(com.android.systemui.res.R.drawable.ic_lock_restart_fastboot,
+                    com.android.systemui.res.R.string.global_action_restart_fastboot);
+        }
+
+        @Override
+        public boolean showDuringKeyguard() {
+            return true;
+        }
+
+        @Override
+        public boolean showBeforeProvisioning() {
+            return true;
+        }
+
+        @Override
+        public void onPress() {
+            mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_FASTBOOT);
+        }
+    }
+
+    private final class RestartDownloadAction extends SinglePressAction {
+        private RestartDownloadAction() {
+            super(com.android.systemui.res.R.drawable.ic_lock_restart_bootloader,
+                    com.android.systemui.res.R.string.global_action_restart_download);
+        }
+
+        @Override
+        public boolean showDuringKeyguard() {
+            return true;
+        }
+
+        @Override
+        public boolean showBeforeProvisioning() {
+            return true;
+        }
+
+        @Override
+        public void onPress() {
+            mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_DOWNLOAD);
         }
     }
 
@@ -1651,8 +1813,9 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             Action item = mAdapter.getItem(position);
             if (!(item instanceof SilentModeTriStateAction)) {
                 if (mDialog != null) {
-                    // don't dismiss the dialog if we're opening the power options menu
-                    if (!(item instanceof PowerOptionsAction)) {
+                    // don't dismiss the dialog if we're opening the power/restart options menu
+                    if (!(item instanceof PowerOptionsAction ||
+                            (item instanceof RestartAction && shouldShowRestartSubmenu()))) {
                         // Usually clicking an item shuts down the phone, locks, or starts an
                         // activity. We don't want to animate back into the power button when that
                         // happens, so we disable the dialog animation before dismissing.
@@ -1698,7 +1861,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
                 Log.w(TAG, "No power options action found at position: " + position);
                 return null;
             }
-            int viewLayoutResource = com.android.systemui.res.R.layout.global_actions_power_item;
+            int viewLayoutResource = com.android.systemui.res.R.layout.global_actions_grid_item_lite;
             View view = convertView != null ? convertView
                     : LayoutInflater.from(mContext).inflate(viewLayoutResource, parent, false);
             view.setOnClickListener(v -> onClickItem(position));
@@ -1740,7 +1903,8 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         private void onClickItem(int position) {
             Action item = getItem(position);
             if (!(item instanceof SilentModeTriStateAction)) {
-                if (mDialog != null) {
+                if (mDialog != null &&
+                        !(item instanceof RestartAction && shouldShowRestartSubmenu())) {
                     // Usually clicking an item shuts down the phone, locks, or starts an activity.
                     // We don't want to animate back into the power button when that happens, so we
                     // disable the dialog animation before dismissing.
@@ -1751,6 +1915,18 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
                 }
                 item.onPress();
             }
+        }
+    }
+
+    public class MyRestartOptionsAdapter extends MyPowerOptionsAdapter {
+        @Override
+        public int getCount() {
+            return mRestartItems.size();
+        }
+
+        @Override
+        public Action getItem(int position) {
+            return mRestartItems.get(position);
         }
     }
 
@@ -2381,6 +2557,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             mAdapter.notifyDataSetChanged();
             mOverflowAdapter.notifyDataSetChanged();
             mPowerAdapter.notifyDataSetChanged();
+            mRestartAdapter.notifyDataSetChanged();
         }
     };
 
@@ -2456,6 +2633,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         protected final MyAdapter mAdapter;
         protected final MyOverflowAdapter mOverflowAdapter;
         protected final MyPowerOptionsAdapter mPowerOptionsAdapter;
+        private final MyRestartOptionsAdapter mRestartOptionsAdapter;
         protected final IStatusBarService mStatusBarService;
         protected final IBinder mToken = new Binder();
         protected Drawable mBackgroundDrawable;
@@ -2469,6 +2647,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         private final StatusBarWindowController mStatusBarWindowController;
         private ListPopupWindow mOverflowPopup;
         private Dialog mPowerOptionsDialog;
+        private Dialog mRestartOptionsDialog;
         protected final Runnable mOnRefreshCallback;
         private UiEventLogger mUiEventLogger;
         private GestureDetector mGestureDetector;
@@ -2555,6 +2734,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
                 Runnable onRefreshCallback,
                 boolean keyguardShowing,
                 MyPowerOptionsAdapter powerAdapter,
+                MyRestartOptionsAdapter restartAdapter,
                 UiEventLogger uiEventLogger,
                 ShadeController shadeController,
                 KeyguardUpdateMonitor keyguardUpdateMonitor,
@@ -2567,6 +2747,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             mAdapter = adapter;
             mOverflowAdapter = overflowAdapter;
             mPowerOptionsAdapter = powerAdapter;
+            mRestartOptionsAdapter = restartAdapter;
             mColorExtractor = sysuiColorExtractor;
             mStatusBarService = statusBarService;
             mLightBarController = lightBarController;
@@ -2656,6 +2837,12 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         public void showPowerOptionsMenu() {
             mPowerOptionsDialog = GlobalActionsPowerDialog.create(mContext, mPowerOptionsAdapter);
             mPowerOptionsDialog.show();
+        }
+
+        public void showRestartOptionsMenu() {
+            mRestartOptionsDialog = GlobalActionsPowerDialog.create(mContext,
+                    mRestartOptionsAdapter);
+            mRestartOptionsDialog.show();
         }
 
         protected void showPowerOverflowMenu() {
@@ -2923,6 +3110,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         public void dismiss() {
             dismissOverflow();
             dismissPowerOptions();
+            dismissRestartOptions();
             if (TopUiControllerRefactor.isEnabled()) {
                 mTopUiController.setRequestTopUi(false, TAG);
             } else {
@@ -2940,6 +3128,12 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         protected final void dismissPowerOptions() {
             if (mPowerOptionsDialog != null) {
                 mPowerOptionsDialog.dismiss();
+            }
+        }
+
+        private void dismissRestartOptions() {
+            if (mRestartOptionsDialog != null) {
+                mRestartOptionsDialog.dismiss();
             }
         }
 
@@ -2980,6 +3174,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             // Dismiss the dropdown menus.
             dismissOverflow();
             dismissPowerOptions();
+            dismissRestartOptions();
 
             // Update the list as the max number of items per row has probably changed.
             mGlobalActionsLayout.updateList();
