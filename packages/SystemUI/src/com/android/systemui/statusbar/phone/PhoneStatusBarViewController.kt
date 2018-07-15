@@ -86,6 +86,8 @@ private constructor(
 
     private lateinit var battery: BatteryMeterView
     private lateinit var clock: Clock
+    private lateinit var clockCenter: Clock
+    private lateinit var clockRight: Clock
     private lateinit var startSideContainer: View
     private lateinit var endSideContainer: View
     private val statusBarContentInsetsProvider
@@ -131,6 +133,8 @@ private constructor(
 
     override fun onViewAttached() {
         clock = mView.requireViewById(R.id.clock)
+        clockCenter = mView.requireViewById(R.id.clock_center)
+        clockRight = mView.requireViewById(R.id.clock_right)
         battery = mView.requireViewById(R.id.battery)
 
         addDarkReceivers()
@@ -250,11 +254,15 @@ private constructor(
     private fun addDarkReceivers() {
         darkIconDispatcher.addDarkReceiver(battery)
         darkIconDispatcher.addDarkReceiver(clock)
+        darkIconDispatcher.addDarkReceiver(clockCenter)
+        darkIconDispatcher.addDarkReceiver(clockRight)
     }
 
     private fun removeDarkReceivers() {
         darkIconDispatcher.removeDarkReceiver(battery)
         darkIconDispatcher.removeDarkReceiver(clock)
+        darkIconDispatcher.removeDarkReceiver(clockCenter)
+        darkIconDispatcher.removeDarkReceiver(clockRight)
     }
 
     inner class PhoneStatusBarViewTouchHandler : Gefingerpoken {

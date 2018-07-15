@@ -181,6 +181,7 @@ interface HomeStatusBarViewModel : Activatable {
     val shouldShowOperatorNameView: Flow<Boolean>
     val isClockVisible: Flow<VisibilityModel>
     val isNotificationIconContainerVisible: Flow<VisibilityModel>
+    val hideStartSideContentForHeadsUp: Flow<Boolean>
 
     /**
      * Pair of (system info visibility, event animation state). The animation state can be used to
@@ -484,7 +485,7 @@ constructor(
      * True if we need to hide the usual start side content in order to show the heads up
      * notification info.
      */
-    private val hideStartSideContentForHeadsUp: Flow<Boolean> =
+    override val hideStartSideContentForHeadsUp: Flow<Boolean> =
         if (StatusBarNoHunBehavior.isEnabled) {
             flowOf(false)
         } else {
@@ -575,22 +576,20 @@ constructor(
     override val isClockVisible: Flow<VisibilityModel> =
         combine(
                 shouldHomeStatusBarBeVisible,
-                hideStartSideContentForHeadsUp,
                 homeStatusBarInteractor.visibilityViaDisableFlags,
-            ) { shouldStatusBarBeVisible, hideStartSideContentForHeadsUp, visibilityViaDisableFlags
+            ) { shouldStatusBarBeVisible, visibilityViaDisableFlags
                 ->
                 val showClock =
                     shouldStatusBarBeVisible &&
-                        visibilityViaDisableFlags.isClockAllowed &&
-                        !hideStartSideContentForHeadsUp
-                // Always use View.INVISIBLE here, so that animations work
-                VisibilityModel(showClock.toVisibleOrInvisible(), visibilityViaDisableFlags.animate)
+                        visibilityViaDisableFlags.isClockAllowed
+                // Always use View.GONE here, so that we do not get stray spaces
+                VisibilityModel(showClock.toVisibleOrGone(), visibilityViaDisableFlags.animate)
             }
             .distinctUntilChanged()
             .logDiffsForTable(
                 tableLogBuffer = tableLogger,
                 columnPrefix = COL_PREFIX_CLOCK,
-                initialValue = VisibilityModel(false.toVisibleOrInvisible(), false),
+                initialValue = VisibilityModel(false.toVisibleOrGone(), false),
             )
             .flowOn(bgDispatcher)
 
