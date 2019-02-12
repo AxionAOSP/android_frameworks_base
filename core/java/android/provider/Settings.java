@@ -6740,6 +6740,12 @@ public final class Settings {
         public static final String SHOW_APP_VOLUME = "show_app_volume";
 
         /**
+         * Whether to show the charging info on the lockscreen while charging
+         * @hide
+         */
+        public static final String LOCKSCREEN_CHARGING_INFO = "lockscreen_charging_info";
+
+        /**
          * Keys we no longer back up under the current schema, but want to continue to
          * process when restoring historical backup datasets.
          *
