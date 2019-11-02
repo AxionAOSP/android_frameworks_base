@@ -397,6 +397,7 @@
     <protected-broadcast android:name="com.android.systemui.action.ACTION_LAUNCH_MEDIA_OUTPUT_BROADCAST_DIALOG" />
     <protected-broadcast android:name="com.android.systemui.STARTED" />
     <protected-broadcast android:name="org.custom.server.action.AOD_STATE_CHANGED" />
+    <protected-broadcast android:name="com.android.systemui.doze.pulse" />
 
     <application
         android:name=".SystemUIApplication"
