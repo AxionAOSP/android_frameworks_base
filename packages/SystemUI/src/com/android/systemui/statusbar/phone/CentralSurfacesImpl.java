@@ -50,6 +50,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Configuration;
+import android.database.ContentObserver;
 import android.graphics.Point;
 import android.hardware.devicestate.DeviceStateManager;
 import android.hardware.fingerprint.FingerprintManager;
@@ -136,6 +137,7 @@ import com.android.systemui.flags.Flags;
 import com.android.systemui.fragments.ExtensionFragmentListener;
 import com.android.systemui.fragments.FragmentHostManager;
 import com.android.systemui.fragments.FragmentService;
+import com.android.systemui.keyguard.KeyguardSliceProvider;
 import com.android.systemui.keyguard.KeyguardUnlockAnimationController;
 import com.android.systemui.keyguard.KeyguardViewMediator;
 import com.android.systemui.keyguard.MigrateClocksToBlueprint;
@@ -883,6 +885,23 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
         mKeyguardIndicationController.init();
 
         mColorExtractor.addOnColorsChangedListener(mOnColorsChangedListener);
+
+        ContentObserver contentObserver = new ContentObserver(null) {
+            @Override
+            public void onChange(boolean selfChange, Uri uri) {
+                if (uri.equals(Settings.Secure.getUriFor(Settings.Secure.PULSE_ON_NEW_TRACKS))) {
+                    boolean showPulseOnNewTracks =
+                            Settings.Secure.getInt(mContext.getContentResolver(), Settings.Secure.PULSE_ON_NEW_TRACKS, 0) != 0;
+                    KeyguardSliceProvider sliceProvider = KeyguardSliceProvider.getAttachedInstance();
+                    if (sliceProvider != null) {
+                        sliceProvider.setPulseOnNewTracks(showPulseOnNewTracks);
+                    }
+                }
+            }
+        };
+        mContext.getContentResolver().registerContentObserver(
+                Settings.Secure.getUriFor(Settings.Secure.PULSE_ON_NEW_TRACKS), false, contentObserver);
+        contentObserver.onChange(true, Settings.Secure.getUriFor(Settings.Secure.PULSE_ON_NEW_TRACKS));
 
         mWindowManager = (WindowManager) mContext.getSystemService(Context.WINDOW_SERVICE);
 
