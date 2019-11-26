@@ -36,6 +36,7 @@ import com.android.systemui.ambient.dagger.AmbientModule;
 import com.android.systemui.appops.dagger.AppOpsModule;
 import com.android.systemui.assist.AssistModule;
 import com.android.systemui.authentication.AuthenticationModule;
+import com.android.systemui.axion.CustomModule;
 import com.android.systemui.biometrics.FingerprintInteractiveToAuthProvider;
 import com.android.systemui.biometrics.FingerprintReEnrollNotification;
 import com.android.systemui.biometrics.UdfpsDisplayModeProvider;
@@ -228,6 +229,7 @@ import javax.inject.Named;
         InputMethodModule.class,
         KeyEventRepositoryModule.class,
         KeyboardModule.class,
+        CustomModule.class,
         LetterboxModule.class,
         LineageModule.class,
         LogModule.class,
