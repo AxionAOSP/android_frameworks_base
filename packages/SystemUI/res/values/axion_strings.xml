@@ -48,6 +48,9 @@
     <string name="essential_notifications_title">Essentials</string>
     <string name="essential_notifications_summary">Important messages and alerts</string>
 
+    <!-- DataSwitch Tile -->
+    <string name="qs_data_switch_label">Switch data card</string>
+
     <!-- Internet -->
     <string name="status_bar_settings_network_speed">Internet speed</string>
 
