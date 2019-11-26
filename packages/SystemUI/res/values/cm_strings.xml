@@ -196,6 +196,9 @@
     <string name="qs_volume_dialog_title">Volume Control</string>
     <string name="qs_volume_dialog_mute">Mute</string>
 
+    <!-- DataSwitch Tile -->
+    <string name="qs_data_switch_label">Switch data card</string>
+
     <!-- Button to restart SystemUI, within the Restart Options dialog -->
     <string name="global_action_restart_systemui">SystemUI</string>
     
