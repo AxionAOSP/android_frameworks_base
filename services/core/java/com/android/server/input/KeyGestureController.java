@@ -87,6 +87,8 @@ import com.android.server.LocalServices;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.wm.WindowManagerInternal;
 
+import lineageos.providers.LineageSettings;
+
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.ByteArrayInputStream;
@@ -195,6 +197,8 @@ final class KeyGestureController {
     private int mRingerToggleChord = Settings.Secure.VOLUME_HUSH_OFF;
     private int mPowerVolUpBehavior;
 
+    // Click volume down + power for partial screenshot
+    private boolean mClickPartialScreenshot;
 
     // List of currently registered key gesture event listeners keyed by process pid
     @GuardedBy("mKeyGestureEventListenerRecords")
@@ -276,6 +280,9 @@ final class KeyGestureController {
                 Settings.Global.KEY_CHORD_POWER_VOLUME_UP,
                 mContext.getResources().getInteger(
                         com.android.internal.R.integer.config_keyChordPowerVolumeUp));
+        mClickPartialScreenshot = LineageSettings.System.getIntForUser(resolver,
+                LineageSettings.System.CLICK_PARTIAL_SCREENSHOT, 0,
+                UserHandle.USER_CURRENT) == 1;
     }
 
     private void initKeyCombinationRules() {
@@ -1484,6 +1491,9 @@ final class KeyGestureController {
             resolver.registerContentObserver(Settings.Global.getUriFor(
                             Settings.Global.KEY_CHORD_POWER_VOLUME_UP), false, this,
                     UserHandle.USER_ALL);
+            resolver.registerContentObserver(LineageSettings.System.getUriFor(
+                            LineageSettings.System.CLICK_PARTIAL_SCREENSHOT), false, this,
+                    UserHandle.USER_ALL);
         }
 
         @Override
@@ -1545,16 +1555,20 @@ final class KeyGestureController {
 
     private void takeScreenshot(int source, int displayId) {
         ScreenshotRequest request =
-                new ScreenshotRequest.Builder(WindowManager.TAKE_SCREENSHOT_FULLSCREEN, source)
+                new ScreenshotRequest.Builder(mClickPartialScreenshot ?
+                        WindowManager.TAKE_SCREENSHOT_SELECTED_REGION :
+                        WindowManager.TAKE_SCREENSHOT_FULLSCREEN, source)
                         .setDisplayId(displayId)
                         .build();
         mScreenshotHelper.takeScreenshot(request, mHandler, null /* completionConsumer */);
     }
 
     private long getScreenshotChordLongPressDelay() {
-        long delayMs = DeviceConfig.getLong(
+        // If click to partial screenshot is enabled, restore pre Android QPR1
+        // default delay (500ms) in case SCREENSHOT_KEYCHORD_DELAY is shorter than it.
+        long delayMs = Long.max(mClickPartialScreenshot ? 500 : 0, DeviceConfig.getLong(
                 DeviceConfig.NAMESPACE_SYSTEMUI, SCREENSHOT_KEYCHORD_DELAY,
-                ViewConfiguration.get(mContext).getScreenshotChordKeyTimeout());
+                ViewConfiguration.get(mContext).getScreenshotChordKeyTimeout()));
         if (mWindowManagerCallbacks.isKeyguardLocked(DEFAULT_DISPLAY)) {
             // Double the time it takes to take a screenshot from the keyguard
             return (long) (KEYGUARD_SCREENSHOT_CHORD_DELAY_MULTIPLIER * delayMs);
