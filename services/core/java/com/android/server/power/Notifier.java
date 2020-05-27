@@ -1171,8 +1171,11 @@ public class Notifier {
                 return;
             }
 
-            final Uri soundUri = Uri.parse("file://" + soundPath);
+            Uri soundUri = Uri.parse(soundPath);
             if (soundUri != null) {
+                if (!soundUri.isAbsolute()) {
+                    soundUri = Uri.parse("file://" + soundPath);
+                }
                 final Ringtone sfx = RingtoneManager.getRingtone(mContext, soundUri);
                 if (sfx != null) {
                     sfx.setStreamType(AudioManager.STREAM_SYSTEM);
