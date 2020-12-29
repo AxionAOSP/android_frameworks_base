@@ -88,4 +88,9 @@
     <string name="quick_settings_aod_powersave_label">Power save</string>
     <string name="quick_settings_aod_charge_only_label">Charge only</string>
     <string name="quick_settings_aod_always_label">Always on</string>
+
+    <!-- Label for notification action to delete a screen recording file [CHAR LIMIT=35] -->
+    <string name="screenrecord_delete_label">Delete</string>
+    <!-- A toast message shown after successfully deleting a screen recording [CHAR LIMIT=NONE] -->
+    <string name="screenrecord_delete_description">Screen recording deleted</string>
 </resources>
