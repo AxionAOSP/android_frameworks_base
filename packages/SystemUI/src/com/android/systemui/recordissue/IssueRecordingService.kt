@@ -70,6 +70,8 @@ constructor(
         userContextProvider,
         keyguardDismissUtil,
         screenRecordingStartTimeStore,
+        dialogTransitionAnimator,
+        panelInteractor,
     ) {
 
     private val traceurConnection: TraceurConnection = traceurConnectionProvider.create()
