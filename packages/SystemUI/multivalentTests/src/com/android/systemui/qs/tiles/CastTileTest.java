@@ -144,7 +144,7 @@ public class CastTileTest extends SysuiTestCase {
         WifiIndicators indicators = new WifiIndicators(
                 false, mock(IconState.class),
                 qsIcon, false, false, "",
-                false, "");
+                false, "", true);
         mSignalCallback.setWifiIndicators(indicators);
         mTestableLooper.processAllMessages();
 
@@ -158,7 +158,7 @@ public class CastTileTest extends SysuiTestCase {
         WifiIndicators indicators = new WifiIndicators(
                 true, mock(IconState.class),
                 qsIcon, false, false, "",
-                false, "");
+                false, "", true);
         mSignalCallback.setWifiIndicators(indicators);
         mTestableLooper.processAllMessages();
 
@@ -170,7 +170,7 @@ public class CastTileTest extends SysuiTestCase {
         WifiIndicators indicators = new WifiIndicators(
                 true, mock(IconState.class),
                 qsIcon, false, false, "",
-                false, "");
+                false, "", true);
         mSignalCallback.setWifiIndicators(indicators);
         mTestableLooper.processAllMessages();
     }
