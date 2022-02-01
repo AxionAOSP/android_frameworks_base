@@ -27,7 +27,7 @@
     <!-- Launcher restart dialog -->
     <java-symbol type="string" name="launcher_restart_title" />
     <java-symbol type="string" name="launcher_restart_message" />
-    
+
     <!-- Pocket mode -->
     <java-symbol type="layout" name="pocket_mode_layout" />
     <java-symbol type="drawable" name="prevent_mode_img" />
@@ -36,4 +36,8 @@
     <java-symbol type="id" name="pocket_mode_hint_message" />
     <java-symbol type="string" name="pocket_mode_active" />
     <java-symbol type="string" name="pocket_mode_hint" />
+
+    <!-- App lock -->
+    <java-symbol type="string" name="unlock_application" />
+    <java-symbol type="array" name="config_appLockAllowedSystemApps" />
 </resources>
