@@ -82,4 +82,7 @@ public interface NotificationManagerInternal {
     byte[] getBackupPayload(int user, BackupRestoreEventLogger logger);
 
     void applyRestore(byte[] payload, int user, BackupRestoreEventLogger logger);
+
+    void updateSecureNotifications(String pkg, boolean isContentSecure,
+        boolean isBubbleUpSuppressed, int userId);
 }
