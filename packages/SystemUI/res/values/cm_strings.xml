@@ -156,4 +156,7 @@
     <string name="usb_use_tethering">USB tethering</string>
     <string name="usb_use_MIDI">MIDI</string>
     <string name="usb_use">Use USB for</string>
+    
+    <!-- Name of the roaming status bar icon. -->
+    <string name="status_bar_roaming">Roaming indicator</string>
 </resources>
