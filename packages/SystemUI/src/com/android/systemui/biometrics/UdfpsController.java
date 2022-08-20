@@ -81,6 +81,7 @@ import com.android.systemui.biometrics.udfps.NormalizedTouchData;
 import com.android.systemui.biometrics.udfps.SinglePointerTouchProcessor;
 import com.android.systemui.biometrics.udfps.TouchProcessor;
 import com.android.systemui.biometrics.udfps.TouchProcessorResult;
+import com.android.systemui.biometrics.ui.view.UdfpsTouchOverlay;
 import com.android.systemui.biometrics.ui.viewmodel.DefaultUdfpsTouchOverlayViewModel;
 import com.android.systemui.biometrics.ui.viewmodel.DeviceEntryUdfpsTouchOverlayViewModel;
 import com.android.systemui.biometrics.ui.viewmodel.PromptUdfpsTouchOverlayViewModel;
@@ -856,11 +857,11 @@ public class UdfpsController implements DozeReceiver, Dumpable {
     }
 
     private void unconfigureDisplay(View view) {
-        if (!isOptical()) {
+        if (!isOptical() || !(view instanceof UdfpsTouchOverlay udfpsView)) {
             return;
         }
-        if (mUdfpsDisplayMode != null) {
-            mUdfpsDisplayMode.disable(null);
+        if (udfpsView.isDisplayConfigured()) {
+            udfpsView.unconfigureDisplay();
         }
     }
 
@@ -1063,11 +1064,11 @@ public class UdfpsController implements DozeReceiver, Dumpable {
         Trace.endAsyncSection("UdfpsController.e2e.onPointerDown", 0);
 
         final View view = mOverlay.getTouchOverlay();
-        if (view != null && isOptical()) {
+        if (isOptical() && view instanceof UdfpsTouchOverlay udfpsView) {
             if (mIgnoreRefreshRate) {
                 dispatchOnUiReady(requestId);
             } else {
-                    mUdfpsDisplayMode.enable(() -> dispatchOnUiReady(requestId));
+                udfpsView.configureDisplay(() -> dispatchOnUiReady(requestId));
             }
         }
 
