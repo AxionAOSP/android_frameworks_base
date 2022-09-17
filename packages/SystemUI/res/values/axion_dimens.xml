@@ -71,4 +71,7 @@
     <dimen name="network_speed_unit_text_size">6dp</dimen>
     <dimen name="network_speed_view_padding_end">2dp</dimen>
     <dimen name="network_speed_view_width">22dp</dimen>
+
+    <!-- The height of the WiFi toggle layout in Internet panel -->
+    <dimen name="internet_dialog_wifi_toggle_height">56dp</dimen>
 </resources>
