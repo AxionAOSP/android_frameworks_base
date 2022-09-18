@@ -20366,6 +20366,12 @@ public final class Settings {
         public static final String RESTRICTED_NETWORKING_MODE = "restricted_networking_mode";
 
         /**
+         * Control whether to remove the restriction when selecting folders through SAF.
+         * @hide
+         */
+        public static final String NO_STORAGE_RESTRICT = "no_storage_restrict";
+
+        /**
          * Setting indicating whether Low Power Standby is enabled, if supported.
          *
          * Values are:
