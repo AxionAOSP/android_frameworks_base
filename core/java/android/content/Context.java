@@ -6853,6 +6853,16 @@ public abstract class Context {
     public static final String DYNAMIC_INSTRUMENTATION_SERVICE = "dynamic_instrumentation";
 
     /**
+     * Use with {@link #getSystemService} to retrieve a
+     * {@link com.oplus.os.LinearmotorVibrator} for accessing linear motor vibrator state.
+     *
+     * @hide
+     * @see #getSystemService
+     * @see com.oplus.os.LinearmotorVibrator
+     */
+    public static final String LINEARMOTOR_VIBRATOR_SERVICE = "linearmotor";
+
+    /**
      * Determine whether the given permission is allowed for a particular
      * process and user ID running in the system.
      *
