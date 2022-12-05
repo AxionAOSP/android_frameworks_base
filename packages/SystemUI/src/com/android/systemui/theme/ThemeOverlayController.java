@@ -83,6 +83,7 @@ import com.android.systemui.monet.TonalPalette;
 import com.android.systemui.settings.UserTracker;
 import com.android.systemui.statusbar.policy.DeviceProvisionedController;
 import com.android.systemui.statusbar.policy.DeviceProvisionedController.DeviceProvisionedListener;
+import com.android.systemui.tuner.TunerService;
 import com.android.systemui.util.kotlin.JavaAdapter;
 import com.android.systemui.util.settings.SecureSettings;
 import com.android.systemui.util.settings.SystemSettings;
@@ -121,9 +122,20 @@ import javax.inject.Inject;
  * associated work profiles
  */
 @SysUISingleton
-public class ThemeOverlayController implements CoreStartable, Dumpable {
+public class ThemeOverlayController implements CoreStartable, Dumpable, TunerService.Tunable {
     protected static final String TAG = "ThemeOverlayController";
     private static final boolean DEBUG = true;
+
+    private static final String PREF_CHROMA_FACTOR ="monet_engine_chroma_factor";
+    private static final String PREF_LUMINANCE_FACTOR ="monet_engine_luminance_factor";
+    private static final String PREF_TINT_BACKGROUND ="monet_engine_tint_background";
+    private static final String PREF_CUSTOM_ACCENT_COLOR ="monet_engine_accent_color";
+    private static final String PREF_CUSTOM_BG_COLOR ="monet_engine_bg_color";
+    private static final String PREF_OVERRIDE_COLOR_ACCENT ="monet_engine_color_override_accent";
+    private static final String PREF_OVERRIDE_BGCOLOR ="monet_engine_override_bg_color";
+    private static final String PREF_THEME_STYLE = "monet_engine_theme_style";
+    private static final String PREF_COLOR_SOURCE = "monet_engine_color_source";
+    private static final String PREF_WHOLE_PALETTE = "monet_engine_whole_palette";
 
     private final ThemeOverlayApplier mThemeManager;
     private final UserManager mUserManager;
@@ -175,6 +187,19 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
     private ColorScheme mDarkColorScheme;
     private ColorScheme mLightColorScheme;
     private final RisingThemeController mThemeController;
+    private final TunerService mTunerService;
+
+    private float mChromaFactor = 1.0f;
+    private float mLuminanceFactor = 1.0f;
+    private boolean mTintBackground;
+    private boolean mOverrideColorAccent;
+    private boolean mWholePalette;
+    private boolean mCustomThemeStyleEnabled;
+    private int mCustomThemeStyle;
+    private int mCustomAccentColor;
+    private boolean mOverrideBgColor;
+    private Integer mCustomBgColor;
+    private String mWallpaperColorSource;
 
     // Defers changing themes until Setup Wizard is done.
     private boolean mDeferredThemeEvaluation;
@@ -335,7 +360,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
                     : new JSONObject(overlayPackageJson);
             // The latest applied wallpaper should be the source of system colors when:
             // There is not preset color applied and the incoming wallpaper color is not applied
-            String wallpaperPickerColorSource = jsonObject.optString(OVERLAY_COLOR_SOURCE);
+            String wallpaperPickerColorSource = mWallpaperColorSource;
             boolean userChosePresetColor = COLOR_SOURCE_PRESET.equals(wallpaperPickerColorSource);
             boolean userChoseLockScreenColor = COLOR_SOURCE_LOCK.equals(wallpaperPickerColorSource);
             boolean preserveLockScreenColor = isDestinationHomeOnly && userChoseLockScreenColor;
@@ -429,7 +454,8 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
             JavaAdapter javaAdapter,
             KeyguardTransitionInteractor keyguardTransitionInteractor,
             UiModeManager uiModeManager,
-            ActivityManager activityManager) {
+            ActivityManager activityManager,
+            TunerService tunerService) {
         mContext = context;
         mIsMonetEnabled = featureFlags.isEnabled(Flags.MONET);
         mIsFidelityEnabled = featureFlags.isEnabled(Flags.COLOR_FIDELITY);
@@ -450,6 +476,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
         mKeyguardTransitionInteractor = keyguardTransitionInteractor;
         mUiModeManager = uiModeManager;
         mActivityManager = activityManager;
+        mTunerService = tunerService;
         dumpManager.registerDumpable(TAG, this);
 
         Flow<Boolean> isFinishedInAsleepStateFlow = mKeyguardTransitionInteractor
@@ -556,6 +583,17 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
         mUserTracker.addCallback(mUserTrackerCallback, mMainExecutor);
         mDeviceProvisionedController.addCallback(mDeviceProvisionedListener);
 
+        mTunerService.addTunable(this, PREF_CHROMA_FACTOR);
+        mTunerService.addTunable(this, PREF_LUMINANCE_FACTOR);
+        mTunerService.addTunable(this, PREF_TINT_BACKGROUND);
+        mTunerService.addTunable(this, PREF_CUSTOM_ACCENT_COLOR);
+        mTunerService.addTunable(this, PREF_OVERRIDE_COLOR_ACCENT);
+        mTunerService.addTunable(this, PREF_OVERRIDE_BGCOLOR);
+        mTunerService.addTunable(this, PREF_CUSTOM_BG_COLOR);
+        mTunerService.addTunable(this, PREF_THEME_STYLE);
+        mTunerService.addTunable(this, PREF_COLOR_SOURCE);
+        mTunerService.addTunable(this, PREF_WHOLE_PALETTE);
+
         // Upon boot, make sure we have the most up to date colors
         Runnable updateColors = () -> {
             WallpaperColors systemColor = mWallpaperManager.getWallpaperColors(
@@ -609,6 +647,55 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
                 }
             });
         }
+    }
+
+    @Override
+    public void onTuningChanged(String key, String newValue) {
+        switch (key) {
+            case PREF_CHROMA_FACTOR:
+                float chromaFactor = (float) TunerService.parseInteger(newValue, 0) / 100f;
+                mChromaFactor = 1f + chromaFactor;
+                break;
+            case PREF_LUMINANCE_FACTOR:
+                float luminFactor = (float) TunerService.parseInteger(newValue, 0) / 100f;
+                mLuminanceFactor = 1f + luminFactor;
+                break;
+            case PREF_TINT_BACKGROUND:
+                mTintBackground =
+                        TunerService.parseIntegerSwitch(newValue, false);
+                break;
+            case PREF_OVERRIDE_COLOR_ACCENT:
+                mOverrideColorAccent =
+                        TunerService.parseIntegerSwitch(newValue, false);
+                break;
+            case PREF_CUSTOM_ACCENT_COLOR:
+                mCustomAccentColor =
+                        TunerService.parseInteger(newValue, 0xFF1b6ef3);
+                break;
+            case PREF_OVERRIDE_BGCOLOR:
+                mOverrideBgColor =
+                        TunerService.parseIntegerSwitch(newValue, false);
+                break;
+            case PREF_CUSTOM_BG_COLOR:
+                mCustomBgColor =
+                        TunerService.parseInteger(newValue, 0xFF1b6ef3);
+                break;
+            case PREF_THEME_STYLE:
+                mCustomThemeStyle =
+                        TunerService.parseInteger(newValue, -1 /* System */);
+                mCustomThemeStyleEnabled = mCustomThemeStyle != -1;
+                break;
+            case PREF_COLOR_SOURCE:
+                mWallpaperColorSource = (newValue == null || newValue.isEmpty()) 
+                    ? COLOR_SOURCE_HOME : newValue;
+                break;
+            case PREF_WHOLE_PALETTE:
+                mWholePalette =
+                        TunerService.parseIntegerSwitch(newValue, false);
+                break;
+            default:
+                break;
+         }
     }
 
     private void reevaluateSystemTheme(boolean forceReload) {
@@ -667,8 +754,16 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
     }
 
     private void createOverlays(int color) {
-        mDarkColorScheme = new ColorScheme(color, true /* isDark */, mThemeStyle, mContrast);
-        mLightColorScheme = new ColorScheme(color, false /* isDark */, mThemeStyle, mContrast);
+        final int mColor = mOverrideColorAccent ? mCustomAccentColor : color;
+        final float luminanceFactor = mLuminanceFactor;
+        final float chromaFactor = mChromaFactor;
+        final boolean wholePalette = mWholePalette;
+        final boolean tintBg = mTintBackground;
+        final Integer bgColor = mOverrideBgColor ? mCustomBgColor : null;
+        mDarkColorScheme = new ColorScheme(mColor, true /* isDark */, mThemeStyle, mContrast,
+                luminanceFactor, chromaFactor, wholePalette, tintBg, bgColor);
+        mLightColorScheme = new ColorScheme(mColor, false /* isDark */, mThemeStyle, mContrast,
+                luminanceFactor, chromaFactor, wholePalette, tintBg, bgColor);
         mColorScheme = isNightMode() ? mDarkColorScheme : mLightColorScheme;
 
         mNeutralOverlay = createNeutralOverlay();
@@ -889,6 +984,23 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
 
     @Style.Type
     private int fetchThemeStyleFromSetting() {
+        final Map<Integer, Integer> stylesMap = new java.util.HashMap<Integer, Integer>() {{
+            put(0, Style.SPRITZ);
+            put(1, Style.TONAL_SPOT);
+            put(2, Style.VIBRANT);
+            put(3, Style.EXPRESSIVE);
+            put(4, Style.RAINBOW);
+            put(5, Style.FRUIT_SALAD);
+            put(6, Style.CONTENT);
+            put(7, Style.MONOCHROMATIC);
+        }};
+
+        final List<Integer> validStyleInts = Arrays.asList(0, 1, 2, 3, 4, 5, 7);
+
+        if (mCustomThemeStyleEnabled) {
+            int customStyle = stylesMap.getOrDefault(mCustomThemeStyle, Style.TONAL_SPOT);
+            return validStyleInts.contains(mCustomThemeStyle) ? customStyle : Style.TONAL_SPOT;
+        }
         // Allow-list of Style objects that can be created from a setting string, i.e. can be
         // used as a system-wide theme.
         // - Content intentionally excluded, intended for media player, not system-wide
