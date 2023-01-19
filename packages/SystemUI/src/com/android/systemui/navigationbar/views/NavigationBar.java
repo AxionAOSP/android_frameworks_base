@@ -56,8 +56,10 @@ import android.annotation.NonNull;
 import android.app.ActivityTaskManager;
 import android.app.IActivityTaskManager;
 import android.app.StatusBarManager;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.Configuration;
+import android.database.ContentObserver;
 import android.graphics.Insets;
 import android.graphics.PixelFormat;
 import android.graphics.Point;
@@ -69,9 +71,12 @@ import android.inputmethodservice.InputMethodService.ImeWindowVisibility;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.RemoteException;
 import android.os.Trace;
+import android.os.UserHandle;
 import android.provider.DeviceConfig;
+import android.provider.Settings;
 import android.telecom.TelecomManager;
 import android.text.TextUtils;
 import android.util.Log;
@@ -186,6 +191,8 @@ public class NavigationBar extends ViewController<NavigationBarView> implements 
     private static final String EXTRA_APPEARANCE = "appearance";
     private static final String EXTRA_BEHAVIOR = "behavior";
     private static final String EXTRA_TRANSIENT_STATE = "transient_state";
+    
+    public static final String NAV_BAR_INVERSE = "sysui_nav_bar_inverse";
 
     /** Allow some time inbetween the long press for back and recents. */
     private static final int LOCK_TO_APP_GESTURE_TOLERANCE = 200;
@@ -243,6 +250,9 @@ public class NavigationBar extends ViewController<NavigationBarView> implements 
 
     private Locale mLocale;
     private int mLayoutDirection;
+
+    private ContentObserver mNavBarOrderContentObserver;
+    private ContentResolver mContentResolver;
 
     private Optional<Long> mHomeButtonLongPressDurationMs;
     private Optional<Long> mOverrideHomeButtonLongPressDurationMs = Optional.empty();
@@ -754,6 +764,18 @@ public class NavigationBar extends ViewController<NavigationBarView> implements 
 
         mNotificationShadeDepthController.addListener(mDepthListener);
         mTaskStackChangeListeners.registerTaskStackListener(mTaskStackListener);
+
+        // Navbar back/recents swap
+        mContentResolver = mContext.getContentResolver();
+        mNavBarOrderContentObserver = new ContentObserver(new Handler(Looper.getMainLooper())) {
+            @Override
+            public void onChange(boolean selfChange) {
+                mView.updateStates();
+            }
+        };
+        mContentResolver.registerContentObserver(
+                Settings.Secure.getUriFor(NAV_BAR_INVERSE),
+                true, mNavBarOrderContentObserver, UserHandle.USER_ALL);
     }
 
     public void destroyView() {
@@ -775,6 +797,7 @@ public class NavigationBar extends ViewController<NavigationBarView> implements 
 
             mDeviceConfigProxy.removeOnPropertiesChangedListener(mOnPropertiesChangedListener);
             mTaskStackChangeListeners.unregisterTaskStackListener(mTaskStackListener);
+            mContentResolver.unregisterContentObserver(mNavBarOrderContentObserver);
         } finally {
             Trace.endSection();
         }
