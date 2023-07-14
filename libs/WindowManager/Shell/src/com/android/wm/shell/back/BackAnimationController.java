@@ -128,6 +128,9 @@ public class BackAnimationController implements RemoteCallable<BackAnimationCont
     /** Registry for the back animations */
     private final ShellBackAnimationRegistry mShellBackAnimationRegistry;
 
+    /** @see #setTriggerLongSwipe(boolean) */
+    private boolean mTriggerLongSwipe;
+
     @Nullable
     private BackNavigationInfo mBackNavigationInfo;
     private boolean mReceivedNullNavigationInfo = false;
@@ -343,6 +346,12 @@ public class BackAnimationController implements RemoteCallable<BackAnimationCont
         @Override
         public void setTriggerBack(boolean triggerBack) {
             mShellExecutor.execute(() -> BackAnimationController.this.setTriggerBack(triggerBack));
+        }
+
+        @Override
+        public void setTriggerLongSwipe(boolean triggerLongSwipe) {
+            mShellExecutor.execute(
+                    () -> BackAnimationController.this.setTriggerLongSwipe(triggerLongSwipe));
         }
 
         @Override
@@ -761,6 +770,17 @@ public class BackAnimationController implements RemoteCallable<BackAnimationCont
         }
     }
 
+    /**
+     * Sets to true when the back long swipe gesture has passed the triggering threshold,
+     * false otherwise.
+     */
+    public void setTriggerLongSwipe(boolean triggerLongSwipe) {
+        if (mPostCommitAnimationInProgress) {
+            return;
+        }
+        mTriggerLongSwipe = triggerLongSwipe;
+    }
+
     private void setSwipeThresholds(
             float linearDistance,
             float maxDistance,
@@ -788,6 +808,11 @@ public class BackAnimationController implements RemoteCallable<BackAnimationCont
                 dispatchOnBackInvoked(callback);
             } else {
                 tryDispatchOnBackCancelled(callback);
+                if (mTriggerLongSwipe) {
+                    sendEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK,
+                            KeyEvent.FLAG_LONG_SWIPE);
+                    sendEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK, KeyEvent.FLAG_LONG_SWIPE);
+                }
             }
         }
         mRealCallbackInvoked = false;
@@ -804,6 +829,9 @@ public class BackAnimationController implements RemoteCallable<BackAnimationCont
             ProtoLog.d(WM_SHELL_BACK_PREVIEW,
                     "onGestureFinished called while no gesture is started");
             return;
+        }
+        if (mTriggerLongSwipe) {
+            mCurrentTracker.setTriggerBack(false);
         }
         boolean triggerBack = activeTouchTracker.getTriggerBack();
         ProtoLog.d(WM_SHELL_BACK_PREVIEW, "onGestureFinished() mTriggerBack == %s", triggerBack);
@@ -855,6 +883,18 @@ public class BackAnimationController implements RemoteCallable<BackAnimationCont
             return;
         }
         startPostCommitAnimation();
+    }
+
+    private boolean sendEvent(int action, int code, int flags) {
+        long when = SystemClock.uptimeMillis();
+        final KeyEvent ev = new KeyEvent(when, when, action, code, 0 /* repeat */,
+                0 /* metaState */, KeyCharacterMap.VIRTUAL_KEYBOARD, 0 /* scancode */,
+                flags | KeyEvent.FLAG_FROM_SYSTEM | KeyEvent.FLAG_VIRTUAL_HARD_KEY,
+                InputDevice.SOURCE_KEYBOARD);
+
+        ev.setDisplayId(mContext.getDisplay().getDisplayId());
+        return InputManager.getInstance().injectInputEvent(
+                ev, InputManager.INJECT_INPUT_EVENT_MODE_ASYNC);
     }
 
     /**
@@ -994,6 +1034,7 @@ public class BackAnimationController implements RemoteCallable<BackAnimationCont
             mBackNavigationInfo = null;
             requestTopUi(false, mPreviousNavigationType);
         }
+        mTriggerLongSwipe = false;
     }
 
     private void startLatencyTracking() {
