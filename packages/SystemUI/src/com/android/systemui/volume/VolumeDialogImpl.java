@@ -2438,7 +2438,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
         final int vlevel = row.ss.muted && (!isRingStream && !zenMuted) ? 0
                 : row.ss.level;
         Trace.beginSection("VolumeDialogImpl#updateVolumeRowSliderH");
-        updateVolumeRowSliderH(row, enableSlider, vlevel);
+        updateVolumeRowSliderH(row, enableSlider, vlevel, max != row.slider.getMax());
         Trace.endSection();
         if (row.number != null) row.number.setText(Integer.toString(vlevel));
     }
@@ -2485,6 +2485,10 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
     }
 
     private void updateVolumeRowSliderH(VolumeRow row, boolean enable, int vlevel) {
+        updateVolumeRowSliderH(row, enable, vlevel, false);
+    }
+
+    private void updateVolumeRowSliderH(VolumeRow row, boolean enable, int vlevel, boolean force) {
         row.slider.setEnabled(enable);
         updateVolumeRowTintH(row, row.stream == mActiveStream);
         if (row.tracking) {
@@ -2508,7 +2512,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
             }
         }
         final int newProgress = getProgressFromVolume(row.ss, row.slider, vlevel);
-        if (progress != newProgress) {
+        if (progress != newProgress || force) {
             if (mIsTv) {
                 // don't animate slider on TVs
                 row.slider.setProgress(newProgress, false);
