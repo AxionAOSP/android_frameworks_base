@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2016-2025 crDroid Android Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+
+    <!-- Height of the landscape battery icon in the status bar. -->
+    <dimen name="status_bar_battery_icon_height_landscape">10.5dp</dimen>
+
+    <!-- Width of the landscape battery icon in the status bar. -->
+    <dimen name="status_bar_battery_icon_width_landscape">20dp</dimen>
+
+    <!-- HD calling icon -->
+    <dimen name="signal_icon_viewport_size">24dp</dimen>
+</resources>
