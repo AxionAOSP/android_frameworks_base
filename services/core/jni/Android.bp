@@ -228,6 +228,9 @@ cc_defaults {
             ],
         },
     },
+    lto: {
+        thin: true,
+    },
 }
 
 filegroup {
