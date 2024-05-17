@@ -35,9 +35,11 @@ import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
+import android.media.session.MediaSessionLegacyHelper;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Message;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
@@ -51,6 +53,8 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.SeekBar;
+import android.widget.SeekBar.OnSeekBarChangeListener;
 import android.widget.TextView;
 
 import androidx.annotation.VisibleForTesting;
@@ -61,13 +65,14 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.android.systemui.broadcast.BroadcastSender;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.phone.SystemUIDialog;
+import com.android.systemui.util.MediaSessionManagerHelper;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 /** Base dialog for media output UI */
 public abstract class MediaOutputBaseDialog extends SystemUIDialog
-        implements MediaSwitchingController.Callback, Window.Callback {
+        implements MediaSwitchingController.Callback, Window.Callback, MediaSessionManagerHelper.MediaMetadataListener {
 
     private static final String TAG = "MediaOutputDialog";
     private static final String EMPTY_TITLE = " ";
@@ -82,6 +87,12 @@ public abstract class MediaOutputBaseDialog extends SystemUIDialog
     final Context mContext;
     final MediaSwitchingController mMediaSwitchingController;
     final BroadcastSender mBroadcastSender;
+    
+    private final MediaSessionManagerHelper mMediaSessionManagerHelper;
+    private SeekBar mSeekBar;
+    private Handler mSeekBarUpdateHandler;
+    private long mTotalDuration;
+    private long mCurrentPosition;
 
     /**
      * Signals whether the dialog should NOT show app-related metadata.
@@ -111,6 +122,11 @@ public abstract class MediaOutputBaseDialog extends SystemUIDialog
     private boolean mShouldLaunchLeBroadcastDialog;
     private boolean mIsLeBroadcastCallbackRegistered;
     private boolean mDismissing;
+    
+    private ImageView mPrevIcon;
+    private ImageView mPlayIcon;
+    private ImageView mNexticon;
+    private TextView mCurrentTime, mTotalTime;
 
     MediaOutputBaseAdapter mAdapter;
 
@@ -235,6 +251,7 @@ public abstract class MediaOutputBaseDialog extends SystemUIDialog
                 R.dimen.media_output_dialog_list_padding_top);
         mExecutor = Executors.newSingleThreadExecutor();
         mIncludePlaybackAndAppMetadata = includePlaybackAndAppMetadata;
+        mMediaSessionManagerHelper = MediaSessionManagerHelper.Companion.getInstance(mContext);
     }
 
     @Override
@@ -266,6 +283,42 @@ public abstract class MediaOutputBaseDialog extends SystemUIDialog
         mAppResourceIcon = mDialogView.requireViewById(R.id.app_source_icon);
         mCastAppLayout = mDialogView.requireViewById(R.id.cast_app_section);
         mBroadcastIcon = mDialogView.requireViewById(R.id.broadcast_icon);
+        mNexticon = mDialogView.requireViewById(R.id.next_button);
+        mPlayIcon = mDialogView.requireViewById(R.id.play_button);
+        mPrevIcon = mDialogView.requireViewById(R.id.prev_button);
+        mCurrentTime = mDialogView.findViewById(R.id.current_time);
+        mTotalTime = mDialogView.findViewById(R.id.total_time);
+
+        mNexticon.setOnClickListener(v -> mMediaSessionManagerHelper.nextSong());
+        mPlayIcon.setOnClickListener(v -> mMediaSessionManagerHelper.toggleMediaPlaybackState());
+        mPrevIcon.setOnClickListener(v -> mMediaSessionManagerHelper.prevSong());
+
+        mSeekBar = mDialogView.requireViewById(R.id.seekBar);
+
+        mSeekBarUpdateHandler = new Handler(Looper.getMainLooper()) {
+            @Override
+            public void handleMessage(Message msg) {
+                updateSeekBar();
+            }
+        };
+
+        mSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser) {
+                    long seekToTime = (mTotalDuration * progress) / 100;
+                    mMediaSessionManagerHelper.seekTo(seekToTime);
+                }
+            }
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                stopSeekBarUpdates();
+            }
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                startSeekBarUpdates();
+            }
+        });
 
         mDeviceListLayout.getViewTreeObserver().addOnGlobalLayoutListener(
                 mDeviceListLayoutListener);
@@ -282,6 +335,18 @@ public abstract class MediaOutputBaseDialog extends SystemUIDialog
                 mMediaSwitchingController::tryToLaunchMediaApplication);
 
         mDismissing = false;
+    }
+    
+    private void updateMediaState() {
+        if (mPlayIcon == null) return;
+        mPlayIcon.setImageDrawable(mContext.getDrawable(mMediaSessionManagerHelper.isMediaPlaying() ? R.drawable.ic_media_output_pause : R.drawable.ic_media_output_play));
+        refresh();
+    }
+    
+    @Override
+    public void show() {
+        super.show();
+        updateMediaState();
     }
 
     @Override
@@ -302,6 +367,7 @@ public abstract class MediaOutputBaseDialog extends SystemUIDialog
                     mExecutor, mBroadcastCallback);
             mIsLeBroadcastCallbackRegistered = true;
         }
+        mMediaSessionManagerHelper.addMediaMetadataListener(this);
     }
 
     @Override
@@ -314,6 +380,8 @@ public abstract class MediaOutputBaseDialog extends SystemUIDialog
             mIsLeBroadcastCallbackRegistered = false;
         }
         mMediaSwitchingController.stop();
+        mMediaSessionManagerHelper.removeMediaMetadataListener(this);
+        stopSeekBarUpdates();
     }
 
     @VisibleForTesting
@@ -377,6 +445,20 @@ public abstract class MediaOutputBaseDialog extends SystemUIDialog
             } else {
                 mAppResourceIcon.setVisibility(View.GONE);
             }
+        }
+        int mediaColor = mMediaSwitchingController.getColorItemContent();
+        mNexticon.setColorFilter(mediaColor);
+        mPlayIcon.setColorFilter(mediaColor);
+        mPrevIcon.setColorFilter(mediaColor);
+        mCurrentTime.setTextColor(mediaColor);
+        mTotalTime.setTextColor(mediaColor);
+        Drawable progressDrawable = mSeekBar.getProgressDrawable();
+        if (progressDrawable != null) {
+            progressDrawable.setColorFilter(mediaColor, PorterDuff.Mode.SRC_IN);
+        }
+        Drawable thumbDrawable = mSeekBar.getThumb();
+        if (thumbDrawable != null) {
+            thumbDrawable.setColorFilter(mediaColor, PorterDuff.Mode.SRC_IN);
         }
         if (mHeaderIcon.getVisibility() == View.VISIBLE) {
             final int size = getHeaderIconSize();
@@ -600,6 +682,53 @@ public abstract class MediaOutputBaseDialog extends SystemUIDialog
     @Override
     public void dismissDialog() {
         mBroadcastSender.closeSystemDialogs();
+    }
+
+    @Override
+    public void onMediaMetadataChanged() {
+        updateMediaState();
+    }
+
+    @Override
+    public void onPlaybackStateChanged() {
+        updateMediaState();
+        if (mMediaSessionManagerHelper.isMediaPlaying()) {
+            startSeekBarUpdates();
+        } else {
+            stopSeekBarUpdates();
+        }
+    }
+
+    private void startSeekBarUpdates() {
+        mSeekBarUpdateHandler.sendEmptyMessageDelayed(0, 500);
+    }
+
+    private void stopSeekBarUpdates() {
+        mSeekBarUpdateHandler.removeMessages(0);
+    }
+
+    private void updateSeekBar() {
+        mTotalDuration = mMediaSessionManagerHelper.getTotalDuration();
+        android.media.session.PlaybackState playbackState = mMediaSessionManagerHelper.getMediaControllerPlaybackState();
+        if (playbackState != null) {
+            mCurrentPosition = playbackState.getPosition();
+            if (mMediaSessionManagerHelper.isMediaPlaying()) {
+                int progress = (int) ((mCurrentPosition * 100) / mTotalDuration);
+                mSeekBar.setProgress(progress);
+                mCurrentTime.setText(formatTime(mCurrentPosition));
+                mTotalTime.setText(formatTime(mTotalDuration));
+                startSeekBarUpdates();
+            }
+        } else {
+            mCurrentTime.setText("0:00");
+            mTotalTime.setText("0:00");
+        }
+    }
+
+    private String formatTime(long timeInMillis) {
+        int seconds = (int) (timeInMillis / 1000) % 60;
+        int minutes = (int) ((timeInMillis / 1000) / 60);
+        return String.format("%02d:%02d", minutes, seconds);
     }
 
     void onHeaderIconClick() {
