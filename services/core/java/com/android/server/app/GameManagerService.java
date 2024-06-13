@@ -2411,8 +2411,8 @@ public final class GameManagerService extends IGameManagerService.Stub {
 
         @Override
         public void onChange(boolean selfChange, Uri uri) {
-            String newValue = Settings.Secure.getString(mContentResolver,
-                    "game_overlay");
+            String newValue = Settings.Secure.getStringForUser(mContentResolver,
+                    "game_overlay", UserHandle.USER_CURRENT);
             if (newValue == null) return;
             // We write key and value of the device_config property as a single string
             // from our GameSpace.
