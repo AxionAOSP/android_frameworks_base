@@ -36,7 +36,6 @@
     <java-symbol type="id" name="pocket_mode_hint_message" />
     <java-symbol type="string" name="pocket_mode_active" />
     <java-symbol type="string" name="pocket_mode_hint" />
-
     <!-- App lock -->
     <java-symbol type="string" name="unlock_application" />
     <java-symbol type="array" name="config_appLockAllowedSystemApps" />
@@ -61,4 +60,6 @@
 
     <!-- GameSpace -->
     <java-symbol type="string" name="gamespace_new_game_added" />
+    
+    <java-symbol type="array" name="config_certifiedKeybox" />
 </resources>
