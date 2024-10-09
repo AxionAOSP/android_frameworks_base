@@ -1971,6 +1971,11 @@ public class ApplicationPackageManager extends PackageManager {
             return icon;
         }
 
+        DevicePolicyManager devicePolicyManager = getDevicePolicyManager();
+        if (devicePolicyManager == null) {
+            return icon;
+        }
+
         final Drawable badgeForeground = getDevicePolicyManager().getResources().getDrawable(
                 getUpdatableUserIconBadgeId(user),
                 SOLID_COLORED,
