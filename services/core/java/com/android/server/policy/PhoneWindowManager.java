@@ -275,6 +275,8 @@ import lineageos.providers.LineageSettings;
 import org.lineageos.internal.buttons.LineageButtons;
 import org.lineageos.internal.util.ActionUtils;
 
+import org.rising.server.ShakeGestureService;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -689,6 +691,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     Intent mVrHeadsetHomeIntent;
     boolean mPendingMetaAction;
     boolean mPendingCapsLockToggle;
+    
+    private ShakeGestureService mShakeGestures;
 
     // Tracks user-customisable behavior for certain key events
     private Action mBackLongPressAction;
@@ -701,6 +705,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private Action mAppSwitchPressAction;
     private Action mAppSwitchLongPressAction;
     private Action mEdgeLongSwipeAction;
+    private Action mShakeGestureAction;
 
     // support for activating the lock screen while the screen is on
     private HashSet<Integer> mAllowLockscreenWhenOnDisplays = new HashSet<>();
@@ -1127,6 +1132,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     UserHandle.USER_ALL);
             resolver.registerContentObserver(Settings.System.getUriFor(
                     "power_button_action_double_press_custom_app_pkg"), true, this,
+                    UserHandle.USER_ALL);
+            resolver.registerContentObserver(LineageSettings.System.getUriFor(
+                    LineageSettings.System.KEY_SHAKE_GESTURE_ACTION), false, this,
                     UserHandle.USER_ALL);
             updateSettings();
         }
@@ -3424,6 +3432,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mEdgeLongSwipeAction = Action.fromSettings(resolver,
                 LineageSettings.System.KEY_EDGE_LONG_SWIPE_ACTION,
                 mEdgeLongSwipeAction);
+
+        mShakeGestureAction = Action.fromSettings(resolver,
+                LineageSettings.System.KEY_SHAKE_GESTURE_ACTION,
+                Action.NOTHING);
 
         mShortPressOnWindowBehavior = SHORT_PRESS_WINDOW_NOTHING;
         if (mPackageManager.hasSystemFeature(FEATURE_PICTURE_IN_PICTURE)) {
@@ -7530,6 +7542,21 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         if (mVrManagerInternal != null) {
             mVrManagerInternal.addPersistentVrModeStateListener(mPersistentVrModeListener);
         }
+        
+        mShakeGestures = ShakeGestureService.getInstance(mContext, new ShakeGestureService.ShakeGesturesCallbacks() {
+            @Override
+            public void onShake() {
+                if (mShakeGestureAction == Action.NOTHING)
+                    return;
+                long now = SystemClock.uptimeMillis();
+                KeyEvent event = new KeyEvent(now, now, KeyEvent.ACTION_DOWN,
+                        KeyEvent.KEYCODE_SYSRQ, 0, 0, KeyCharacterMap.VIRTUAL_KEYBOARD, 0,
+                        KeyEvent.FLAG_FROM_SYSTEM, InputDevice.SOURCE_TOUCHSCREEN);
+                performKeyAction(mShakeGestureAction, event);
+                performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, "Shake Gesture");
+            }
+        });
+        mShakeGestures.onStart();
 
         readCameraLensCoverState();
         updateUiMode();
