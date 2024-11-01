@@ -49,24 +49,7 @@ constexpr static MemoryPolicy sExtremeLowRam{
 };
 
 const MemoryPolicy& loadMemoryPolicy() {
-    if (Properties::isSystemOrPersistent) {
-        return sPersistentOrSystemPolicy;
-    }
-    std::string memoryPolicy = base::GetProperty(PROPERTY_MEMORY_POLICY, "");
-    if (memoryPolicy == "default") {
-        return sDefaultMemoryPolicy;
-    }
-    if (memoryPolicy == "lowram") {
-        return sLowRamPolicy;
-    }
-    if (memoryPolicy == "extremelowram") {
-        return sExtremeLowRam;
-    }
-
-    if (Properties::isLowRam) {
-        return sLowRamPolicy;
-    }
-    return sDefaultMemoryPolicy;
+    return sLowRamPolicy;
 }
 
 }  // namespace android::uirenderer
