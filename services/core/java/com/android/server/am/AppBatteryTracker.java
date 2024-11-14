@@ -1559,22 +1559,22 @@ final class AppBatteryTracker extends BaseAppStateTracker<AppBatteryPolicy>
             float[] val = getFloatArray(resources.obtainTypedArray(
                     R.array.config_bg_current_drain_threshold_to_restricted_bucket));
             mDefaultBgCurrentDrainRestrictedBucket =
-                    isLowRamDeviceStatic() ? val[1] : val[0];
+                    val[1];
             val = getFloatArray(resources.obtainTypedArray(
                     R.array.config_bg_current_drain_threshold_to_bg_restricted));
             mDefaultBgCurrentDrainBgRestrictedThreshold =
-                    isLowRamDeviceStatic() ? val[1] : val[0];
+                    val[1];
             mDefaultBgCurrentDrainWindowMs = resources.getInteger(
                     R.integer.config_bg_current_drain_window) * 1_000;
             mDefaultBgCurrentDrainInteractionGracePeriodMs = mDefaultBgCurrentDrainWindowMs;
             val = getFloatArray(resources.obtainTypedArray(
                     R.array.config_bg_current_drain_high_threshold_to_restricted_bucket));
             mDefaultBgCurrentDrainRestrictedBucketHighThreshold =
-                    isLowRamDeviceStatic() ? val[1] : val[0];
+                    val[1];
             val = getFloatArray(resources.obtainTypedArray(
                     R.array.config_bg_current_drain_high_threshold_to_bg_restricted));
             mDefaultBgCurrentDrainBgRestrictedHighThreshold =
-                    isLowRamDeviceStatic() ? val[1] : val[0];
+                    val[1];
             mDefaultBgCurrentDrainMediaPlaybackMinDuration = resources.getInteger(
                     R.integer.config_bg_current_drain_media_playback_min_duration) * 1_000;
             mDefaultBgCurrentDrainLocationMinDuration = resources.getInteger(
