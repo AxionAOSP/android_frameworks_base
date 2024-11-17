@@ -870,7 +870,7 @@ public class InputManagerService extends IInputManager.Stub
      * @param connectionToken The input channel to unregister.
      */
     public void removeInputChannel(IBinder connectionToken) {
-        Objects.requireNonNull(connectionToken, "connectionToken must not be null");
+        if (connectionToken == null) return;
         mNative.removeInputChannel(connectionToken);
     }
 
