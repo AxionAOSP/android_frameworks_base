@@ -672,7 +672,7 @@ public class FaceService extends SystemService {
             final List<ServiceProvider> providers = new ArrayList<>();
             FaceSensorPropertiesInternal props = new FaceSensorPropertiesInternal(
                     SenseProvider.DEVICE_ID,
-                    SensorProperties.STRENGTH_WEAK,
+                    SensorProperties.STRENGTH_STRONG,
                     1, /** maxEnrollmentsPerUser **/
                     new ArrayList(),
                     FaceSensorProperties.TYPE_RGB,
