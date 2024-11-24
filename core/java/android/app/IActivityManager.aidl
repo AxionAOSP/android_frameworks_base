@@ -1049,4 +1049,9 @@ interface IActivityManager {
     void setThreadAffinity(int pid, int affinity);
     void setPerformanceMode(boolean enabled);
     boolean isBoostingAnimation();
+
+    /**
+     * Force full screen
+     */
+    boolean shouldForceLongScreen(in String packageName);
 }
