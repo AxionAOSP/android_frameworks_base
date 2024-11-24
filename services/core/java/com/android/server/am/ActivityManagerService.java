@@ -19458,4 +19458,9 @@ public class ActivityManagerService extends IActivityManager.Stub
     public void setThreeGestureStateActive(boolean active) {
         mThreeFingerGestureActive = active;
     }
+    
+    @Override
+    public boolean shouldForceLongScreen(String packageName) {
+        return mActivityTaskManager.shouldForceLongScreen(packageName);
+    }
 }
