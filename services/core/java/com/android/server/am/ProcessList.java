@@ -2006,6 +2006,11 @@ public final class ProcessList {
                 runtimeFlags |= Zygote.ONLY_USE_SYSTEM_OAT_FILES;
             }
 
+            if (app.info.isPrivilegedApp()) {
+                // Privileged apps can use real-time thread priorities.
+                runtimeFlags |= Zygote.ALLOW_RT_PRIO;
+            }
+
             if (!disableHiddenApiChecks && !mService.mHiddenApiBlacklist.isDisabled()) {
                 app.info.maybeUpdateHiddenApiEnforcementPolicy(
                         mService.mHiddenApiBlacklist.getPolicy());
