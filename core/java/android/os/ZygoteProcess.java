@@ -25,6 +25,7 @@ import android.compat.annotation.UnsupportedAppUsage;
 import android.content.pm.ApplicationInfo;
 import android.net.LocalSocket;
 import android.net.LocalSocketAddress;
+import android.system.OsConstants;
 import android.util.Log;
 import android.util.Pair;
 import android.util.Slog;
@@ -777,6 +778,17 @@ public class ZygoteProcess {
             }
 
             argsForZygote.add(sb.toString());
+        }
+
+        // Tell Zygote to increase RLIMIT_RTPRIO, allowing the newly-created process to set
+        // real-time priorities for its threads.
+        if ((runtimeFlags & Zygote.ALLOW_RT_PRIO) != 0) {
+            // Cap the max RT priority at 49, reserving higher priorities for critical OS
+            // threads (e.g. threaded IRQ handlers).
+            final int MAX_RT_PRIO = 49;
+
+            argsForZygote.add("--rlimit=" + OsConstants.RLIMIT_RTPRIO + "," +
+                    MAX_RT_PRIO + "," + MAX_RT_PRIO);
         }
 
         argsForZygote.add(processClass);
