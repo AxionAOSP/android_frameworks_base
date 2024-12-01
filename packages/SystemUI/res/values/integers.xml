@@ -48,4 +48,7 @@
     <integer name="max_notif_icons_on_lockscreen">3</integer>
     <!-- Maximum number of notification icons shown in the status bar (excluding overflow dot) -->
     <integer name="max_notif_static_icons">4</integer>
+    
+    <integer name="tile_active_state_percentage_alpha">100</integer>
+    <integer name="tile_inactive_state_percentage_alpha">0</integer>
 </resources>
