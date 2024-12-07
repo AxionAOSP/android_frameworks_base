@@ -1141,7 +1141,7 @@ public class InternetDetailsContentController implements AccessPointController.A
     }
 
     public boolean isDeviceLocked() {
-        return !mKeyguardStateController.isUnlocked();
+        return false;
     }
 
     boolean activeNetworkIsCellular() {
