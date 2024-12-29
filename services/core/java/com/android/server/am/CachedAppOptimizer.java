@@ -2662,14 +2662,15 @@ public class CachedAppOptimizer {
                 // Check if the frozen process has pending async calls
                 pidsAsync::contains,
 
-                // Kill the current process if it's running out of async binder space
+                // Unfreeze the current process if it's running out of async binder space
                 (current, free) -> {
                     if (free < mFreezerBinderAsyncThreshold) {
-                        Slog.w(TAG_AM, "pid " + current
-                                + " has " + free + " free async space, killing");
-                        killProcess(current, "Async binder space running out while frozen",
-                                ApplicationExitInfo.REASON_FREEZER,
-                                ApplicationExitInfo.SUBREASON_FREEZER_BINDER_ASYNC_FULL);
+                        ProcessRecord app = mFrozenProcesses.get(current);
+                        if (app != null) {
+                            Slog.w(TAG_AM, "pid " + current
+                                    + " has " + free + " free async space, unfreezing temporarily");
+                            unfreezeTemporarily(app, UNFREEZE_REASON_PING);
+                        }
                     }
                 },
 
