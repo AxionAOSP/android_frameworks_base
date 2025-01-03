@@ -43,19 +43,28 @@ class SecureLockscreenQSDisabler @Inject constructor(
     private var disableQSOnSecureLockscreen: Boolean = shouldDisableQS()
 
     init {
+    val callback =
+        object : KeyguardStateController.Callback {
+            override fun onUnlockedChanged() {
+                recomputeDisableFlags()
+            }
+
+            override fun onKeyguardShowingChanged() {
+                recomputeDisableFlags()
+            }
+        }
         val settingsObserver = object: ContentObserver(handler) {
             override fun onChange(selfChange: Boolean) {
-                disableQSOnSecureLockscreen = shouldDisableQS()
                 recomputeDisableFlags()
             }
         }
         systemSettings.registerContentObserverForUserSync(SECURE_LOCKSCREEN_QS_DISABLED,
             settingsObserver, UserHandle.USER_ALL)
+        keyguardStateController.addCallback(callback)
     }
 
     fun adjustDisableFlags(state2: Int): Int {
-        return if (disableQSOnSecureLockscreen &&
-                !keyguardStateController.isUnlocked()) {
+        return if (disableQSOnSecureLockscreen) {
             state2 or StatusBarManager.DISABLE2_QUICK_SETTINGS
         } else {
             state2
@@ -64,9 +73,10 @@ class SecureLockscreenQSDisabler @Inject constructor(
 
     private fun shouldDisableQS(): Boolean =
         systemSettings.getIntForUser(SECURE_LOCKSCREEN_QS_DISABLED,
-            0, UserHandle.USER_CURRENT) == 1
+            0, UserHandle.USER_CURRENT) == 1 && !keyguardStateController.isUnlocked()
 
     private fun recomputeDisableFlags() {
+        disableQSOnSecureLockscreen = shouldDisableQS()
         commandQueue.recomputeDisableFlags(context.displayId, true /** animate */)
     }
 }
