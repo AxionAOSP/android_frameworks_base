@@ -139,19 +139,17 @@ public class BluetoothTile extends QSTileImpl<BooleanState> {
     }
 
     private void handleClickEvent(@Nullable Expandable expandable) {
-        if (mFeatureFlags.isEnabled(Flags.BLUETOOTH_QS_TILE_DIALOG)) {
-            mDialogViewModel.showDialog(expandable);
-        } else {
-            // Secondary clicks are header clicks, just toggle.
-            toggleBluetooth();
-        }
+        toggleBluetooth();
     }
 
-
+    @Override
+    protected void handleLongClick(@Nullable Expandable expandable) {
+        mDialogViewModel.showDialog(expandable);
+    }
 
     @Override
     public Intent getLongClickIntent() {
-        return new Intent(Settings.ACTION_BLUETOOTH_SETTINGS);
+        return null;
     }
 
     @Override
