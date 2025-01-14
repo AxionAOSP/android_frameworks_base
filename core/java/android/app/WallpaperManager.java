@@ -2307,7 +2307,7 @@ public class WallpaperManager {
                 FileOutputStream fos = null;
                 try {
                     fos = new ParcelFileDescriptor.AutoCloseOutputStream(fd);
-                    fullImage.compress(Bitmap.CompressFormat.PNG, 90, fos);
+                    fullImage.compress(Bitmap.CompressFormat.WEBP_LOSSY, 90, fos);
                     fos.close();
                     completion.waitForCompletion();
                 } finally {
@@ -2366,7 +2366,7 @@ public class WallpaperManager {
                 FileOutputStream fos = null;
                 try {
                     fos = new ParcelFileDescriptor.AutoCloseOutputStream(fd);
-                    fullImage.compress(Bitmap.CompressFormat.PNG, 90, fos);
+                    fullImage.compress(Bitmap.CompressFormat.WEBP_LOSSY, 90, fos);
                     fos.close();
                     completion.waitForCompletion();
                 } finally {
