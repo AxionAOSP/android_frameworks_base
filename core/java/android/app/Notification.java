@@ -11200,7 +11200,7 @@ public class Notification implements Parcelable
             super.reduceImageSizes(context);
             if (mOverlayIcon != null) {
                 final Resources resources = context.getResources();
-                final boolean isLowRam = ActivityManager.isLowRamDeviceStatic();
+                final boolean isLowRam = true;
 
                 int rightIconSize = resources.getDimensionPixelSize(isLowRam
                         ? R.dimen.notification_right_icon_size_low_ram
