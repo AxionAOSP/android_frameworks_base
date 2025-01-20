@@ -62,6 +62,7 @@ import com.android.launcher3.icons.BaseIconFactory;
 import com.android.launcher3.icons.IconProvider;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.policy.ScreenDecorationsUtils;
 import com.android.wm.shell.R;
 import com.android.wm.shell.ShellTaskOrganizer;
 import com.android.wm.shell.common.DisplayController;
@@ -216,7 +217,8 @@ public class CaptionWindowDecoration extends WindowDecoration<WindowDecorLinearL
             ActivityManager.RunningTaskInfo taskInfo,
             boolean applyStartTransactionOnDraw,
             boolean setTaskCropAndPosition,
-            InsetsState displayInsetsState) {
+            InsetsState displayInsetsState,
+            int cornerRadius) {
         relayoutParams.reset();
         relayoutParams.mRunningTaskInfo = taskInfo;
         relayoutParams.mLayoutResId = R.layout.caption_window_decor;
@@ -226,6 +228,7 @@ public class CaptionWindowDecoration extends WindowDecoration<WindowDecorLinearL
                 : R.dimen.freeform_decor_shadow_unfocused_thickness;
         relayoutParams.mApplyStartTransactionOnDraw = applyStartTransactionOnDraw;
         relayoutParams.mSetTaskPositionAndCrop = setTaskCropAndPosition;
+        relayoutParams.mCornerRadius = cornerRadius;
 
         if (TaskInfoKt.isTransparentCaptionBarAppearance(taskInfo)) {
             // If the app is requesting to customize the caption bar, allow input to fall
@@ -260,9 +263,11 @@ public class CaptionWindowDecoration extends WindowDecoration<WindowDecorLinearL
         final WindowDecorLinearLayout oldRootView = mResult.mRootView;
         final SurfaceControl oldDecorationSurface = mDecorationContainerSurface;
         final WindowContainerTransaction wct = new WindowContainerTransaction();
+        
+        final int cornerRadius = (int) ScreenDecorationsUtils.getWindowCornerRadius(mContext);
 
         updateRelayoutParams(mRelayoutParams, taskInfo, applyStartTransactionOnDraw,
-                setTaskCropAndPosition, mDisplayController.getInsetsState(taskInfo.displayId));
+                setTaskCropAndPosition, mDisplayController.getInsetsState(taskInfo.displayId), cornerRadius);
 
         relayout(mRelayoutParams, startT, finishT, wct, oldRootView, mResult);
         // After this line, mTaskInfo is up-to-date and should be used instead of taskInfo
@@ -303,7 +308,7 @@ public class CaptionWindowDecoration extends WindowDecoration<WindowDecorLinearL
                 .getScaledTouchSlop();
 
         final Resources res = mResult.mRootView.getResources();
-        mDragResizeListener.setGeometry(new DragResizeWindowGeometry(0 /* taskCornerRadius */,
+        mDragResizeListener.setGeometry(new DragResizeWindowGeometry(cornerRadius /* taskCornerRadius */,
                 new Size(mResult.mWidth, mResult.mHeight), getResizeEdgeHandleSize(res),
                 getResizeHandleEdgeInset(res), getFineResizeCornerSize(res),
                 getLargeResizeCornerSize(res)), touchSlop);
