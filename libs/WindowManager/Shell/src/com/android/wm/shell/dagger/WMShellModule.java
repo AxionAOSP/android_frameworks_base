@@ -322,7 +322,8 @@ public abstract class WMShellModule {
                 syncQueue,
                 transitions,
                 focusTransitionObserver,
-                windowDecorViewHostSupplier);
+                windowDecorViewHostSupplier,
+                interactionJankMonitor);
     }
 
     @WMSingleton
