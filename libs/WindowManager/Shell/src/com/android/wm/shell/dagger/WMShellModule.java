@@ -292,7 +292,8 @@ public abstract class WMShellModule {
                 rootTaskDisplayAreaOrganizer,
                 syncQueue,
                 transitions,
-                windowDecorViewHostSupplier);
+                windowDecorViewHostSupplier,
+                interactionJankMonitor);
     }
 
     @WMSingleton
