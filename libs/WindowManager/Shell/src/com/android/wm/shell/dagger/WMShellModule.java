@@ -304,7 +304,8 @@ public abstract class WMShellModule {
             RootTaskDisplayAreaOrganizer rootTaskDisplayAreaOrganizer,
             FocusTransitionObserver focusTransitionObserver,
             WindowDecorViewHostSupplier<WindowDecorViewHost> windowDecorViewHostSupplier,
-            Optional<DesktopModeWindowDecorViewModel> desktopModeWindowDecorViewModel) {
+            Optional<DesktopModeWindowDecorViewModel> desktopModeWindowDecorViewModel,
+            InteractionJankMonitor interactionJankMonitor) {
         if (desktopModeWindowDecorViewModel.isPresent()) {
             return desktopModeWindowDecorViewModel.get();
         }
@@ -322,7 +323,8 @@ public abstract class WMShellModule {
                 syncQueue,
                 transitions,
                 focusTransitionObserver,
-                windowDecorViewHostSupplier);
+                windowDecorViewHostSupplier,
+                interactionJankMonitor);
     }
 
     @WMSingleton
