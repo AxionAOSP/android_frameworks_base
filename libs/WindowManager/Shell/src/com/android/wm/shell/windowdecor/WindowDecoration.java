@@ -814,7 +814,7 @@ public abstract class WindowDecoration<T extends View & TaskFocusStateConsumer>
         @InsetsSource.Flags int mInsetSourceFlags;
         final Region mDisplayExclusionRegion = Region.obtain();
 
-        int mShadowRadius = INVALID_SHADOW_RADIUS;
+        int mShadowRadius = 0;
         int mCornerRadius = INVALID_CORNER_RADIUS;
 
         int mCaptionTopPadding;
@@ -838,7 +838,7 @@ public abstract class WindowDecoration<T extends View & TaskFocusStateConsumer>
             mInsetSourceFlags = 0;
             mDisplayExclusionRegion.setEmpty();
 
-            mShadowRadius = INVALID_SHADOW_RADIUS;
+            mShadowRadius = 0;
             mCornerRadius = INVALID_SHADOW_RADIUS;
 
             mCaptionTopPadding = 0;
