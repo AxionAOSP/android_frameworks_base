@@ -81,6 +81,14 @@ public final class NavigationBarView extends FrameLayout {
 
     private NavigationBarInflaterView mNavigationInflaterView;
 
+    private final android.database.ContentObserver mHideImeSpaceStyleObserver = 
+            new android.database.ContentObserver(new android.os.Handler(android.os.Looper.getMainLooper())) {
+        @Override
+        public void onChange(boolean selfChange) {
+            updateNavButtonIcons();
+        }
+    };
+
     /**
      * Interface definition for callbacks to be invoked when navigation bar buttons are clicked.
      */
@@ -311,12 +319,17 @@ public final class NavigationBarView extends FrameLayout {
 
         getImeSwitchButton().setImageDrawable(mImeSwitcherIcon);
 
+        // hide keyboard buttons on no space style
+        final boolean shouldHideKeyboardButtons = android.provider.Settings.System.getInt(getContext().getContentResolver(),
+                    "hide_ime_space_style", 0) == 2;
+
         // Update IME button visibility, a11y and rotate button always overrides the appearance
         final boolean imeSwitcherVisible =
-                (mNavigationIconHints & StatusBarManager.NAVIGATION_HINT_IME_SWITCHER_SHOWN) != 0;
+                (mNavigationIconHints & StatusBarManager.NAVIGATION_HINT_IME_SWITCHER_SHOWN) != 0 
+                    && !shouldHideKeyboardButtons;
         getImeSwitchButton().setVisibility(imeSwitcherVisible ? View.VISIBLE : View.INVISIBLE);
-
-        getBackButton().setVisibility(View.VISIBLE);
+        
+        getBackButton().setVisibility(shouldHideKeyboardButtons ? View.INVISIBLE : View.VISIBLE);
         getHomeHandle().setVisibility(View.INVISIBLE);
 
         // We used to be reporting the touch regions via notifyActiveTouchRegions() here.
@@ -400,6 +413,11 @@ public final class NavigationBarView extends FrameLayout {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        getContext().getContentResolver().registerContentObserver(
+                android.provider.Settings.System.getUriFor("hide_ime_space_style"),
+                false, 
+                mHideImeSpaceStyleObserver
+        );
         // This needs to happen first as it can changed the enabled state which can affect whether
         // the back button is visible
         requestApplyInsets();
@@ -410,6 +428,7 @@ public final class NavigationBarView extends FrameLayout {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
+        getContext().getContentResolver().unregisterContentObserver(mHideImeSpaceStyleObserver);
         for (int i = 0; i < mButtonDispatchers.size(); ++i) {
             mButtonDispatchers.valueAt(i).onDestroy();
         }
