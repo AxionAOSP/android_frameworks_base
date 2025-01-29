@@ -858,6 +858,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     private boolean mLongSwipeDown;
     private CameraAvailbilityListener mCameraAvailabilityListener;
+    
+    private String mPowerButtonDoublePressAction;
+    private String mPowerButtonDoublePressPkg;
 
     private class PolicyHandler extends Handler {
 
@@ -1122,6 +1125,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             resolver.registerContentObserver(LineageSettings.System.getUriFor(
                     LineageSettings.System.VOLUME_UP_AND_DOWN_MUTE), false, this,
                     UserHandle.USER_ALL);
+            resolver.registerContentObserver(Settings.System.getUriFor(
+                    "power_button_action_double_press"), true, this,
+                    UserHandle.USER_ALL);
+            resolver.registerContentObserver(Settings.System.getUriFor(
+                    "power_button_action_double_press_custom_app_pkg"), true, this,
+                    UserHandle.USER_ALL);
             updateSettings();
         }
 
@@ -1347,7 +1356,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         + mShortPressOnPowerBehavior);
 
         if (count == 2) {
-            powerMultiPressAction(eventTime, interactive, mDoublePressOnPowerBehavior);
+            performPowerDoublePressAction(eventTime, interactive);
         } else if (count == 3) {
             powerMultiPressAction(eventTime, interactive, mTriplePressOnPowerBehavior);
         } else if (count > 3 && count <= getMaxMultiPressPowerCount()) {
@@ -1397,6 +1406,79 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     break;
                 }
             }
+        }
+    }
+
+    private void performPowerDoublePressAction(long eventTime, boolean interactive) {
+        switch (mPowerButtonDoublePressAction) {
+            case "none":
+                break;
+            case "camera":
+                final boolean keyguardActive = (mKeyguardDelegate != null
+                        && (mDefaultDisplayPolicy.isAwake() ? isKeyguardShowingAndNotOccluded() :
+                        mKeyguardDelegate.isShowing()));
+                Intent intent = new Intent(keyguardActive ? MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA_SECURE
+                        : MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA);
+                startActivityAsUser(intent, UserHandle.CURRENT_OR_SELF);
+                break;
+            case "mute":
+                AudioManager am = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
+                if (am.getRingerMode() == AudioManager.RINGER_MODE_SILENT) {
+                    am.setRingerMode(AudioManager.RINGER_MODE_NORMAL);
+                    Toast.makeText(mContext, "Phone unmuted", Toast.LENGTH_SHORT).show();
+                } else {
+                    am.setRingerMode(AudioManager.RINGER_MODE_SILENT);
+                    Toast.makeText(mContext, "Phone silenced", Toast.LENGTH_SHORT).show();
+                }
+                break;
+            case "flashlight":
+                toggleTorch();
+                break;
+            case "qr_scanner":
+                try {
+                    String qrScannerComponent = mContext.getResources().getString(
+                            com.android.internal.R.string.config_defaultQrCodeComponent
+                    );
+                    Intent qrIntent;
+                    if (!qrScannerComponent.isEmpty()) {
+                        qrIntent = new Intent();
+                        qrIntent.setComponent(ComponentName.unflattenFromString(qrScannerComponent));
+                        qrIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    } else {
+                        qrIntent = new Intent();
+                        qrIntent.setComponent(new ComponentName(
+                                "com.google.android.googlequicksearchbox",
+                                "com.google.android.apps.search.lens.LensActivity"
+                        ));
+                        qrIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    }
+                    startActivityAsUser(qrIntent, UserHandle.CURRENT_OR_SELF);
+                } catch (Exception e) {
+                    Toast.makeText(mContext, "Unable to launch QR Scanner", Toast.LENGTH_SHORT).show();
+                }
+                break;
+            case "wallet":
+                Intent walletIntent = mContext.getPackageManager().getLaunchIntentForPackage("com.google.android.apps.walletnfcrel");
+                if (walletIntent != null) {
+                    startActivityAsUser(walletIntent, UserHandle.CURRENT_OR_SELF);
+                }
+                break;
+            case "custom_app":
+                if (mPowerButtonDoublePressPkg != null && !mPowerButtonDoublePressPkg.isEmpty()) {
+                    Intent customAppIntent = mContext.getPackageManager().getLaunchIntentForPackage(mPowerButtonDoublePressPkg);
+                    if (customAppIntent != null) {
+                        startActivityAsUser(customAppIntent, UserHandle.CURRENT_OR_SELF);
+                    }
+                }
+                break;
+            case "brightness_boost":
+                if (!interactive) {
+                    wakeUpFromWakeKey(eventTime, KeyEvent.KEYCODE_POWER, false);
+                }
+                mPowerManager.boostScreenBrightness(eventTime);
+                break;
+            default:
+                break;
         }
     }
 
@@ -1602,7 +1684,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         if (mTriplePressOnPowerBehavior != MULTI_PRESS_POWER_NOTHING) {
             return 3;
         }
-        if (mDoublePressOnPowerBehavior != MULTI_PRESS_POWER_NOTHING) {
+        if (!java.util.Objects.equals(mPowerButtonDoublePressAction, "none")) {
             return 2;
         }
         return 1;
@@ -3417,6 +3499,14 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             mVolUpAndDownMute = LineageSettings.System.getIntForUser(resolver,
                     LineageSettings.System.VOLUME_UP_AND_DOWN_MUTE, 0,
                     UserHandle.USER_CURRENT) == 1;
+
+            mPowerButtonDoublePressAction = Settings.System.getStringForUser(resolver,
+                "power_button_action_double_press", UserHandle.USER_CURRENT);
+            if (mPowerButtonDoublePressAction == null) {
+                mPowerButtonDoublePressAction = "camera";
+            }
+            mPowerButtonDoublePressPkg = Settings.System.getStringForUser(resolver,
+                "power_button_action_double_press_custom_app_pkg", UserHandle.USER_CURRENT);
 
             // Configure wake gesture.
             boolean wakeGestureEnabledSetting = Settings.Secure.getIntForUser(resolver,
@@ -6172,27 +6262,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     // The camera gesture will be detected by GestureLauncherService.
     private boolean handleCameraGesture(KeyEvent event, boolean interactive) {
-        // camera gesture.
-        if (mGestureLauncherService == null) {
-            return false;
-        }
-        mCameraGestureTriggered = false;
-        final MutableBoolean outLaunched = new MutableBoolean(false);
-        final boolean intercept =
-                mGestureLauncherService.interceptPowerKeyDown(event, interactive, outLaunched);
-        if (!outLaunched.value) {
-            // If GestureLauncherService intercepted the power key, but didn't launch camera app,
-            // we should still return the intercept result. This prevents the single key gesture
-            // detector from processing the power key later on.
-            return intercept;
-        }
-        mCameraGestureTriggered = true;
-        if (mRequestedOrSleepingDefaultDisplay) {
-            mCameraGestureTriggeredDuringGoingToSleep = true;
-            // Wake device up early to prevent display doing redundant turning off/on stuff.
-            mWindowWakeUpPolicy.wakeUpFromPowerKeyCameraGesture();
-        }
-        return true;
+       return false;
     }
 
     /**
