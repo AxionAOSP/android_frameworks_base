@@ -254,7 +254,7 @@ public class GestureLauncherService extends SystemService {
                 Settings.Secure.getUriFor(Settings.Secure.CAMERA_GESTURE_DISABLED),
                 false, mSettingObserver, mUserId);
         mContext.getContentResolver().registerContentObserver(
-                Settings.Secure.getUriFor(Settings.Secure.CAMERA_DOUBLE_TAP_POWER_GESTURE_DISABLED),
+                Settings.System.getUriFor("power_button_action_double_press"),
                 false, mSettingObserver, mUserId);
         mContext.getContentResolver().registerContentObserver(
                 Settings.Secure.getUriFor(Settings.Secure.CAMERA_LIFT_TRIGGER_ENABLED),
@@ -419,9 +419,16 @@ public class GestureLauncherService extends SystemService {
     }
 
     public static boolean isCameraDoubleTapPowerSettingEnabled(Context context, int userId) {
-        return isCameraDoubleTapPowerEnabled(context.getResources())
-                && (Settings.Secure.getIntForUser(context.getContentResolver(),
-                        Settings.Secure.CAMERA_DOUBLE_TAP_POWER_GESTURE_DISABLED, 0, userId) == 0);
+        String powerButtonDoublePressAction = Settings.System.getStringForUser(
+                context.getContentResolver(),
+                "power_button_action_double_press",
+                userId);
+
+        if (powerButtonDoublePressAction == null) {
+            powerButtonDoublePressAction = "camera";
+        }
+
+        return !powerButtonDoublePressAction.equals("none");
     }
 
     public static boolean isCameraLiftTriggerSettingEnabled(Context context, int userId) {
@@ -601,8 +608,7 @@ public class GestureLauncherService extends SystemService {
         if (launchCamera) {
             Slog.i(TAG, "Power button double tap gesture detected, launching camera. Interval="
                     + powerTapInterval + "ms");
-            launchCamera = handleCameraGesture(false /* useWakelock */,
-                    StatusBarManager.CAMERA_LAUNCH_SOURCE_POWER_DOUBLE_TAP);
+            launchCamera = true;
             if (launchCamera) {
                 mMetricsLogger.action(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE,
                         (int) powerTapInterval);
