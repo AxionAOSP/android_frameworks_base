@@ -49,6 +49,9 @@ import com.android.server.inputmethod.InputMethodManagerInternal;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.function.Consumer;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * Manages global window inset state in the system represented by {@link InsetsState}.
@@ -66,11 +69,11 @@ class InsetsStateController {
     @NonNull
     private final SparseLongArray mSurfaceTransactionIds = new SparseLongArray();
     @NonNull
-    private final ArrayMap<InsetsControlTarget, ArrayList<InsetsSourceProvider>>
-            mControlTargetProvidersMap = new ArrayMap<>();
+    private final HashMap<InsetsControlTarget, ArrayList<InsetsSourceProvider>>
+            mControlTargetProvidersMap = new HashMap<>();
     @NonNull
-    private final ArrayMap<InsetsControlTarget, ArrayList<InsetsSourceProvider>>
-            mPendingTargetProvidersMap = new ArrayMap<>();
+    private final HashMap<InsetsControlTarget, ArrayList<InsetsSourceProvider>>
+            mPendingTargetProvidersMap = new HashMap<>();
     @NonNull
     private final SparseArray<InsetsControlTarget> mIdControlTargetMap = new SparseArray<>();
     @NonNull
@@ -468,11 +471,14 @@ class InsetsStateController {
             }
             final ArraySet<InsetsControlTarget> newControlTargets = new ArraySet<>();
             int displayId = mDisplayContent.getDisplayId();
-            final ArrayMap<InsetsControlTarget, ArrayList<InsetsSourceProvider>> pendingControlMap =
+            final HashMap<InsetsControlTarget, ArrayList<InsetsSourceProvider>> pendingControlMap =
                     mPendingTargetProvidersMap;
-            for (int i = pendingControlMap.size() - 1; i >= 0; i--) {
-                final InsetsControlTarget target = pendingControlMap.keyAt(i);
-                final ArrayList<InsetsSourceProvider> providers = pendingControlMap.valueAt(i);
+            Iterator<Map.Entry<InsetsControlTarget, ArrayList<InsetsSourceProvider>>> iterator =
+                    pendingControlMap.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<InsetsControlTarget, ArrayList<InsetsSourceProvider>> entry = iterator.next();
+                InsetsControlTarget target = entry.getKey();
+                ArrayList<InsetsSourceProvider> providers = entry.getValue();
                 for (int p = providers.size() - 1; p >= 0; p--) {
                     final InsetsSourceProvider provider = providers.get(p);
                     if (provider.isLeashInitialized() || provider.getControlTarget() != target) {
@@ -481,7 +487,7 @@ class InsetsStateController {
                     }
                 }
                 if (providers.isEmpty()) {
-                    pendingControlMap.removeAt(i);
+                    iterator.remove();
 
                     // All controls of this target are ready to be dispatched.
                     target.notifyInsetsControlChanged(displayId);
@@ -529,12 +535,13 @@ class InsetsStateController {
         prefix = prefix + "  ";
         mState.dump(prefix, pw);
         pw.println(prefix + "Control map:");
-        for (int i = mControlTargetProvidersMap.size() - 1; i >= 0; i--) {
-            final InsetsControlTarget controlTarget = mControlTargetProvidersMap.keyAt(i);
+        for (Map.Entry<InsetsControlTarget, ArrayList<InsetsSourceProvider>> entry :
+                mControlTargetProvidersMap.entrySet()) {
+            final InsetsControlTarget controlTarget = entry.getKey();
             pw.print(prefix + "  ");
             pw.print(controlTarget);
             pw.println(":");
-            final ArrayList<InsetsSourceProvider> providers = mControlTargetProvidersMap.valueAt(i);
+            final ArrayList<InsetsSourceProvider> providers = entry.getValue();
             for (int j = providers.size() - 1; j >= 0; j--) {
                 final InsetsSourceProvider provider = providers.get(j);
                 if (provider != null) {
