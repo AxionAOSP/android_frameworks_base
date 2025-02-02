@@ -345,7 +345,7 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
     private final LockscreenShadeTransitionController mLockscreenShadeTransitionController;
     private final TapAgainViewController mTapAgainViewController;
     private final ShadeHeaderController mShadeHeaderController;
-    private final boolean mVibrateOnOpening;
+    private final boolean mVibrateOnOpening = false;
     private final VelocityTracker mVelocityTracker = VelocityTracker.obtain();
     private final FlingAnimationUtils mFlingAnimationUtilsClosing;
     private final FlingAnimationUtils mFlingAnimationUtilsDismissing;
@@ -865,7 +865,6 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
         mNotificationsDragEnabled = mResources.getBoolean(
                 R.bool.config_enableNotificationShadeDrag);
         mVibratorHelper = vibratorHelper;
-        mVibrateOnOpening = mResources.getBoolean(R.bool.config_vibrateOnIconAnimation);
         mStatusBarTouchableRegionManager = statusBarTouchableRegionManager;
         mSystemClock = systemClock;
         mKeyguardMediaController = keyguardMediaController;
