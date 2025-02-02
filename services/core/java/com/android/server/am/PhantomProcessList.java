@@ -435,23 +435,29 @@ public final class PhantomProcessList {
                     synchronized (mService.mPidsSelfLocked) {
                         Collections.sort(mTempPhantomProcesses, (a, b) -> {
                             final ProcessRecord ra = mService.mPidsSelfLocked.get(a.mPpid);
-                            if (ra == null) {
-                                // parent is gone, this process should have been killed too
-                                return 1;
-                            }
                             final ProcessRecord rb = mService.mPidsSelfLocked.get(b.mPpid);
-                            if (rb == null) {
-                                // parent is gone, this process should have been killed too
+
+                            if (ra == null) {
+                                if (rb == null) {
+                                    // Both parents are gone; order by mKnownSince (younger first)
+                                    return Long.compare(b.mKnownSince, a.mKnownSince);
+                                } else {
+                                    // Only a's parent is gone; a should come after b
+                                    return 1;
+                                }
+                            } else if (rb == null) {
+                                // Only b's parent is gone; b should come after a
                                 return -1;
                             }
-                            if (ra.mState.getCurAdj() != rb.mState.getCurAdj()) {
-                                return ra.mState.getCurAdj() - rb.mState.getCurAdj();
+
+                            // Both parents exist; compare adj
+                            int adjCompare = Integer.compare(ra.mState.getCurAdj(), rb.mState.getCurAdj());
+                            if (adjCompare != 0) {
+                                return adjCompare;
                             }
-                            if (a.mKnownSince != b.mKnownSince) {
-                                // In case of identical oom adj, younger one first
-                                return a.mKnownSince < b.mKnownSince ? 1 : -1;
-                            }
-                            return 0;
+
+                            // Same adj; order by mKnownSince (younger first)
+                            return Long.compare(b.mKnownSince, a.mKnownSince);
                         });
                     }
                     for (int i = mTempPhantomProcesses.size() - 1;
