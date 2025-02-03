@@ -340,6 +340,9 @@ constructor(
      * on the current state of the device.
      */
     fun shouldPlayUnlockedScreenOffAnimation(): Boolean {
+        // gotta go fast 
+        return false
+        /*
         // If we haven't been initialized yet, we don't have a StatusBar/LightRevealScrim yet, so we
         // can't perform the animation.
         if (!initialized) {
@@ -355,16 +358,6 @@ constructor(
         // If we explicitly already decided not to play the screen off animation, then never change
         // our mind.
         if (decidedToAnimateGoingToSleep == false) {
-            return false
-        }
-
-        // If animations are disabled system-wide, don't play this one either.
-        if (
-            Settings.Global.getString(
-                context.contentResolver,
-                Settings.Global.ANIMATOR_DURATION_SCALE
-            ) == "0"
-        ) {
             return false
         }
 
@@ -398,6 +391,7 @@ constructor(
 
         // Otherwise, good to go.
         return true
+        */
     }
 
     override fun shouldDelayDisplayDozeTransition(): Boolean =
