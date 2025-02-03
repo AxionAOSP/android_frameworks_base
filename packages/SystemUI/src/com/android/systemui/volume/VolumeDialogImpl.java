@@ -648,7 +648,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
             mDialogView.getViewTreeObserver().addOnComputeInternalInsetsListener(this);
             if (!shouldSlideInVolumeTray()) {
                 mDialogView.setTranslationX(
-                        (isWindowGravityLeft() ? -1 : 1) * mDialogView.getWidth() / 2.0f);
+                        (isWindowGravityLeft() ? -1 : 1) * mDialogWidth / 2.0f);
             }
             mDialogView.setAlpha(0);
             mDialogView.animate()
@@ -1861,7 +1861,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
                 }, 50));
         if (!shouldSlideInVolumeTray()) {
             animator.translationX(
-                    (isWindowGravityLeft() ? -1 : 1) * mDialogView.getWidth() / 2.0f);
+                    (isWindowGravityLeft() ? -1 : 1) * mDialogWidth / 2.0f);
         }
 
         animator.setListener(getJankListener(getDialogView(), TYPE_DISMISS,
