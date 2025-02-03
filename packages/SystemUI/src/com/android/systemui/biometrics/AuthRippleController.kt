@@ -102,8 +102,7 @@ constructor(
     private var udfpsController: UdfpsController? = null
     private var udfpsRadius: Float = -1f
 
-    private val isRippleEnabled: Boolean
-        get() = biometricUnlockController.mode != MODE_WAKE_AND_UNLOCK
+    private val isRippleEnabled: Boolean = false
 
     override fun start() {
         init()
