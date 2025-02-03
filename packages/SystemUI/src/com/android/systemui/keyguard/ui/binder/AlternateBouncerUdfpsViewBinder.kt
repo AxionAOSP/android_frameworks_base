@@ -81,7 +81,7 @@ object AlternateBouncerUdfpsViewBinder {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch("$TAG#viewModel.bgColor") {
                     viewModel.bgColor.collect { color ->
-                        bgView.imageTintList = ColorStateList.valueOf(color)
+                        bgView.imageTintList = null
                     }
                 }
                 launch("$TAG#viewModel.bgAlpha") {
