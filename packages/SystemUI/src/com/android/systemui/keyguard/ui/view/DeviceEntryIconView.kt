@@ -120,9 +120,12 @@ constructor(
             R.id.unlocked,
         )
         // FINGERPRINT
+        LottieCompositionFactory.fromRawRes(mContext, R.raw.udfps_lockscreen_fp).addListener { result ->
+            aodFpDrawable.setComposition(result)
+        }
         animatedIconDrawable.addState(
             getIconState(IconType.FINGERPRINT, false),
-            context.getDrawable(R.drawable.ic_fingerprint)!!,
+            aodFpDrawable,
             R.id.locked_fp,
         )
 
@@ -140,9 +143,6 @@ constructor(
             R.id.unlocked_aod,
         )
         // FINGERPRINT
-        LottieCompositionFactory.fromRawRes(mContext, R.raw.udfps_aod_fp).addListener { result ->
-            aodFpDrawable.setComposition(result)
-        }
         animatedIconDrawable.addState(
             getIconState(IconType.FINGERPRINT, true),
             aodFpDrawable,
