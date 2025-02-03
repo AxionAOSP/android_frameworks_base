@@ -62,12 +62,7 @@ object AlternateBouncerUdfpsViewBinder {
                         /* merge */ false,
                     )
                     fgIconView.imageTintList = ColorStateList.valueOf(fgViewModel.tint)
-                    fgIconView.setPadding(
-                        fgViewModel.padding,
-                        fgViewModel.padding,
-                        fgViewModel.padding,
-                        fgViewModel.padding,
-                    )
+                    fgIconView.setPadding(0, 0, 0, 0)
                 }
             }
         }
@@ -77,7 +72,7 @@ object AlternateBouncerUdfpsViewBinder {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch("$TAG#viewModel.bgColor") {
                     viewModel.bgColor.collect { color ->
-                        bgView.imageTintList = ColorStateList.valueOf(color)
+                        bgView.imageTintList = null
                     }
                 }
                 launch("$TAG#viewModel.bgAlpha") {

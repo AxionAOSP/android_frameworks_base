@@ -157,11 +157,7 @@ object DeviceEntryIconViewBinder {
                     }
                     launch("$TAG#viewModel.useBackgroundProtection") {
                         viewModel.useBackgroundProtection.collect { useBackgroundProtection ->
-                            if (useBackgroundProtection) {
-                                bgView.visibility = View.VISIBLE
-                            } else {
-                                bgView.visibility = View.GONE
-                            }
+                            bgView.visibility = View.GONE
                         }
                     }
                     launch("$TAG#viewModel.burnInOffsets") {
@@ -195,12 +191,7 @@ object DeviceEntryIconViewBinder {
                             }
                             fgIconView.imageTintList =
                                 ColorStateList.valueOf(overrideColor?.toArgb() ?: viewModel.tint)
-                            fgIconView.setPadding(
-                                viewModel.padding,
-                                viewModel.padding,
-                                viewModel.padding,
-                                viewModel.padding,
-                            )
+                            fgIconView.setPadding(0, 0, 0, 0)
                             // Set image state at the end after updating other view state. This
                             // method forces the ImageView to recompute the bounds of the drawable.
                             fgIconView.setImageState(
@@ -222,7 +213,7 @@ object DeviceEntryIconViewBinder {
                     }
                     launch("$TAG#bgViewModel.color") {
                         bgViewModel.color.collect { color ->
-                            bgView.imageTintList = ColorStateList.valueOf(color)
+                            bgView.imageTintList = null
                         }
                     }
                 }
