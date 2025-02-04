@@ -116,4 +116,7 @@
 
     <!-- Keyboard shortcut helper dialog -->
     <color name="ksh_key_item_color">@*android:color/system_on_surface_variant_dark</color>
+
+    <color name="dot_color">@android:color/system_neutral1_700</color>
+    <color name="volume_dot_color">@android:color/system_neutral1_700</color>
 </resources>

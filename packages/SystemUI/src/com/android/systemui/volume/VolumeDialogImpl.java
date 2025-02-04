@@ -743,7 +743,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
                     mRingerAndDrawerContainerBackground = ringerAndDrawerBg.getDrawable(0);
 
                     updateBackgroundForDrawerClosedAmount();
-                    setTopContainerBackgroundDrawable();
+                    //setTopContainerBackgroundDrawable();
 
                     // Rows need to be updated after mRingerAndDrawerContainerBackground is set
                     updateRowsH(getActiveRow());
@@ -882,8 +882,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
     }
 
     private boolean isLandscape() {
-        return mContext.getResources().getConfiguration().orientation ==
-                Configuration.ORIENTATION_LANDSCAPE;
+        return true;
     }
 
     private boolean isRtl() {
@@ -1095,6 +1094,9 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
 
         // In portrait, add padding to the bottom to account for the height of the open ringer
         // drawer.
+        final boolean isRealLandscape = mContext.getResources().getConfiguration().orientation ==
+                Configuration.ORIENTATION_LANDSCAPE;
+        final int extraBottomPadding = isRealLandscape ? 0 : getRingerDrawerOpenExtraSize();
         if (!isLandscape()) {
             mDialogView.setPadding(
                     mDialogView.getPaddingLeft(),
@@ -1106,13 +1108,13 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
                     mDialogView.getPaddingLeft(),
                     mDialogView.getPaddingTop(),
                     mDialogView.getPaddingRight() + getRingerDrawerOpenExtraSize(),
-                    mDialogView.getPaddingBottom());
+                    mDialogView.getPaddingBottom() + extraBottomPadding);
         } else {
             mDialogView.setPadding(
                     mDialogView.getPaddingLeft() + getRingerDrawerOpenExtraSize(),
                     mDialogView.getPaddingTop(),
                     mDialogView.getPaddingRight(),
-                    mDialogView.getPaddingBottom());
+                    mDialogView.getPaddingBottom() + extraBottomPadding);
         }
 
         ((LinearLayout) mRingerDrawerContainer.findViewById(R.id.volume_drawer_options))
@@ -1457,6 +1459,11 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
                 mExpanded = !mExpanded;
                 updateRowsH(mDefaultRow, true);
                 mExpandRows.setExpanded(mExpanded);
+                if (mExpanded) {
+                    showRingerDrawer();
+                } else {
+                    hideRingerDrawer();
+                }
             });
         }
     }
@@ -2013,19 +2020,18 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
                 linearLayoutParams.setMarginStart(0);
                 linearLayoutParams.setMarginEnd(0);
                 lastVisibleChild.setLayoutParams(linearLayoutParams);
-                lastVisibleChild.setBackgroundColor(Color.TRANSPARENT);
             }
 
             int elevationCount = 0;
             if (animate) {
                 // Increase the elevation of the outmost row so that other rows animate behind it.
                 lastVisibleChild.setElevation(1f / ++elevationCount);
-
-                // Add a solid background to the outmost row temporary so that other rows animate
-                // behind it
-                lastVisibleChild.setBackgroundDrawable(
-                        mContext.getDrawable(R.drawable.volume_background));
             }
+
+            // Add a solid background to the outmost row temporary so that other rows animate
+            // behind it
+            lastVisibleChild.setBackgroundDrawable(
+                    mContext.getDrawable(R.drawable.volume_background_top));
 
             int[] lastVisibleChildLocation = new int[2];
             lastVisibleChild.getLocationInWindow(lastVisibleChildLocation);
@@ -2098,7 +2104,6 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
                                     if (mAnimatingRows == 0) {
                                         // Restore the elevation and background
                                         lastVisibleChild.setElevation(0);
-                                        lastVisibleChild.setBackgroundColor(Color.TRANSPARENT);
                                         // Set the active stream to ensure the volume keys change
                                         // the volume of the tinted row. The tint was set before
                                         // already, but setting the active row cancels ongoing
@@ -2448,7 +2453,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
         }
 
         if (row.icon != null) {
-            row.icon.setImageTintList(inverseTextTint);
+            row.icon.setImageTintList(colorTint);
             row.icon.setImageAlpha(alpha);
         }
 
