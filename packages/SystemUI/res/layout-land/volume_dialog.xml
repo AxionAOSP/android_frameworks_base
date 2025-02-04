@@ -72,6 +72,7 @@
                 android:id="@+id/volume_dialog_rows_container"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
                 android:gravity="right"
                 android:orientation="vertical"
                 android:clipChildren="false"
