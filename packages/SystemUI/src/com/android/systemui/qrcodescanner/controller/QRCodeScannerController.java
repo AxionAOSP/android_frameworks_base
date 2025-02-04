@@ -90,7 +90,7 @@ public class QRCodeScannerController implements
     private static final String TAG = "QRCodeScannerController";
 
     public static final String GSA_PACKAGE = "com.google.android.googlequicksearchbox";
-    public static final String LENS_ACTIVITY = "com.google.android.apps.lens.MainActivity";
+    public static final String LENS_ACTIVITY = "com.google.android.apps.search.lens.LensActivity";
 
     private final Context mContext;
     private final Executor mExecutor;
@@ -274,17 +274,18 @@ public class QRCodeScannerController implements
 
     private Intent getLensIntent() {
         Intent intent = new Intent();
-        Bundle bundle = new Bundle();
-
-        bundle.putString("caller_package", GSA_PACKAGE);
-        bundle.putLong("start_activity_time_nanos", SystemClock.elapsedRealtimeNanos());
-        intent.setComponent(new ComponentName(GSA_PACKAGE, LENS_ACTIVITY))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                .setPackage(GSA_PACKAGE)
-                .setData(Uri.parse("google://lens"))
-                .putExtra("lens_activity_params", bundle);
-
-        return intent;
+        intent.setComponent(new ComponentName(GSA_PACKAGE, LENS_ACTIVITY));
+        if (intent.resolveActivity(mContext.getPackageManager()) != null) {
+            Bundle bundle = new Bundle();
+            bundle.putString("caller_package", GSA_PACKAGE);
+            bundle.putLong("start_activity_time_nanos", SystemClock.elapsedRealtimeNanos());
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                  .setPackage(GSA_PACKAGE)
+                  .setData(Uri.parse("google://lens"))
+                  .putExtra("lens_activity_params", bundle);
+            return intent;
+        }
+        return null;
     }
 
     private void updateQRCodeScannerActivityDetails() {
@@ -329,7 +330,7 @@ public class QRCodeScannerController implements
 
     private boolean isActivityAvailable(Intent intent) {
         // Our intent should always be explicit and should have a component set
-        if (intent.getComponent() == null) return false;
+        if (intent == null || intent.getComponent() == null) return false;
 
         int flags = PackageManager.MATCH_DIRECT_BOOT_AWARE
                 | PackageManager.MATCH_DIRECT_BOOT_UNAWARE
