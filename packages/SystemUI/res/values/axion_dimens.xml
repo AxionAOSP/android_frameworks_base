@@ -47,4 +47,8 @@
     <dimen name="kg_widgets_icon_size">24dp</dimen>
     <dimen name="kg_widgets_doze_stroke">1.5dp</dimen>
     <dimen name="kg_widgets_top_padding">22dp</dimen>
+    
+    <!-- Udfps fingerprint animation -->
+    <dimen name="udfps_animation_size">180dp</dimen>
+    <dimen name="udfps_animation_offset">0dp</dimen>
 </resources>
