@@ -116,8 +116,7 @@ public class BroadcastConstants {
      */
     public int MAX_RUNNING_PROCESS_QUEUES = DEFAULT_MAX_RUNNING_PROCESS_QUEUES;
     private static final String KEY_MAX_RUNNING_PROCESS_QUEUES = "bcast_max_running_process_queues";
-    private static final int DEFAULT_MAX_RUNNING_PROCESS_QUEUES =
-            ActivityManager.isLowRamDeviceStatic() ? 2 : 4;
+    private static final int DEFAULT_MAX_RUNNING_PROCESS_QUEUES = 2;
 
     /**
      * For {@link BroadcastQueueModernImpl}: Additional running process queue parallelism beyond
@@ -156,8 +155,7 @@ public class BroadcastConstants {
     public int MAX_RUNNING_ACTIVE_BROADCASTS = DEFAULT_MAX_RUNNING_ACTIVE_BROADCASTS;
     private static final String KEY_MAX_RUNNING_ACTIVE_BROADCASTS =
             "bcast_max_running_active_broadcasts";
-    private static final int DEFAULT_MAX_RUNNING_ACTIVE_BROADCASTS =
-            ActivityManager.isLowRamDeviceStatic() ? 8 : 16;
+    private static final int DEFAULT_MAX_RUNNING_ACTIVE_BROADCASTS = 8;
 
     /**
      * For {@link BroadcastQueueModernImpl}: Maximum number of active "blocking" broadcasts
@@ -169,8 +167,7 @@ public class BroadcastConstants {
     public int MAX_CORE_RUNNING_BLOCKING_BROADCASTS = DEFAULT_MAX_CORE_RUNNING_BLOCKING_BROADCASTS;
     private static final String KEY_CORE_MAX_RUNNING_BLOCKING_BROADCASTS =
             "bcast_max_core_running_blocking_broadcasts";
-    private static final int DEFAULT_MAX_CORE_RUNNING_BLOCKING_BROADCASTS =
-            ActivityManager.isLowRamDeviceStatic() ? 8 : 16;
+    private static final int DEFAULT_MAX_CORE_RUNNING_BLOCKING_BROADCASTS = 8;
 
     /**
      * For {@link BroadcastQueueModernImpl}: Maximum number of active non-"blocking" broadcasts
@@ -183,8 +180,7 @@ public class BroadcastConstants {
             DEFAULT_MAX_CORE_RUNNING_NON_BLOCKING_BROADCASTS;
     private static final String KEY_CORE_MAX_RUNNING_NON_BLOCKING_BROADCASTS =
             "bcast_max_core_running_non_blocking_broadcasts";
-    private static final int DEFAULT_MAX_CORE_RUNNING_NON_BLOCKING_BROADCASTS =
-            ActivityManager.isLowRamDeviceStatic() ? 32 : 64;
+    private static final int DEFAULT_MAX_CORE_RUNNING_NON_BLOCKING_BROADCASTS = 32;
 
     /**
      * For {@link BroadcastQueueModernImpl}: Maximum number of pending
@@ -193,8 +189,7 @@ public class BroadcastConstants {
      */
     public int MAX_PENDING_BROADCASTS = DEFAULT_MAX_PENDING_BROADCASTS;
     private static final String KEY_MAX_PENDING_BROADCASTS = "bcast_max_pending_broadcasts";
-    private static final int DEFAULT_MAX_PENDING_BROADCASTS =
-            ActivityManager.isLowRamDeviceStatic() ? 128 : 256;
+    private static final int DEFAULT_MAX_PENDING_BROADCASTS = 128;
 
     /**
      * For {@link BroadcastQueueModernImpl}: Delay to apply to normal
@@ -247,8 +242,7 @@ public class BroadcastConstants {
      */
     public int MAX_HISTORY_COMPLETE_SIZE = DEFAULT_MAX_HISTORY_COMPLETE_SIZE;
     private static final String KEY_MAX_HISTORY_COMPLETE_SIZE = "bcast_max_history_complete_size";
-    private static final int DEFAULT_MAX_HISTORY_COMPLETE_SIZE =
-            ActivityManager.isLowRamDeviceStatic() ? 64 : 256;
+    private static final int DEFAULT_MAX_HISTORY_COMPLETE_SIZE = 64;
 
     /**
      * For {@link BroadcastQueueModernImpl}: Maximum number of summarized
@@ -256,8 +250,7 @@ public class BroadcastConstants {
      */
     public int MAX_HISTORY_SUMMARY_SIZE = DEFAULT_MAX_HISTORY_SUMMARY_SIZE;
     private static final String KEY_MAX_HISTORY_SUMMARY_SIZE = "bcast_max_history_summary_size";
-    private static final int DEFAULT_MAX_HISTORY_SUMMARY_SIZE =
-            ActivityManager.isLowRamDeviceStatic() ? 256 : 1024;
+    private static final int DEFAULT_MAX_HISTORY_SUMMARY_SIZE = 256;
 
     /**
      * For {@link BroadcastRecord}: Default to treating all broadcasts sent by
