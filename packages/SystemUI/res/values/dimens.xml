@@ -2047,4 +2047,8 @@
     <!-- SliceView icon size -->
     <dimen name="abc_slice_big_pic_min_height">64dp</dimen>
     <dimen name="abc_slice_big_pic_max_height">64dp</dimen>
+    
+    <!-- Udfps fingerprint animation -->
+    <dimen name="udfps_animation_size">180dp</dimen>
+    <dimen name="udfps_animation_offset">0dp</dimen>
 </resources>

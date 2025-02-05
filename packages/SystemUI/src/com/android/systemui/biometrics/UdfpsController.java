@@ -33,6 +33,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.res.Configuration;
 import android.graphics.Rect;
 import android.hardware.biometrics.BiometricFingerprintConstants;
 import android.hardware.biometrics.BiometricPrompt;
@@ -185,6 +186,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
     @NonNull private final CoroutineScope mScope;
     @NonNull private final InputManager mInputManager;
     @NonNull private final UdfpsKeyguardAccessibilityDelegate mUdfpsKeyguardAccessibilityDelegate;
+    @NonNull private final AuthController mAuthController;
     @NonNull private final SelectedUserInteractor mSelectedUserInteractor;
     private final boolean mIgnoreRefreshRate;
     private final KeyguardTransitionInteractor mKeyguardTransitionInteractor;
@@ -224,6 +226,8 @@ public class UdfpsController implements DozeReceiver, Dumpable {
     private boolean mOnFingerDown;
     private boolean mAttemptedToDismissKeyguard;
     private final Set<Callback> mCallbacks = new HashSet<>();
+    
+    private UdfpsAnimation mUdfpsAnimation;
 
     @VisibleForTesting
     public static final VibrationAttributes UDFPS_VIBRATION_ATTRIBUTES =
@@ -258,6 +262,34 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             mScreenOn = false;
         }
     };
+
+    private ConfigurationController.ConfigurationListener mConfigurationListener =
+            new ConfigurationController.ConfigurationListener() {
+                @Override
+                public void onThemeChanged() {
+                    updateUdfpsAnimation();
+                }
+                @Override
+                public void onUiModeChanged() {
+                    updateUdfpsAnimation();
+                }
+                @Override
+                public void onConfigChanged(Configuration newConfig) {
+                    updateUdfpsAnimation();
+                }
+            };
+
+    private final KeyguardStateController.Callback mKeyguardStateCallback =
+            new KeyguardStateController.Callback() {
+                @Override
+                public void onKeyguardFadingAwayChanged() {
+                    hideUdfpsAnimation();
+                }
+                @Override
+                public void onKeyguardGoingAwayChanged() {
+                    hideUdfpsAnimation();
+                }
+            };
 
     @Override
     public void dump(@NonNull PrintWriter pw, @NonNull String[] args) {
@@ -337,12 +369,14 @@ public class UdfpsController implements DozeReceiver, Dumpable {
                         for (Callback cb : mCallbacks) {
                             cb.onFingerDown();
                         }
+                        showUdfpsAnimation();
                     });
                 } else {
                     mFgExecutor.execute(() -> {
                         for (Callback cb : mCallbacks) {
                             cb.onFingerUp();
                         }
+                        hideUdfpsAnimation();
                     });
                 }
             }
@@ -567,15 +601,18 @@ public class UdfpsController implements DozeReceiver, Dumpable {
     private boolean onTouch(long requestId, @NonNull MotionEvent event, boolean fromUdfpsView) {
         if (!fromUdfpsView) {
             Log.e(TAG, "ignoring the touch injected from outside of UdfpsView");
+            hideUdfpsAnimation();
             return false;
         }
         if (mOverlay == null) {
             Log.w(TAG, "ignoring onTouch with null overlay");
+            hideUdfpsAnimation();
             return false;
         }
         if (!mOverlay.matchesRequestId(requestId)) {
             Log.w(TAG, "ignoring stale touch event: " + requestId + " current: "
                     + mOverlay.getRequestId());
+            hideUdfpsAnimation();
             return false;
         }
         if (event.getAction() == MotionEvent.ACTION_DOWN
@@ -597,6 +634,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
                     && !mAlternateBouncerInteractor.isVisibleState())
                     || mPrimaryBouncerInteractor.isInTransit()) {
                 Log.w(TAG, "ignoring touch due to qsDragProcess or primaryBouncerInteractor");
+                hideUdfpsAnimation();
                 return false;
             }
         }
@@ -605,6 +643,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
                 mOverlayParams);
         if (result instanceof TouchProcessorResult.Failure) {
             Log.w(TAG, ((TouchProcessorResult.Failure) result).getReason());
+            hideUdfpsAnimation();
             return false;
         }
 
@@ -749,7 +788,8 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             Lazy<DefaultUdfpsTouchOverlayViewModel> defaultUdfpsTouchOverlayViewModel,
             @NonNull UdfpsOverlayInteractor udfpsOverlayInteractor,
             @NonNull PowerInteractor powerInteractor,
-            @Application CoroutineScope scope) {
+            @Application CoroutineScope scope,
+            @NonNull AuthController authController) {
         mContext = context;
         mExecution = execution;
         mVibrator = vibrator;
@@ -778,13 +818,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
         mUnlockedScreenOffAnimationController = unlockedScreenOffAnimationController;
         mLatencyTracker = latencyTracker;
         mActivityTransitionAnimator = activityTransitionAnimator;
-        mSensorProps = new FingerprintSensorPropertiesInternal(
-                -1 /* sensorId */,
-                SensorProperties.STRENGTH_CONVENIENCE,
-                0 /* maxEnrollmentsPerUser */,
-                new ArrayList<>() /* componentInfo */,
-                FingerprintSensorProperties.TYPE_UNKNOWN,
-                false /* resetLockoutRequiresHardwareAuthToken */);
+        mSensorProps = findFirstUdfps();
 
         mBiometricExecutor = biometricsExecutor;
         mPrimaryBouncerInteractor = primaryBouncerInteractor;
@@ -804,6 +838,8 @@ public class UdfpsController implements DozeReceiver, Dumpable {
         mDefaultUdfpsTouchOverlayViewModel = defaultUdfpsTouchOverlayViewModel;
 
         mDumpManager.registerDumpable(TAG, this);
+        
+        mAuthController = authController;
 
         mOrientationListener = new BiometricDisplayListener(
                 context,
@@ -828,6 +864,31 @@ public class UdfpsController implements DozeReceiver, Dumpable {
 
         udfpsHapticsSimulator.setUdfpsController(this);
         udfpsShell.setUdfpsOverlayController(mUdfpsOverlayController);
+
+        updateUdfpsAnimation();
+        mConfigurationController.addCallback(mConfigurationListener);
+        mKeyguardStateController.addCallback(mKeyguardStateCallback);
+    }
+
+    @Nullable
+    private FingerprintSensorPropertiesInternal findFirstUdfps() {
+        for (FingerprintSensorPropertiesInternal props :
+                mFingerprintManager.getSensorPropertiesInternal()) {
+            if (props.isAnyUdfpsType()) {
+                return props;
+            }
+        }
+        return null;
+    }
+
+    private void updateUdfpsAnimation() {
+        if (mUdfpsAnimation != null) {
+            mUdfpsAnimation = null;
+        }
+        mUdfpsAnimation = new UdfpsAnimation(mContext, mWindowManager, mSensorProps, mAuthController);
+        if (mUdfpsAnimation != null) {
+            mUdfpsAnimation.updatePosition();
+        }
     }
 
     /**
@@ -872,6 +933,11 @@ public class UdfpsController implements DozeReceiver, Dumpable {
 
         mOverlay = overlay;
         final int requestReason = overlay.getRequestReason();
+        
+        if (mUdfpsAnimation != null) {
+            mUdfpsAnimation.setKeyguardShowing(requestReason == REASON_AUTH_KEYGUARD);
+        }
+
         if (requestReason == REASON_AUTH_KEYGUARD
                 && !mKeyguardUpdateMonitor.isFingerprintDetectionRunning()) {
             Log.d(TAG, "Attempting to showUdfpsOverlay when fingerprint detection"
@@ -1132,6 +1198,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             for (Callback cb : mCallbacks) {
                 cb.onFingerDown();
             }
+            showUdfpsAnimation();
         }
     }
 
@@ -1172,11 +1239,24 @@ public class UdfpsController implements DozeReceiver, Dumpable {
                 for (Callback cb : mCallbacks) {
                     cb.onFingerUp();
                 }
+                hideUdfpsAnimation();
             }
         }
         mOnFingerDown = false;
         unconfigureDisplay(view);
         cancelAodSendFingerUpAction();
+    }
+
+    private void showUdfpsAnimation() {
+        if (mUdfpsAnimation != null) {
+            mUdfpsAnimation.show();
+        }
+    }
+
+    private void hideUdfpsAnimation() {
+        if (mUdfpsAnimation != null) {
+            mUdfpsAnimation.hide();
+        }
     }
 
     /**
