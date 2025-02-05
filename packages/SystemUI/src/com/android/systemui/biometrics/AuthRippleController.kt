@@ -127,7 +127,6 @@ constructor(
         authController.addCallback(authControllerCallback)
         updateRippleColor()
         updateUdfpsDependentParams()
-        udfpsController?.addCallback(udfpsControllerCallback)
         configurationController.addCallback(configurationChangedListener)
         keyguardUpdateMonitor.registerCallback(keyguardUpdateMonitorCallback)
         keyguardStateController.addCallback(this)
@@ -137,7 +136,6 @@ constructor(
 
     @VisibleForTesting
     public override fun onViewDetached() {
-        udfpsController?.removeCallback(udfpsControllerCallback)
         authController.removeCallback(authControllerCallback)
         keyguardUpdateMonitor.removeCallback(keyguardUpdateMonitorCallback)
         configurationController.removeCallback(configurationChangedListener)
@@ -347,20 +345,6 @@ constructor(
             }
         }
 
-    private val udfpsControllerCallback =
-        object : UdfpsController.Callback {
-            override fun onFingerDown() {
-                // only show dwell ripple for device entry
-                if (keyguardUpdateMonitor.isFingerprintDetectionRunning) {
-                    showDwellRipple()
-                }
-            }
-
-            override fun onFingerUp() {
-                mView.retractDwellRipple()
-            }
-        }
-
     private val authControllerCallback =
         object : AuthController.Callback {
             override fun onAllAuthenticatorsRegistered(modality: Int) {
@@ -377,10 +361,6 @@ constructor(
             if (it.size > 0) {
                 udfpsController = udfpsControllerProvider.get()
                 udfpsRadius = authController.udfpsRadius
-
-                if (mView.isAttachedToWindow) {
-                    udfpsController?.addCallback(udfpsControllerCallback)
-                }
             }
         }
     }
