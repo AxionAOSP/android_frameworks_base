@@ -943,7 +943,7 @@ final class ActivityManagerConstants extends ContentObserver {
     private static final String KEY_MAX_EMPTY_TIME_MILLIS =
             "max_empty_time_millis";
 
-    private static final long DEFAULT_MAX_EMPTY_TIME_MILLIS = 1000L * 60L * 60L * 1000L;
+    private static final long DEFAULT_MAX_EMPTY_TIME_MILLIS = 30 * 60 * 1000;
 
     volatile long mMaxEmptyTimeMillis = DEFAULT_MAX_EMPTY_TIME_MILLIS;
 
@@ -1509,6 +1509,7 @@ final class ActivityManagerConstants extends ContentObserver {
         updateForceEnablePssProfiling();
         // Read DropboxRateLimiter params from flags.
         mService.initDropboxRateLimiter();
+        updateMaxCachedProcesses();
     }
 
     void loadDeviceConfigConstants() {
@@ -2040,18 +2041,13 @@ final class ActivityManagerConstants extends ContentObserver {
     }
 
     private void updateMaxCachedProcesses() {
-        String maxCachedProcessesFlag = DeviceConfig.getProperty(
-                DeviceConfig.NAMESPACE_ACTIVITY_MANAGER, KEY_MAX_CACHED_PROCESSES);
-        try {
-            CUR_MAX_CACHED_PROCESSES = mOverrideMaxCachedProcesses < 0
-                    ? (TextUtils.isEmpty(maxCachedProcessesFlag)
-                    ? mCustomizedMaxCachedProcesses : Integer.parseInt(maxCachedProcessesFlag))
-                    : mOverrideMaxCachedProcesses;
-        } catch (NumberFormatException e) {
-            // Bad flag value from Phenotype, revert to default.
-            Slog.e(TAG,
-                    "Unable to parse flag for max_cached_processes: " + maxCachedProcessesFlag, e);
-            CUR_MAX_CACHED_PROCESSES = mCustomizedMaxCachedProcesses;
+        com.android.internal.util.MemInfoReader memInfoReader = new com.android.internal.util.MemInfoReader();
+        memInfoReader.readMemInfo();
+        final long ramBytes = memInfoReader.getTotalSize();
+        if (ramBytes <= android.util.DataUnit.GIGABYTES.toBytes(4)) {
+            CUR_MAX_CACHED_PROCESSES = 32;
+        } else {
+            CUR_MAX_CACHED_PROCESSES = 64;
         }
         CUR_MAX_EMPTY_PROCESSES = computeEmptyProcessLimit(CUR_MAX_CACHED_PROCESSES);
 
