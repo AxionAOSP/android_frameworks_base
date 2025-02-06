@@ -24,6 +24,8 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
+import android.graphics.Color;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -56,6 +58,7 @@ import com.android.systemui.statusbar.pipeline.mobile.ui.binder.MobileIconsBinde
 import com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernShadeCarrierGroupMobileView;
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel;
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.ShadeCarrierGroupMobileIconViewModel;
+import com.android.systemui.statusbar.policy.ConfigurationController;
 import com.android.systemui.util.CarrierConfigTracker;
 
 import java.util.List;
@@ -83,6 +86,7 @@ public class ShadeCarrierGroupController {
     private final MobileIconsViewModel mMobileIconsViewModel;
     private final MobileContextProvider mMobileContextProvider;
     private final StatusBarPipelineFlags mStatusBarPipelineFlags;
+    private final ConfigurationController mConfigurationController;
     private boolean mListening;
     private final CellSignalState[] mInfos =
             new CellSignalState[SIM_SLOTS];
@@ -91,6 +95,22 @@ public class ShadeCarrierGroupController {
     private int[] mLastSignalLevel = new int[SIM_SLOTS];
     private String[] mLastSignalLevelDescription = new String[SIM_SLOTS];
     private final CarrierConfigTracker mCarrierConfigTracker;
+
+    private ConfigurationController.ConfigurationListener mConfigurationListener =
+            new ConfigurationController.ConfigurationListener() {
+                @Override
+                public void onThemeChanged() {
+                    updateCarrierTextViewsAppearance();
+                }
+                @Override
+                public void onUiModeChanged() {
+                    updateCarrierTextViewsAppearance();
+                }
+                @Override
+                public void onConfigChanged(Configuration newConfig) {
+                    updateCarrierTextViewsAppearance();
+                }
+            };
 
     private boolean mIsSingleCarrier;
     @Nullable
@@ -159,7 +179,8 @@ public class ShadeCarrierGroupController {
             SlotIndexResolver slotIndexResolver,
             MobileUiAdapter mobileUiAdapter,
             MobileContextProvider mobileContextProvider,
-            StatusBarPipelineFlags statusBarPipelineFlags
+            StatusBarPipelineFlags statusBarPipelineFlags,
+            ConfigurationController configurationController
     ) {
         mContext = context;
         mActivityStarter = activityStarter;
@@ -167,6 +188,7 @@ public class ShadeCarrierGroupController {
         mLogger = logger;
         mNetworkController = networkController;
         mStatusBarPipelineFlags = statusBarPipelineFlags;
+        mConfigurationController = configurationController;
         mCarrierTextManager = carrierTextManagerBuilder
                 .setShowAirplaneMode(false)
                 .setShowMissingSim(false)
@@ -228,6 +250,14 @@ public class ShadeCarrierGroupController {
                 setListening(false);
             }
         });
+    }
+    
+    private void updateCarrierTextViewsAppearance() {
+        for (int i = 0; i < SIM_SLOTS; i++) {
+            int nightModeFlags = mContext.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+            final int color = (nightModeFlags == Configuration.UI_MODE_NIGHT_YES) ? Color.WHITE : Color.BLACK;
+            mCarrierGroups[i].setCarrierTextColor(color);
+        }
     }
 
     /** Updates the number of visible mobile icons using the new pipeline. */
@@ -325,8 +355,10 @@ public class ShadeCarrierGroupController {
                 mNetworkController.addCallback(mSignalCallback);
             }
             mCarrierTextManager.setListening(mCallback);
+            mConfigurationController.addCallback(mConfigurationListener);
         } else {
             mNetworkController.removeCallback(mSignalCallback);
+            mConfigurationController.removeCallback(mConfigurationListener);
             mCarrierTextManager.setListening(null);
         }
     }
@@ -489,6 +521,7 @@ public class ShadeCarrierGroupController {
         private final MobileUiAdapter mMobileUiAdapter;
         private final MobileContextProvider mMobileContextProvider;
         private final StatusBarPipelineFlags mStatusBarPipelineFlags;
+        private final ConfigurationController mConfigurationController;
 
         @Inject
         public Builder(
@@ -503,7 +536,8 @@ public class ShadeCarrierGroupController {
                 SlotIndexResolver slotIndexResolver,
                 MobileUiAdapter mobileUiAdapter,
                 MobileContextProvider mobileContextProvider,
-                StatusBarPipelineFlags statusBarPipelineFlags
+                StatusBarPipelineFlags statusBarPipelineFlags,
+                ConfigurationController configurationController
         ) {
             mActivityStarter = activityStarter;
             mHandler = handler;
@@ -517,6 +551,7 @@ public class ShadeCarrierGroupController {
             mMobileUiAdapter = mobileUiAdapter;
             mMobileContextProvider = mobileContextProvider;
             mStatusBarPipelineFlags = statusBarPipelineFlags;
+            mConfigurationController = configurationController;
         }
 
         public Builder setShadeCarrierGroup(ShadeCarrierGroup view) {
@@ -538,7 +573,8 @@ public class ShadeCarrierGroupController {
                     mSlotIndexResolver,
                     mMobileUiAdapter,
                     mMobileContextProvider,
-                    mStatusBarPipelineFlags
+                    mStatusBarPipelineFlags,
+                    mConfigurationController
             );
         }
     }
