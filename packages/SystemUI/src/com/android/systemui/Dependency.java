@@ -35,6 +35,7 @@ import com.android.systemui.fragments.FragmentService;
 import com.android.systemui.model.SysUiState;
 import com.android.systemui.navigationbar.NavigationBarController;
 import com.android.systemui.navigationbar.NavigationModeController;
+import com.android.systemui.plugins.ActivityStarter;
 import com.android.systemui.plugins.DarkIconDispatcher;
 import com.android.systemui.plugins.PluginManager;
 import com.android.systemui.plugins.VolumeDialogController;
@@ -149,6 +150,7 @@ public class Dependency {
     @Inject Lazy<DialogTransitionAnimator> mDialogTransitionAnimatorLazy;
     @Inject Lazy<UserTracker> mUserTrackerLazy;
     @Inject Lazy<StatusBarWindowControllerStore> mStatusBarWindowControllerStoreLazy;
+    @Inject Lazy<ActivityStarter> mActivityStarter;
 
     @Inject
     public Dependency() {
@@ -194,6 +196,7 @@ public class Dependency {
         mProviders.put(UserTracker.class, mUserTrackerLazy::get);
         mProviders.put(
                 StatusBarWindowControllerStore.class, mStatusBarWindowControllerStoreLazy::get);
+        mProviders.put(ActivityStarter.class, mActivityStarter::get);
 
         Dependency.setInstance(this);
     }
