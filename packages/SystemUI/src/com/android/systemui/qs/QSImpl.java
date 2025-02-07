@@ -758,6 +758,7 @@ public class QSImpl implements QS, CommandQueue.Callbacks, StatusBarStateControl
         } else {
             sbf.animationBoostOn(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_EXPANSION_ANIMATION);
         }
+        com.android.systemui.util.ScrimUtils.getInstance(mRootView.getContext()).setQsExpansion(expansion);
     }
 
     private void setAlphaAnimationProgress(float progress) {
