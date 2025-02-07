@@ -37,4 +37,10 @@
         <item quantity="one">%d device connected</item>
         <item quantity="other">%d devices connected</item>
     </plurals>
+    
+    <!-- Volume Tile -->
+    <string name="quick_settings_volume_tile_label">Volume</string>
+    <string name="quick_settings_volume_tile_muted">Muted</string>
+    <string name="quick_settings_volume_tile_low">Low</string>
+    <string name="quick_settings_volume_tile_high">High</string>
 </resources>
