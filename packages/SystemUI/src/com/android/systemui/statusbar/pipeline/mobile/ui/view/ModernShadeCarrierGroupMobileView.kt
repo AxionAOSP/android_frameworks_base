@@ -19,6 +19,7 @@ package com.android.systemui.statusbar.pipeline.mobile.ui.view
 import android.content.Context
 import android.util.AttributeSet
 import android.view.LayoutInflater
+import android.view.View
 import android.widget.LinearLayout
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.StatusBarIconView.STATE_ICON
@@ -46,11 +47,17 @@ class ModernShadeCarrierGroupMobileView(
     }
 
     fun updateTextAppearance(resId: Int) {
-        requireViewById<AutoMarqueeTextView>(R.id.mobile_carrier_text).setTextAppearance(resId)
+        requireViewById<AutoMarqueeTextView>(R.id.mobile_carrier_text).apply {
+            setTextAppearance(resId)
+            textAlignment = View.TEXT_ALIGNMENT_VIEW_END
+        }
     }
     
     fun setTextColor(color: Int) {
-        requireViewById<AutoMarqueeTextView>(R.id.mobile_carrier_text).setTextColor(color)
+        requireViewById<AutoMarqueeTextView>(R.id.mobile_carrier_text).apply {
+            setTextColor(color)
+            textAlignment = View.TEXT_ALIGNMENT_VIEW_END
+        }
     }
 
     companion object {
