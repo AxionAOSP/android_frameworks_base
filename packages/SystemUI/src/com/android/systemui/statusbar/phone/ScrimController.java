@@ -627,6 +627,10 @@ public class ScrimController implements ViewTreeObserver.OnPreDrawListener, Dump
         return mState;
     }
 
+    public float getScrimBehindAlpha() {
+        return mScrimBehindAlphaKeyguard;
+    }
+
     /**
      * Sets the additional scrim behind alpha keyguard that would be blended with the default scrim
      * by applying alpha composition on both values.

@@ -64,6 +64,8 @@ import com.android.systemui.qs.tiles.dialog.InternetDialogManager;
 import com.android.systemui.media.dialog.MediaOutputDialogManager;
 import com.android.systemui.statusbar.policy.ConfigurationController;
 import com.android.systemui.statusbar.policy.FlashlightController;
+import com.android.systemui.statusbar.policy.KeyguardStateController;
+import com.android.systemui.statusbar.phone.ScrimController;
 
 import dagger.Lazy;
 
@@ -181,6 +183,8 @@ public class Dependency {
     @Inject Lazy<FlashlightController> mFlashlightController;
     @Inject Lazy<BluetoothTileDialogViewModel> mBluetoothTileDialogViewModel;
     @Inject Lazy<HotspotController> mHotspotController;
+    @Inject Lazy<ScrimController> mScrimController;
+    @Inject Lazy<KeyguardStateController> mKeyguardStateController;
 
     @Inject
     public Dependency() {
@@ -236,6 +240,8 @@ public class Dependency {
         mProviders.put(FlashlightController.class, mFlashlightController::get);
         mProviders.put(BluetoothTileDialogViewModel.class, mBluetoothTileDialogViewModel::get);
         mProviders.put(HotspotController.class, mHotspotController::get);
+        mProviders.put(ScrimController.class, mScrimController::get);
+        mProviders.put(KeyguardStateController.class, mKeyguardStateController::get);
 
         Dependency.setInstance(this);
     }
