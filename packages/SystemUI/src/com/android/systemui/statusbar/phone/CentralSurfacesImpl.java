@@ -2641,6 +2641,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
             }
 
             DejankUtils.stopDetectingBlockingIpcs(tag);
+            com.android.systemui.util.ScrimUtils.getInstance(mContext).onScreenStateChange();
         }
 
         @Override
