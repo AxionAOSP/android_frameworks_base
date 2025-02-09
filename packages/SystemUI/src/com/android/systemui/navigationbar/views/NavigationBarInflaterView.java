@@ -53,6 +53,8 @@ import com.android.systemui.recents.OverviewProxyService;
 import com.android.systemui.res.R;
 import com.android.systemui.shared.system.QuickStepContract;
 
+import com.android.internal.util.android.ThemeUtils;
+
 import lineageos.providers.LineageSettings;
 
 import java.io.PrintWriter;
@@ -138,12 +140,15 @@ public class NavigationBarInflaterView extends FrameLayout {
     private boolean mIsHintEnabled;
 
     private final ContentObserver mContentObserver;
+    
+    private final ThemeUtils mThemeUtils;
 
     public NavigationBarInflaterView(Context context, AttributeSet attrs) {
         super(context, attrs);
         createInflaters();
         mOverviewProxyService = Dependency.get(OverviewProxyService.class);
         mListener = new Listener(this);
+        mThemeUtils = ThemeUtils.getInstance(context);
         mNavBarMode = Dependency.get(NavigationModeController.class).addListener(mListener);
         mContentObserver = new ContentObserver(null) {
             @Override
@@ -206,6 +211,11 @@ public class NavigationBarInflaterView extends FrameLayout {
     }
 
     private void onNavigationModeChanged(int mode) {
+        if (mode == NAV_BAR_MODE_3BUTTON) {
+            Settings.System.putIntForUser(
+                    mContext.getContentResolver(), "hide_ime_space_style", 0, android.os.UserHandle.USER_CURRENT);
+            mThemeUtils.setOverlayEnabled("android.theme.customization.hide_ime_space", "android", "android");
+        }
         mNavBarMode = mode;
         updateHint();
     }
