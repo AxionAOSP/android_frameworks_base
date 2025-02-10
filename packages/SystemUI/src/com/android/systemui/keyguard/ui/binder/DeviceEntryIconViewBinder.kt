@@ -197,7 +197,7 @@ object DeviceEntryIconViewBinder {
                                     )
                             }
                             fgIconView.imageTintList =
-                                ColorStateList.valueOf(overrideColor?.toArgb() ?: viewModel.tint)
+                                ColorStateList.valueOf(viewModel.tint)
                             fgIconView.setPadding(0, 0, 0, 0)
                         }
                     }
