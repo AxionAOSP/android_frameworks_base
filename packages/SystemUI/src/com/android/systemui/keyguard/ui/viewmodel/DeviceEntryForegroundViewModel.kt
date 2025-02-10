@@ -60,11 +60,7 @@ constructor(
         }
 
     private fun getColor(usingBackgroundProtection: Boolean): Int {
-        return if (usingBackgroundProtection) {
-            Utils.getColorAttrDefaultColor(context, android.R.attr.textColorPrimary)
-        } else {
-            Utils.getColorAttrDefaultColor(context, R.attr.wallpaperTextColorAccent)
-        }
+        return android.graphics.Color.WHITE
     }
 
     // While dozing, the display can show the AOD UI; show the AOD udfps when dozing
