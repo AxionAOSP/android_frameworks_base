@@ -190,7 +190,7 @@ object DeviceEntryIconViewBinder {
                                     )
                             }
                             fgIconView.imageTintList =
-                                ColorStateList.valueOf(overrideColor?.toArgb() ?: viewModel.tint)
+                                ColorStateList.valueOf(viewModel.tint)
                             fgIconView.setPadding(0, 0, 0, 0)
                             // Set image state at the end after updating other view state. This
                             // method forces the ImageView to recompute the bounds of the drawable.
