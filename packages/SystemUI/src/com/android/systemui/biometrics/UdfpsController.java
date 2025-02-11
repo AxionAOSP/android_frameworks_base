@@ -111,6 +111,7 @@ import com.android.systemui.user.domain.interactor.SelectedUserInteractor;
 import com.android.systemui.util.concurrency.DelayableExecutor;
 import com.android.systemui.util.concurrency.Execution;
 import com.android.systemui.util.time.SystemClock;
+import com.android.systemui.util.SystemUIBoostFramework;
 
 import dagger.Lazy;
 
@@ -955,6 +956,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             }
         } else {
             Log.v(TAG, "showUdfpsOverlay | the overlay is already showing");
+            SystemUIBoostFramework.getInstance().animationBoostOn(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_UDFPS_SCAN_ANIMATION);
         }
     }
 
@@ -1245,6 +1247,8 @@ public class UdfpsController implements DozeReceiver, Dumpable {
         mOnFingerDown = false;
         unconfigureDisplay(view);
         cancelAodSendFingerUpAction();
+        
+        SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_UDFPS_SCAN_ANIMATION);
     }
 
     private void showUdfpsAnimation() {
