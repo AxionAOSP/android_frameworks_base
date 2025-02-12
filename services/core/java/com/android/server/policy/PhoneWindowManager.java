@@ -1379,7 +1379,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         + mShortPressOnPowerBehavior);
 
         if (count == 2) {
-            performPowerDoublePressAction(eventTime, interactive);
+            powerMultiPressAction(eventTime, interactive, mDoublePressOnPowerBehavior);
         } else if (count == 3) {
             powerMultiPressAction(eventTime, interactive, mTriplePressOnPowerBehavior);
         } else if (count > 3 && count <= getMaxMultiPressPowerCount()) {
@@ -1707,7 +1707,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         if (mTriplePressOnPowerBehavior != MULTI_PRESS_POWER_NOTHING) {
             return 3;
         }
-        if (!java.util.Objects.equals(mPowerButtonDoublePressAction, "none")) {
+        if (mDoublePressOnPowerBehavior != MULTI_PRESS_POWER_NOTHING) {
             return 2;
         }
         return 1;
@@ -6367,7 +6367,28 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     // The camera gesture will be detected by GestureLauncherService.
     private boolean handleCameraGesture(KeyEvent event, boolean interactive) {
-       return false;
+        // camera gesture.
+        if (mGestureLauncherService == null) {
+            return false;
+        }
+        mCameraGestureTriggered = false;
+        final MutableBoolean outLaunched = new MutableBoolean(false);
+        final boolean intercept =
+                mGestureLauncherService.interceptPowerKeyDown(event, interactive, outLaunched);
+        if (!outLaunched.value) {
+            // If GestureLauncherService intercepted the power key, but didn't launch camera app,
+            // we should still return the intercept result. This prevents the single key gesture
+            // detector from processing the power key later on.
+            return intercept;
+        }
+        performPowerDoublePressAction(event.getEventTime(), interactive);
+        mCameraGestureTriggered = true;
+        if (mRequestedOrSleepingDefaultDisplay) {
+            mCameraGestureTriggeredDuringGoingToSleep = true;
+            // Wake device up early to prevent display doing redundant turning off/on stuff.
+            mWindowWakeUpPolicy.wakeUpFromPowerKeyCameraGesture();
+        }
+        return true;
     }
 
     /**
