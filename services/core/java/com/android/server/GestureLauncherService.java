@@ -601,8 +601,7 @@ public class GestureLauncherService extends SystemService {
         if (launchCamera) {
             Slog.i(TAG, "Power button double tap gesture detected, launching camera. Interval="
                     + powerTapInterval + "ms");
-            launchCamera = handleCameraGesture(false /* useWakelock */,
-                    StatusBarManager.CAMERA_LAUNCH_SOURCE_POWER_DOUBLE_TAP);
+            launchCamera = true;
             if (launchCamera) {
                 mMetricsLogger.action(MetricsEvent.ACTION_DOUBLE_TAP_POWER_CAMERA_GESTURE,
                         (int) powerTapInterval);
