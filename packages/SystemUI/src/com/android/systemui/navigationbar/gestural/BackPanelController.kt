@@ -56,6 +56,8 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sign
 
+import com.android.internal.util.android.VibrationUtils
+
 private const val TAG = "BackPanelController"
 private const val ENABLE_FAILSAFE = true
 private const val FAILSAFE_DELAY_MS = 350L
@@ -766,10 +768,7 @@ internal constructor(
     private fun setTriggerLongSwipe(enabled: Boolean) {
         if (triggerLongSwipe != enabled) {
             triggerLongSwipe = enabled
-            if (edgeHapticEnabled) vibratorHelper.performHapticFeedback(
-                    mView,
-                    HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE
-            )
+            if (edgeHapticEnabled) VibrationUtils.triggerVibration(context, 1)
             updateRestingArrowDimens()
             // Whenever the trigger back state changes
             // the existing translation animation should be cancelled
@@ -1047,7 +1046,7 @@ internal constructor(
             GestureState.ACTIVE -> {
                 previousXTranslationOnActiveOffset = previousXTranslation
                 updateRestingArrowDimens()
-                if (edgeHapticEnabled) performActivatedHapticFeedback()
+                if (edgeHapticEnabled) VibrationUtils.triggerVibration(context, 1)
                 val popVelocity =
                     if (previousState == GestureState.INACTIVE) {
                         POP_ON_INACTIVE_TO_ACTIVE_VELOCITY
@@ -1068,7 +1067,7 @@ internal constructor(
 
                 mView.popOffEdge(POP_ON_INACTIVE_VELOCITY)
 
-                if (edgeHapticEnabled) performDeactivatedHapticFeedback()
+                if (edgeHapticEnabled) VibrationUtils.triggerVibration(context, 1)
                 updateRestingArrowDimens()
             }
             GestureState.FLUNG -> {
@@ -1076,7 +1075,7 @@ internal constructor(
                 // are instances where a fling to trigger back occurs while not in that state.
                 // (e.g. A fling is detected before crossing the trigger threshold.)
                 if (edgeHapticEnabled && (previousState != GestureState.ACTIVE)) {
-                    performActivatedHapticFeedback()
+                    VibrationUtils.triggerVibration(context, 1)
                 }
                 mainHandler.postDelayed(POP_ON_FLING_DELAY) {
                     mView.popScale(POP_ON_FLING_VELOCITY)
