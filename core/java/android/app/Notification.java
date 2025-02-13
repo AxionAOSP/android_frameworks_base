@@ -7679,7 +7679,7 @@ public class Notification implements Parcelable
         if (extras.getBoolean(EXTRA_REDUCED_IMAGES)) {
             return;
         }
-        boolean isLowRam = ActivityManager.isLowRamDeviceStatic();
+        boolean isLowRam = true;
 
         if (mSmallIcon != null
                 // Only bitmap icons can be downscaled.
@@ -8388,7 +8388,7 @@ public class Notification implements Parcelable
         public void reduceImageSizes(Context context) {
             super.reduceImageSizes(context);
             Resources resources = context.getResources();
-            boolean isLowRam = ActivityManager.isLowRamDeviceStatic();
+            boolean isLowRam = true;
             if (mPictureIcon != null) {
                 int maxPictureHeight = resources.getDimensionPixelSize(isLowRam
                         ? R.dimen.notification_big_picture_max_height_low_ram
@@ -9603,7 +9603,7 @@ public class Notification implements Parcelable
         public void reduceImageSizes(Context context) {
             super.reduceImageSizes(context);
             Resources resources = context.getResources();
-            boolean isLowRam = ActivityManager.isLowRamDeviceStatic();
+            boolean isLowRam = true;
             if (mShortcutIcon != null) {
                 int maxSize = resources.getDimensionPixelSize(
                         isLowRam ? R.dimen.notification_small_icon_size_low_ram
@@ -10758,9 +10758,7 @@ public class Notification implements Parcelable
             super.reduceImageSizes(context);
             if (mVerificationIcon != null) {
                 int rightIconSize = context.getResources().getDimensionPixelSize(
-                        ActivityManager.isLowRamDeviceStatic()
-                                ? R.dimen.notification_right_icon_size_low_ram
-                                : R.dimen.notification_right_icon_size);
+                        R.dimen.notification_right_icon_size_low_ram);
                 mVerificationIcon.scaleDownIfNecessary(rightIconSize, rightIconSize);
             }
         }
