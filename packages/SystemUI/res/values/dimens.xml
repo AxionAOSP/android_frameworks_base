@@ -682,10 +682,10 @@
     <dimen name="qs_tile_margin_horizontal">8dp</dimen>
     <dimen name="qs_tile_margin_vertical">@dimen/qs_tile_margin_horizontal</dimen>
     <dimen name="qs_tile_margin_top_bottom">4dp</dimen>
-    <dimen name="qs_brightness_margin_top">8dp</dimen>
+    <dimen name="qs_brightness_margin_top">0dp</dimen>
     <dimen name="qs_brightness_margin_bottom">16dp</dimen>
     <dimen name="qqs_layout_margin_top">16dp</dimen>
-    <dimen name="qqs_layout_padding_bottom">24dp</dimen>
+    <dimen name="qqs_layout_padding_bottom">0dp</dimen>
     <item name="qqs_expand_clock_scale" format="float" type="dimen">2.57</item>
 
     <!-- Most of the time it should be the same as notification_side_paddings as it's vertically
@@ -842,7 +842,7 @@
     <!-- The amount to translate lockscreen elements on the GONE->AOD transition, on device fold -->
     <dimen name="keyguard_enter_from_side_translation_x">-100dp</dimen>
 
-    <dimen name="notification_scrim_corner_radius">32dp</dimen>
+    <dimen name="notification_scrim_corner_radius">0dp</dimen>
 
     <!-- The minimum amount the user needs to swipe to go to the camera / phone. -->
     <dimen name="keyguard_min_swipe_amount">110dp</dimen>
@@ -1100,7 +1100,7 @@
     <dimen name="udfps_burn_in_offset_y">20px</dimen>
 
     <!-- The absolute side margins of quick settings -->
-    <dimen name="quick_settings_bottom_margin_media">8dp</dimen>
+    <dimen name="quick_settings_bottom_margin_media">0dp</dimen>
     <dimen name="nav_content_padding">0dp</dimen>
 
     <!-- Navigation bar shadow params. -->
