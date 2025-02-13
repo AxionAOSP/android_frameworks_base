@@ -502,7 +502,7 @@
         <item name="shadeActive">?android:attr/colorAccent</item>
         <item name="onShadeActive">?android:attr/textColorPrimaryInverse</item>
         <item name="onShadeActiveVariant">?android:attr/textColorSecondaryInverse</item>
-        <item name="shadeInactive">@*android:color/surface_light</item>
+        <item name="shadeInactive">@android:color/system_neutral1_50</item>
         <item name="onShadeInactive">?android:attr/textColorPrimary</item>
         <item name="onShadeInactiveVariant">?android:attr/textColorSecondary</item>
         <item name="shadeDisabled">@*android:color/surface_light</item>
