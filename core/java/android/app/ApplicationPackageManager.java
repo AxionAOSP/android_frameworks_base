@@ -836,7 +836,8 @@ public class ApplicationPackageManager extends PackageManager {
 
     @Override
     public boolean hasSystemFeature(String name, int version) {
-        return mHasSystemFeatureCache.query(new HasSystemFeatureQuery(name, version));
+        boolean hasSystemFeature = mHasSystemFeatureCache.query(new HasSystemFeatureQuery(name, version));
+        return com.android.internal.util.android.PropsHooksUtils.hasSystemFeature(name, version, hasSystemFeature);
     }
 
     /** @hide */
