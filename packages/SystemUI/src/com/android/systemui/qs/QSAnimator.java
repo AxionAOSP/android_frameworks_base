@@ -569,34 +569,32 @@ public class QSAnimator implements QSHost.Callback, PagedTileLayout.PageListener
                     .setInterpolator(mQSExpansionPathInterpolator.getYInterpolator())
                     .build();
         } else if (qsBrightness != null) {
-            // The brightness slider's visible bottom edge must maintain a constant margin from the
-            // QS tiles during transition. Thus the slider must (1) perform the same vertical
-            // translation as the tiles, and (2) compensate for the slider scaling.
-
-            // For (1), compute the distance via the vertical distance between QQS and QS tile
-            // layout top.
-            View quickSettingsRootView = mQsRootView;
-            View qsTileLayout = (View) mQsPanelController.getTileLayout();
-            View qqsTileLayout = (View) mQuickQSPanelController.getTileLayout();
-            getRelativePosition(mTmpLoc1, qsTileLayout, quickSettingsRootView);
-            getRelativePosition(mTmpLoc2, qqsTileLayout, quickSettingsRootView);
-            int tileMovement = mTmpLoc2[1] - mTmpLoc1[1];
-
             // For (2), the slider scales to the vertical center, so compensate with half the
             // height at full collapse.
-            float scaleCompensation = qsBrightness.getMeasuredHeight() * 0.5f;
-            mBrightnessTranslationAnimator = new Builder()
-                    .addFloat(qsBrightness, "translationY", scaleCompensation + tileMovement, 0)
-                    .addFloat(qsBrightness, "sliderScaleY", 0, 1)
-                    .setInterpolator(mQSExpansionPathInterpolator.getYInterpolator())
-                    .build();
+            mBrightnessTranslationAnimator = null;
 
             // While the slider's position and unfurl is animated throughouth the motion, the
             // fade in happens independently.
             mBrightnessOpacityAnimator = new Builder()
-                    .addFloat(qsBrightness, "alpha", 0, 1)
-                    .setStartDelay(0.2f)
-                    .setEndDelay(1 - 0.5f)
+                    .addFloat(qsBrightness, "alpha", 0f, 0f, 1f, 1f)
+                    .setStartDelay(0.02f)
+                    .setEndDelay(0.02f)
+                    .setListener(new TouchAnimator.ListenerAdapter() {
+                        @Override
+                        public void onAnimationStarted() {
+                            qsBrightness.setAlpha(0);
+                        }
+
+                        @Override
+                        public void onAnimationAtStart() {
+                            qsBrightness.setAlpha(0);
+                        }
+
+                        @Override
+                        public void onAnimationAtEnd() {
+                            qsBrightness.setAlpha(1);
+                        }
+                    })
                     .build();
             mAllViews.add(qsBrightness);
         }
