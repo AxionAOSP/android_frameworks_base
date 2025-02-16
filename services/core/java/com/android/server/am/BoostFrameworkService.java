@@ -20,6 +20,7 @@ import android.os.FileUtils;
 import android.os.IBinder;
 import android.os.Process;
 import android.os.RemoteException;
+import android.os.SystemProperties;
 import android.util.Log;
 import com.android.internal.os.IBoostFramework;
 
@@ -31,27 +32,34 @@ public class BoostFrameworkService extends IBoostFramework.Stub {
     private final static int BIG_CORES = 0;
     private final static int SMALL_CORES = 1;
 
+    private static final long ANIMATION_BOOST_ON = 0L;
+    private static final long ANIMATION_BOOST_OFF = -1L;
+
     @Override
     public void animationBoost(int tid, long boost) throws RemoteException {
         int threadPriority = Process.getThreadPriority(tid);
-        if (boost >= 0) {
-            Process.setThreadScheduler(tid, Process.SCHED_RR, 1);
-        } else if (boost == -1) {
-            Process.setThreadScheduler(tid, Process.SCHED_OTHER, 0);
-            Process.setThreadPriority(threadPriority);
-            Process.setThreadScheduler(tid, Process.SCHED_OTHER, 0);
-        }
+        try {
+            if (boost >= ANIMATION_BOOST_ON) {
+                Process.setThreadScheduler(tid, Process.SCHED_RR, 1);
+            } else if (boost == ANIMATION_BOOST_OFF) {
+                Process.setThreadScheduler(tid, Process.SCHED_OTHER, 0);
+                Process.setThreadPriority(threadPriority);
+                Process.setThreadScheduler(tid, Process.SCHED_OTHER, 0);
+            }
+        } catch (Exception e) {}
     }
 
     @Override
     public void setProcThreadAffinity(int tid, int affinity) throws RemoteException {
-        int threadGroup = Process.THREAD_GROUP_SYSTEM;
-        if (affinity == BIG_CORES) {
-            threadGroup = Process.THREAD_GROUP_TOP_APP;
-        } else if (affinity == SMALL_CORES) {
-            threadGroup = Process.THREAD_GROUP_BACKGROUND;
-        }
-        Process.setThreadGroupAndCpuset(tid, threadGroup);
-        Process.setThreadAffinity(tid, affinity);
+        try {
+            int threadGroup = 1;
+            if (affinity == BIG_CORES) {
+                threadGroup = Process.THREAD_GROUP_TOP_APP;
+            } else if (affinity == SMALL_CORES) {
+                threadGroup = Process.THREAD_GROUP_BACKGROUND;
+            }
+            Process.setThreadGroupAndCpuset(tid, threadGroup);
+            Process.setThreadAffinity(tid, affinity);
+        } catch (Exception e) {}
     }
 }
