@@ -576,7 +576,25 @@ public class QSAnimator implements QSHost.Callback, PagedTileLayout.PageListener
             // While the slider's position and unfurl is animated throughouth the motion, the
             // fade in happens independently.
             mBrightnessOpacityAnimator = new Builder()
-                    .addFloat(qsBrightness, "alpha", 0, 1)
+                    .addFloat(qsBrightness, "alpha", 0f, 0f, 1f, 1f)
+                    .setStartDelay(0.02f)
+                    .setEndDelay(0.02f)
+                    .setListener(new TouchAnimator.ListenerAdapter() {
+                        @Override
+                        public void onAnimationStarted() {
+                            qsBrightness.setAlpha(0);
+                        }
+
+                        @Override
+                        public void onAnimationAtStart() {
+                            qsBrightness.setAlpha(0);
+                        }
+
+                        @Override
+                        public void onAnimationAtEnd() {
+                            qsBrightness.setAlpha(1);
+                        }
+                    })
                     .build();
             mAllViews.add(qsBrightness);
         }
