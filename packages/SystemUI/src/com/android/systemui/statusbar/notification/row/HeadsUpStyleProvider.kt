@@ -17,6 +17,7 @@
 package com.android.systemui.statusbar.notification.row
 
 import com.android.systemui.statusbar.data.repository.StatusBarModeRepositoryStore
+import android.os.SystemProperties
 import javax.inject.Inject
 
 /**
@@ -33,7 +34,7 @@ constructor(private val statusBarModeRepositoryStore: StatusBarModeRepositorySto
     HeadsUpStyleProvider {
 
     override fun shouldApplyCompactStyle(): Boolean {
-        return isInImmersiveMode()
+        return isInImmersiveMode() || SystemProperties.getBoolean("persist.sys.compact_hun.always_show", true)
     }
 
     private fun isInImmersiveMode() =
