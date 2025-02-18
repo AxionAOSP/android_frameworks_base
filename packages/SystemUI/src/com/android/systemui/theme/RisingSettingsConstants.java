@@ -31,6 +31,7 @@ public class RisingSettingsConstants {
     private static final String PREF_WHOLE_PALETTE = "monet_engine_whole_palette";
 
     public static final String[] SYSTEM_SETTINGS_KEYS = {
+        "lockscreen_widgets_extras"
     };
     
     public static final String[] SECURE_SETTINGS_KEYS = {

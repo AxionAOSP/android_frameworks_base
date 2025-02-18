@@ -36,6 +36,7 @@ import com.android.systemui.keyguard.ui.view.layout.sections.DefaultStatusViewSe
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultUdfpsAccessibilityOverlaySection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSectionsModule.Companion.KEYGUARD_AMBIENT_INDICATION_AREA_SECTION
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSliceViewSection
+import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardWidgetViewSection
 import com.android.systemui.keyguard.ui.view.layout.sections.SmartspaceSection
 import java.util.Optional
 import javax.inject.Inject
@@ -70,6 +71,7 @@ constructor(
     clockSection: ClockSection,
     smartspaceSection: SmartspaceSection,
     keyguardSliceViewSection: KeyguardSliceViewSection,
+    keyguardWidgetViewSection: KeyguardWidgetViewSection,
     udfpsAccessibilityOverlaySection: DefaultUdfpsAccessibilityOverlaySection,
     defaultIndicationAreaTopSection: DefaultIndicationAreaTopSection,
 ) : KeyguardBlueprint {
@@ -92,6 +94,7 @@ constructor(
             communalTutorialIndicatorSection,
             clockSection,
             keyguardSliceViewSection,
+            keyguardWidgetViewSection,
             defaultDeviceEntrySection,
             udfpsAccessibilityOverlaySection, // Add LAST: Intentionally has z-order above others
         )
