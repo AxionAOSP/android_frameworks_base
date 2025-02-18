@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.android.systemui.lockscreen.LockScreenWidgets
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:systemui="http://schemas.android.com/apk/res-auto"
+  android:id="@+id/lockscreen_widgets"
+  android:gravity="center"
+  android:clipChildren="false"
+  android:clipToPadding="false"
+  android:layout_gravity="center_horizontal"
+  android:orientation="vertical"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content">
+
+    <LinearLayout
+    	android:id="@+id/main_widgets_container"
+        android:gravity="center_horizontal"
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/kg_widget_margin_vertical"
+        android:layout_marginBottom="@dimen/kg_widget_margin_bottom" >
+
+        <com.android.systemui.animation.view.LaunchableImageView
+            android:gravity="center"
+            android:id="@+id/kg_item_placeholder1"
+            android:padding="@dimen/kg_widgets_icon_padding"
+            android:focusable="true"
+            android:clickable="true"
+            android:layout_width="@dimen/kg_widget_circle_size"
+            android:layout_height="@dimen/kg_widget_circle_size"
+            android:layout_marginHorizontal="@dimen/kg_widgets_margin_horizontal" />
+
+        <com.android.systemui.animation.view.LaunchableImageView
+            android:gravity="center"
+            android:id="@+id/kg_item_placeholder2"
+            android:padding="@dimen/kg_widgets_icon_padding"
+            android:focusable="true"
+            android:clickable="true"
+            android:layout_width="@dimen/kg_widget_circle_size"
+            android:layout_height="@dimen/kg_widget_circle_size"
+            android:layout_marginHorizontal="@dimen/kg_widgets_margin_horizontal" />
+
+        <com.android.systemui.animation.view.LaunchableImageView
+            android:gravity="center"
+            android:id="@+id/kg_item_placeholder3"
+            android:padding="@dimen/kg_widgets_icon_padding"
+            android:focusable="true"
+            android:clickable="true"
+            android:layout_width="@dimen/kg_widget_circle_size"
+            android:layout_height="@dimen/kg_widget_circle_size"
+            android:layout_marginHorizontal="@dimen/kg_widgets_margin_horizontal" />
+
+        <com.android.systemui.animation.view.LaunchableImageView
+            android:gravity="center"
+            android:id="@+id/kg_item_placeholder4"
+            android:padding="@dimen/kg_widgets_icon_padding"
+            android:focusable="true"
+            android:clickable="true"
+            android:layout_width="@dimen/kg_widget_circle_size"
+            android:layout_height="@dimen/kg_widget_circle_size"
+            android:layout_marginHorizontal="@dimen/kg_widgets_margin_horizontal" />
+
+    </LinearLayout>
+
+</com.android.systemui.lockscreen.LockScreenWidgets>
