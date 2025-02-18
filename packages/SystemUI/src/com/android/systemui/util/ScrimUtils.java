@@ -44,6 +44,10 @@ public class ScrimUtils {
     private final KeyguardStateController.Callback mKeyguardStateCallback =
             new KeyguardStateController.Callback() {
                 @Override
+                public void onKeyguardShowingChanged() {
+                    onKgShowingChanged(mKeyguardStateController.isShowing());
+                }
+                @Override
                 public void onKeyguardFadingAwayChanged() {
                     onKgFadingAwayChanged();
                 }
@@ -84,7 +88,12 @@ public class ScrimUtils {
         return instance;
     }
     
+    private MediaArtUtils getMediaInstance() {
+        return MediaArtUtils.Companion.getInstance(mContext);
+    }
+    
     public void setViewAlpha(float subjectAlpha) {
+        getMediaInstance().setSubjectAlpha(subjectAlpha);
     }
 
     public void setQsExpansion(float expansion) {
@@ -98,25 +107,35 @@ public class ScrimUtils {
         if (mExpansionState == ExpansionState.QS_NOT_EXPANDED) {
         } else if (mExpansionState == ExpansionState.QS_FULLY_EXPANDED) {
         }
+        getMediaInstance().setQsExpansion(mExpansionState == ExpansionState.QS_FULLY_EXPANDED);
     }
     
-    public void onScreenStateChange() {
-        updateNotifContainerElements();
-    }
-    
+    public void onScreenStateChange() {}
+
     private void updateNotifContainerElements() {
     }
 
     public void onScrimDispatched() {
+        getMediaInstance().updateMediaVisibility();
     }
 
     private void onDozeChanged(boolean dozing) {
+        MediaArtUtils mediaArtUtils = getMediaInstance();
+        if (mediaArtUtils != null) {
+            mediaArtUtils.onDozingChanged(dozing);
+        }
+    }
+
+    private void onKgShowingChanged(boolean showing) {
+        getMediaInstance().setOnKeyguard(showing);
     }
 
     private void onKgFadingAwayChanged() {
+        getMediaInstance().setOnKeyguard(false);
     }
 
     private void onKgGoingAwayChanged() {
+        getMediaInstance().setOnKeyguard(false);
     }
 
     public float getScrimBehindAlphaKeyguard() {
