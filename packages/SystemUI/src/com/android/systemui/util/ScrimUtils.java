@@ -84,7 +84,12 @@ public class ScrimUtils {
         return instance;
     }
     
+    private MediaArtUtils getMediaInstance() {
+        return MediaArtUtils.Companion.getInstance(mContext);
+    }
+    
     public void setViewAlpha(float subjectAlpha) {
+        getMediaInstance().setSubjectAlpha(subjectAlpha);
     }
 
     public void setQsExpansion(float expansion) {
@@ -96,27 +101,43 @@ public class ScrimUtils {
         }
         mExpansionState = state;
         if (mExpansionState == ExpansionState.QS_NOT_EXPANDED) {
+            updateMediaArtVisibility();
         } else if (mExpansionState == ExpansionState.QS_FULLY_EXPANDED) {
+            getMediaInstance().hideMediaArt();
         }
     }
     
     public void onScreenStateChange() {
-        updateNotifContainerElements();
+        updateMediaArtVisibility();
+    }
+    
+    private void updateMediaArtVisibility() {
+        getMediaInstance().updateMediaArtVisibility();
+        mHandler.postDelayed(() -> {
+            getMediaInstance().updateMediaArtVisibility();
+        }, 250);
     }
     
     private void updateNotifContainerElements() {
     }
 
     public void onScrimDispatched() {
+        getMediaInstance().updateMediaArtVisibility();
     }
 
     private void onDozeChanged(boolean dozing) {
+        MediaArtUtils mediaArtUtils = getMediaInstance();
+        if (mediaArtUtils != null) {
+            mediaArtUtils.onDozingChanged(dozing);
+        }
     }
 
     private void onKgFadingAwayChanged() {
+        getMediaInstance().hideMediaArt();
     }
 
     private void onKgGoingAwayChanged() {
+        getMediaInstance().hideMediaArt();
     }
 
     public float getScrimBehindAlphaKeyguard() {
