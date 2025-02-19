@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2023-2024 The risingOS Android Project
+ * Copyright (C) 2025 The AxionAOSP Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,18 +30,32 @@ import android.provider.Settings
 import android.text.TextUtils
 import android.view.KeyEvent
 import android.view.View
-
 import com.android.internal.jank.InteractionJankMonitor
-
 import com.android.systemui.Dependency
 import com.android.systemui.animation.DialogCuj
 import com.android.systemui.animation.DialogTransitionAnimator
 import com.android.systemui.animation.Expandable
 import com.android.systemui.monet.ColorScheme
 import com.android.systemui.media.dialog.MediaOutputDialogManager
-
-import kotlinx.coroutines.*
-import kotlinx.coroutines.Dispatchers.Main
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MediaSessionManagerHelper private constructor(private val context: Context) {
 
@@ -50,222 +65,196 @@ class MediaSessionManagerHelper private constructor(private val context: Context
         fun onMediaColorsChanged() {}
     }
 
+    private val _mediaMetadata = MutableStateFlow<MediaMetadata?>(null)
+    val mediaMetadata: StateFlow<MediaMetadata?> = _mediaMetadata
+
+    private val _playbackState = MutableStateFlow<PlaybackState?>(null)
+    val playbackState: StateFlow<PlaybackState?> = _playbackState
+
+    private val _mediaColors = MutableStateFlow(0)
+    val mediaColors: StateFlow<Int> = _mediaColors
+
+    private val _currentColorScheme = MutableStateFlow<ColorScheme?>(null)
+    val currentColorScheme: StateFlow<ColorScheme?> = _currentColorScheme
+
+    private val scope = CoroutineScope(Dispatchers.Main)
+    private var collectJob: Job? = null
+
     private var lastSavedPackageName: String? = null
     private val mediaSessionManager: MediaSessionManager = context.getSystemService(MediaSessionManager::class.java)!!
-    private val activityLauncherUtils: ActivityLauncherUtils = ActivityLauncherUtils(context)
+    private val activityLauncherUtils = ActivityLauncherUtils(context)
     private var activeController: MediaController? = null
-    private val listeners: MutableSet<MediaMetadataListener> = mutableSetOf()
-    private var mediaMetadata: MediaMetadata? = null
-    private var currMediaArtColor: Int = 0
-    private var mWallpaperColors: WallpaperColors? = null
-    private var mCurrentColorScheme: ColorScheme? = null
+    private val listeners = mutableSetOf<MediaMetadataListener>()
 
     private val mediaControllerCallback = object : MediaController.Callback() {
         override fun onMetadataChanged(metadata: MediaMetadata?) {
-            if (mediaMetadata != metadata) {
-                mediaMetadata = metadata
-                notifyListeners { it.onMediaMetadataChanged() }
-            }
+            _mediaMetadata.value = metadata
         }
+
         override fun onPlaybackStateChanged(state: PlaybackState?) {
-            notifyListeners { it.onPlaybackStateChanged() }
+            _playbackState.value = state
         }
     }
 
-    private var updateJob: Job? = null
+    private val tickerFlow = flow {
+        while (true) {
+            emit(Unit)
+            delay(1000)
+        }
+    }.flowOn(Dispatchers.Default)
 
     init {
         lastSavedPackageName = Settings.System.getString(
             context.contentResolver,
             "media_session_last_package_name"
         )
-    }
 
-    private fun startPeriodicUpdate() {
-        updateJob = CoroutineScope(Dispatchers.Main).launch {
-            while (isActive) {
-                updateMediaController()
+        scope.launch {
+            tickerFlow
+                .map { fetchActiveController() }
+                .distinctUntilChanged { old, new -> sameSessions(old, new) }
+                .collect { controller ->
+                    activeController?.unregisterCallback(mediaControllerCallback)
+                    activeController = controller
+                    controller?.registerCallback(mediaControllerCallback)
+                    _mediaMetadata.value = controller?.metadata
+                    _playbackState.value = controller?.playbackState
+                    saveLastNonNullPackageName()
+                }
+        }
+
+        scope.launch {
+            tickerFlow.collect {
                 updateMediaColors()
-                delay(1000)
             }
         }
     }
-    
-    fun updateMediaColors() {
-        val metadata = getMediaMetadata()
-        val bitmap = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-            ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
-            ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+
+    private suspend fun fetchActiveController(): MediaController? = withContext(Dispatchers.IO) {
+        var localController: MediaController? = null
+        val remoteSessions = mutableSetOf<String>()
         
-        val wallpaperColors = bitmap?.let { WallpaperColors.fromBitmap(it) }
-        if (wallpaperColors == null || wallpaperColors == mWallpaperColors) return
+        mediaSessionManager.getActiveSessions(null)
+            .filter { controller ->
+                controller.playbackState?.state == PlaybackState.STATE_PLAYING &&
+                controller.playbackInfo != null
+            }
+            .forEach { controller ->
+                when (controller.playbackInfo?.playbackType) {
+                    MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE -> {
+                        remoteSessions.add(controller.packageName)
+                        if (localController?.packageName == controller.packageName) {
+                            localController = null
+                        }
+                    }
+                    MediaController.PlaybackInfo.PLAYBACK_TYPE_LOCAL -> {
+                        if (!remoteSessions.contains(controller.packageName)) {
+                            localController = localController ?: controller
+                        }
+                    }
+                }
+            }
+        localController
+    }
 
+    private suspend fun updateMediaColors() = withContext(Dispatchers.Default) {
+        val bitmap = mediaMetadata.value?.run {
+            getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART) ?: 
+            getBitmap(MediaMetadata.METADATA_KEY_ART) ?: 
+            getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+        } ?: return@withContext
+
+        val wallpaperColors = WallpaperColors.fromBitmap(bitmap) ?: return@withContext
         val config = context.resources.configuration
-        val currentNightMode = config.uiMode and Configuration.UI_MODE_NIGHT_MASK
-        val isDarkThemeOn = currentNightMode == Configuration.UI_MODE_NIGHT_YES
-
-        val colorScheme = ColorScheme(wallpaperColors, isDarkThemeOn)
-        val newMediaArtColor = if (isDarkThemeOn) {
-            colorScheme.accent1.s100
-        } else {
-            colorScheme.accent1.s800
-        }
-
-        if (currMediaArtColor != newMediaArtColor) {
-            currMediaArtColor = newMediaArtColor
-            mCurrentColorScheme = colorScheme
-            mWallpaperColors = wallpaperColors
-            notifyListeners { it.onMediaColorsChanged() }
-        }
-    }
-
-    fun getColorScheme(): ColorScheme? {
-        return mCurrentColorScheme
-    }
-
-    fun addMediaMetadataListener(listener: MediaMetadataListener?) {
-        listener?.let {
-            val wasEmpty = listeners.isEmpty()
-            listeners.add(it)
-            if (wasEmpty) {
-                startPeriodicUpdate()
-            }
-            notifyListeners()
-        }
-    }
-    
-    fun removeMediaMetadataListener(listener: MediaMetadataListener?) {
-        listener?.let {
-            listeners.remove(it)
-            if (listeners.isEmpty()) {
-                updateJob?.cancel()
-                activeController?.unregisterCallback(mediaControllerCallback)
-                activeController = null
-                mediaMetadata = null
+        val isDarkTheme = config.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        
+        ColorScheme(wallpaperColors, isDarkTheme).let { scheme ->
+            val newColor = if (isDarkTheme) scheme.accent1.s100 else scheme.accent1.s800
+            if (_mediaColors.value != newColor) {
+                _mediaColors.value = newColor
+                _currentColorScheme.value = scheme
             }
         }
     }
 
-    private fun notifyListeners(action: (MediaMetadataListener) -> Unit) {
-        for (listener in listeners) {
-            action(listener)
+    fun addMediaMetadataListener(listener: MediaMetadataListener) {
+        listeners.add(listener)
+        if (listeners.size == 1) {
+            startCollecting()
+        }
+        listener.onMediaMetadataChanged()
+        listener.onPlaybackStateChanged()
+        listener.onMediaColorsChanged()
+    }
+
+    fun removeMediaMetadataListener(listener: MediaMetadataListener) {
+        listeners.remove(listener)
+        if (listeners.isEmpty()) {
+            stopCollecting()
         }
     }
 
-    private fun notifyListeners() {
-        // Store the last used media package name
-        saveLastNonNullPackageName()
-        listeners.forEach {
-            it.onMediaMetadataChanged()
-            it.onPlaybackStateChanged()
-            it.onMediaColorsChanged()
+    private fun startCollecting() {
+        collectJob = scope.launch {
+            launch { mediaMetadata.collect { notifyListeners { onMediaMetadataChanged() } } }
+            launch { playbackState.collect { notifyListeners { onPlaybackStateChanged() } } }
+            launch { mediaColors.collect { notifyListeners { onMediaColorsChanged() } } }
         }
+    }
+
+    private fun stopCollecting() {
+        collectJob?.cancel()
+        collectJob = null
+        activeController?.unregisterCallback(mediaControllerCallback)
+        activeController = null
+        _mediaMetadata.value = null
+        _playbackState.value = null
+        _mediaColors.value = 0
+    }
+
+    private fun notifyListeners(action: MediaMetadataListener.() -> Unit) {
+        listeners.forEach { it.action() }
     }
 
     fun seekTo(time: Long) {
-        val controller = getActiveLocalMediaController()
-        controller?.transportControls?.seekTo(time)
+        activeController?.transportControls?.seekTo(time)
     }
 
-    fun getTotalDuration(): Long {
-        val metadata = getMediaMetadata()
-        return metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
-    }
+    fun getTotalDuration() = mediaMetadata.value?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
 
     private fun saveLastNonNullPackageName() {
-        val packageName = getActiveLocalMediaController()?.packageName
-        if (!TextUtils.isEmpty(packageName) && packageName != lastSavedPackageName) {
-            Settings.System.putString(
-                context.contentResolver,
-                "media_session_last_package_name",
-                packageName
-            )
-            lastSavedPackageName = packageName
-        }
-    }
-
-    fun updateMediaController() {
-        val localController = getActiveLocalMediaController()
-        if (localController != null && !sameSessions(activeController, localController)) {
-            activeController?.unregisterCallback(mediaControllerCallback)
-            activeController = localController
-            activeController?.registerCallback(mediaControllerCallback)
-            notifyListeners()
-        }
-    }
-
-    private fun getActiveLocalMediaController(): MediaController? {
-        var localController: MediaController? = null
-        val remoteMediaSessionLists = mutableListOf<String>()
-        if (mediaSessionManager != null) {
-            for (controller in mediaSessionManager.getActiveSessions(null)) {
-                val playbackInfo = controller.playbackInfo
-                if (playbackInfo == null) {
-                    // do nothing
-                    continue
-                }
-                val playbackState = controller.playbackState
-                if (playbackState == null) {
-                    // do nothing
-                    continue
-                }
-                if (playbackState.state != PlaybackState.STATE_PLAYING) {
-                    // do nothing
-                    continue
-                }
-                if (playbackInfo.playbackType == MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE) {
-                    if (localController != null && localController.packageName == controller.packageName) {
-                        localController = null
-                    }
-                    if (!remoteMediaSessionLists.contains(controller.packageName)) {
-                        remoteMediaSessionLists.add(controller.packageName)
-                    }
-                    continue
-                }
-                if (playbackInfo.playbackType == MediaController.PlaybackInfo.PLAYBACK_TYPE_LOCAL) {
-                    if (localController == null && !remoteMediaSessionLists.contains(controller.packageName)) {
-                        localController = controller
-                    }
-                }
+        activeController?.packageName?.takeIf { it.isNotEmpty() }?.let { pkg ->
+            if (pkg != lastSavedPackageName) {
+                Settings.System.putString(
+                    context.contentResolver,
+                    "media_session_last_package_name",
+                    pkg
+                )
+                lastSavedPackageName = pkg
             }
         }
-        return localController
-    }
-    
-    fun getMediaBitmap(): Bitmap? {
-        val metadata = getMediaMetadata()
-        return metadata?.let {
-            it.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-                ?: it.getBitmap(MediaMetadata.METADATA_KEY_ART)
-                ?: it.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-        }
     }
 
+    fun getMediaBitmap(): Bitmap? = mediaMetadata.value?.let {
+        it.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART) ?: 
+        it.getBitmap(MediaMetadata.METADATA_KEY_ART) ?: 
+        it.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+    }
+    
     fun getMediaMetadata(): MediaMetadata? {
-        return getActiveLocalMediaController()?.metadata
+        return mediaMetadata.value
     }
-    
+
     fun getMediaColor(): Int {
-        return currMediaArtColor
+        return mediaColors.value
     }
 
-    fun isMediaControllerAvailable(): Boolean {
-        return getActiveLocalMediaController() != null &&
-            !TextUtils.isEmpty(getActiveLocalMediaController()?.packageName)
-    }
+    fun isMediaControllerAvailable() = activeController?.packageName?.isNotEmpty() ?: false
 
-    fun isMediaPlaying(): Boolean {
-        return isMediaControllerAvailable() &&
-            getMediaControllerPlaybackState(getActiveLocalMediaController()) == PlaybackState.STATE_PLAYING
-    }
-
-    fun getMediaControllerPlaybackState(controller: MediaController?): Int {
-        return controller?.playbackState?.state ?: PlaybackState.STATE_NONE
-    }
+    fun isMediaPlaying() = playbackState.value?.state == PlaybackState.STATE_PLAYING
 
     fun getMediaControllerPlaybackState(): PlaybackState? {
-        val controller = getActiveLocalMediaController()
-        return controller?.playbackState ?: null
+        return activeController?.playbackState ?: null
     }
 
     private fun sameSessions(a: MediaController?, b: MediaController?): Boolean {
@@ -333,10 +322,10 @@ class MediaSessionManagerHelper private constructor(private val context: Context
     companion object {
         @Volatile
         private var instance: MediaSessionManagerHelper? = null
-        fun getInstance(context: Context): MediaSessionManagerHelper {
-            return instance ?: synchronized(this) {
+
+        fun getInstance(context: Context): MediaSessionManagerHelper =
+            instance ?: synchronized(this) {
                 instance ?: MediaSessionManagerHelper(context).also { instance = it }
             }
-        }
     }
 }
