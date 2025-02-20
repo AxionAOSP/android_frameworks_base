@@ -126,6 +126,7 @@ public class LockScreenWidgetsController implements MediaSessionManagerHelper.Me
     private CameraManager mCameraManager;
     private String mCameraId;
     private boolean isFlashOn = false;
+    private boolean mCallbacksRegistered = false;
 
     private String mMainLockscreenWidgetsList;
     private LaunchableImageView[] mMainWidgetViews;
@@ -177,11 +178,7 @@ public class LockScreenWidgetsController implements MediaSessionManagerHelper.Me
 
         try {
             mCameraId = mCameraManager.getCameraIdList()[0];
-        } catch (Exception e) {}
-        
-        IntentFilter ringerFilter = new IntentFilter(AudioManager.INTERNAL_RINGER_MODE_CHANGED_ACTION);
-        mContext.registerReceiver(mRingerModeReceiver, ringerFilter);
-        
+        } catch (Exception e) {}        
         mLockscreenWidgetsObserver = new LockscreenWidgetsObserver();
     }
 
@@ -224,23 +221,29 @@ public class LockScreenWidgetsController implements MediaSessionManagerHelper.Me
     }
     
     public void registerCallbacks() {
+        if (mCallbacksRegistered) return;
         mLockscreenWidgetsObserver.observe();
         mConfigurationController.addCallback(mConfigurationListener);
         mStatusBarStateController.addCallback(mStatusBarStateListener);
         mStatusBarStateListener.onDozingChanged(mStatusBarStateController.isDozing());
         mMediaSessionManagerHelper.addMediaMetadataListener(this);
+        IntentFilter ringerFilter = new IntentFilter(AudioManager.INTERNAL_RINGER_MODE_CHANGED_ACTION);
+        mContext.registerReceiver(mRingerModeReceiver, ringerFilter);
         updateWidgetViews();
         updateMediaPlaybackState();
         initViews();
+        mCallbacksRegistered = true;
     }
     
     public void unregisterCallbacks() {
+        if (!mCallbacksRegistered) return;
         mConfigurationController.removeCallback(mConfigurationListener);
         mStatusBarStateController.removeCallback(mStatusBarStateListener);
         mContext.unregisterReceiver(mRingerModeReceiver);
         mLockscreenWidgetsObserver.unobserve();
         mHandler.removeCallbacksAndMessages(null);
         mMediaSessionManagerHelper.removeMediaMetadataListener(this);
+        mCallbacksRegistered = false;
     }
     
     public void initViews() {
