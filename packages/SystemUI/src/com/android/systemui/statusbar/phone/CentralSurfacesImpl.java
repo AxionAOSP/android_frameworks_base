@@ -57,6 +57,7 @@ import android.hardware.devicestate.DeviceStateManager;
 import android.hardware.fingerprint.FingerprintManager;
 import android.metrics.LogMaker;
 import android.net.Uri;
+import android.os.BatteryManager;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
@@ -237,6 +238,7 @@ import com.android.systemui.statusbar.window.StatusBarWindowStateController;
 import com.android.systemui.surfaceeffects.ripple.RippleShader.RippleShape;
 import com.android.systemui.util.DumpUtilsKt;
 import com.android.systemui.util.MediaArtUtils;
+import com.android.systemui.util.MediaSessionManagerHelper;
 import com.android.systemui.util.WallpaperController;
 import com.android.systemui.util.concurrency.DelayableExecutor;
 import com.android.systemui.util.concurrency.MessageRouter;
@@ -280,7 +282,7 @@ import javax.inject.Provider;
  * {@link ActivityStarterImpl}
  */
 @SysUISingleton
-public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
+public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, MediaSessionManagerHelper.MediaMetadataListener {
 
     private static final int MSG_LAUNCH_TRANSITION_TIMEOUT = 1003;
     // 1020-1040 reserved for BaseStatusBar
@@ -389,6 +391,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
     private final LightRevealScrim mLightRevealScrim;
     private PowerButtonReveal mPowerButtonReveal;
     private final MediaArtUtils mMediaArtUtils;
+    private final MediaSessionManagerHelper mMediaSessionManagerHelper;
 
     /**
      * Whether we should delay the wakeup animation (which shows the notifications and moves the
@@ -871,6 +874,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
             mContext.getApplicationInfo().setEnableOnBackInvokedCallback(true);
         }
         mMediaArtUtils = MediaArtUtils.Companion.getInstance(mContext);
+        mMediaSessionManagerHelper = MediaSessionManagerHelper.Companion.getInstance(mContext);
     }
 
     private void initBubbles(Bubbles bubbles) {
@@ -1551,6 +1555,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
         filter.addAction(lineageos.content.Intent.ACTION_SCREEN_CAMERA_GESTURE);
         mBroadcastDispatcher.registerReceiver(mBroadcastReceiver, filter, null, UserHandle.ALL);
         mGameSpaceManager.observe();
+        mMediaSessionManagerHelper.addMediaMetadataListener(this);
     }
 
     @Override
@@ -2688,6 +2693,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
 
             DejankUtils.stopDetectingBlockingIpcs(tag);
             com.android.systemui.util.ScrimUtils.getInstance(mContext).onScreenStateChange();
+            doCpuStandbyOptimization(true);
         }
 
         @Override
@@ -2754,6 +2760,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
                 }
             });
             DejankUtils.stopDetectingBlockingIpcs(tag);
+            doCpuStandbyOptimization(false);
         }
 
         /**
@@ -2814,6 +2821,34 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
             updateScrimController();
         }
     };
+    
+    private void doCpuStandbyOptimization(boolean enable) {
+        BatteryManager batteryManager = (BatteryManager) mContext.getSystemService(Context.BATTERY_SERVICE);
+        boolean isChargingOrPlugged = batteryManager != null && 
+                (batteryManager.isCharging() || isPluggedIn());
+
+        boolean isMediaPlaying = mMediaSessionManagerHelper.isMediaPlaying();
+        boolean cpuStandbyOptEnabled =
+             SystemProperties.get("persist.sys.cpu_standby_optimization_enabled", "1").equals("1");
+
+        if (enable && (!cpuStandbyOptEnabled || isMediaPlaying || isChargingOrPlugged)) return;
+
+        SystemProperties.set("persist.sys.power_mode_limit_cpus", enable ? "1" : "0");
+    }
+
+    private boolean isPluggedIn() {
+        IntentFilter ifilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+        Intent batteryStatus = mContext.registerReceiver(null, ifilter);
+        if (batteryStatus == null) return false;
+
+        int status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+        int chargePlug = batteryStatus.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1);
+
+        return status == BatteryManager.BATTERY_STATUS_CHARGING ||
+               chargePlug == BatteryManager.BATTERY_PLUGGED_AC ||
+               chargePlug == BatteryManager.BATTERY_PLUGGED_USB ||
+               chargePlug == BatteryManager.BATTERY_PLUGGED_WIRELESS;
+    }
 
     /**
      * We need to disable touch events because these might
