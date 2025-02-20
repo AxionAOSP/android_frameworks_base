@@ -274,7 +274,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
     private ImageButton mRingerIcon;
     private ViewGroup mODICaptionsView;
     private CaptionsToggleImageButton mODICaptionsIcon;
-    private View mSettingsView;
+    private ViewGroup mSettingsView;
     private ImageButton mSettingsIcon;
     private View mExpandRowsView;
     private ExpandableIndicator mExpandRows;
@@ -813,6 +813,8 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
             setGravity(mDialogRowsViewContainer, Gravity.LEFT);
 
             setGravity(mODICaptionsView, Gravity.LEFT);
+            
+            setGravity(mSettingsView, Gravity.LEFT);
 
             mExpandRows.setRotation(-90);
         }
