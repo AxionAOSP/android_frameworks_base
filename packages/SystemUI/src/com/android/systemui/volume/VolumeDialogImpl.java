@@ -67,9 +67,9 @@ import android.graphics.Rect;
 import android.graphics.Region;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.DrawableWrapper;
 import android.graphics.drawable.LayerDrawable;
 import android.graphics.drawable.RotateDrawable;
-import android.graphics.drawable.TransitionDrawable;
 import android.media.AudioManager;
 import android.media.AudioSystem;
 import android.media.session.MediaController;
@@ -106,6 +106,7 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.animation.DecelerateInterpolator;
+import android.view.animation.PathInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -224,6 +225,9 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
     private ViewGroup mDialogRowsViewContainer;
     private ViewGroup mDialogRowsView;
     private ViewGroup mRinger;
+
+    private ValueAnimator mHeightAnimator;
+    private boolean mIsStartTrackAnimationEnd;
 
     /**
      * Container for the top part of the dialog, which contains the ringer, the ringer drawer, the
@@ -2980,6 +2984,9 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
                             userLevel);
                 }
             }
+            if (mRow.tracking && mIsStartTrackAnimationEnd) {
+                setProgressDrawableScale(3.0f, mRow);
+            }
         }
 
         @Override
@@ -2991,12 +2998,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
             }
             mController.setActiveStream(mRow.stream);
             mRow.tracking = true;
-            TransitionDrawable transition = (TransitionDrawable) mContext.getDrawable(
-                R.drawable.volume_row_seekbar_transition
-            );
-            transition.setCrossFadeEnabled(true);
-            mRow.slider.setProgressDrawable(transition);
-            transition.startTransition(250);
+            startProgressDrawableAnimation(mRow, true);
         }
 
         @Override
@@ -3014,13 +3016,134 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
                 mHandler.sendMessageDelayed(mHandler.obtainMessage(H.RECHECK, mRow),
                         USER_ATTEMPT_GRACE_PERIOD);
             }
-            Drawable progressDrawable = mRow.slider.getProgressDrawable();
-            if (progressDrawable instanceof TransitionDrawable) {
-                TransitionDrawable transition = (TransitionDrawable) progressDrawable;
-                transition.setCrossFadeEnabled(true);
-                transition.reverseTransition(250);
-            }
+            startProgressDrawableAnimation(mRow, false);
         }
+    }
+
+    public void startProgressDrawableAnimation(VolumeRow row, final boolean isEnlarge) {
+        final PathInterpolator pathInterpolator = new PathInterpolator(0.42f, 0.0f, 0.58f, 1.0f);
+        float startScale = isEnlarge ? 1.0f : 3.0f;
+        float endScale = isEnlarge ? 3.0f : 1.0f;
+
+        ValueAnimator scaleAnimator = ValueAnimator.ofFloat(startScale, endScale);
+        scaleAnimator.setDuration(250L);
+        scaleAnimator.setInterpolator(pathInterpolator);
+        scaleAnimator.addUpdateListener(animation -> 
+            setProgressDrawableScale((float) animation.getAnimatedValue(), row)
+        );
+
+        scaleAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationStart(Animator animation) {
+                if (isEnlarge) {
+                    cancelRunningHeightAnimator();
+                    mIsStartTrackAnimationEnd = false;
+                    row.slider.setProgressDrawable(mContext.getDrawable(R.drawable.volume_row_large_seekbar));
+                } else {
+                    resetToNormalSeekBar(row, pathInterpolator);
+                }
+            }
+
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                if (isEnlarge) {
+                    mIsStartTrackAnimationEnd = true;
+                }
+            }
+        });
+        scaleAnimator.start();
+    }
+
+    private void cancelRunningHeightAnimator() {
+        if (mHeightAnimator != null && mHeightAnimator.isRunning()) {
+            mHeightAnimator.cancel();
+        }
+    }
+
+    private void resetToNormalSeekBar(VolumeRow row, PathInterpolator pathInterpolator) {
+        int previousRight = getSliderProgressDrawable(row.slider).getBounds().right;
+        
+        row.slider.setProgressDrawable(mContext.getDrawable(R.drawable.volume_row_seekbar));
+        row.right = getSliderProgressDrawable(row.slider).getBounds().right;
+        
+        int progress = row.slider.getProgress();
+        Rect bounds = getSliderProgressDrawable(row.slider).getBounds();
+        
+        if (row.right > previousRight || row.right < bounds.height()) {
+            row.right = (int) (bounds.height() + 
+                ((getSliderProgressRounderCornerDrawable(row.slider).getProgressHeightMinusWidth() 
+                * (progress - row.slider.getMin())) / (row.slider.getMax() - row.slider.getMin())));
+        }
+
+        startHeightAnimator(row, previousRight, pathInterpolator);
+    }
+
+    private void startHeightAnimator(VolumeRow row, int previousRight, PathInterpolator pathInterpolator) {
+        mHeightAnimator = ValueAnimator.ofFloat(previousRight, row.right);
+        mHeightAnimator.setInterpolator(pathInterpolator);
+        mHeightAnimator.setDuration(250L);
+        mHeightAnimator.addUpdateListener(heightValue -> 
+            setProgressDrawableRight(row, (float) heightValue.getAnimatedValue())
+        );
+        mHeightAnimator.start();
+    }
+
+    public void setProgressDrawableScale(float scale, VolumeDialogImpl.VolumeRow row) {
+        Drawable sliderProgressDrawable = getSliderProgressDrawable(row.slider);
+        if (row.slider == null || sliderProgressDrawable == null) return;
+        
+        int defaultHeight = mContext.getResources().getDimensionPixelSize(R.dimen.volume_row_seekbar_default_height);
+        int newHeight = (int) (defaultHeight * scale);
+        int offset = ((row.slider.getHeight() - defaultHeight) / 2) + ((defaultHeight - newHeight) / 2);
+        
+        sliderProgressDrawable.setBounds(
+                sliderProgressDrawable.getBounds().left, 
+                offset,
+                sliderProgressDrawable.getBounds().right, 
+                newHeight + offset);
+    }
+
+    public void setProgressDrawableRight(VolumeDialogImpl.VolumeRow row, float height) {
+        Drawable sliderProgressDrawable = getSliderProgressDrawable(row.slider);
+        if (sliderProgressDrawable != null) {
+            Rect bounds = sliderProgressDrawable.getBounds();
+            bounds.right = (int) height;
+            sliderProgressDrawable.setBounds(bounds);
+        }
+    }
+
+    public Drawable getSliderProgressDrawable(SeekBar seekBar) {
+        if (seekBar == null || seekBar.getProgressDrawable() == null) {
+            return null;
+        }
+        try {
+            Drawable progressDrawable = ((LayerDrawable) seekBar.getProgressDrawable())
+                    .findDrawableByLayerId(android.R.id.progress);
+
+            if (progressDrawable instanceof DrawableWrapper) {
+                progressDrawable = ((DrawableWrapper) progressDrawable).getDrawable();
+            }
+
+            if (progressDrawable instanceof LayerDrawable) {
+                return ((LayerDrawable) progressDrawable).findDrawableByLayerId(R.id.volume_seekbar_progress_solid);
+            }
+        } catch (Exception e) {}
+        return null;
+    }
+
+    public RoundedCornerProgressDrawable getSliderProgressRounderCornerDrawable(SeekBar seekBar) {
+        if (seekBar == null || seekBar.getProgressDrawable() == null) {
+            return null;
+        }
+        try {
+            Drawable progressDrawable = ((LayerDrawable) seekBar.getProgressDrawable())
+                    .findDrawableByLayerId(android.R.id.progress);
+
+            if (progressDrawable instanceof RoundedCornerProgressDrawable) {
+                return (RoundedCornerProgressDrawable) progressDrawable;
+            }
+        } catch (Exception e) {}
+        return null;
     }
 
     private final class Accessibility extends AccessibilityDelegate {
@@ -3072,6 +3195,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
         private ImageButton icon;
         private Drawable sliderProgressSolid;
         private AlphaTintDrawableWrapper sliderProgressIcon;
+        public int right;
         private SeekBar slider;
         private TextView number;
         private int stream;
