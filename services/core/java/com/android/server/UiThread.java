@@ -35,13 +35,15 @@ public final class UiThread extends ServiceThread {
     private static Handler sHandler;
 
     private UiThread() {
-        super("android.ui", Process.THREAD_PRIORITY_FOREGROUND, false /*allowIo*/);
+        super("android.ui", Process.THREAD_PRIORITY_URGENT_DISPLAY, false /*allowIo*/);
     }
 
     @Override
     public void run() {
         // Make sure UiThread is in the fg stune boost group
-        Process.setThreadGroup(Process.myTid(), Process.THREAD_GROUP_TOP_APP);
+        Process.setThreadScheduler(Process.myTid(), Process.SCHED_RR, 1);
+        Process.setThreadGroupAndCpuset(Process.myTid(), Process.THREAD_GROUP_TOP_APP);
+        Process.setThreadAffinity(Process.myTid(), 1);
         super.run();
     }
 
