@@ -40,6 +40,7 @@ public class PropsHooksUtils {
 
     public static final String SPOOF_PIXEL_GMS = "persist.sys.pixelprops.gms";
     public static final String SPOOF_PIXEL_GPHOTOS = "persist.sys.pixelprops.gphotos";
+    public static final String SPOOF_GAMES = "persist.sys.gameprops.enable";
     
     private static volatile boolean sIsGms, sIsFinsky, sIsPhotos;
 
@@ -67,7 +68,91 @@ public class PropsHooksUtils {
             "com.google.android.feature.GOOGLE_EXPERIENCE"
     ));
 
+    private static final Map<String, Map<String, Object>> packagePropsMap = new HashMap<>();
+
+    private static final Map<String, Object> propsToChangeBS4 = createMap("2SM-X706B", "blackshark");
+    private static final Set<String> packagesToChangeBS4 = new HashSet<>(Set.of(
+            "com.proximabeta.mf.uamo"
+    ));
+
+    private static final Map<String, Object> propsToChangeMI11TP = createMap("2107113SI", "Xiaomi");
+    private static final Set<String> packagesToChangeMI11TP = new HashSet<>(Set.of(
+            "com.levelinfinite.hotta.gp",
+            "com.supercell.brawlstars",
+            "com.supercell.clashofclans",
+            "com.vng.mlbbvn"
+    ));
+
+    private static final Map<String, Object> propsToChangeMI13P = createMap("2210132C", "Xiaomi");
+    private static final Set<String> packagesToChangeMI13P = new HashSet<>(Set.of(
+            "com.levelinfinite.sgameGlobal",
+            "com.tencent.tmgp.sgame"
+    ));
+
+    private static final Map<String, Object> propsToChangeOP8P = createMap("IN2020", "OnePlus");
+    private static final Set<String> packagesToChangeOP8P = new HashSet<>(Set.of(
+            "com.netease.lztgglobal",
+            "com.riotgames.league.wildrift",
+            "com.riotgames.league.wildrifttw",
+            "com.riotgames.league.wildriftvn",
+            "com.riotgames.league.teamfighttactics",
+            "com.riotgames.league.teamfighttacticstw",
+            "com.riotgames.league.teamfighttacticsvn"
+    ));
+
+    private static final Map<String, Object> propsToChangeOP9P = createMap("LE2101", "OnePlus");
+    private static final Set<String> packagesToChangeOP9P = new HashSet<>(Set.of(
+            "com.epicgames.fortnite",
+            "com.epicgames.portal",
+            "com.tencent.lolm"
+    ));
+
+    private static final Map<String, Object> propsToChangeF5 = createMap("23049PCD8G", "Xiaomi");
+    private static final Set<String> packagesToChangeF5 = new HashSet<>(Set.of(
+            "com.dts.freefiremax",
+            "com.dts.freefireth"
+    ));
+
+    private static final Map<String, Object> propsToChangeROG6 = createMap("ASUS_AI2201", "asus");
+    private static final Set<String> packagesToChangeROG6 = new HashSet<>(Set.of(
+            "com.ea.gp.fifamobile",
+            "com.gameloft.android.ANMP.GloftA9HM",
+            "com.madfingergames.legends",
+            "com.pearlabyss.blackdesertm",
+            "com.pearlabyss.blackdesertm.gl"
+    ));
+
+    private static final Map<String, Object> propsToChangeROG8P = createMap("ASUS_AI2401_A", "asus");
+    private static final Set<String> packagesToChangeROG8P = new HashSet<>(Set.of(
+            "com.ea.gp.apexlegendsmobilefps",
+            "com.mobile.legends",
+            "com.pubg.imobile",
+            "com.pubg.krmobile",
+            "com.rekoo.pubgm",
+            "com.tencent.ig",
+            "com.tencent.tmgp.pubgmhd",
+            "com.vng.pubgmobile"
+    ));
+
+    private static final Map<String, Object> propsToChangeLenovoY700 = createMap("Lenovo TB-9707F", "Lenovo");
+    private static final Set<String> packagesToChangeLenovoY700 = new HashSet<>(Set.of(
+            "com.activision.callofduty.shooter",
+            "com.garena.game.codm",
+            "com.tencent.tmgp.kr.codm",
+            "com.vng.codmvn"
+    ));
+
     static {
+        addToPackageMap(packagesToChangeBS4, propsToChangeBS4);
+        addToPackageMap(packagesToChangeMI11TP, propsToChangeMI11TP);
+        addToPackageMap(packagesToChangeMI13P, propsToChangeMI13P);
+        addToPackageMap(packagesToChangeOP8P, propsToChangeOP8P);
+        addToPackageMap(packagesToChangeOP9P, propsToChangeOP9P);
+        addToPackageMap(packagesToChangeF5, propsToChangeF5);
+        addToPackageMap(packagesToChangeROG6, propsToChangeROG6);
+        addToPackageMap(packagesToChangeROG8P, propsToChangeROG8P);
+        addToPackageMap(packagesToChangeLenovoY700, propsToChangeLenovoY700);
+
         propsToChangePixelXL = new HashMap<>();
         propsToChangePixelXL.put("BRAND", "google");
         propsToChangePixelXL.put("MANUFACTURER", "Google");
@@ -90,6 +175,19 @@ public class PropsHooksUtils {
         }
     }
 
+    private static void addToPackageMap(Set<String> packages, Map<String, Object> props) {
+        for (String pkg : packages) {
+            packagePropsMap.put(pkg, props);
+        }
+    }
+
+    private static Map<String, Object> createMap(String model, String manufacturer) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("MODEL", model);
+        map.put("MANUFACTURER", manufacturer);
+        return map;
+    }
+
     public static void setProps(Context context) {
         if (context == null) return;
         String packageName = context.getPackageName();
@@ -102,7 +200,19 @@ public class PropsHooksUtils {
         if (TextUtils.isEmpty(processName)) {
             return;
         }
-        
+
+        if (shoudlSpoofGames()) {
+            Map<String, Object> propsToChange = packagePropsMap.get(packageName);
+            if (propsToChange != null) {
+                dlog("Defining props for: " + packageName);
+                for (Map.Entry<String, Object> prop : propsToChange.entrySet()) {
+                    String key = prop.getKey();
+                    Object value = prop.getValue();
+                    setPropValue(key, value);
+                }
+            }
+        }
+
         sIsGms = packageName.equals("com.google.android.gms") 
             && processName.toLowerCase().contains("unstable");
         sIsFinsky = packageName.equals("com.android.vending");
@@ -131,17 +241,17 @@ public class PropsHooksUtils {
         try {
             Field field = getBuildClassField(key);
             if (field == null) {
-                Log.e(TAG, "Field " + key + " not found in Build or Build.VERSION classes");
+                dlog("Field " + key + " not found in Build or Build.VERSION classes");
                 return;
             }
             
             field.setAccessible(true);
             if (field.getType() == int.class) {
-                field.set(null, value instanceof String ? 
-                    Integer.parseInt((String) value) : (Integer) value);
+                field.setInt(null, value instanceof Integer ? 
+                    (Integer) value : Integer.parseInt(value.toString()));
             } else if (field.getType() == long.class) {
-                field.set(null, value instanceof String ? 
-                    Long.parseLong((String) value) : (Long) value);
+                field.setLong(null, value instanceof Long ? 
+                    (Long) value : Long.parseLong(value.toString()));
             } else {
                 field.set(null, value.toString());
             }
@@ -174,7 +284,11 @@ public class PropsHooksUtils {
         fieldCache.put(key, field);
         return field;
     }
-    
+
+    public static boolean shoudlSpoofGames() {
+        return SystemProperties.getBoolean(SPOOF_GAMES, false);
+    }
+
     public static boolean shouldSpoofGMS() {
         return SystemProperties.getBoolean(SPOOF_PIXEL_GMS, true);
     }
@@ -186,8 +300,7 @@ public class PropsHooksUtils {
             String value = SystemProperties.get(prop);
             if (!TextUtils.isEmpty(value)) {
                 setPropValue(key, value);
-                if (DEBUG) dlog("Defining " + key + " prop for: " + value);
-            } else if (DEBUG) {
+            } else {
                 dlog("Skipping empty property for " + key);
             }
         }
