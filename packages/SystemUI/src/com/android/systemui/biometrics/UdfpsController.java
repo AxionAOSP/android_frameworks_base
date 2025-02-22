@@ -276,18 +276,6 @@ public class UdfpsController implements DozeReceiver, Dumpable {
                 }
             };
 
-    private final KeyguardStateController.Callback mKeyguardStateCallback =
-            new KeyguardStateController.Callback() {
-                @Override
-                public void onKeyguardFadingAwayChanged() {
-                    hideUdfpsAnimation();
-                }
-                @Override
-                public void onKeyguardGoingAwayChanged() {
-                    hideUdfpsAnimation();
-                }
-            };
-
     @Override
     public void dump(@NonNull PrintWriter pw, @NonNull String[] args) {
         final int touchConfigId = mContext.getResources().getInteger(
@@ -513,6 +501,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
     private void tryDismissingKeyguard() {
         if (!mOnFingerDown) {
             playStartHaptic();
+            hideUdfpsAnimation();
         }
         mKeyguardViewManager.notifyKeyguardAuthenticated(false /* primaryAuth */);
         mAttemptedToDismissKeyguard = true;
@@ -816,7 +805,6 @@ public class UdfpsController implements DozeReceiver, Dumpable {
 
         updateUdfpsAnimation();
         mConfigurationController.addCallback(mConfigurationListener);
-        mKeyguardStateController.addCallback(mKeyguardStateCallback);
     }
 
     @Nullable
@@ -917,6 +905,9 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             }
             final boolean removed = mOverlay.hide();
             mKeyguardViewManager.hideAlternateBouncer(true);
+            if (mOverlay.getRequestReason() == REASON_AUTH_KEYGUARD) {
+                hideUdfpsAnimation();
+            }
             Log.v(TAG, "hideUdfpsOverlay | removing window: " + removed);
         } else {
             Log.v(TAG, "hideUdfpsOverlay | the overlay is already hidden");
