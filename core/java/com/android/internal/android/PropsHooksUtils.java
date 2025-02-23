@@ -125,13 +125,7 @@ public class PropsHooksUtils {
     private static final Map<String, Object> propsToChangeROG8P = createMap("ASUS_AI2401_A", "asus");
     private static final Set<String> packagesToChangeROG8P = new HashSet<>(Set.of(
             "com.ea.gp.apexlegendsmobilefps",
-            "com.mobile.legends",
-            "com.pubg.imobile",
-            "com.pubg.krmobile",
-            "com.rekoo.pubgm",
-            "com.tencent.ig",
-            "com.tencent.tmgp.pubgmhd",
-            "com.vng.pubgmobile"
+            "com.mobile.legends"
     ));
 
     private static final Map<String, Object> propsToChangeLenovoY700 = createMap("Lenovo TB-9707F", "Lenovo");
@@ -140,6 +134,16 @@ public class PropsHooksUtils {
             "com.garena.game.codm",
             "com.tencent.tmgp.kr.codm",
             "com.vng.codmvn"
+    ));
+    
+    private static final Map<String, Object> propsToChangeS9Tab = createMap("SM-X916B", "samsung");
+    private static final Set<String> packagesToChangeS9Tab = new HashSet<>(Set.of(
+            "com.pubg.imobile",
+            "com.pubg.krmobile",
+            "com.rekoo.pubgm",
+            "com.tencent.ig",
+            "com.tencent.tmgp.pubgmhd",
+            "com.vng.pubgmobile"
     ));
 
     static {
@@ -152,6 +156,7 @@ public class PropsHooksUtils {
         addToPackageMap(packagesToChangeROG6, propsToChangeROG6);
         addToPackageMap(packagesToChangeROG8P, propsToChangeROG8P);
         addToPackageMap(packagesToChangeLenovoY700, propsToChangeLenovoY700);
+        addToPackageMap(packagesToChangeS9Tab, propsToChangeS9Tab);
 
         propsToChangePixelXL = new HashMap<>();
         propsToChangePixelXL.put("BRAND", "google");
