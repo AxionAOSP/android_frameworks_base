@@ -20,9 +20,9 @@
     <item android:id="@android:id/background"
         android:gravity="center_vertical|fill_horizontal">
         <shape>
-            <size android:height="@dimen/rounded_slider_height" />
-            <corners android:radius="@dimen/rounded_slider_corner_radius" />
-            <solid android:color="?attr/shadeInactive" />
+            <size android:height="@dimen/rounded_slider_track_width" />
+            <corners android:radius="@dimen/rounded_slider_track_corner_radius" />
+            <solid android:color="@color/brightness_track_color" />
         </shape>
     </item>
     <item android:id="@android:id/progress"

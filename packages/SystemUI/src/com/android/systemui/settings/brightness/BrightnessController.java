@@ -475,15 +475,6 @@ public class BrightnessController implements ToggleSlider.Listener, MirroredBrig
             mIcon.setImageResource(mAutomatic ?
                     R.drawable.ic_qs_brightness_auto_on_new :
                     R.drawable.ic_qs_brightness_auto_off_new);
-            mIcon.setBackgroundResource(mAutomatic ?
-                    R.drawable.bg_qs_brightness_auto_on :
-                    R.drawable.bg_qs_brightness_auto_off);
-            int color = Utils.getColorAttrDefaultColor(mContext, mAutomatic 
-                    ? android.R.attr.textColorPrimaryInverse 
-                    : android.R.attr.colorAccent);
-            mIcon.post(() -> {
-                mIcon.getDrawable().setTint(color);
-            });
         }
     }
 

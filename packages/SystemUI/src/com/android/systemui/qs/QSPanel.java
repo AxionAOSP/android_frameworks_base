@@ -147,12 +147,6 @@ public class QSPanel extends LinearLayout {
             @Override
             public void onChange(boolean selfChange, @Nullable Uri uri) {
                 if (LineageSettings.Secure.getUriFor(
-                            LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS).equals(uri)
-                        && mIsAutomaticBrightnessAvailable) {
-                    updateViewVisibilityForTuningValue(mAutoBrightnessView,
-                            LineageSettings.Secure.getString(mContext.getContentResolver(),
-                                    LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS));
-                } else if (LineageSettings.Secure.getUriFor(
                             LineageSettings.Secure.QS_SHOW_BRIGHTNESS_SLIDER).equals(uri)
                         && mBrightnessView != null) {
                     updateViewVisibilityForTuningValue(mBrightnessView,
