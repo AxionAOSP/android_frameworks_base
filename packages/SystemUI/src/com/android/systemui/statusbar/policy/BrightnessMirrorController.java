@@ -30,8 +30,6 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
-import com.android.settingslib.Utils;
-
 import com.android.systemui.res.R;
 import com.android.systemui.settings.brightness.BrightnessSliderController;
 import com.android.systemui.settings.brightness.MirrorController;
@@ -84,21 +82,7 @@ public class BrightnessMirrorController implements MirrorController {
 
         mIsAutomaticBrightnessAvailable = mBrightnessMirror.getContext().getResources().getBoolean(
                 com.android.internal.R.bool.config_automatic_brightness_available);
-        mShouldShowAutoBrightness = LineageSettings.Secure.getInt(
-                mBrightnessMirror.getContext().getContentResolver(),
-                LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS, 0) != 0;
         updateIcon();
-        mBrightnessMirror.getContext().getContentResolver().registerContentObserver(
-                LineageSettings.Secure.getUriFor(LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS),
-                false, new ContentObserver(null) {
-                    @Override
-                    public void onChange(boolean selfChange) {
-                        mShouldShowAutoBrightness = LineageSettings.Secure.getInt(
-                                mBrightnessMirror.getContext().getContentResolver(),
-                                LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS, 0) != 0;
-                        updateIcon();
-                    }
-                });
     }
 
     @Override
@@ -210,7 +194,7 @@ public class BrightnessMirrorController implements MirrorController {
     }
 
     private void updateIcon() {
-        if (mIsAutomaticBrightnessAvailable && mShouldShowAutoBrightness) {
+        if (mIsAutomaticBrightnessAvailable) {
             int automatic = Settings.System.getIntForUser(mBrightnessMirror.getContext()
                             .getContentResolver(),
                     Settings.System.SCREEN_BRIGHTNESS_MODE,
@@ -220,18 +204,6 @@ public class BrightnessMirrorController implements MirrorController {
             mIcon.setImageResource(isAutomatic
                     ? R.drawable.ic_qs_brightness_auto_on_new
                     : R.drawable.ic_qs_brightness_auto_off_new);
-            mIcon.setBackgroundResource(isAutomatic
-                    ? R.drawable.bg_qs_brightness_auto_on
-                    : R.drawable.bg_qs_brightness_auto_off);
-            int color = Utils.getColorAttrDefaultColor(mBrightnessMirror.getContext(), isAutomatic 
-                    ? android.R.attr.textColorPrimaryInverse 
-                    : android.R.attr.colorAccent);
-            mIcon.post(() -> {
-                mIcon.getDrawable().setTint(color);
-            });
-            mIcon.setVisibility(View.VISIBLE);
-        } else {
-            mIcon.setVisibility(View.GONE);
         }
     }
 }

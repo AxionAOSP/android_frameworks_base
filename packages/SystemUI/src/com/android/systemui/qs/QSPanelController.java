@@ -145,11 +145,6 @@ public class QSPanelController extends QSPanelControllerBase<QSPanel> {
         updateMediaDisappearParameters();
 
         getContext().getContentResolver().registerContentObserver(
-                LineageSettings.Secure.getUriFor(LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS),
-                false, mView.getContentObserver());
-        mView.getContentObserver().onChange(true,
-                LineageSettings.Secure.getUriFor(LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS));
-        getContext().getContentResolver().registerContentObserver(
                 LineageSettings.Secure.getUriFor(LineageSettings.Secure.QS_SHOW_BRIGHTNESS_SLIDER),
                 false, mView.getContentObserver());
         mView.getContentObserver().onChange(true,
