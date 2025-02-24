@@ -2472,7 +2472,6 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
         final ColorStateList inverseTextTint = Utils.getColorAttr(
                 mContext, com.android.internal.R.attr.textColorOnAccent);
 
-        row.sliderProgressSolid.setTintList(colorTint);
         if (row.sliderProgressIcon != null) {
             row.sliderProgressIcon.setTintList(bgTint);
         }
