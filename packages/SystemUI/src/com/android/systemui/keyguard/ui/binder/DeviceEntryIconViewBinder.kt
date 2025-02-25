@@ -198,7 +198,12 @@ object DeviceEntryIconViewBinder {
                             }
                             fgIconView.imageTintList =
                                 ColorStateList.valueOf(viewModel.tint)
-                            fgIconView.setPadding(0, 0, 0, 0)
+                            fgIconView.setPadding(
+                                viewModel.padding,
+                                viewModel.padding,
+                                viewModel.padding,
+                                viewModel.padding,
+                            )
                         }
                     }
                 }
