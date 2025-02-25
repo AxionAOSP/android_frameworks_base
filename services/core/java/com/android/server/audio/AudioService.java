@@ -4996,7 +4996,7 @@ public class AudioService extends IAudioService.Stub
             streamType = AudioManager.STREAM_BLUETOOTH_SCO;
         }
 
-        final int device = (ada == null)
+        int device = (ada == null)
                 ? getDeviceForStream(streamType)
                 : ada.getInternalType();
         int oldIndex;
