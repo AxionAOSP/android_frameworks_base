@@ -95,12 +95,12 @@
                     <com.android.keyguard.AlphaOptimizedImageButton
                         android:id="@+id/app_volume"
                         android:src="@drawable/ic_app_volume"
+                        android:scaleType="centerInside"
                         android:layout_width="@dimen/volume_dialog_tap_target_size"
                         android:layout_height="@dimen/volume_dialog_tap_target_size"
                         android:layout_gravity="center"
                         android:contentDescription="@string/accessibility_volume_settings"
                         android:background="@drawable/ripple_drawable_20dp"
-                        android:tint="?androidprv:attr/colorAccent"
                         android:soundEffectsEnabled="false" />
                 </FrameLayout>
                 <FrameLayout
