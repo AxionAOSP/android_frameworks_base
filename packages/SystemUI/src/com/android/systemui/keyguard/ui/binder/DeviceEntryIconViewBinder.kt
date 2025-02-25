@@ -191,7 +191,12 @@ object DeviceEntryIconViewBinder {
                             }
                             fgIconView.imageTintList =
                                 ColorStateList.valueOf(viewModel.tint)
-                            fgIconView.setPadding(0, 0, 0, 0)
+                            fgIconView.setPadding(
+                                viewModel.padding,
+                                viewModel.padding,
+                                viewModel.padding,
+                                viewModel.padding,
+                            )
                             // Set image state at the end after updating other view state. This
                             // method forces the ImageView to recompute the bounds of the drawable.
                             fgIconView.setImageState(

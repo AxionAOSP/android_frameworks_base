@@ -62,7 +62,12 @@ object AlternateBouncerUdfpsViewBinder {
                         /* merge */ false,
                     )
                     fgIconView.imageTintList = ColorStateList.valueOf(fgViewModel.tint)
-                    fgIconView.setPadding(0, 0, 0, 0)
+                    fgIconView.setPadding(
+                        fgViewModel.padding,
+                        fgViewModel.padding,
+                        fgViewModel.padding,
+                        fgViewModel.padding,
+                    )
                 }
             }
         }
