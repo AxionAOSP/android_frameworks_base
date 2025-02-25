@@ -215,9 +215,7 @@ public final class ThreadedRenderer extends HardwareRenderer {
         // The system process on low-memory devices do not get to use hardware
         // accelerated drawing, since this can add too much overhead to the
         // process.
-        if (!ActivityManager.isHighEndGfx()) {
-            sRendererEnabled = false;
-        }
+        sRendererEnabled = false;
         setIsSystemOrPersistent();
     }
 
