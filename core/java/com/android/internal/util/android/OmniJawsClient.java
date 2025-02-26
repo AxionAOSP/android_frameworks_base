@@ -453,4 +453,20 @@ public class OmniJawsClient {
         }
         return mIconPrefix.equals(ICON_PREFIX_OUTLINE);
     }
+    
+    public Drawable getResOmni(String iconOmni) {
+        try {
+            int resId = mRes.getIdentifier(iconOmni, "drawable", mPackageName);
+            Drawable d = mRes.getDrawable(resId);
+            if (d != null) {
+                return d;
+            }
+        } catch(Exception e) {
+            Log.e(TAG, "getResOmni", e);
+        }
+        Log.w(TAG, "Failed to get resource image for" + iconOmni);
+        // absolute absolute fallback
+        Log.w(TAG, "No default package found");
+        return new ColorDrawable(Color.RED);
+    }
 }
