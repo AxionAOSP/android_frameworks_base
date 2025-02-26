@@ -56,6 +56,11 @@
                android:layout_width="match_parent"
                android:layout_height="wrap_content" />
 
+      <include layout="@layout/keyguard_weather_area"
+               android:id="@+id/keyguard_weather_area"
+               android:layout_width="match_parent"
+               android:layout_height="wrap_content" />
+
       <include layout="@layout/keyguard_widgets_area"
                android:id="@+id/keyguard_widgets_area"
                android:layout_width="match_parent"
