@@ -2612,6 +2612,11 @@ public class ComputerEngine implements Computer {
         if (ps.getUserStateOrDefault(userId).isHidden()) {
             return true;
         }
+        // if the target is included in Settings.Secure.HIDE_APPLIST, do filter
+        if (com.android.internal.util.axion.HideAppListUtils.shouldHideAppList(
+                mContext, packageName)) {
+            return true;
+        }
 
         return false;
     }
