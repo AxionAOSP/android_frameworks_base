@@ -49,6 +49,7 @@ public class PropsHooksUtils {
     private static final String[] GMS_SPOOF_KEYS;
     private static final String[] GMS_SPOOF_PROPERTIES;
     private static Boolean isPixelDevice = null;
+    private static Boolean lastIsDeviceTablet = null;
 
     private static final Set<String> featuresPixel = new HashSet<>(Set.of(
             "PIXEL_2017_PRELOAD",
@@ -137,7 +138,7 @@ public class PropsHooksUtils {
     ));
     
     private static final Map<String, Object> propsToChangeS9Tab = createMap("SM-X916B", "samsung");
-    private static final Set<String> packagesToChangeS9Tab = new HashSet<>(Set.of(
+    private static final Set<String> pubgPackages = new HashSet<>(Set.of(
             "com.pubg.imobile",
             "com.pubg.krmobile",
             "com.rekoo.pubgm",
@@ -156,7 +157,6 @@ public class PropsHooksUtils {
         addToPackageMap(packagesToChangeROG6, propsToChangeROG6);
         addToPackageMap(packagesToChangeROG8P, propsToChangeROG8P);
         addToPackageMap(packagesToChangeLenovoY700, propsToChangeLenovoY700);
-        addToPackageMap(packagesToChangeS9Tab, propsToChangeS9Tab);
 
         propsToChangePixelXL = new HashMap<>();
         propsToChangePixelXL.put("BRAND", "google");
@@ -195,6 +195,15 @@ public class PropsHooksUtils {
 
     public static void setProps(Context context) {
         if (context == null) return;
+        
+        boolean currentIsDeviceTablet = isDeviceTablet(context);
+
+        if (lastIsDeviceTablet == null || lastIsDeviceTablet != currentIsDeviceTablet) {
+            packagePropsMap.keySet().removeAll(pubgPackages);
+            addToPackageMap(pubgPackages, currentIsDeviceTablet ? propsToChangeS9Tab : propsToChangeROG8P);
+            lastIsDeviceTablet = currentIsDeviceTablet;
+        }
+
         String packageName = context.getPackageName();
 
         if (TextUtils.isEmpty(packageName)) {
@@ -348,6 +357,13 @@ public class PropsHooksUtils {
                 .equalsIgnoreCase("google");
         }
         return isPixelDevice;
+    }
+
+    public static boolean isDeviceTablet(Context context) {
+        if (context == null) {
+            return false;
+        }
+        return context.getResources().getConfiguration().smallestScreenWidthDp >= 600;
     }
 
     private static void dlog(String msg) {
