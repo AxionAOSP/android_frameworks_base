@@ -29,9 +29,9 @@ import com.android.systemui.keyguard.shared.model.KeyguardSection
 import com.android.systemui.res.R
 import javax.inject.Inject
 
-import com.android.systemui.lockscreen.LockScreenWidgets
+import com.android.systemui.weather.WeatherInfoView
 
-class KeyguardWidgetViewSection
+class KeyguardWeatherViewSection
 @Inject
 constructor(
     private val context: Context,
@@ -39,10 +39,10 @@ constructor(
     override fun addViews(constraintLayout: ConstraintLayout) {
         if (!MigrateClocksToBlueprint.isEnabled) return
 
-        constraintLayout.findViewById<View?>(R.id.keyguard_widgets_area)?.let {
-            (it.parent as ViewGroup).removeView(it)
-            constraintLayout.addView(it)
-            (it as LockScreenWidgets).init()
+        constraintLayout.findViewById<WeatherInfoView?>(R.id.keyguard_weather_area)?.let { weatherArea ->
+            (weatherArea.parent as? ViewGroup)?.removeView(weatherArea)
+            constraintLayout.addView(weatherArea)
+            weatherArea.init()
         }
     }
 
@@ -53,24 +53,25 @@ constructor(
 
         constraintSet.apply {
             connect(
-                R.id.keyguard_widgets_area,
+                R.id.keyguard_weather_area,
                 ConstraintSet.START,
                 ConstraintSet.PARENT_ID,
                 ConstraintSet.START,
-                0,
+                context.resources.getDimensionPixelSize(custR.dimen.clock_padding_start) +
+                    context.resources.getDimensionPixelSize(R.dimen.status_view_margin_horizontal),
             )
             connect(
-                R.id.keyguard_widgets_area,
+                R.id.keyguard_weather_area,
                 ConstraintSet.END,
                 ConstraintSet.PARENT_ID,
                 ConstraintSet.END
             )
-            constrainHeight(R.id.keyguard_widgets_area, ConstraintSet.WRAP_CONTENT)
+            constrainHeight(R.id.keyguard_weather_area, ConstraintSet.WRAP_CONTENT)
 
             connect(
-                R.id.keyguard_widgets_area,
-                ConstraintSet.TOP,
                 R.id.keyguard_weather_area,
+                ConstraintSet.TOP,
+                R.id.keyguard_slice_view,
                 ConstraintSet.BOTTOM
             )
 
@@ -78,14 +79,15 @@ constructor(
                 R.id.smart_space_barrier_bottom,
                 Barrier.BOTTOM,
                 0,
-                *intArrayOf(R.id.keyguard_widgets_area)
+                *intArrayOf(R.id.keyguard_weather_area)
             )
         }
     }
 
     override fun removeViews(constraintLayout: ConstraintLayout) {
-        constraintLayout.findViewById<View?>(R.id.keyguard_widgets_area)?.let {
-            (it as LockScreenWidgets).deInit()
+        constraintLayout.findViewById<WeatherInfoView?>(R.id.keyguard_weather_area)?.let { weatherArea ->
+            weatherArea.cleanup()
         }
     }
 }
+
