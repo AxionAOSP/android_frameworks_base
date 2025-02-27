@@ -2665,11 +2665,13 @@ public class CachedAppOptimizer {
                 // Unfreeze the current process if it's running out of async binder space
                 (current, free) -> {
                     if (free < mFreezerBinderAsyncThreshold) {
-                        ProcessRecord app = mFrozenProcesses.get(current);
-                        if (app != null) {
-                            Slog.w(TAG_AM, "pid " + current
-                                    + " has " + free + " free async space, unfreezing temporarily");
-                            unfreezeTemporarily(app, UNFREEZE_REASON_PING);
+                        synchronized (mFreezerLock) {
+                            ProcessRecord app = mFrozenProcesses.get(current);
+                            if (app != null) {
+                                Slog.w(TAG_AM, "pid " + current
+                                        + " has " + free + " free async space, unfreezing temporarily");
+                                unfreezeTemporarily(app, UNFREEZE_REASON_PING);
+                            }
                         }
                     }
                 },
