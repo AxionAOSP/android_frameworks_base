@@ -127,8 +127,7 @@ class WeatherViewController(
     }
 
     private fun buildWeatherText(info: OmniJawsClient.WeatherInfo): String {
-        val conditionText = WEATHER_CONDITIONS.entries.find { info.condition.lowercase().contains(it.key) }
-            ?.let { context.getString(it.value) } ?: info.condition
+        val conditionText = info.condition.split(" ").joinToString(" ") { it.replaceFirstChar { char -> char.uppercaseChar() } }
         return "${info.temp}${info.tempUnits}" +
                 (if (weatherSettingsFlow.value.showWeatherLocation) " • ${info.city}" else "") +
                 (if (weatherSettingsFlow.value.showWeatherText) " • $conditionText" else "")
@@ -166,15 +165,5 @@ class WeatherViewController(
         private const val LOCKSCREEN_WEATHER_TEXT = "lockscreen_weather_text"
         private const val LOCKSCREEN_WEATHER_WIND_INFO = "lockscreen_weather_wind_info"
         private const val LOCKSCREEN_WEATHER_HUMIDITY_INFO = "lockscreen_weather_humidity_info"
-
-        private val WEATHER_CONDITIONS = mapOf(
-            "clouds" to R.string.weather_condition_clouds,
-            "rain" to R.string.weather_condition_rain,
-            "clear" to R.string.weather_condition_clear,
-            "storm" to R.string.weather_condition_storm,
-            "snow" to R.string.weather_condition_snow,
-            "wind" to R.string.weather_condition_wind,
-            "mist" to R.string.weather_condition_mist
-        )
     }
 }
