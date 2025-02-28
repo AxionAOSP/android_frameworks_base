@@ -28,7 +28,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.hardware.display.AmbientDisplayConfiguration;
+import android.os.Handler;
 import android.os.SystemClock;
+import android.os.UserHandle;
+import android.provider.Settings;
 import android.text.format.Formatter;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
@@ -114,6 +117,9 @@ public class DozeTriggers implements DozeMachine.Part {
     private boolean mWantTouchScreenSensors;
     private boolean mWantSensors;
     private boolean mInAod;
+
+    private boolean mDozeGesturePulsing;
+    private Handler mHandler = new Handler();
 
     private final UserTracker.Callback mUserChangedCallback =
             new UserTracker.Callback() {
@@ -329,6 +335,7 @@ public class DozeTriggers implements DozeMachine.Part {
                 if (isNear != null && isNear) {
                     // In pocket, drop event.
                     mDozeLog.traceSensorEventDropped(pulseReason, "prox reporting near");
+                    resetDozePulsingState();
                     return;
                 }
                 if (isDoubleTap || isTap) {
@@ -337,6 +344,7 @@ public class DozeTriggers implements DozeMachine.Part {
                 } else if (isPickup) {
                     if (shouldDropPickupEvent())  {
                         mDozeLog.traceSensorEventDropped(pulseReason, "keyguard occluded");
+                        resetDozePulsingState();
                         return;
                     }
                     gentleWakeUp(pulseReason);
@@ -372,8 +380,56 @@ public class DozeTriggers implements DozeMachine.Part {
     private boolean shouldDropPickupEvent() {
         return mKeyguardStateController.isOccluded();
     }
+    
+    private boolean maybeOverrideGentleWakeup(@DozeLog.Reason int reason) {
+        if (mDozeGesturePulsing || !canPulse(mMachine.getState(), true)) return false;
+        switch (reason) {
+            case DozeLog.REASON_SENSOR_PICKUP:
+                return shouldPulsePickSensorEvent();
+            case DozeLog.REASON_SENSOR_DOUBLE_TAP:
+                return shouldPulseOnDoubleTap();
+            case DozeLog.REASON_SENSOR_TAP:
+                return shouldPulseOnTap();
+        }
+        return false;
+    }
+
+    private void resetDozePulsingState() {
+        mHandler.removeCallbacksAndMessages(null);
+        mDozeGesturePulsing = false;
+    }
+
+    private void performDozePulse(int pulseReason) {
+        requestPulse(pulseReason, true, null);
+        mDozeGesturePulsing = true;
+        mHandler.postDelayed(() -> {
+            mDozeGesturePulsing = false;
+        }, mDozeParameters.getPulseVisibleDuration());
+    }
+
+    private boolean shouldPulsePickSensorEvent() {
+        return Settings.System.getIntForUser(
+            mContext.getContentResolver(), 
+            "doze_pulse_on_pickup", 0, UserHandle.USER_CURRENT) != 0;
+    }
+    
+    private boolean shouldPulseOnTap() {
+        return Settings.System.getIntForUser(
+            mContext.getContentResolver(), 
+            "doze_pulse_on_single_tap", 0, UserHandle.USER_CURRENT) != 0;
+    }
+    
+    private boolean shouldPulseOnDoubleTap() {
+        return Settings.System.getIntForUser(
+            mContext.getContentResolver(), 
+            "doze_pulse_on_double_tap", 0, UserHandle.USER_CURRENT) != 0;
+    }
 
     private void gentleWakeUp(@DozeLog.Reason int reason) {
+        if (maybeOverrideGentleWakeup(reason)) {
+            performDozePulse(reason);
+            return;
+        }
         // Log screen wake up reason (lift/pickup, tap, double-tap)
         Optional.ofNullable(DozingUpdateUiEvent.fromReason(reason))
                 .ifPresent(uiEventEnum -> mUiEventLogger.log(uiEventEnum, getKeyguardSessionId()));
@@ -521,6 +577,7 @@ public class DozeTriggers implements DozeMachine.Part {
         mDozeHost.removeCallback(mHostCallback);
         mDockManager.removeListener(mDockEventListener);
         mUserTracker.removeCallback(mUserChangedCallback);
+        mHandler.removeCallbacksAndMessages(null);
     }
 
     private void stopListeningToAllTriggers() {
