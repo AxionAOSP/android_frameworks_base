@@ -185,6 +185,10 @@ cc_defaults {
                 thin: true,
             },
         },
+        android_arm64: {
+            cflags: ["-fsplit-machine-functions"],
+            ldflags: ["-fsplit-machine-functions"],
+        }
     },
     whole_program_vtables: true,
 }
