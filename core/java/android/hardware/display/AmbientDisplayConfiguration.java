@@ -87,7 +87,25 @@ public class AmbientDisplayConfiguration {
                 || tapGestureEnabled(user)
                 || doubleTapGestureEnabled(user)
                 || quickPickupSensorEnabled(user)
-                || screenOffUdfpsEnabled(user);
+                || screenOffUdfpsEnabled(user)
+                || shouldPulsePickSensorEvent(user)
+                || shouldPulseOnTap(user)
+                || shouldPulseOnDoubleTap(user);
+    }
+
+    /** @hide */
+    public boolean shouldPulsePickSensorEvent(int user) {
+        return boolSettingDefaultOff("doze_pulse_on_pickup", user);
+    }
+    
+    /** @hide */
+    public boolean shouldPulseOnTap(int user) {
+        return boolSettingDefaultOff("doze_pulse_on_single_tap", user);
+    }
+
+    /** @hide */
+    public boolean shouldPulseOnDoubleTap(int user) {
+        return boolSettingDefaultOff("doze_pulse_on_double_tap_ext", user);
     }
 
     /** @hide */
