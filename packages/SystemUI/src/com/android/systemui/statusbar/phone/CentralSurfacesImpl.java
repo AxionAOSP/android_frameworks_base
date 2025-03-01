@@ -241,6 +241,7 @@ import com.android.systemui.statusbar.window.StatusBarWindowStateController;
 import com.android.systemui.surfaceeffects.ripple.RippleShader.RippleShape;
 import com.android.systemui.util.DumpUtilsKt;
 import com.android.systemui.util.MediaArtUtils;
+import com.android.systemui.util.MediaSessionManagerHelper;
 import com.android.systemui.util.WallpaperController;
 import com.android.systemui.util.concurrency.DelayableExecutor;
 import com.android.systemui.util.concurrency.MessageRouter;
@@ -284,7 +285,7 @@ import javax.inject.Provider;
  * {@link ActivityStarterImpl}
  */
 @SysUISingleton
-public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
+public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, MediaSessionManagerHelper.MediaMetadataListener {
 
     private static final String BANNER_ACTION_CANCEL =
             "com.android.systemui.statusbar.banner_action_cancel";
@@ -397,6 +398,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
     private final LightRevealScrim mLightRevealScrim;
     private PowerButtonReveal mPowerButtonReveal;
     private final MediaArtUtils mMediaArtUtils;
+    private final MediaSessionManagerHelper mMediaSessionManagerHelper;
 
     /**
      * Whether we should delay the wakeup animation (which shows the notifications and moves the
@@ -873,6 +875,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
             mContext.getApplicationInfo().setEnableOnBackInvokedCallback(true);
         }
         mMediaArtUtils = MediaArtUtils.Companion.getInstance(mContext);
+        mMediaSessionManagerHelper = MediaSessionManagerHelper.Companion.getInstance(mContext);
     }
 
     private void initBubbles(Bubbles bubbles) {
@@ -1524,6 +1527,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
         filter.addAction(lineageos.content.Intent.ACTION_SCREEN_CAMERA_GESTURE);
         mBroadcastDispatcher.registerReceiver(mBroadcastReceiver, filter, null, UserHandle.ALL);
         mGameSpaceManager.observe();
+        mMediaSessionManagerHelper.addMediaMetadataListener(this);
     }
 
     @Override
@@ -2774,9 +2778,10 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
     };
     
     private void doCpuStandbyOptimization(boolean enable) {
+        boolean isMediaPlaying = mMediaSessionManagerHelper.isMediaPlaying();
         boolean cpuStandbyOptEnabled =
              SystemProperties.get("persist.sys.cpu_standby_optimization_enabled", "1") == "1";
-        if (!cpuStandbyOptEnabled) return;
+        if (!cpuStandbyOptEnabled || isMediaPlaying) return;
         SystemProperties.set("persist.sys.power_mode_limit_cpus", enable ? "1" : "0");
     }
 
