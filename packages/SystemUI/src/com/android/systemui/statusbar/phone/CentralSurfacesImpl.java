@@ -2644,7 +2644,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
 
             DejankUtils.stopDetectingBlockingIpcs(tag);
             com.android.systemui.util.ScrimUtils.getInstance(mContext).onScreenStateChange();
-            android.os.SystemProperties.set("persist.sys.power_mode_limit_cpus", "1");
+            doCpuStandbyOptimization(true);
         }
 
         @Override
@@ -2711,7 +2711,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
                 }
             });
             DejankUtils.stopDetectingBlockingIpcs(tag);
-            android.os.SystemProperties.set("persist.sys.power_mode_limit_cpus", "0");
+            doCpuStandbyOptimization(false);
         }
 
         /**
@@ -2772,6 +2772,13 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
             updateScrimController();
         }
     };
+    
+    private void doCpuStandbyOptimization(boolean enable) {
+        boolean cpuStandbyOptEnabled =
+             SystemProperties.get("persist.sys.cpu_standby_optimization_enabled", "1") == "1";
+        if (!cpuStandbyOptEnabled) return;
+        SystemProperties.set("persist.sys.power_mode_limit_cpus", enable ? "1" : "0");
+    }
 
     /**
      * We need to disable touch events because these might
