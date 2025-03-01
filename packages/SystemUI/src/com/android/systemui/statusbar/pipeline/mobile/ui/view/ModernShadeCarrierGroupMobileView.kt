@@ -79,6 +79,7 @@ class ModernShadeCarrierGroupMobileView(
                     it.subId = viewModel.subscriptionId
 
                     val iconView = it.requireViewById<ModernStatusBarMobileView>(R.id.mobile_combo)
+                    iconView.visibility = View.GONE
                     iconView.initView(slot) {
                         MobileIconBinder.bind(iconView, viewModel, STATE_ICON, logger)
                     }

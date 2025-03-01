@@ -38,7 +38,8 @@
         android:singleLine="true"
         android:maxEms="7"/>
 
-    <include layout="@layout/status_bar_mobile_signal_group_new" />
+    <include layout="@layout/status_bar_mobile_signal_group_new"
+        android:visibility="gone" />
 
 </com.android.systemui.statusbar.pipeline.mobile.ui.view.ModernShadeCarrierGroupMobileView>
 
