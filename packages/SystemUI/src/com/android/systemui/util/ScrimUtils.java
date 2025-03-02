@@ -44,6 +44,10 @@ public class ScrimUtils {
     private final KeyguardStateController.Callback mKeyguardStateCallback =
             new KeyguardStateController.Callback() {
                 @Override
+                public void onKeyguardShowingChanged() {
+                    onKgShowingChanged(mKeyguardStateController.isShowing());
+                }
+                @Override
                 public void onKeyguardFadingAwayChanged() {
                     onKgFadingAwayChanged();
                 }
@@ -101,28 +105,18 @@ public class ScrimUtils {
         }
         mExpansionState = state;
         if (mExpansionState == ExpansionState.QS_NOT_EXPANDED) {
-            updateMediaArtVisibility();
         } else if (mExpansionState == ExpansionState.QS_FULLY_EXPANDED) {
-            getMediaInstance().hideMediaArt();
         }
+        getMediaInstance().setQsExpansion(mExpansionState == ExpansionState.QS_FULLY_EXPANDED);
     }
     
-    public void onScreenStateChange() {
-        updateMediaArtVisibility();
-    }
-    
-    private void updateMediaArtVisibility() {
-        getMediaInstance().updateMediaArtVisibility();
-        mHandler.postDelayed(() -> {
-            getMediaInstance().updateMediaArtVisibility();
-        }, 250);
-    }
-    
+    public void onScreenStateChange() {}
+
     private void updateNotifContainerElements() {
     }
 
     public void onScrimDispatched() {
-        getMediaInstance().updateMediaArtVisibility();
+        getMediaInstance().updateMediaVisibility();
     }
 
     private void onDozeChanged(boolean dozing) {
@@ -132,12 +126,16 @@ public class ScrimUtils {
         }
     }
 
+    private void onKgShowingChanged(boolean showing) {
+        getMediaInstance().setOnKeyguard(showing);
+    }
+
     private void onKgFadingAwayChanged() {
-        getMediaInstance().hideMediaArt();
+        getMediaInstance().setOnKeyguard(false);
     }
 
     private void onKgGoingAwayChanged() {
-        getMediaInstance().hideMediaArt();
+        getMediaInstance().setOnKeyguard(false);
     }
 
     public float getScrimBehindAlphaKeyguard() {
