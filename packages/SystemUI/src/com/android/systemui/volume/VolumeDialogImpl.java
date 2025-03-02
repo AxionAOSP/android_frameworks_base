@@ -650,7 +650,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
 
         mWindow.setAttributes(lp);
         mWindow.setLayout(WRAP_CONTENT, WRAP_CONTENT);
-        mDialog.setContentView(R.layout.volume_dialog);
+        mDialog.setContentView(isTablet() ? R.layout.volume_dialog_sw600dp : R.layout.volume_dialog);
         mDialogView = mDialog.findViewById(R.id.volume_dialog);
         mDialogView.setAlpha(0);
         mDialogView.setLayoutDirection(
@@ -866,6 +866,10 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
         initAppVolumeH();
         initODICaptionsH();
         mAccessibility.init();
+    }
+    
+    private boolean isTablet() {
+        return mContext.getResources().getConfiguration().smallestScreenWidthDp >= 600;
     }
 
     private boolean isWindowGravityLeft() {
