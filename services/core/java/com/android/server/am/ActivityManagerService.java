@@ -693,8 +693,8 @@ public class ActivityManagerService extends IActivityManager.Stub
     final ActivityManagerGlobalLock mProcLock = ENABLE_PROC_LOCK
             ? new ActivityManagerProcLock() : mGlobalLock;
 
-    // Whether we should use SCHED_FIFO for UI and RenderThreads.
-    final boolean mUseFifoUiScheduling;
+    // Whether we should use SCHED_RR for UI and RenderThreads.
+    final boolean mUseFifoUiScheduling = true;
 
     /** Whether some specified important processes are allowed to use FIFO priority. */
     boolean mAllowSpecifiedFifoScheduling = true;
@@ -2417,7 +2417,6 @@ public class ActivityManagerService extends IActivityManager.Stub
         mUgmInternal = LocalServices.getService(UriGrantsManagerInternal.class);
         mInternal = new LocalService();
         mPendingStartActivityUids = new PendingStartActivityUids();
-        mUseFifoUiScheduling = false;
         mBroadcastQueue = injector.getBroadcastQueue(this);
         mBroadcastController = new BroadcastController(mContext, this, mBroadcastQueue);
         mComponentAliasResolver = new ComponentAliasResolver(this);
@@ -2493,8 +2492,6 @@ public class ActivityManagerService extends IActivityManager.Stub
                 mHandlerThread.getLooper(), mUserController, mConstants);
 
         mAppRestrictionController = new AppRestrictionController(mContext, this);
-
-        mUseFifoUiScheduling = SystemProperties.getInt("sys.use_fifo_ui", 0) != 0;
 
         mTrackingAssociations = "1".equals(SystemProperties.get("debug.track-associations"));
         mIntentFirewall = new IntentFirewall(new IntentFirewallInterface(), mHandler);
@@ -8177,6 +8174,8 @@ public class ActivityManagerService extends IActivityManager.Stub
     public static boolean scheduleAsRegularPriority(int tid, boolean suppressLogs) {
         try {
             Process.setThreadScheduler(tid, Process.SCHED_OTHER, 0);
+            Process.setThreadGroupAndCpuset(tid, 1);
+            Process.setThreadAffinity(tid, 2);
             return true;
         } catch (IllegalArgumentException e) {
             if (!suppressLogs) {
@@ -8200,7 +8199,9 @@ public class ActivityManagerService extends IActivityManager.Stub
      */
     public static boolean scheduleAsFifoPriority(int tid, boolean suppressLogs) {
         try {
-            Process.setThreadScheduler(tid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 1);
+            Process.setThreadScheduler(tid, Process.SCHED_RR, 1);
+            Process.setThreadGroupAndCpuset(tid, Process.THREAD_GROUP_TOP_APP);
+            Process.setThreadAffinity(tid, 2);
             return true;
         } catch (IllegalArgumentException e) {
             if (!suppressLogs) {
@@ -8261,8 +8262,7 @@ public class ActivityManagerService extends IActivityManager.Stub
                 if (proc.mState.getCurrentSchedulingGroup() == ProcessList.SCHED_GROUP_TOP_APP) {
                     if (DEBUG_OOM_ADJ) Slog.d("UI_FIFO", "Promoting " + tid + "out of band");
                     if (proc.useFifoUiScheduling()) {
-                        setThreadScheduler(proc.getRenderThreadTid(),
-                                SCHED_FIFO | SCHED_RESET_ON_FORK, 1);
+                        scheduleAsFifoPriority(proc.getRenderThreadTid(), true);
                     } else {
                         setThreadPriority(proc.getRenderThreadTid(), THREAD_PRIORITY_TOP_APP_BOOST);
                     }
