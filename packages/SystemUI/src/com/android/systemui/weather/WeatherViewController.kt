@@ -78,7 +78,7 @@ class WeatherViewController(
 
             updateViewVisibility(weatherInfoView, settings.weatherEnabled)
             updateViewVisibility(weatherIcon, settings.weatherEnabled)
-            updateViewVisibility(weatherTemp, settings.weatherEnabled && settings.showWeatherText)
+            updateViewVisibility(weatherTemp, settings.weatherEnabled)
             updateViewVisibility(windIcon, settings.weatherEnabled && settings.showWindInfo)
             updateViewVisibility(windText, settings.weatherEnabled && settings.showWindInfo)
             updateViewVisibility(humidityIcon, settings.weatherEnabled && settings.showHumidityInfo)
