@@ -180,6 +180,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import com.android.internal.util.axion.HideAppListUtils;
+
 /**
  * This class contains the implementation of the Computer functions.  It
  * is entirely self-contained - it has no implicit access to
@@ -990,6 +992,10 @@ public class ComputerEngine implements Computer {
 
     public final ApplicationInfo getApplicationInfo(String packageName,
             @PackageManager.ApplicationInfoFlagsBits long flags, int userId) {
+        if (canHideAppFromSystemApp(Binder.getCallingUid(), packageName) &&
+            HideAppListUtils.shouldHideAppList(mContext, packageName)) {
+            return null;
+        }
         return getApplicationInfoInternal(packageName, flags, Binder.getCallingUid(), userId);
     }
 
@@ -1003,6 +1009,10 @@ public class ComputerEngine implements Computer {
             @PackageManager.ApplicationInfoFlagsBits long flags,
             int filterCallingUid, int userId) {
         if (!mUserManager.exists(userId)) return null;
+        if (canHideAppFromSystemApp(Binder.getCallingUid(), packageName) &&
+            HideAppListUtils.shouldHideAppList(mContext, packageName)) {
+            return null;
+        }
         flags = updateFlagsForApplication(flags, userId);
 
         if (!isRecentsAccessingChildProfiles(Binder.getCallingUid(), userId)) {
@@ -1012,6 +1022,42 @@ public class ComputerEngine implements Computer {
         }
 
         return getApplicationInfoInternalBody(packageName, flags, filterCallingUid, userId);
+    }
+    
+    private boolean canHideAppFromSystemApp(int callingUid, String packageName) {
+        String[] appDetachableSystemAppList = {
+            "com.android.vending"
+        };
+
+        if (mContext == null || mContext.getPackageManager() == null) {
+            Log.d("ComputerEngine", "mContext or PackageManager is null!");
+            return false;
+        }
+
+        String callingPackage = mContext.getPackageManager().getNameForUid(callingUid);
+        if (callingPackage != null && Arrays.asList(appDetachableSystemAppList).contains(callingPackage)) {
+            return true;
+        } else {
+            return !isCallerSystem(callingUid) && !isCallerSameApp(packageName, callingUid);
+        }
+    }
+    
+    public ParceledListSlice<PackageInfo> recreatePackageList(
+            int callingUid, Context context, int userId, ParceledListSlice<PackageInfo> list) {
+        List<PackageInfo> appList = new ArrayList<>(list.getList());
+        if (!canHideAppFromSystemApp(callingUid, null)) return new ParceledListSlice<>(appList);
+        Set<String> hiddenApps = HideAppListUtils.getApps(context);
+        appList.removeIf(info -> hiddenApps.contains(info.packageName));
+        return new ParceledListSlice<>(appList);
+    }
+
+    public List<ApplicationInfo> recreateApplicationList(
+            int callingUid, Context context, int userId, List<ApplicationInfo> list) {
+        List<ApplicationInfo> appList = new ArrayList<>(list);
+        if (!canHideAppFromSystemApp(callingUid, null)) return appList;
+        Set<String> hiddenApps = HideAppListUtils.getApps(context);
+        appList.removeIf(info -> hiddenApps.contains(info.packageName));
+        return appList;
     }
 
     protected ApplicationInfo getApplicationInfoInternalBody(String packageName,
@@ -1639,6 +1685,10 @@ public class ComputerEngine implements Computer {
 
     public final PackageInfo getPackageInfo(String packageName,
             @PackageManager.PackageInfoFlagsBits long flags, int userId) {
+        if (canHideAppFromSystemApp(Binder.getCallingUid(), packageName) &&
+            HideAppListUtils.shouldHideAppList(mContext, packageName)) {
+            return null;
+        }
         return getPackageInfoInternal(packageName, PackageManager.VERSION_CODE_HIGHEST,
                 flags, Binder.getCallingUid(), userId);
     }
@@ -1762,7 +1812,8 @@ public class ComputerEngine implements Computer {
         enforceCrossUserPermission(callingUid, userId, false /* requireFullPermission */,
                 false /* checkShell */, "get installed packages");
 
-        return getInstalledPackagesBody(flags, userId, callingUid);
+        return recreatePackageList(callingUid, mContext,
+                        userId, getInstalledPackagesBody(flags, userId, callingUid));
     }
 
     protected ParceledListSlice<PackageInfo> getInstalledPackagesBody(long flags, int userId,
@@ -4865,7 +4916,7 @@ public class ComputerEngine implements Computer {
             }
         }
 
-        return list;
+        return recreateApplicationList(callingUid, mContext, userId, list);
     }
 
     @Nullable
