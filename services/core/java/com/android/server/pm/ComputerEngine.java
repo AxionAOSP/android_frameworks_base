@@ -1024,22 +1024,44 @@ public class ComputerEngine implements Computer {
         return getApplicationInfoInternalBody(packageName, flags, filterCallingUid, userId);
     }
     
-    private boolean canHideAppFromSystemApp(int callingUid, String packageName) {
-        String[] appDetachableSystemAppList = {
-            "com.android.vending"
-        };
-
-        if (mContext == null || mContext.getPackageManager() == null) {
-            Log.d("ComputerEngine", "mContext or PackageManager is null!");
+     private boolean canHideAppFromSystemApp(int callingUid, String packageName) {
+        if (!isBootCompleted() || mContext == null || mContext.getPackageManager() == null) {
             return false;
         }
 
         String callingPackage = mContext.getPackageManager().getNameForUid(callingUid);
-        if (callingPackage != null && Arrays.asList(appDetachableSystemAppList).contains(callingPackage)) {
-            return true;
-        } else {
-            return !isCallerSystem(callingUid) && !isCallerSameApp(packageName, callingUid);
+
+        if (callingPackage == null || TextUtils.isEmpty(callingPackage)) {
+            return false;
         }
+
+        // app can be always hidden if calling package is play store
+        boolean isFinsky = callingPackage.contains("com.android.vending");
+
+        if (isFinsky) return true;
+        
+        if (packageName == null || TextUtils.isEmpty(packageName)) {
+            return false;
+        }
+        
+        // the calling package is itself, no need to hide
+        if (callingPackage.contains(packageName)) return false;
+
+        // we only want to hide these apps from playstore 
+        // to avoid these apps from being updated, so abort if
+        // calling package is not finsky
+        if (packageName.contains("youtube") 
+            || packageName.contains("microg")
+            || packageName.contains("revanced")
+            || packageName.contains("gms")) {
+            return false;
+        }
+
+        // this is for banking apps, but we need to make sure first that 
+        // we arent hiding app infos from sandbox/system processes
+        return !isCallerSystem(callingUid) 
+            && !Process.isIsolated(callingUid)
+            && !Process.isSdkSandboxUid(callingUid);
     }
     
     public ParceledListSlice<PackageInfo> recreatePackageList(
@@ -2661,11 +2683,6 @@ public class ComputerEngine implements Computer {
         }
         // if the target is hidden app, do filter
         if (ps.getUserStateOrDefault(userId).isHidden()) {
-            return true;
-        }
-        // if the target is included in Settings.Secure.HIDE_APPLIST, do filter
-        if (com.android.internal.util.axion.HideAppListUtils.shouldHideAppList(
-                mContext, packageName)) {
             return true;
         }
 
