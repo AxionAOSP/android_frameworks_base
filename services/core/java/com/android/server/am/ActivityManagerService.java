@@ -8175,7 +8175,7 @@ public class ActivityManagerService extends IActivityManager.Stub
         try {
             Process.setThreadScheduler(tid, Process.SCHED_OTHER, 0);
             Process.setThreadGroupAndCpuset(tid, 1);
-            Process.setThreadAffinity(tid, 2);
+            Process.setThreadAffinity(tid, 2 /* all cores */);
             return true;
         } catch (IllegalArgumentException e) {
             if (!suppressLogs) {
@@ -8199,9 +8199,9 @@ public class ActivityManagerService extends IActivityManager.Stub
      */
     public static boolean scheduleAsFifoPriority(int tid, boolean suppressLogs) {
         try {
-            Process.setThreadScheduler(tid, Process.SCHED_RR, 1);
+            Process.setThreadScheduler(tid, SCHED_FIFO | SCHED_RESET_ON_FORK, 1);
             Process.setThreadGroupAndCpuset(tid, Process.THREAD_GROUP_TOP_APP);
-            Process.setThreadAffinity(tid, 2);
+            Process.setThreadAffinity(tid, 0 /* big cores */);
             return true;
         } catch (IllegalArgumentException e) {
             if (!suppressLogs) {
