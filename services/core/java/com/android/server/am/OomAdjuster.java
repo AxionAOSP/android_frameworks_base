@@ -3969,29 +3969,40 @@ public class OomAdjuster {
                         + " immediate: " + immediate);
             }
         }
+        
+        boolean isFrozen = opt.isFrozen() || opt.isPendingFreeze();
 
         if (app.mOptRecord.isFreezeExempt()) {
+            if (isFrozen) {
+                mCachedAppOptimizer.unfreezeAppLSP(app, oomAdjReason);
+            }
             return;
         }
 
         // if an app is already frozen and shouldNotFreeze becomes true, immediately unfreeze
-        if (opt.isFrozen() && opt.shouldNotFreeze()) {
+        if (isFrozen && opt.shouldNotFreeze()) {
             mCachedAppOptimizer.unfreezeAppLSP(app,
                     CachedAppOptimizer.getUnfreezeReasonCodeFromOomAdjReason(oomAdjReason));
             return;
         }
 
         // Use current adjustment when freezing, set adjustment when unfreezing.
-        if (state.getCurAdj() >= FREEZER_CUTOFF_ADJ && !opt.isFrozen()
-                && !opt.shouldNotFreeze()) {
-            if (!immediate) {
-                mCachedAppOptimizer.freezeAppAsyncLSP(app);
-            } else {
+        boolean shouldFreeze = state.getCurAdj() >= 
+            (mService.mWakefulness.get() != PowerManagerInternal.WAKEFULNESS_AWAKE 
+                ? ProcessList.HOME_APP_ADJ 
+                : ProcessList.FREEZER_CUTOFF_ADJ);
+        
+        boolean isNotFrozen = !opt.shouldNotFreeze() && !opt.isPendingFreeze() && !opt.isFrozen();
+
+        if (shouldFreeze && isNotFrozen) {
+            if (immediate) {
                 mCachedAppOptimizer.freezeAppAsyncAtEarliestLSP(app);
+            } else {
+                mCachedAppOptimizer.freezeAppAsyncLSP(app);
             }
-        } else if (state.getSetAdj() < FREEZER_CUTOFF_ADJ) {
-            mCachedAppOptimizer.unfreezeAppLSP(app,
-                    CachedAppOptimizer.getUnfreezeReasonCodeFromOomAdjReason(oomAdjReason));
+        } else if (!shouldFreeze && isFrozen) {
+            mCachedAppOptimizer.unfreezeAppLSP(app, 
+                CachedAppOptimizer.getUnfreezeReasonCodeFromOomAdjReason(oomAdjReason));
         }
     }
 
