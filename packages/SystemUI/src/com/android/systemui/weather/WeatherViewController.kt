@@ -18,12 +18,18 @@ package com.android.systemui.weather
 import android.content.Context
 import android.os.UserHandle
 import android.provider.Settings
+import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+
 import com.android.internal.util.android.OmniJawsClient
+
 import com.android.systemui.res.R
+import com.android.systemui.Dependency
+import com.android.systemui.plugins.statusbar.StatusBarStateController
+
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -42,6 +48,45 @@ class WeatherViewController(
     private var weatherInfo: OmniJawsClient.WeatherInfo? = null
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
 
+    private var mDozing = false
+    private val statusBarStateController: StatusBarStateController = Dependency.get(StatusBarStateController::class.java)
+
+    private val statusBarStateListener = object : StatusBarStateController.StateListener {
+        override fun onStateChanged(newState: Int) {}
+
+        override fun onDozingChanged(dozing: Boolean) {
+            if (mDozing == dozing) {
+                return
+            }
+            mDozing = dozing
+
+            val translationY = if (mDozing) {
+                TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP, 2f, context.resources.displayMetrics
+                )
+            } else {
+                0f
+            }
+
+            val translationX = if (mDozing) {
+                TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP, 2f, context.resources.displayMetrics
+                )
+            } else {
+                0f
+            }
+
+            listOf(weatherInfoView, weatherIcon, weatherTemp).forEach { view ->
+                view.animate()
+                    .translationX(translationX)
+                    .translationY(translationY)
+                    .setDuration(300L)
+                    .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator())
+                    .start()
+            }
+        }
+    }
+
     private val weatherSettingsFlow = flow {
         while (true) {
             emit(getWeatherSettings())
@@ -53,6 +98,8 @@ class WeatherViewController(
         scope.launch {
             weatherSettingsFlow.collectLatest { applyWeatherSettings(it) }
         }
+        statusBarStateController.addCallback(statusBarStateListener)
+        statusBarStateListener.onDozingChanged(statusBarStateController.isDozing())
     }
 
     private fun getWeatherSettings() = WeatherSettings(
@@ -143,6 +190,7 @@ class WeatherViewController(
     fun removeObserver() {
         scope.cancel()
         weatherClient.removeObserver(this)
+        statusBarStateController.removeCallback(statusBarStateListener)
     }
 
     private suspend fun updateViewVisibility(view: View, visible: Boolean) {
