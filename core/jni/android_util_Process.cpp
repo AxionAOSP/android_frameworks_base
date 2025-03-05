@@ -29,6 +29,7 @@
 #include <processgroup/processgroup.h>
 #include <processgroup/sched_policy.h>
 #include <android-base/logging.h>
+#include <android-base/properties.h>
 #include <android-base/unique_fd.h>
 
 #include <algorithm>
@@ -238,8 +239,24 @@ void android_os_Process_setThreadAffinity(JNIEnv* env, jobject clazz, int tid, j
     cpu_set_t target_cpu_set;
     CPU_ZERO(&target_cpu_set);
 
-    std::vector<int32_t> small_cores = {0, 1, 2, 3};
-    std::vector<int32_t> big_cores = {4, 5, 6, 7};
+    std::vector<int32_t> small_cores, big_cores;
+
+    auto parseCpusets = [](const std::string& cpuset_str, std::vector<int32_t>& cpus) {
+        std::istringstream ss(cpuset_str);
+        std::string token;
+        while (std::getline(ss, token, ',')) {
+            char* endptr;
+            long cpu = std::strtol(token.c_str(), &endptr, 10);
+            if (*endptr == '\0' && cpu >= 0) {
+                cpus.push_back(static_cast<int32_t>(cpu));
+            } else {
+                ALOGI("Invalid CPU core value: %s", token.c_str());
+            }
+        }
+    };
+
+    parseCpusets(android::base::GetProperty("persist.sys.axion_cpu_small", "0,1,2,3"), small_cores);
+    parseCpusets(android::base::GetProperty("persist.sys.axion_cpu_big", "4,5,6,7"), big_cores);
 
     if (grp == 1) {
         for (int core : small_cores) {
@@ -262,7 +279,7 @@ void android_os_Process_setThreadAffinity(JNIEnv* env, jobject clazz, int tid, j
     }
 
     if (sched_setaffinity(tid, sizeof(cpu_set_t), &target_cpu_set) == -1) {
-        ALOGI("Failed to set CPU affinity for thread %d", tid);
+        ALOGI("Failed to set CPU affinity for thread %d: %s", tid, strerror(errno));
     } else {
         ALOGI("Successfully set affinity for thread %d", tid);
     }
