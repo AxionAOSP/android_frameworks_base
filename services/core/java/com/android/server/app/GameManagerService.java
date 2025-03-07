@@ -155,6 +155,8 @@ public final class GameManagerService extends IGameManagerService.Stub {
             "debug.graphics.game_default_frame_rate.disabled";
     static final String PROPERTY_RO_SURFACEFLINGER_GAME_DEFAULT_FRAME_RATE =
             "ro.surface_flinger.game_default_frame_rate_override";
+    static final String PROPERTY_PERSIST_PERFORMANCE_MODE = 
+            "persist.sys.power_mode_perf";
 
     private static final String PACKAGE_NAME_MSG_KEY = "packageName";
     private static final String USER_ID_MSG_KEY = "userId";
@@ -195,6 +197,9 @@ public final class GameManagerService extends IGameManagerService.Stub {
     private final Set<Integer> mNonGameForegroundUids = new HashSet<>();
     private final GameManagerServiceSystemPropertiesWrapper mSysProps;
     private float mGameDefaultFrameRateValue;
+    
+    private boolean perfModeEnabledByUser = false;
+    private boolean boosted = false;
 
     @VisibleForTesting
     static class Injector {
@@ -1581,6 +1586,7 @@ public final class GameManagerService extends IGameManagerService.Stub {
         mPowerManagerInternal.setPowerMode(Mode.GAME_LOADING, false);
         Slog.v(TAG, "Game power mode OFF (game manager service start/restart)");
         mPowerManagerInternal.setPowerMode(Mode.GAME, false);
+        boostGameService(false);
 
         mGameDefaultFrameRateValue = (float) mSysProps.getInt(
                 PROPERTY_RO_SURFACEFLINGER_GAME_DEFAULT_FRAME_RATE, 60);
@@ -2323,6 +2329,7 @@ public final class GameManagerService extends IGameManagerService.Stub {
                         if (!mGameForegroundUids.isEmpty() && mNonGameForegroundUids.isEmpty()) {
                             Slog.v(TAG, "Game power mode OFF (first non-game in foreground)");
                             mPowerManagerInternal.setPowerMode(Mode.GAME, false);
+                            boostGameService(false);
                         }
                         mNonGameForegroundUids.add(uid);
                     }
@@ -2332,6 +2339,7 @@ public final class GameManagerService extends IGameManagerService.Stub {
                         || mNonGameForegroundUids.isEmpty())) {
                     Slog.v(TAG, "Game power mode ON (first game in foreground)");
                     mPowerManagerInternal.setPowerMode(Mode.GAME, true);
+                    boostGameService(true);
                 }
                 final boolean isGameDefaultFrameRateDisabled =
                         mSysProps.getBoolean(
@@ -2350,12 +2358,14 @@ public final class GameManagerService extends IGameManagerService.Stub {
                             || mNonGameForegroundUids.isEmpty())) {
                         Slog.v(TAG, "Game power mode OFF (no games in foreground)");
                         mPowerManagerInternal.setPowerMode(Mode.GAME, false);
+                        boostGameService(false);
                     }
                 } else if (disableGameModeWhenAppTop() && mNonGameForegroundUids.contains(uid)) {
                     mNonGameForegroundUids.remove(uid);
                     if (mNonGameForegroundUids.isEmpty() && !mGameForegroundUids.isEmpty()) {
                         Slog.v(TAG, "Game power mode ON (only games in foreground)");
                         mPowerManagerInternal.setPowerMode(Mode.GAME, true);
+                        boostGameService(true);
                     }
                 }
             }
@@ -2401,4 +2411,38 @@ public final class GameManagerService extends IGameManagerService.Stub {
         }
     }
 
+    void boostGameService(boolean enable) {
+        boolean perfModeEnabled = Settings.System.getIntForUser(
+            mContext.getContentResolver(),
+            PROPERTY_PERSIST_PERFORMANCE_MODE,
+            0,
+            UserHandle.USER_CURRENT
+        ) == 1;
+        if (enable) {
+            if (perfModeEnabled) {
+                perfModeEnabledByUser = true;
+                return;
+            }
+            perfModeEnabledByUser = false;
+            Settings.System.putIntForUser(
+                mContext.getContentResolver(),
+                PROPERTY_PERSIST_PERFORMANCE_MODE,
+                1,
+                UserHandle.USER_CURRENT
+            );
+            SystemProperties.set(PROPERTY_PERSIST_PERFORMANCE_MODE, "1");
+            boosted = true;
+        } else {
+            if (!perfModeEnabledByUser && boosted) {
+                Settings.System.putIntForUser(
+                    mContext.getContentResolver(),
+                    PROPERTY_PERSIST_PERFORMANCE_MODE,
+                    0,
+                    UserHandle.USER_CURRENT
+                );
+                SystemProperties.set(PROPERTY_PERSIST_PERFORMANCE_MODE, "0");
+                boosted = false;
+            }
+        }
+    }
 }
