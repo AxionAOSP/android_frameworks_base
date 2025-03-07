@@ -782,6 +782,7 @@ public final class SystemServer implements Dumpable {
     private void run() {
         TimingsTraceAndSlog t = new TimingsTraceAndSlog();
         try {
+            Process.setThreadGroupAndCpuset(myPid(), Process.THREAD_GROUP_TOP_APP);
             t.traceBegin("InitBeforeStartServices");
 
             // Record the process start information in sys props.
