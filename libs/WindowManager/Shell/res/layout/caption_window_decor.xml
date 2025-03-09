@@ -50,6 +50,7 @@
     <Button
         style="@style/CaptionButtonStyle"
         android:id="@+id/close_window"
+        android:layout_gravity="center_vertical|end"
         android:contentDescription="@string/close_button_text"
         android:background="@drawable/decor_close_button_dark"
         android:duplicateParentState="true"/>
