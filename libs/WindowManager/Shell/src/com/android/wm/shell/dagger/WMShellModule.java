@@ -390,7 +390,8 @@ public abstract class WMShellModule {
             Optional<DesktopTasksController> desktopTasksController,
             LaunchAdjacentController launchAdjacentController,
             WindowDecorViewModel windowDecorViewModel,
-            Optional<TaskChangeListener> taskChangeListener) {
+            Optional<TaskChangeListener> taskChangeListener,
+            @ShellMainThread Handler mainHandler) {
         // TODO(b/238217847): Temporarily add this check here until we can remove the dynamic
         //                    override for this controller from the base module
         ShellInit init = FreeformComponents.requiresFreeformComponents(context) ? shellInit : null;
@@ -402,7 +403,8 @@ public abstract class WMShellModule {
                 desktopTasksController,
                 launchAdjacentController,
                 windowDecorViewModel,
-                taskChangeListener);
+                taskChangeListener,
+                mainHandler);
     }
 
     @WMSingleton
