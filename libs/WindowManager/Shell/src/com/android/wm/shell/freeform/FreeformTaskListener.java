@@ -22,6 +22,7 @@ import static com.android.wm.shell.ShellTaskOrganizer.TASK_LISTENER_TYPE_FREEFOR
 
 import android.app.ActivityManager.RunningTaskInfo;
 import android.content.Context;
+import android.os.Handler;
 import android.util.SparseArray;
 import android.view.SurfaceControl;
 
@@ -34,6 +35,7 @@ import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import com.android.wm.shell.sysui.ShellInit;
 import com.android.wm.shell.transition.Transitions;
 import com.android.wm.shell.windowdecor.WindowDecorViewModel;
+import android.window.WindowContainerTransaction;
 
 import java.io.PrintWriter;
 import java.util.Optional;
@@ -51,6 +53,7 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
     private final Optional<DesktopModeTaskRepository> mDesktopModeTaskRepository;
     private final WindowDecorViewModel mWindowDecorationViewModel;
     private final LaunchAdjacentController mLaunchAdjacentController;
+    private final Handler mMainHandler;
 
     private final SparseArray<State> mTasks = new SparseArray<>();
 
@@ -65,12 +68,14 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
             ShellTaskOrganizer shellTaskOrganizer,
             Optional<DesktopModeTaskRepository> desktopModeTaskRepository,
             LaunchAdjacentController launchAdjacentController,
-            WindowDecorViewModel windowDecorationViewModel) {
+            WindowDecorViewModel windowDecorationViewModel,
+            Handler mainHandler) {
         mContext = context;
         mShellTaskOrganizer = shellTaskOrganizer;
         mWindowDecorationViewModel = windowDecorationViewModel;
         mDesktopModeTaskRepository = desktopModeTaskRepository;
         mLaunchAdjacentController = launchAdjacentController;
+        mMainHandler = mainHandler;
         if (shellInit != null) {
             shellInit.addInitCallback(this::onInit, this);
         }
@@ -111,6 +116,7 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
             });
         }
         updateLaunchAdjacentController();
+        onTaskEnteredFreeform(taskInfo);
     }
 
     @Override
@@ -151,6 +157,7 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
             });
         }
         updateLaunchAdjacentController();
+        onTaskEnteredFreeform(taskInfo);
     }
 
     private void updateLaunchAdjacentController() {
@@ -161,6 +168,17 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
             }
         }
         mLaunchAdjacentController.setLaunchAdjacentEnabled(true);
+    }
+
+    void onTaskEnteredFreeform(RunningTaskInfo taskInfo) {
+        if (taskInfo == null || taskInfo.getWindowingMode() != WINDOWING_MODE_FREEFORM) {
+            return;
+        }
+        mMainHandler.postDelayed(() -> {
+            final WindowContainerTransaction wct = new WindowContainerTransaction();
+            wct.setDensityDpi(taskInfo.token, 284);
+            mShellTaskOrganizer.applyTransaction(wct);
+        }, 500);
     }
 
     @Override
@@ -176,6 +194,7 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
                 repository.addOrMoveFreeformTaskToTop(taskInfo.displayId, taskInfo.taskId);
             });
         }
+        onTaskEnteredFreeform(taskInfo);
     }
 
     @Override
