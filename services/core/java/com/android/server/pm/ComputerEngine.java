@@ -992,7 +992,7 @@ public class ComputerEngine implements Computer {
 
     public final ApplicationInfo getApplicationInfo(String packageName,
             @PackageManager.ApplicationInfoFlagsBits long flags, int userId) {
-        if (canHideAppFromSystemApp(Binder.getCallingUid(), packageName) &&
+        if (canHideApp(Binder.getCallingUid(), packageName) &&
             HideAppListUtils.shouldHideAppList(mContext, packageName)) {
             return null;
         }
@@ -1009,7 +1009,7 @@ public class ComputerEngine implements Computer {
             @PackageManager.ApplicationInfoFlagsBits long flags,
             int filterCallingUid, int userId) {
         if (!mUserManager.exists(userId)) return null;
-        if (canHideAppFromSystemApp(Binder.getCallingUid(), packageName) &&
+        if (canHideApp(Binder.getCallingUid(), packageName) &&
             HideAppListUtils.shouldHideAppList(mContext, packageName)) {
             return null;
         }
@@ -1024,7 +1024,7 @@ public class ComputerEngine implements Computer {
         return getApplicationInfoInternalBody(packageName, flags, filterCallingUid, userId);
     }
     
-     private boolean canHideAppFromSystemApp(int callingUid, String packageName) {
+     private boolean canHideApp(int callingUid, String packageName) {
         if (!isBootCompleted() || mContext == null || mContext.getPackageManager() == null) {
             return false;
         }
@@ -1067,7 +1067,7 @@ public class ComputerEngine implements Computer {
     public ParceledListSlice<PackageInfo> recreatePackageList(
             int callingUid, Context context, int userId, ParceledListSlice<PackageInfo> list) {
         List<PackageInfo> appList = new ArrayList<>(list.getList());
-        if (!canHideAppFromSystemApp(callingUid, null)) return new ParceledListSlice<>(appList);
+        if (!canHideApp(callingUid, null)) return new ParceledListSlice<>(appList);
         Set<String> hiddenApps = HideAppListUtils.getApps(context);
         appList.removeIf(info -> hiddenApps.contains(info.packageName));
         return new ParceledListSlice<>(appList);
@@ -1076,7 +1076,7 @@ public class ComputerEngine implements Computer {
     public List<ApplicationInfo> recreateApplicationList(
             int callingUid, Context context, int userId, List<ApplicationInfo> list) {
         List<ApplicationInfo> appList = new ArrayList<>(list);
-        if (!canHideAppFromSystemApp(callingUid, null)) return appList;
+        if (!canHideApp(callingUid, null)) return appList;
         Set<String> hiddenApps = HideAppListUtils.getApps(context);
         appList.removeIf(info -> hiddenApps.contains(info.packageName));
         return appList;
@@ -1712,7 +1712,7 @@ public class ComputerEngine implements Computer {
 
     public final PackageInfo getPackageInfo(String packageName,
             @PackageManager.PackageInfoFlagsBits long flags, int userId) {
-        if (canHideAppFromSystemApp(Binder.getCallingUid(), packageName) &&
+        if (canHideApp(Binder.getCallingUid(), packageName) &&
             HideAppListUtils.shouldHideAppList(mContext, packageName)) {
             return null;
         }
@@ -2690,6 +2690,11 @@ public class ComputerEngine implements Computer {
         if (ps.getUserStateOrDefault(userId).isHidden()) {
             return true;
         }
+        // if the target is included in Settings.Secure.HIDE_APPLIST, do filter
+         if (canHideApp(Binder.getCallingUid(), packageName) && HideAppListUtils.shouldHideAppList(
+                 mContext, packageName)) {
+             return true;
+         }
 
         return false;
     }
