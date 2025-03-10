@@ -5,7 +5,7 @@
     android:id="@+id/keyguard_weather_area"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:paddingTop="16dp">
+    android:paddingTop="8dp">
 
     <!-- Weather Info -->
     <ImageView
@@ -18,59 +18,22 @@
 
     <TextView
         android:id="@+id/weather_temp"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:textAppearance="@style/TextAppearance.Keyguard.Secondary"
         android:textColor="?attr/wallpaperTextColor"
         android:visibility="gone"
-        android:ellipsize="end"
-        android:maxLines="1"
+        android:ellipsize="marquee"
         android:singleLine="true"
+        android:marqueeRepeatLimit="marquee_forever"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:scrollHorizontally="true"
+        android:freezesText="true"
         systemui:layout_constraintStart_toEndOf="@id/weather_icon"
         systemui:layout_constraintTop_toTopOf="@id/weather_icon"
-        android:layout_marginStart="8dp" />
-
-    <!-- Wind Speed -->
-    <ImageView
-        android:id="@+id/wind_icon"
-        android:layout_width="@dimen/weather_image_max_size"
-        android:layout_height="@dimen/weather_image_max_size"
-        android:visibility="gone"
-        systemui:layout_constraintStart_toStartOf="parent"
-        systemui:layout_constraintTop_toBottomOf="@id/weather_icon"
-        android:layout_marginTop="16dp" />
-
-    <TextView
-        android:id="@+id/wind_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textAppearance="@style/TextAppearance.Keyguard.Secondary"
-        android:textColor="?attr/wallpaperTextColor"
-        android:visibility="gone"
-        systemui:layout_constraintStart_toEndOf="@id/wind_icon"
-        systemui:layout_constraintTop_toTopOf="@id/wind_icon"
-        android:layout_marginStart="8dp" />
-
-    <!-- Humidity -->
-    <ImageView
-        android:id="@+id/humidity_icon"
-        android:layout_width="@dimen/weather_image_max_size"
-        android:layout_height="@dimen/weather_image_max_size"
-        android:visibility="gone"
-        systemui:layout_constraintStart_toEndOf="@id/wind_text"
-        systemui:layout_constraintTop_toBottomOf="@id/weather_icon"
-        android:layout_marginStart="@dimen/weather_humidity_margin_start"
-        android:layout_marginTop="16dp" />
-
-    <TextView
-        android:id="@+id/humidity_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textAppearance="@style/TextAppearance.Keyguard.Secondary"
-        android:textColor="?attr/wallpaperTextColor"
-        android:visibility="gone"
-        systemui:layout_constraintStart_toEndOf="@id/humidity_icon"
-        systemui:layout_constraintTop_toTopOf="@id/humidity_icon"
-        android:layout_marginStart="8dp" />
+        systemui:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="24dp" />
 
 </com.android.systemui.weather.WeatherInfoView>

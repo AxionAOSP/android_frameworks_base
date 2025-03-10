@@ -28,29 +28,17 @@ class WeatherInfoView @JvmOverloads constructor(
 
     private lateinit var weatherIcon: ImageView
     private lateinit var weatherTemp: TextView
-    private lateinit var windIcon: ImageView
-    private lateinit var windText: TextView
-    private lateinit var humidityIcon: ImageView
-    private lateinit var humidityText: TextView
 
     private lateinit var controller: WeatherViewController
     
     fun init() {
         weatherIcon = findViewById(R.id.weather_icon)
         weatherTemp = findViewById(R.id.weather_temp)
-        windIcon = findViewById(R.id.wind_icon)
-        windText = findViewById(R.id.wind_text)
-        humidityIcon = findViewById(R.id.humidity_icon)
-        humidityText = findViewById(R.id.humidity_text)
 
         controller = WeatherViewController(
             context,
             weatherIcon,
             weatherTemp,
-            windIcon,
-            windText,
-            humidityIcon,
-            humidityText,
             this
         )
 

@@ -18,9 +18,7 @@ package com.android.systemui.weather
 import android.content.Context
 import android.os.UserHandle
 import android.provider.Settings
-import android.util.TypedValue
 import android.view.View
-import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 
@@ -37,10 +35,6 @@ class WeatherViewController(
     private val context: Context,
     private val weatherIcon: ImageView,
     private val weatherTemp: TextView,
-    private val windIcon: ImageView,
-    private val windText: TextView,
-    private val humidityIcon: ImageView,
-    private val humidityText: TextView,
     private val weatherInfoView: View,
 ) : OmniJawsClient.OmniJawsObserver {
 
@@ -60,31 +54,14 @@ class WeatherViewController(
             }
             mDozing = dozing
 
-            val translationY = if (mDozing) {
-                TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 2f, context.resources.displayMetrics
-                )
-            } else {
-                0f
-            }
+            val weatherEnabled = weatherSettingsFlow.value.weatherEnabled
 
-            val translationX = if (mDozing) {
-                TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 2f, context.resources.displayMetrics
-                )
-            } else {
-                0f
-            }
-
-            listOf(weatherInfoView, weatherIcon, weatherTemp).forEach { view ->
-                view.animate()
-                    .translationX(translationX)
-                    .translationY(translationY)
-                    .setDuration(300L)
-                    .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator())
-                    .start()
+            val visible = !mDozing && weatherEnabled
+            scope.launch {
+                updateViewVisibility(weatherInfoView, visible)
             }
         }
+
     }
 
     private val weatherSettingsFlow = flow {
@@ -126,20 +103,6 @@ class WeatherViewController(
             updateViewVisibility(weatherInfoView, settings.weatherEnabled)
             updateViewVisibility(weatherIcon, settings.weatherEnabled)
             updateViewVisibility(weatherTemp, settings.weatherEnabled)
-            updateViewVisibility(windIcon, settings.weatherEnabled && settings.showWindInfo)
-            updateViewVisibility(windText, settings.weatherEnabled && settings.showWindInfo)
-            updateViewVisibility(humidityIcon, settings.weatherEnabled && settings.showHumidityInfo)
-            updateViewVisibility(humidityText, settings.weatherEnabled && settings.showHumidityInfo)
-            updateWeatherLayout(settings.showWindInfo)
-        }
-    }
-
-    private fun updateWeatherLayout(showWindInfo: Boolean) {
-        (humidityIcon.layoutParams as? ViewGroup.MarginLayoutParams)?.apply {
-            marginStart = if (showWindInfo) {
-                context.resources.getDimensionPixelSize(R.dimen.weather_humidity_margin_start)
-            } else 0
-            humidityIcon.layoutParams = this
         }
     }
 
@@ -157,27 +120,29 @@ class WeatherViewController(
             weatherInfo?.let { info ->
                 weatherIcon.setImageDrawable(weatherClient.getWeatherConditionImage(info.conditionCode))
                 weatherTemp.text = buildWeatherText(info)
-                windIcon.setImageDrawable(weatherClient.getResOmni("ic_wind_symbol"))
-                windText.text = " ${info.windSpeed} ${info.windUnits} • ${info.pinWheel}"
-                humidityIcon.setImageDrawable(weatherClient.getResOmni("ic_humidity_symbol"))
-                humidityText.text = info.humidity
+                weatherTemp.isSelected = true
             }
         } catch (e: Exception) {}
     }
 
     private fun hideAllViews() {
         scope.launch {
-            listOf(weatherInfoView, weatherIcon, weatherTemp, windIcon, windText, humidityIcon, humidityText).forEach {
+            listOf(weatherInfoView, weatherIcon, weatherTemp).forEach {
                 updateViewVisibility(it, false)
             }
         }
     }
 
     private fun buildWeatherText(info: OmniJawsClient.WeatherInfo): String {
+        val settings = weatherSettingsFlow.value
         val conditionText = info.condition.split(" ").joinToString(" ") { it.replaceFirstChar { char -> char.uppercaseChar() } }
-        return "${info.temp}${info.tempUnits}" +
-                (if (weatherSettingsFlow.value.showWeatherLocation) " • ${info.city}" else "") +
-                (if (weatherSettingsFlow.value.showWeatherText) " • $conditionText" else "")
+
+        val locationText = if (settings.showWeatherLocation) " • ${info.city}" else ""
+        val conditionDisplay = if (settings.showWeatherText) " • $conditionText" else ""
+        val windDisplay = if (settings.showWindInfo) " • ${info.windSpeed} ${info.windUnits} ${info.pinWheel}" else ""
+        val humidityDisplay = if (settings.showHumidityInfo) " • ${info.humidity}" else ""
+
+        return "${info.temp}${info.tempUnits}$locationText$conditionDisplay$windDisplay$humidityDisplay"
     }
 
     override fun weatherError(errorReason: Int) {
