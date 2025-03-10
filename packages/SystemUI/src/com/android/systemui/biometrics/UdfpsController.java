@@ -957,6 +957,9 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             }
             final boolean removed = mOverlay.hide();
             mKeyguardViewManager.hideAlternateBouncer(true);
+            if (mOverlay.getRequestReason() == REASON_AUTH_KEYGUARD) {
+                hideUdfpsAnimation();
+            }
             Log.v(TAG, "hideUdfpsOverlay | removing window: " + removed);
         } else {
             Log.v(TAG, "hideUdfpsOverlay | the overlay is already hidden");
