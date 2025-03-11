@@ -198,9 +198,6 @@ public final class GameManagerService extends IGameManagerService.Stub {
     private final Set<Integer> mNonGameForegroundUids = new HashSet<>();
     private final GameManagerServiceSystemPropertiesWrapper mSysProps;
     private float mGameDefaultFrameRateValue;
-    
-    private boolean perfModeEnabledByUser = false;
-    private boolean boosted = false;
 
     @VisibleForTesting
     static class Injector {
@@ -2456,37 +2453,13 @@ public final class GameManagerService extends IGameManagerService.Stub {
     }
 
     void boostGameService(boolean enable) {
-        boolean perfModeEnabled = Settings.System.getIntForUser(
-            mContext.getContentResolver(),
-            PROPERTY_PERSIST_PERFORMANCE_MODE,
-            0,
-            UserHandle.USER_CURRENT
-        ) == 1;
-        if (enable) {
-            if (perfModeEnabled) {
-                perfModeEnabledByUser = true;
-                return;
-            }
-            perfModeEnabledByUser = false;
-            Settings.System.putIntForUser(
-                mContext.getContentResolver(),
-                PROPERTY_PERSIST_PERFORMANCE_MODE,
-                1,
-                UserHandle.USER_CURRENT
-            );
-            SystemProperties.set(PROPERTY_PERSIST_PERFORMANCE_MODE, "1");
-            boosted = true;
-        } else {
-            if (!perfModeEnabledByUser && boosted) {
-                Settings.System.putIntForUser(
-                    mContext.getContentResolver(),
-                    PROPERTY_PERSIST_PERFORMANCE_MODE,
-                    0,
-                    UserHandle.USER_CURRENT
-                );
-                SystemProperties.set(PROPERTY_PERSIST_PERFORMANCE_MODE, "0");
-                boosted = false;
-            }
-        }
+        boolean perfModeEnabledByUser = Settings.System.getIntForUser(
+            mContext.getContentResolver(), "power_mode_perf_by_user", 0,
+            UserHandle.USER_CURRENT) == 1;
+        if (perfModeEnabledByUser) return;
+        Settings.System.putIntForUser(mContext.getContentResolver(),
+            PROPERTY_PERSIST_PERFORMANCE_MODE, enable ? 1 : 0,
+            UserHandle.USER_CURRENT);
+        SystemProperties.set(PROPERTY_PERSIST_PERFORMANCE_MODE, enable ? "1" : "0");
     }
 }
