@@ -154,21 +154,6 @@ class FaceAuthenticationClient
     }
 
     @Override
-    public @LockoutTracker.LockoutMode int handleFailedAttempt(int userId) {
-        @LockoutTracker.LockoutMode final int lockoutMode =
-                getLockoutTracker().getLockoutModeForUser(userId);
-        final PerformanceTracker performanceTracker =
-                PerformanceTracker.getInstanceForSensorId(getSensorId());
-        if (lockoutMode == LockoutTracker.LOCKOUT_PERMANENT) {
-            performanceTracker.incrementPermanentLockoutForUser(userId);
-        } else if (lockoutMode == LockoutTracker.LOCKOUT_TIMED) {
-            performanceTracker.incrementTimedLockoutForUser(userId);
-        }
-
-        return lockoutMode;
-    }
-
-    @Override
     public void onAuthenticated(BiometricAuthenticator.Identifier identifier,
             boolean authenticated, ArrayList<Byte> token) {
         super.onAuthenticated(identifier, authenticated, token);
