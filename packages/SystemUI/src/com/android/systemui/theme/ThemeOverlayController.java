@@ -999,7 +999,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable, TunerSer
 
     @Style.Type
     private int fetchThemeStyleFromSetting() {
-        final Map<Integer, Style> stylesMap = new java.util.HashMap<Integer, Style>() {{
+        final Map<Integer, Integer> stylesMap = new java.util.HashMap<Integer, Integer>() {{
             put(0, Style.SPRITZ);
             put(1, Style.TONAL_SPOT);
             put(2, Style.VIBRANT);
@@ -1013,7 +1013,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable, TunerSer
         final List<Integer> validStyleInts = Arrays.asList(0, 1, 2, 3, 4, 5, 7);
 
         if (mCustomThemeStyleEnabled) {
-            Style customStyle = stylesMap.getOrDefault(mCustomThemeStyle, Style.TONAL_SPOT);
+            int customStyle = stylesMap.getOrDefault(mCustomThemeStyle, Style.TONAL_SPOT);
             return validStyleInts.contains(mCustomThemeStyle) ? customStyle : Style.TONAL_SPOT;
         }
         // Allow-list of Style objects that can be created from a setting string, i.e. can be
