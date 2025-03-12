@@ -207,8 +207,9 @@ public final class StreamConfigurationMap {
                     dynamicDepthStallDurations,
                     heicConfigurations, heicMinFrameDurations, heicStallDurations,
                     null /*jpegRConfigurations*/, null /*jpegRMinFrameDurations*/, null /*jpegRStallDurations*/,
-                    highSpeedVideoConfigurations, inputOutputFormatsMap, listHighResolution,
-                    /*enforceImplementationDefined*/ true);
+                    null /*heicUltraHDRConfigurations*/, null /*heicUltraHDRMinFrameDurations*/, null /*heicUltraHDRStallDurations*/,
+                    highSpeedVideoConfigurations, inputOutputFormatsMap,
+                    listHighResolution, /*enforceImplementationDefined*/ true);
     }
 
     /**
