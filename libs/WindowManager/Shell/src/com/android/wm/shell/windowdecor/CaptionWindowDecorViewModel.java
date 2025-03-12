@@ -365,7 +365,12 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
                 mTaskOrganizer,
                 windowDecoration,
                 mDisplayController,
-                dragStartListener -> {},
+                new DragPositioningCallbackUtility.DragEventListener() {
+                    @Override
+                    public void onDragStart(int taskId) {}
+                    @Override
+                    public void onDragMove(int taskId) {}
+                },
                 mTransitions,
                 mInteractionJankMonitor,
                 mMainHandler);
