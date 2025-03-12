@@ -58,7 +58,7 @@ constructor(
                 ConstraintSet.PARENT_ID,
                 ConstraintSet.START,
                 context.resources.getDimensionPixelSize(custR.dimen.clock_padding_start) +
-                    context.resources.getDimensionPixelSize(R.dimen.status_view_margin_horizontal),
+                    context.resources.getDimensionPixelSize(custR.dimen.status_view_margin_horizontal),
             )
             connect(
                 R.id.keyguard_weather_area,
