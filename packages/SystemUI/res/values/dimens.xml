@@ -1011,7 +1011,16 @@
     <!-- Minimum margin of the notification panel on the side, when being positioned dynamically -->
     <dimen name="notification_panel_min_side_margin">48dp</dimen>
 
-    <dimen name="volume_row_slider_height">192dp</dimen>
+    <dimen name="volume_row_slider_height">160dp</dimen>
+    <dimen name="nt_volume_row_slider_height">184dp</dimen>
+    <dimen name="volume_row_slider_progress_height">160dp</dimen>
+    <dimen name="volume_row_seekbar_default_height">12dp</dimen>
+    <dimen name="volume_row_slider_min_height">48dp</dimen>
+    <dimen name="volume_row_seekbar_large_height">36dp</dimen>
+    <dimen name="dot_gap">6dp</dimen>
+    <dimen name="dot_width">4dp</dimen>
+    <dimen name="nt_volume_row_slider_height_sw600dp">184dp</dimen>
+    <dimen name="volume_row_slider_progress_height_sw600dp">160dp</dimen>
 
     <!-- Thickness of the assist disclosure beams -->
     <dimen name="assist_disclosure_thickness">2.5dp</dimen>
