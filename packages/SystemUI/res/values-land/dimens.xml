@@ -32,6 +32,8 @@
 
     <dimen name="volume_tool_tip_top_margin">12dp</dimen>
     <dimen name="volume_row_slider_height">128dp</dimen>
+    <dimen name="nt_volume_row_slider_height">152dp</dimen>
+    <dimen name="volume_row_slider_progress_height">128dp</dimen>
 
     <!-- width of ImmersiveModeConfirmation (-1 for match_parent) -->
     <dimen name="immersive_mode_cling_width">500dp</dimen>

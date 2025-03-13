@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list android:paddingMode="stack"
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:androidprv="http://schemas.android.com/apk/prv/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item android:gravity="fill_horizontal|center" android:id="@android:id/progress" android:height="@dimen/volume_row_seekbar_large_height">
+        <com.android.systemui.util.RoundedCornerProgressDrawable android:drawable="@drawable/volume_row_seekbar_progress" />
+    </item>
+</layer-list>

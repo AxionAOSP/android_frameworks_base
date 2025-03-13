@@ -48,14 +48,14 @@
             android:clipChildren="false" 
             android:clipToPadding="false" 
             android:layout_width="fill_parent" 
-            android:layout_height="@dimen/nt_volume_row_slider_height">
+            android:layout_height="@dimen/nt_volume_row_slider_height_sw600dp">
             <com.android.systemui.settings.NTDotLineView 
                 android:layout_gravity="center" 
                 android:id="@+id/dot_line" 
                 android:background="@null" 
                 android:paddingLeft="0dp" 
                 android:paddingRight="0dp" 
-                android:layout_width="@dimen/volume_row_slider_progress_height" 
+                android:layout_width="@dimen/volume_row_slider_progress_height_sw600dp" 
                 android:layout_height="fill_parent" 
                 android:rotation="270.0" 
                 android:layoutDirection="ltr" 
@@ -71,7 +71,7 @@
                 android:background="@null" 
                 android:paddingLeft="0dp" 
                 android:paddingRight="0dp" 
-                android:layout_width="@dimen/volume_row_slider_progress_height" 
+                android:layout_width="@dimen/volume_row_slider_progress_height_sw600dp" 
                 android:layout_height="fill_parent" 
                 android:progressDrawable="@drawable/volume_row_seekbar" 
                 android:minHeight="@dimen/volume_row_slider_min_height" 
