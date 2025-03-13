@@ -238,5 +238,15 @@
         <attr name="tickMark" format="reference" />
         <attr name="seekBarChangeMagnitude" format="integer" />
     </declare-styleable>
+    
+    <declare-styleable name="NTDotLineSeekBar">
+         <attr name="ntDotColor" format="color" />
+         <attr name="ntDotGap" format="dimension" />
+         <attr name="ntDotGapPx" format="integer" />
+         <attr name="ntDotRadius" format="dimension" />
+         <attr name="ntDotRadiusPx" format="integer" />
+         <attr name="ntDotSpecialColor" format="color" />
+         <attr name="ntDotStartPercentage" format="integer" />
+     </declare-styleable>
 </resources>
 
