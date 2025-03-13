@@ -52,6 +52,10 @@ class RoundedCornerProgressDrawable @JvmOverloads constructor(
         onLevelChange(level)
     }
 
+    fun getProgressHeightMinusWidth(): Int {
+         return bounds.width() - bounds.height()
+     }
+ 
     override fun onLevelChange(level: Int): Boolean {
         val db = drawable?.bounds!!
         // On 0, the width is bounds.height (a circle), and on MAX_LEVEL, the width is bounds.width

@@ -255,4 +255,9 @@
     <!-- Rear Display Education -->
     <color name="rear_display_overlay_animation_background_color">#1E1B17</color>
     <color name="rear_display_overlay_dialog_background_color">#1E1B17</color>
+
+    <!-- Volume UI -->
+    <color name="dot_color">@android:color/system_neutral1_300</color>
+    <color name="dot_color_red">#ffd71921</color>
+    <color name="volume_dot_color">@android:color/system_neutral1_200</color>
 </resources>
