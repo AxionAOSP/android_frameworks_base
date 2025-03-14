@@ -21,6 +21,7 @@ import android.animation.Animator;
 import android.animation.Animator.AnimatorListener;
 import android.animation.AnimatorListenerAdapter;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.util.AttributeSet;
 import android.util.TypedValue;
@@ -33,6 +34,7 @@ import android.widget.LinearLayout;
 import android.widget.Toolbar;
 
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -124,6 +126,16 @@ public class QSCustomizer extends LinearLayout {
     void updateResources() {
         updateTransparentViewHeight();
         mRecyclerView.getAdapter().notifyItemChanged(0);
+
+        boolean isNightMode = (mContext.getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+
+        View containerView = findViewById(R.id.customize_container);
+        
+        int colorRes = !isNightMode ? R.color.qs_customizer_color_light : R.color.qs_customizer_color_dark;
+        ColorStateList colorStateList = ContextCompat.getColorStateList(mContext, colorRes);
+        
+        containerView.setBackgroundTintList(colorStateList);
     }
 
     void updateNavBackDrop(Configuration newConfig, LightBarController lightBarController) {
