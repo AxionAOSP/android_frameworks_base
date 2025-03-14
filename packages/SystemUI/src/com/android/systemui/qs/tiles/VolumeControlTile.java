@@ -143,6 +143,7 @@ public class VolumeControlTile extends QSTileImpl<BooleanState>
         if (listening && !mReceiverRegistered) {
             IntentFilter filter = new IntentFilter(AudioManager.VOLUME_CHANGED_ACTION);
             mContext.registerReceiver(mVolumeChangeReceiver, filter, Context.RECEIVER_EXPORTED);
+            updateVolumeFromSystem();
             mReceiverRegistered = true;
         } else if (!listening && mReceiverRegistered){
             mContext.unregisterReceiver(mVolumeChangeReceiver);
