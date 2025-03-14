@@ -102,6 +102,10 @@ public class QSCustomizerController extends ViewController<QSCustomizer> {
                 }
             }
         }
+        @Override
+        public void onUiModeChanged() {
+           mView.updateResources();
+        }
     };
 
     @Inject
@@ -171,6 +175,7 @@ public class QSCustomizerController extends ViewController<QSCustomizer> {
 
         mToolbar.setOnMenuItemClickListener(mOnMenuItemClickListener);
         mToolbar.setNavigationOnClickListener(v -> hide());
+        mView.updateResources();
     }
 
     @Override
