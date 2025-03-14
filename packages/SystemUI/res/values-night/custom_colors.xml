@@ -16,6 +16,5 @@
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <!-- Sliding QS Tile -->
-    <color name="tile_percentage_color">@*android:color/system_accent1_700</color>
-    <color name="brightness_track_color">@*android:color/system_neutral1_50</color>
+    <color name="tile_percentage_color">@*android:color/system_accent1_200</color>
 </resources>
