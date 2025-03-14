@@ -259,7 +259,7 @@ constructor(
         mQsLogger = qsLogger
     }
 
-    fun updateResources() {
+    protected open fun updateResources() {
         FontSizeUtils.updateFontSize(label, R.dimen.qs_tile_text_size)
         FontSizeUtils.updateFontSize(secondaryLabel, R.dimen.qs_tile_secondary_text_size)
 

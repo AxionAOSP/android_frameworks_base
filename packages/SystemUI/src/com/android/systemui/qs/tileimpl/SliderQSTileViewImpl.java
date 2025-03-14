@@ -101,6 +101,13 @@ public class SliderQSTileViewImpl extends QSTileViewImpl {
         }
     }
 
+    @Override
+    protected void updateResources() {
+        super.updateResources();
+        percentageDrawable.setTint(mContext.getResources().getColor(R.color.tile_percentage_color));
+        updatePercentBackground(STATE_INACTIVE);
+    }
+
     private void updatePercentBackground(int state) {
         // Hide the percentage when inactive.
         boolean isActive = state == STATE_ACTIVE;
