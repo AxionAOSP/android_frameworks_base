@@ -41,8 +41,9 @@ public class PropsHooksUtils {
     public static final String SPOOF_PIXEL_GMS = "persist.sys.pixelprops.gms";
     public static final String SPOOF_PIXEL_GPHOTOS = "persist.sys.pixelprops.gphotos";
     public static final String SPOOF_GAMES = "persist.sys.gameprops.enable";
+    public static final String SPOOF_NETFLIX = "persist.sys.pixelprops.netflix";
     
-    private static volatile boolean sIsGms, sIsFinsky, sIsPhotos;
+    private static volatile boolean sIsGms, sIsFinsky, sIsPhotos, sIsNetflix;
 
     private static final Map<String, Object> propsToChangePixelXL;
     private static final Map<String, Field> fieldCache = new HashMap<>();
@@ -231,6 +232,13 @@ public class PropsHooksUtils {
             && processName.toLowerCase().contains("unstable");
         sIsFinsky = packageName.equals("com.android.vending");
         sIsPhotos = packageName.equals("com.google.android.apps.photos");
+        sIsNetflix = packageName.equals("com.netflix.mediaclient");
+        
+        if (shouldSpoofNetflix()) {
+            for (Map.Entry<String, Object> entry : propsToChangeS9Tab.entrySet()) {
+                setPropValue(entry.getKey(), entry.getValue());
+            }
+        }
 
         if (shouldSpoofPhotos()) {
             for (Map.Entry<String, Object> entry : propsToChangePixelXL.entrySet()) {
@@ -346,7 +354,11 @@ public class PropsHooksUtils {
         }
         return hasSystemFeature;
     }
-    
+
+    private static boolean shouldSpoofNetflix() {
+        return sIsNetflix && SystemProperties.getBoolean(SPOOF_NETFLIX, false);
+    }
+
     private static boolean shouldSpoofPhotos() {
         return sIsPhotos && SystemProperties.getBoolean(SPOOF_PIXEL_GPHOTOS, true);
     }
