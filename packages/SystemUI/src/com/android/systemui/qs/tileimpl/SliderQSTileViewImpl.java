@@ -71,7 +71,7 @@ public class SliderQSTileViewImpl extends QSTileViewImpl {
         mSettingsKey = slideableQSTile.getSettingsSystemKey();
         mWarnColor = Utils.getColorErrorDefaultColor(context);
         percentageDrawable = new PercentageDrawable();
-        percentageDrawable.setTint(Color.WHITE);
+        percentageDrawable.setTint(context.getResources().getColor(R.color.tile_percentage_color));
         updatePercentBackground(STATE_INACTIVE); // default
         mSettingObserver = new SettingObserver(new Handler(Looper.getMainLooper()));
         setOnTouchListener(slideableQSTile.getTouchListener());
