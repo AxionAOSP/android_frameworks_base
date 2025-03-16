@@ -937,9 +937,6 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
         initRow(row, stream, iconRes, iconMuteRes, important, defaultStream);
         mDialogRowsView.addView(row.view);
         mRows.add(row);
-        if (mShowing) {
-            updateRowsH(getActiveRow());
-        }
     }
 
     private void addExistingRows() {
