@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -244,7 +245,8 @@ constructor(
 
     @Composable
     private fun Content() {
-        PlatformTheme(isDarkTheme = true) {
+        val isDarkTheme = isSystemInDarkTheme()
+        PlatformTheme(isDarkTheme) {
             ProvideShortcutHelperIndication(interactionsConfig = interactionsConfig()) {
                 AnimatedVisibility(
                     visible = viewModel.isQsVisibleAndAnyShadeExpanded,

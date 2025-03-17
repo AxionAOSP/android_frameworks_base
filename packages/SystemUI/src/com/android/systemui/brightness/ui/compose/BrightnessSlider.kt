@@ -51,6 +51,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.compose.PlatformSlider
+import com.android.compose.PlatformSliderColors
+import com.android.compose.theme.PlatformTheme
 import com.android.compose.ui.graphics.drawInOverlay
 import com.android.systemui.Flags
 import com.android.systemui.brightness.shared.model.GammaBrightness
@@ -65,6 +67,8 @@ import com.android.systemui.haptics.slider.SliderHapticFeedbackConfig
 import com.android.systemui.haptics.slider.compose.ui.SliderHapticsViewModel
 import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.qs.ui.compose.borderOnFocus
+import com.android.systemui.qs.ui.composable.QuickSettingsTheme
+import com.android.systemui.qs.ui.composable.QsTheme
 import com.android.systemui.res.R
 import com.android.systemui.utils.PolicyRestriction
 
@@ -113,49 +117,66 @@ private fun BrightnessSlider(
             remember { mutableStateOf(false) }
         }
 
-    PlatformSlider(
-        value = animatedValue,
-        valueRange = floatValueRange,
-        enabled = !isRestricted,
-        onValueChange = {
-            if (!isRestricted) {
-                if (!overriddenByAppState) {
-                    hapticsViewModel?.onValueChange(it)
-                    value = it.toInt()
-                    onDrag(value)
-                }
-            }
-        },
-        onValueChangeFinished = {
-            if (!isRestricted) {
-                if (!overriddenByAppState) {
-                    hapticsViewModel?.onValueChangeEnded()
-                    onStop(value)
-                }
-            }
-        },
-        modifier =
-            modifier.sysuiResTag("slider").clickable(enabled = isRestricted) {
-                if (restriction is PolicyRestriction.Restricted) {
-                    onRestrictedClick(restriction)
-                }
-            },
-        icon = { isDragging ->
-            if (isDragging) {
-                Text(text = formatter(value))
-            } else {
-                Icon(modifier = Modifier.size(24.dp), icon = icon)
-            }
-        },
-        label = {
-            Text(
-                text = stringResource(id = label.res),
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
+    PlatformTheme {
+        QuickSettingsTheme {
+            val colors = QsTheme()
+            val brightnessColors = PlatformSliderColors(
+                        trackColor = colors.inactiveBackground,
+                        indicatorColor = colors.activeBackground,
+                        iconColor = MaterialTheme.colorScheme.onPrimary,
+                        labelColorOnIndicator = MaterialTheme.colorScheme.onPrimary,
+                        labelColorOnTrack = MaterialTheme.colorScheme.onSecondaryContainer,
+                        disabledTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        disabledIndicatorColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        disabledIconColor = MaterialTheme.colorScheme.outline,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+            PlatformSlider(
+                value = animatedValue,
+                valueRange = floatValueRange,
+                enabled = !isRestricted,
+                onValueChange = {
+                    if (!isRestricted) {
+                        if (!overriddenByAppState) {
+                            hapticsViewModel?.onValueChange(it)
+                            value = it.toInt()
+                            onDrag(value)
+                        }
+                    }
+                },
+                onValueChangeFinished = {
+                    if (!isRestricted) {
+                        if (!overriddenByAppState) {
+                            hapticsViewModel?.onValueChangeEnded()
+                            onStop(value)
+                        }
+                    }
+                },
+                modifier =
+                    modifier.sysuiResTag("slider").clickable(enabled = isRestricted) {
+                        if (restriction is PolicyRestriction.Restricted) {
+                            onRestrictedClick(restriction)
+                        }
+                    },
+                colors = brightnessColors,
+                icon = { isDragging ->
+                    if (isDragging) {
+                        Text(text = formatter(value))
+                    } else {
+                        Icon(modifier = Modifier.size(24.dp), icon = icon)
+                    }
+                },
+                label = {
+                    Text(
+                        text = stringResource(id = label.res),
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                    )
+                },
+                interactionSource = interactionSource,
             )
-        },
-        interactionSource = interactionSource,
-    )
+        }
+    }
     // Showing the warning toast if the current running app window has controlled the
     // brightness value.
     if (Flags.showToastWhenAppControlBrightness()) {
