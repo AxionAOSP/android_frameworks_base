@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -165,7 +166,7 @@ fun LargeTileLabels(
     val animatedLabelColor by animateColorAsState(colors.label, label = "QSTileLabelColor")
     val animatedSecondaryLabelColor by
         animateColorAsState(colors.secondaryLabel, label = "QSTileSecondaryLabelColor")
-    Column(verticalArrangement = Arrangement.Center, modifier = modifier.fillMaxHeight()) {
+    Column(verticalArrangement = Arrangement.Center, modifier = modifier.fillMaxHeight().padding(end = 16.dp)) {
         BasicText(
             label,
             style = MaterialTheme.typography.labelLarge,
@@ -179,6 +180,7 @@ fun LargeTileLabels(
                 color = { animatedSecondaryLabelColor },
                 maxLines = 1,
                 style = MaterialTheme.typography.bodyMedium,
+                overflow = TextOverflow.Ellipsis,
                 modifier =
                     Modifier.thenIf(
                         accessibilityUiState?.stateDescription?.contains(secondaryLabel ?: "") ==
@@ -250,15 +252,15 @@ fun SmallTileContent(
 }
 
 object CommonTileDefaults {
-    val IconSize = 32.dp
-    val LargeTileIconSize = 28.dp
+    val IconSize = 24.dp
+    val LargeTileIconSize = 24.dp
     val SideIconWidth = 32.dp
     val SideIconHeight = 20.dp
-    val ToggleTargetSize = 56.dp
+    val ToggleTargetSize = 34.dp
     val TileHeight = 72.dp
-    val TilePadding = 8.dp
+    val TilePadding = 16.dp
     val TileArrangementPadding = 6.dp
-    val InactiveCornerRadius = 50.dp
+    val InactiveCornerRadius = 100.dp
 
     @Composable fun longPressLabel() = stringResource(id = R.string.accessibility_long_click_tile)
 }

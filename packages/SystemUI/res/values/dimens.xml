@@ -679,8 +679,8 @@
 
     <dimen name="qs_corner_radius">16dp</dimen>
     <dimen name="qs_tile_height">80dp</dimen>
-    <dimen name="qs_tile_margin_horizontal">8dp</dimen>
-    <dimen name="qs_tile_margin_vertical">@dimen/qs_tile_margin_horizontal</dimen>
+    <dimen name="qs_tile_margin_horizontal">20dp</dimen>
+    <dimen name="qs_tile_margin_vertical">16dp</dimen>
     <dimen name="qs_tile_margin_top_bottom">4dp</dimen>
     <dimen name="qs_brightness_margin_top">8dp</dimen>
     <dimen name="qs_brightness_margin_bottom">12dp</dimen>
@@ -692,6 +692,7 @@
          aligned with notifications. The exception is split shade when this value becomes
          independent  -->
     <dimen name="qs_horizontal_margin">@dimen/notification_side_paddings</dimen>
+    <dimen name="qs_horizontal_margin_inner">28dp</dimen>
 
     <!-- Most of the time it should be the same as notification_shade_content_margin_horizontal as
          it's vertically aligned with notifications. The exception is split shade when this value

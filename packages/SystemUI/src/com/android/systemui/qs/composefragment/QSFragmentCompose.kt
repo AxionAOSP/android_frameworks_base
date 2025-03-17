@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -244,7 +245,8 @@ constructor(
 
     @Composable
     private fun Content() {
-        PlatformTheme(isDarkTheme = true) {
+        val isDarkTheme = isSystemInDarkTheme()
+        PlatformTheme(isDarkTheme) {
             ProvideShortcutHelperIndication(interactionsConfig = interactionsConfig()) {
                 AnimatedVisibility(
                     visible = viewModel.isQsVisibleAndAnyShadeExpanded,
@@ -616,13 +618,19 @@ constructor(
                 val Tiles =
                     @Composable {
                         QuickQuickSettings(
-                            viewModel = viewModel.containerViewModel.quickQuickSettingsViewModel
+                            viewModel = viewModel.containerViewModel.quickQuickSettingsViewModel,
+                            modifier = Modifier.padding(horizontal = qsHorizontalMarginInner())
                         )
                     }
                 val Media =
                     @Composable {
                         if (viewModel.qqsMediaVisible) {
-                            MediaObject(mediaHost = viewModel.qqsMediaHost)
+                            MediaObject(
+                                mediaHost = viewModel.qqsMediaHost,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = qsHorizontalMargin())
+                            )
                         }
                     }
 
@@ -634,7 +642,6 @@ constructor(
                                         id = R.string.accessibility_quick_settings_expand
                                     )
                                 )
-                                .padding(horizontal = qsHorizontalMargin())
                     ) {
                         QuickQuickSettingsLayout(
                             tiles = Tiles,
@@ -703,14 +710,16 @@ constructor(
                                     viewModel = containerViewModel.brightnessSliderViewModel,
                                     modifier =
                                         Modifier.fillMaxWidth()
-                                            .height(
-                                                QuickSettingsShade.Dimensions.BrightnessSliderHeight
-                                            ),
+                                            .height(QuickSettingsShade.Dimensions.BrightnessSliderHeight)
+                                            .padding(horizontal = qsHorizontalMarginInner()),
                                 )
                             }
+
                         val TileGrid =
                             @Composable {
-                                Box {
+                                Box(
+                                    modifier = Modifier.padding(horizontal = qsHorizontalMarginInner())
+                                ) {
                                     GridAnchor()
                                     TileGrid(
                                         viewModel = containerViewModel.tileGridViewModel,
@@ -718,24 +727,25 @@ constructor(
                                     )
                                 }
                             }
+
                         val Media =
                             @Composable {
                                 if (viewModel.qsMediaVisible) {
                                     MediaObject(
                                         mediaHost = viewModel.qsMediaHost,
                                         update = { translationY = viewModel.qsMediaTranslationY },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = qsHorizontalMargin())
                                     )
                                 }
                             }
+
                         Box(
                             modifier =
                                 Modifier.fillMaxWidth()
                                     .sysuiResTag(ResIdTags.quickSettingsPanel)
-                                    .padding(
-                                        top = QuickSettingsShade.Dimensions.Padding,
-                                        start = qsHorizontalMargin(),
-                                        end = qsHorizontalMargin(),
-                                    )
+                                    .padding(top = 8.dp)
                         ) {
                             QuickSettingsLayout(
                                 brightness = BrightnessSlider,
@@ -1124,6 +1134,7 @@ private object ResIdTags {
 }
 
 @Composable private fun qsHorizontalMargin() = dimensionResource(id = R.dimen.qs_horizontal_margin)
+@Composable private fun qsHorizontalMarginInner() = dimensionResource(id = R.dimen.qs_horizontal_margin_inner)
 
 @Composable
 private fun interactionsConfig() =

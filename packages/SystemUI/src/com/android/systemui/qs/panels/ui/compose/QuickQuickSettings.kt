@@ -34,6 +34,7 @@ import com.android.systemui.qs.panels.ui.compose.infinitegrid.Tile
 import com.android.systemui.qs.panels.ui.viewmodel.BounceableTileViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.QuickQuickSettingsViewModel
 import com.android.systemui.qs.shared.ui.ElementKeys.toElementKey
+import com.android.systemui.qs.ui.composable.QuickSettingsTheme
 import com.android.systemui.res.R
 
 @Composable
@@ -67,17 +68,19 @@ fun SceneScope.QuickQuickSettings(
             val it = sizedTiles[spanIndex]
             val column = cellIndex % columns
             cellIndex += it.width
-            Tile(
-                tile = it.tile,
-                iconOnly = it.isIcon,
-                modifier = Modifier.element(it.tile.spec.toElementKey(spanIndex)),
-                squishiness = { squishiness },
-                coroutineScope = scope,
-                bounceableInfo = bounceables.bounceableInfo(it, spanIndex, column, columns),
-                tileHapticsViewModelFactoryProvider = viewModel.tileHapticsViewModelFactoryProvider,
-                // There should be no QuickQuickSettings when the details view is enabled.
-                detailsViewModel = null,
-            )
+            QuickSettingsTheme {
+                Tile(
+                    tile = it.tile,
+                    iconOnly = it.isIcon,
+                    modifier = Modifier.element(it.tile.spec.toElementKey(spanIndex)),
+                    squishiness = { squishiness },
+                    coroutineScope = scope,
+                    bounceableInfo = bounceables.bounceableInfo(it, spanIndex, column, columns),
+                    tileHapticsViewModelFactoryProvider = viewModel.tileHapticsViewModelFactoryProvider,
+                    // There should be no QuickQuickSettings when the details view is enabled.
+                    detailsViewModel = null,
+                )
+            }
         }
     }
 }

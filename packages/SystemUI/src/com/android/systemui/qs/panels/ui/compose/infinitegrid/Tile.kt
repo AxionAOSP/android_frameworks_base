@@ -89,6 +89,7 @@ import com.android.systemui.qs.panels.ui.viewmodel.TileViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.toUiState
 import com.android.systemui.qs.tileimpl.QSTileImpl
 import com.android.systemui.qs.ui.compose.borderOnFocus
+import com.android.systemui.qs.ui.composable.QsTheme
 import com.android.systemui.res.R
 import java.util.function.Supplier
 import kotlinx.coroutines.CoroutineScope
@@ -336,67 +337,72 @@ fun Modifier.tileCombinedClickable(
 
 data class TileColors(
     val background: Color,
-    val iconBackground: Color,
+    val iconBackground: Color = Color.Transparent,
     val label: Color,
     val secondaryLabel: Color,
     val icon: Color,
 )
 
 private object TileDefaults {
-    val ActiveIconCornerRadius = 16.dp
-    val ActiveTileCornerRadius = 24.dp
+    val ActiveIconCornerRadius = 100.dp
+    val ActiveTileCornerRadius = 100.dp
 
     /** An active tile without dual target uses the active color as background */
     @Composable
-    fun activeTileColors(): TileColors =
-        TileColors(
-            background = MaterialTheme.colorScheme.primary,
-            iconBackground = MaterialTheme.colorScheme.primary,
-            label = MaterialTheme.colorScheme.onPrimary,
-            secondaryLabel = MaterialTheme.colorScheme.onPrimary,
-            icon = MaterialTheme.colorScheme.onPrimary,
+    fun activeTileColors(): TileColors {
+        val colors = QsTheme()
+        return TileColors(
+            background = colors.activeBackground,
+            label = colors.activeLabel,
+            secondaryLabel = colors.activeSecondaryLabel,
+            icon = colors.activeLabel,
         )
+    }
 
-    /** An active tile with dual target only show the active color on the icon */
+    /** An active tile with dual target only shows the active color on the icon */
     @Composable
-    fun activeDualTargetTileColors(): TileColors =
-        TileColors(
-            background = MaterialTheme.colorScheme.surfaceVariant,
-            iconBackground = MaterialTheme.colorScheme.primary,
-            label = MaterialTheme.colorScheme.onSurfaceVariant,
-            secondaryLabel = MaterialTheme.colorScheme.onSurfaceVariant,
-            icon = MaterialTheme.colorScheme.onPrimary,
+    fun activeDualTargetTileColors(): TileColors {
+        val colors = QsTheme()
+        return TileColors(
+            background = colors.activeBackground,
+            label = colors.activeLabel,
+            secondaryLabel = colors.activeSecondaryLabel,
+            icon = colors.activeLabel,
         )
-
-    @Composable
-    fun inactiveDualTargetTileColors(): TileColors =
-        TileColors(
-            background = MaterialTheme.colorScheme.surfaceVariant,
-            iconBackground = MaterialTheme.colorScheme.surfaceContainerHighest,
-            label = MaterialTheme.colorScheme.onSurfaceVariant,
-            secondaryLabel = MaterialTheme.colorScheme.onSurfaceVariant,
-            icon = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    }
 
     @Composable
-    fun inactiveTileColors(): TileColors =
-        TileColors(
-            background = MaterialTheme.colorScheme.surfaceVariant,
-            iconBackground = MaterialTheme.colorScheme.surfaceVariant,
-            label = MaterialTheme.colorScheme.onSurfaceVariant,
-            secondaryLabel = MaterialTheme.colorScheme.onSurfaceVariant,
-            icon = MaterialTheme.colorScheme.onSurfaceVariant,
+    fun inactiveDualTargetTileColors(): TileColors {
+        val colors = QsTheme()
+        return TileColors(
+            background = colors.inactiveBackground,
+            label = colors.inactiveLabel,
+            secondaryLabel = colors.inactiveSecondaryLabel,
+            icon = colors.inactiveLabel,
         )
+    }
 
     @Composable
-    fun unavailableTileColors(): TileColors =
-        TileColors(
-            background = MaterialTheme.colorScheme.surface,
-            iconBackground = MaterialTheme.colorScheme.surface,
-            label = MaterialTheme.colorScheme.onSurface,
-            secondaryLabel = MaterialTheme.colorScheme.onSurface,
-            icon = MaterialTheme.colorScheme.onSurface,
+    fun inactiveTileColors(): TileColors {
+        val colors = QsTheme()
+        return TileColors(
+            background = colors.inactiveBackground,
+            label = colors.inactiveLabel,
+            secondaryLabel = colors.inactiveSecondaryLabel,
+            icon = colors.inactiveLabel,
         )
+    }
+
+    @Composable
+    fun unavailableTileColors(): TileColors {
+        val colors = QsTheme()
+        return TileColors(
+            background = colors.unavailableBackground.copy(alpha = .3f),
+            label = colors.unavailableLabel,
+            secondaryLabel = colors.unavailableSecondaryLabel,
+            icon = colors.unavailableLabel,
+        )
+    }
 
     @Composable
     fun getColorForState(uiState: TileUiState, iconOnly: Boolean): TileColors {

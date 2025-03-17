@@ -32,6 +32,7 @@ import com.android.systemui.haptics.msdl.qs.TileHapticsViewModelFactoryProvider
 import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.media.controls.ui.controller.MediaHierarchyManager.Companion.LOCATION_QS
 import com.android.systemui.qs.panels.shared.model.SizedTileImpl
+import com.android.systemui.qs.ui.composable.QuickSettingsTheme
 import com.android.systemui.qs.panels.ui.compose.PaginatableGridLayout
 import com.android.systemui.qs.panels.ui.compose.bounceableInfo
 import com.android.systemui.qs.panels.ui.compose.rememberEditListState
@@ -94,16 +95,18 @@ constructor(
             val it = sizedTiles[spanIndex]
             val column = cellIndex % columns
             cellIndex += it.width
-            Tile(
-                tile = it.tile,
-                iconOnly = iconTilesViewModel.isIconTile(it.tile.spec),
-                modifier = Modifier.element(it.tile.spec.toElementKey(spanIndex)),
-                squishiness = { squishiness },
-                tileHapticsViewModelFactoryProvider = tileHapticsViewModelFactoryProvider,
-                coroutineScope = scope,
-                bounceableInfo = bounceables.bounceableInfo(it, spanIndex, column, columns),
-                detailsViewModel = detailsViewModel,
-            )
+            QuickSettingsTheme {
+                Tile(
+                    tile = it.tile,
+                    iconOnly = iconTilesViewModel.isIconTile(it.tile.spec),
+                    modifier = Modifier.element(it.tile.spec.toElementKey(spanIndex)),
+                    squishiness = { squishiness },
+                    tileHapticsViewModelFactoryProvider = tileHapticsViewModelFactoryProvider,
+                    coroutineScope = scope,
+                    bounceableInfo = bounceables.bounceableInfo(it, spanIndex, column, columns),
+                    detailsViewModel = detailsViewModel,
+                )
+            }
         }
     }
 
