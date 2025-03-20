@@ -42,15 +42,22 @@ public final class ZramWriteback extends JobService {
 
     private static final int MARK_IDLE_JOB_ID = 811;
     private static final int WRITEBACK_IDLE_JOB_ID = 812;
+    private static final int UPDATE_WB_LIMIT_JOB_ID = 813;
+
 
     private static final int MAX_ZRAM_DEVICES = 256;
     private static int sZramDeviceId = 0;
+    private static final int UPDATE_WB_LIMIT_PERIOD_HOURS = 24;
 
     private static final String IDLE_SYS = "/sys/block/zram%d/idle";
     private static final String IDLE_SYS_ALL_PAGES = "all";
 
     private static final String WB_SYS = "/sys/block/zram%d/writeback";
     private static final String WB_SYS_IDLE_PAGES = "idle";
+
+    private static final String WB_LIMIT_ENABLE_SYS = "/sys/block/zram%d/writeback_limit_enable";
+    private static final String WB_LIMIT_SYS = "/sys/block/zram%d/writeback_limit";
+    private static final int WB_LIMIT_MAX_FILE_SIZE = 64;
 
     private static final String WB_STATS_SYS = "/sys/block/zram%d/bd_stat";
     private static final int WB_STATS_MAX_FILE_SIZE = 128;
@@ -61,6 +68,7 @@ public final class ZramWriteback extends JobService {
     private static final String FIRST_WB_DELAY_PROP = "ro.zram.first_wb_delay_mins";
     private static final String PERIODIC_WB_DELAY_PROP = "ro.zram.periodic_wb_delay_hours";
     private static final String FORCE_WRITEBACK_PROP = "zram.force_writeback";
+    private static final String WRITEBACK_RATE_DAILY = "ro.zram.writeback_rate_daily";
 
     private void markPagesAsIdle() {
         String idlePath = String.format(IDLE_SYS, sZramDeviceId);
@@ -132,6 +140,51 @@ public final class ZramWriteback extends JobService {
                         .build());
     }
 
+    private void updateWritebackLimitDaily(Context context) {
+        long wbRateDaily = SystemProperties.getLong(WRITEBACK_RATE_DAILY, 0);
+
+        if (DEBUG) {
+            Slog.d(TAG, "ZramWriteback::updateWritebackLimitDaily wbRateDaily = " + wbRateDaily);
+        }
+        if (wbRateDaily == 0) {
+            return;
+        }
+
+        String wbLimitEnablePath = String.format(WB_LIMIT_ENABLE_SYS, sZramDeviceId);
+        String wbLimitPath = String.format(WB_LIMIT_SYS, sZramDeviceId);
+        String path = null;
+
+        try {
+            // Enable the writeback limit
+            path = wbLimitEnablePath;
+            FileUtils.stringToFile(new File(wbLimitEnablePath), "1");
+
+            // Read the writeback limit not consumed yet
+            path = wbLimitPath;
+            long wbLimit =
+                    Integer.parseInt(
+                            FileUtils.readTextFile(
+                                    new File(wbLimitPath), WB_LIMIT_MAX_FILE_SIZE, ""));
+
+            // Update the limit by the 'daily' writeback quota
+            wbLimit += wbRateDaily;
+
+            FileUtils.stringToFile(new File(wbLimitPath), Long.toString(wbLimit));
+        } catch (IOException e) {
+            Slog.e(TAG, "IO failed to " + path, e);
+        } catch (NumberFormatException e) {
+            Slog.e(TAG, "NumberFormat exception " + path, e);
+        }
+
+        // schedule the next update to writeback limit in 24hrs.
+        JobScheduler js = (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+
+        js.schedule(
+                new JobInfo.Builder(UPDATE_WB_LIMIT_JOB_ID, sZramWriteback)
+                        .setMinimumLatency(TimeUnit.HOURS.toMillis(UPDATE_WB_LIMIT_PERIOD_HOURS))
+                        .build());
+    }
+
     @Override
     public boolean onStartJob(JobParameters params) {
 
@@ -142,6 +195,10 @@ public final class ZramWriteback extends JobService {
 
         if (params.getJobId() == MARK_IDLE_JOB_ID) {
             markPagesAsIdle();
+            jobFinished(params, false);
+            return false;
+        } else if (params.getJobId() == UPDATE_WB_LIMIT_JOB_ID) {
+            updateWritebackLimitDaily(ZramWriteback.this);
             jobFinished(params, false);
             return false;
         } else {
@@ -185,6 +242,14 @@ public final class ZramWriteback extends JobService {
         js.schedule(new JobInfo.Builder(WRITEBACK_IDLE_JOB_ID, sZramWriteback)
                         .setMinimumLatency(TimeUnit.MINUTES.toMillis(firstWbDelay))
                         .setRequiresDeviceIdle(!forceWb)
+                        .build());
+
+        // Schedule a one time job to update the Writeback limit
+        // After the initial limit update, subsequent updates are done at a fixed
+        // interval of UPDATE_WB_LIMIT_PERIOD_HOURS=24hrs.
+        js.schedule(new JobInfo.Builder(UPDATE_WB_LIMIT_JOB_ID, sZramWriteback)
+                        .setMinimumLatency(TimeUnit.MINUTES.toMillis(markIdleDelay))
+                        .setRequiresDeviceIdle(false)
                         .build());
     }
 }
