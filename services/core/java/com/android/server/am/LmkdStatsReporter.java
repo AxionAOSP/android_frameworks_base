@@ -33,7 +33,10 @@ public final class LmkdStatsReporter {
 
     static final String TAG = TAG_WITH_CLASS_NAME ? "LmkdStatsReporter" : TAG_AM;
 
-    public static final int KILL_OCCURRED_MSG_SIZE = 80;
+    /**
+     * This needs to be synced with statslog.h, minus MAX_TASKNAME_LEN.
+     */
+    public static final int KILL_OCCURRED_MSG_SIZE = 86;
 
     private static final int PRESSURE_AFTER_KILL = 0;
     private static final int NOT_RESPONDING = 1;
