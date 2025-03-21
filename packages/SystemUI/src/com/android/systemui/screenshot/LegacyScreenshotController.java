@@ -578,7 +578,9 @@ public class LegacyScreenshotController implements InteractiveScreenshotHandler 
     }
 
     private void playCameraSoundIfNeeded() {
-        if (mScreenshotSoundController == null) return;
+        final boolean screenshotSoundEnabled = Settings.System.getIntForUser(mContext.getContentResolver(),
+                 "screenshot_sound_enabled", 1, UserHandle.USER_CURRENT) == 1;
+        if (mScreenshotSoundController == null || !screenshotSoundEnabled) return;
         // the controller is not-null only on the default display controller
         mScreenshotSoundController.playScreenshotSoundAsync();
     }
