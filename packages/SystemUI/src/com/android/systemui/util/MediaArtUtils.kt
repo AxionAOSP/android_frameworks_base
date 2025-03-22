@@ -46,7 +46,6 @@ class MediaArtUtils private constructor(context: Context) : MediaSessionManagerH
 
     private val context = context.applicationContext
     private val scrimController: ScrimController = Dependency.get(ScrimController::class.java)
-    private val mediaSessionManager = MediaSessionManagerHelper.getInstance(context)
     private val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
 
     private val _dozing = MutableStateFlow(false)
@@ -66,7 +65,7 @@ class MediaArtUtils private constructor(context: Context) : MediaSessionManagerH
     private val mediaFadeLevel = 40
 
     init {
-        mediaSessionManager.addMediaMetadataListener(this)
+        MSMHProxy.INSTANCE(context).addMediaMetadataListener(this)
         setupStateObservers()
     }
 
@@ -100,7 +99,7 @@ class MediaArtUtils private constructor(context: Context) : MediaSessionManagerH
 
         val isPortrait = context.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
         val scrimStateKeyguard = scrimController.state.toString() == "KEYGUARD"
-        val mediaPlaying = mediaSessionManager.isMediaPlaying()
+        val mediaPlaying = MSMHProxy.INSTANCE(context).isMediaPlaying()
 
         return settingsEnabled && !_dozing.value 
             && isPortrait && scrimStateKeyguard 
@@ -124,9 +123,9 @@ class MediaArtUtils private constructor(context: Context) : MediaSessionManagerH
     }
 
     private suspend fun processMediaArtwork(): LayerDrawable {
-        val metadata = mediaSessionManager.getMediaMetadata() ?: return LayerDrawable(arrayOf())
+        val metadata = MSMHProxy.INSTANCE(context).getMediaMetadata() ?: return LayerDrawable(arrayOf())
         val bitmap = withContext(Dispatchers.IO) {
-            metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+            MSMHProxy.INSTANCE(context).getMediaBitmap()
                 ?: return@withContext null
         } ?: return LayerDrawable(arrayOf())
 
@@ -147,7 +146,7 @@ class MediaArtUtils private constructor(context: Context) : MediaSessionManagerH
     }
 
     private fun updateScrim(drawable: LayerDrawable) {
-        val metadata = mediaSessionManager.getMediaMetadata() ?: return
+        val metadata = MSMHProxy.INSTANCE(context).getMediaMetadata() ?: return
         recycleDrawable(mediaScrim.background)
         mediaScrim.background = drawable
     }
