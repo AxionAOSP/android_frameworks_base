@@ -19,43 +19,24 @@ package com.android.systemui.util
 import android.app.WallpaperColors
 import android.content.Context
 import android.content.res.Configuration
-import android.graphics.Bitmap
+import android.graphics.*
 import android.media.MediaMetadata
-import android.media.session.MediaController
-import android.media.session.MediaSessionLegacyHelper
-import android.media.session.MediaSessionManager
-import android.media.session.PlaybackState
+import android.media.session.*
+import android.net.Uri
 import android.os.SystemClock
 import android.provider.Settings
 import android.text.TextUtils
 import android.view.KeyEvent
 import android.view.View
+
 import com.android.internal.jank.InteractionJankMonitor
 import com.android.systemui.Dependency
-import com.android.systemui.animation.DialogCuj
-import com.android.systemui.animation.DialogTransitionAnimator
-import com.android.systemui.animation.Expandable
+import com.android.systemui.animation.*
 import com.android.systemui.monet.ColorScheme
 import com.android.systemui.media.dialog.MediaOutputDialogManager
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.*
 
 class MediaSessionManagerHelper private constructor(private val context: Context) {
 
@@ -132,14 +113,17 @@ class MediaSessionManagerHelper private constructor(private val context: Context
 
     private suspend fun fetchActiveController(): MediaController? = withContext(Dispatchers.IO) {
         var localController: MediaController? = null
+        var firstAvailableController: MediaController? = null
         val remoteSessions = mutableSetOf<String>()
-        
+
         mediaSessionManager.getActiveSessions(null)
             .filter { controller ->
                 controller.playbackState?.state == PlaybackState.STATE_PLAYING &&
                 controller.playbackInfo != null
             }
             .forEach { controller ->
+                firstAvailableController = firstAvailableController ?: controller
+
                 when (controller.playbackInfo?.playbackType) {
                     MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE -> {
                         remoteSessions.add(controller.packageName)
@@ -154,7 +138,8 @@ class MediaSessionManagerHelper private constructor(private val context: Context
                     }
                 }
             }
-        localController
+
+        localController ?: firstAvailableController
     }
 
     private suspend fun updateMediaColors() = withContext(Dispatchers.Default) {
@@ -205,11 +190,6 @@ class MediaSessionManagerHelper private constructor(private val context: Context
     private fun stopCollecting() {
         collectJob?.cancel()
         collectJob = null
-        activeController?.unregisterCallback(mediaControllerCallback)
-        activeController = null
-        _mediaMetadata.value = null
-        _playbackState.value = null
-        _mediaColors.value = 0
     }
 
     private fun notifyListeners(action: MediaMetadataListener.() -> Unit) {
@@ -235,12 +215,25 @@ class MediaSessionManagerHelper private constructor(private val context: Context
         }
     }
 
-    fun getMediaBitmap(): Bitmap? = mediaMetadata.value?.let {
-        it.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART) ?: 
-        it.getBitmap(MediaMetadata.METADATA_KEY_ART) ?: 
-        it.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+    fun getMediaBitmap(): Bitmap? {
+        val metadata = mediaMetadata.value ?: return null
+        return metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+            ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
+            ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+            ?: loadBitmapFromUri(metadata.getString(MediaMetadata.METADATA_KEY_ART_URI))
     }
-    
+
+    private fun loadBitmapFromUri(uri: String?): Bitmap? {
+        if (uri.isNullOrEmpty()) return null
+        return try {
+            context.contentResolver.openInputStream(Uri.parse(uri)).use { inputStream ->
+                BitmapFactory.decodeStream(inputStream)
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     fun getMediaMetadata(): MediaMetadata? {
         return mediaMetadata.value
     }
