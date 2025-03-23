@@ -107,9 +107,8 @@
                 style="@style/VolumeButtons"
                 android:scaleType="centerInside"
                 android:background="@drawable/volume_drawer_selection_bg"
-                android:layout_width="@dimen/volume_dialog_tap_target_size"
-                android:layout_height="@dimen/volume_dialog_tap_target_size"
-                android:tint="?android:attr/colorAccent"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_gravity="center"
                 android:soundEffectsEnabled="false"/>
         </FrameLayout>
