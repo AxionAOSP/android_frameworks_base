@@ -85,6 +85,7 @@ import android.os.VibrationEffect;
 import android.provider.Settings;
 import android.provider.Settings.Global;
 import android.text.InputFilter;
+import android.text.TextUtils;
 import android.util.Log;
 import android.util.Slog;
 import android.util.SparseBooleanArray;
@@ -1405,6 +1406,13 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
             mAppVolumeView.setVisibility(shouldShowAppVolume() ? VISIBLE : GONE);
         }
         if (mAppVolumeIcon != null) {
+            String packageName = getActiveVolumeApp();
+            if (!TextUtils.isEmpty(packageName)) {
+                try {
+                    Drawable appIcon = mContext.getPackageManager().getApplicationIcon(packageName);
+                    mAppVolumeIcon.setImageDrawable(appIcon);
+                } catch (PackageManager.NameNotFoundException e) {}
+            }
             mAppVolumeIcon.setOnClickListener(v -> {
                 Events.writeEvent(Events.EVENT_SETTINGS_CLICK);
                 dismissH(DISMISS_REASON_SETTINGS_CLICKED);
@@ -1413,6 +1421,17 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
                         mVolumePanelNavigationInteractor.getAppVolumeRoute());
             });
         }
+    }
+
+    public String getActiveVolumeApp() {
+        String pkgName = "";
+        for (AppVolume av : mController.getAudioManager().listAppVolumes()) {
+            if (av.isActive()) {
+                pkgName = av.getPackageName();
+                break;
+            }
+        }
+        return pkgName;
     }
 
     public void initRingerH() {
