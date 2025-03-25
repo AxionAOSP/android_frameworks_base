@@ -26,7 +26,7 @@ import com.android.settingslib.Utils
 import kotlin.math.max
 import kotlin.math.min
 
-class CircleBatteryDrawable(private val context: Context, frameColor: Int) : Drawable() {
+class CircleBatteryDrawable(private val context: Context, frameColor: Int) : Drawable(), BatteryDrawable {
     private val criticalLevel: Int
     private val warningString: String
     private val framePaint: Paint
@@ -49,6 +49,11 @@ class CircleBatteryDrawable(private val context: Context, frameColor: Int) : Dra
     private var intrinsicHeight: Int
     private var height = 0
     private var width = 0
+    
+    private var charging: Boolean = false
+    private var batteryLevel: Int = -1
+    private var powerSaveEnabled: Boolean = false
+    private var showPercent: Boolean = false
 
     // Dual tone implies that battery level is a clipped overlay over top of the whole shape
     private var dualTone = false
@@ -57,29 +62,25 @@ class CircleBatteryDrawable(private val context: Context, frameColor: Int) : Dra
 
     override fun getIntrinsicWidth() = intrinsicWidth
 
-    var charging = false
-        set(value) {
-            field = value
-            postInvalidate()
-        }
+    override fun setCharging(charging: Boolean) {
+        this.charging = charging
+        postInvalidate()
+    }
 
-    var powerSaveEnabled = false
-        set(value) {
-            field = value
-            postInvalidate()
-        }
+    override fun setBatteryLevel(level: Int) {
+        this.batteryLevel = level
+        postInvalidate()
+    }
 
-    var showPercent = false
-        set(value) {
-            field = value
-            postInvalidate()
-        }
+    override fun setPowerSaveEnabled(powerSaveEnabled: Boolean) {
+        this.powerSaveEnabled = powerSaveEnabled
+        postInvalidate()
+    }
 
-    var batteryLevel = -1
-        set(value) {
-            field = value
-            postInvalidate()
-        }
+    override fun setShowPercent(show: Boolean) {
+        this.showPercent = show
+        postInvalidate()
+    }
 
     // an approximation of View.postInvalidate()
     private fun postInvalidate() {
@@ -139,7 +140,7 @@ class CircleBatteryDrawable(private val context: Context, frameColor: Int) : Dra
         else
             getColorForLevel(level)
 
-    fun setColors(fgColor: Int, bgColor: Int, singleToneColor: Int) {
+    override fun setColors(fgColor: Int, bgColor: Int, singleToneColor: Int) {
         val fillColor = if (dualTone) fgColor else singleToneColor
 
         iconTint = fillColor
