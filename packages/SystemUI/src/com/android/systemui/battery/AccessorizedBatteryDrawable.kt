@@ -27,6 +27,7 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.graphics.drawable.DrawableWrapper
 import android.util.PathParser
+import com.android.settingslib.graph.BatteryDrawable
 import com.android.settingslib.graph.ThemedBatteryDrawable
 import com.android.systemui.res.R
 import com.android.systemui.battery.BatterySpecs.BATTERY_HEIGHT
@@ -46,7 +47,7 @@ import com.android.systemui.battery.BatterySpecs.SHIELD_TOP_OFFSET
 class AccessorizedBatteryDrawable(
     private val context: Context,
     frameColor: Int,
-) : DrawableWrapper(ThemedBatteryDrawable(context, frameColor)) {
+) : DrawableWrapper(ThemedBatteryDrawable(context, frameColor)), BatteryDrawable {
     private val mainBatteryDrawable: ThemedBatteryDrawable
         get() = drawable as ThemedBatteryDrawable
 
@@ -174,7 +175,7 @@ class AccessorizedBatteryDrawable(
     }
 
     /** Sets whether the battery is currently charging. */
-    fun setCharging(charging: Boolean) {
+    override fun setCharging(charging: Boolean) {
         mainBatteryDrawable.charging = charging
     }
 
@@ -184,12 +185,12 @@ class AccessorizedBatteryDrawable(
     }
 
     /** Sets the current level (out of 100) of the battery. */
-    fun setBatteryLevel(level: Int) {
+    override fun setBatteryLevel(level: Int) {
         mainBatteryDrawable.setBatteryLevel(level)
     }
 
     /** Sets whether power save is enabled. */
-    fun setPowerSaveEnabled(powerSaveEnabled: Boolean) {
+    override fun setPowerSaveEnabled(powerSaveEnabled: Boolean) {
         mainBatteryDrawable.powerSaveEnabled = powerSaveEnabled
     }
 
@@ -199,14 +200,14 @@ class AccessorizedBatteryDrawable(
     }
 
     /** Sets the colors to use for the icon. */
-    fun setColors(fgColor: Int, bgColor: Int, singleToneColor: Int) {
+    override fun setColors(fgColor: Int, bgColor: Int, singleToneColor: Int) {
         shieldPaint.color = if (dualTone) fgColor else singleToneColor
         mainBatteryDrawable.setColors(fgColor, bgColor, singleToneColor)
     }
 
     /** Shows the battery percentage. */
-    fun showPercent(percentage: Boolean) {
-        mainBatteryDrawable.showPercent = percentage
+    override fun setShowPercent(show: Boolean) {
+        mainBatteryDrawable.showPercent = show
     }
 
     /** Notifies this drawable that the density might have changed. */
