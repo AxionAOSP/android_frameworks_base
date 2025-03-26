@@ -37,6 +37,7 @@ import android.graphics.drawable.Drawable;
 import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.AttributeSet;
+import android.util.Pair;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -696,10 +697,10 @@ public class BatteryMeterView extends LinearLayout implements DarkReceiver {
         res.getValue(R.dimen.status_bar_icon_scale_factor, typedValue, true);
         float iconScaleFactor = typedValue.getFloat();
 
-        int batteryHeight = res.getDimensionPixelSize(R.dimen.status_bar_battery_icon_height);
-        int batteryWidth = getBatteryStyle() == BATTERY_STYLE_CIRCLE ?
-                res.getDimensionPixelSize(R.dimen.status_bar_battery_icon_circle_width) :
-                res.getDimensionPixelSize(R.dimen.status_bar_battery_icon_width);
+        Pair<Integer, Integer> dimensions = getBatteryDimensions(getBatteryStyle());
+        int batteryHeight = dimensions.second;
+        int batteryWidth = dimensions.first;
+
         float mainBatteryHeight = batteryHeight * iconScaleFactor;
         float mainBatteryWidth = batteryWidth * iconScaleFactor;
 
@@ -734,6 +735,23 @@ public class BatteryMeterView extends LinearLayout implements DarkReceiver {
         if (getBatteryStyle() == BATTERY_STYLE_PORTRAIT) {
             mAccessorizedDrawable.setDisplayShield(displayShield);
             mBatteryIconView.invalidateDrawable(mAccessorizedDrawable);
+        }
+    }
+
+    private Pair<Integer, Integer> getBatteryDimensions(int style) {
+        Resources res = getContext().getResources();
+        switch (style) {
+            case BATTERY_STYLE_CIRCLE:
+                return new Pair<>(
+                        res.getDimensionPixelSize(R.dimen.status_bar_battery_icon_circle_width),
+                        res.getDimensionPixelSize(R.dimen.status_bar_battery_icon_height)
+                );
+            case BATTERY_STYLE_PORTRAIT:
+            default:
+                return new Pair<>(
+                        res.getDimensionPixelSize(R.dimen.status_bar_battery_icon_width),
+                        res.getDimensionPixelSize(R.dimen.status_bar_battery_icon_height)
+                );
         }
     }
 
