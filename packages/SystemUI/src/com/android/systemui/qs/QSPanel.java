@@ -151,7 +151,7 @@ public class QSPanel extends LinearLayout {
                         && mBrightnessView != null) {
                     updateViewVisibilityForTuningValue(mBrightnessView,
                             LineageSettings.Secure.getString(mContext.getContentResolver(),
-                                    LineageSettings.Secure.QS_SHOW_BRIGHTNESS_SLIDER));
+                                    LineageSettings.Secure.QS_SHOW_BRIGHTNESS_SLIDER), true);
                 }
             }
         };
@@ -378,8 +378,10 @@ public class QSPanel extends LinearLayout {
         return TAG;
     }
 
-    private void updateViewVisibilityForTuningValue(View view, @Nullable String newValue) {
-        view.setVisibility(TunerService.parseIntegerSwitch(newValue, true) ? VISIBLE : GONE);
+    private void updateViewVisibilityForTuningValue(View view, @Nullable String newValue,
+            boolean defaultValue) {
+        view.setVisibility(
+                TunerService.parseIntegerSwitch(newValue, defaultValue) ? VISIBLE : GONE);
     }
 
 
