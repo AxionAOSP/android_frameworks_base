@@ -1547,23 +1547,28 @@ public class Typeface {
     /** @hide */
     private static void updateFontOverrides(String fontPrefix, String familyName, Typeface defaultTypeface) {
         if (!familyName.equals(fontPrefix)) {
-            sSystemFontOverrides.put(fontPrefix, defaultTypeface);
-            sSystemFontOverrides.put(fontPrefix + "-flex", defaultTypeface);
-            sSystemFontOverrides.put(fontPrefix + "-text", defaultTypeface);
-            sSystemFontOverrides.put(fontPrefix + "-thin", create(defaultTypeface, 100, false));
-            sSystemFontOverrides.put(fontPrefix + "-light", create(defaultTypeface, 300, false));
-            sSystemFontOverrides.put(fontPrefix + "-book", create(defaultTypeface, 400, false));
-            sSystemFontOverrides.put(fontPrefix + "-regular", create(defaultTypeface, 400, false));
-            sSystemFontOverrides.put(fontPrefix + "-text-medium", create(defaultTypeface, 500, false));
-            sSystemFontOverrides.put(fontPrefix + "-text-medium-compat", create(defaultTypeface, 500, false));
-            sSystemFontOverrides.put(fontPrefix + "-medium", create(defaultTypeface, 500, false));
-            sSystemFontOverrides.put(fontPrefix + "-bold", create(defaultTypeface, 700, false));
-            sSystemFontOverrides.put(fontPrefix + "-text-bold", create(defaultTypeface, 700, false));
-            sSystemFontOverrides.put(fontPrefix + "-black", create(defaultTypeface, 900, false));
-            sSystemFontOverrides.put(fontPrefix + "-condensed", defaultTypeface);
-            sSystemFontOverrides.put(fontPrefix + "-condensed-light", create(defaultTypeface, 300, false));
-            sSystemFontOverrides.put(fontPrefix + "-condensed-medium", create(defaultTypeface, 500, false));
+            putIfAbsent(fontPrefix, defaultTypeface);
+            putIfAbsent(fontPrefix + "-flex", defaultTypeface);
+            putIfAbsent(fontPrefix + "-text", defaultTypeface);
+            putIfAbsent(fontPrefix + "-thin", create(defaultTypeface, 100, false));
+            putIfAbsent(fontPrefix + "-light", create(defaultTypeface, 300, false));
+            putIfAbsent(fontPrefix + "-book", create(defaultTypeface, 400, false));
+            putIfAbsent(fontPrefix + "-regular", create(defaultTypeface, 400, false));
+            putIfAbsent(fontPrefix + "-text-medium", create(defaultTypeface, 500, false));
+            putIfAbsent(fontPrefix + "-text-medium-compat", create(defaultTypeface, 500, false));
+            putIfAbsent(fontPrefix + "-medium", create(defaultTypeface, 500, false));
+            putIfAbsent(fontPrefix + "-bold", create(defaultTypeface, 700, false));
+            putIfAbsent(fontPrefix + "-text-bold", create(defaultTypeface, 700, false));
+            putIfAbsent(fontPrefix + "-black", create(defaultTypeface, 900, false));
+            putIfAbsent(fontPrefix + "-condensed", defaultTypeface);
+            putIfAbsent(fontPrefix + "-condensed-light", create(defaultTypeface, 300, false));
+            putIfAbsent(fontPrefix + "-condensed-medium", create(defaultTypeface, 500, false));
         }
+    }
+
+    /** @hide */
+    private static void putIfAbsent(String key, Typeface typeface) {
+        sSystemFontOverrides.putIfAbsent(key, typeface);
     }
 
     /** @hide */
