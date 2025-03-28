@@ -275,7 +275,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -410,7 +410,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -544,7 +544,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -680,7 +680,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -815,7 +815,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -958,7 +958,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -1092,7 +1092,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -1225,7 +1225,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -1359,7 +1359,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -1509,7 +1509,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -1644,7 +1644,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -1777,7 +1777,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -1912,7 +1912,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -2046,7 +2046,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -2180,7 +2180,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -2314,7 +2314,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -2448,7 +2448,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -2582,7 +2582,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -2721,7 +2721,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -2853,7 +2853,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -3123,7 +3123,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -3257,7 +3257,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -3390,7 +3390,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -3524,7 +3524,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -3660,7 +3660,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -3795,7 +3795,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -3936,7 +3936,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -4073,7 +4073,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -4209,7 +4209,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -4346,7 +4346,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -4464,7 +4464,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -4582,7 +4582,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -4719,7 +4719,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -4857,7 +4857,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -4993,7 +4993,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -5128,7 +5128,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -5262,7 +5262,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -5396,7 +5396,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -5528,7 +5528,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -5667,7 +5667,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -5787,7 +5787,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -5899,7 +5899,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -6033,7 +6033,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -6151,7 +6151,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -6309,7 +6309,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -6445,7 +6445,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -6607,7 +6607,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -6699,7 +6699,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -6795,7 +6795,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
@@ -6887,7 +6887,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_light</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_light</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_light</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</item>
@@ -6990,7 +6990,7 @@ easier.
         <item name="materialColorSurface">@color/system_surface_dark</item>
         <item name="materialColorSurfaceBright">@color/system_surface_bright_dark</item>
         <item name="materialColorSurfaceContainer">@color/system_surface_container_dark</item>
-        <item name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_dark</item>
+        <item name="materialColorSurfaceContainerHigh">@color/system_neutral1_800</item>
         <item name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_dark</item>
         <item name="materialColorSurfaceContainerLow">@color/system_surface_container_low_dark</item>
         <item name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_dark</item>
