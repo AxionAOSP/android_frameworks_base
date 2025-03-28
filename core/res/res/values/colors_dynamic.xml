@@ -52,7 +52,7 @@
     <color name="materialColorSurface">@color/system_surface_light</color>
     <color name="materialColorSurfaceBright">@color/system_surface_bright_light</color>
     <color name="materialColorSurfaceContainer">@color/system_surface_container_light</color>
-    <color name="materialColorSurfaceContainerHigh">@color/system_surface_container_high_light</color>
+    <color name="materialColorSurfaceContainerHigh">@color/system_neutral1_50</color>
     <color name="materialColorSurfaceContainerHighest">@color/system_surface_container_highest_light</color>
     <color name="materialColorSurfaceContainerLow">@color/system_surface_container_low_light</color>
     <color name="materialColorSurfaceContainerLowest">@color/system_surface_container_lowest_light</color>
