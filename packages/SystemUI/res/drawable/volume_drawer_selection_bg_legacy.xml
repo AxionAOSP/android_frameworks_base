@@ -20,6 +20,6 @@
     <size
         android:height="@dimen/volume_ringer_drawer_item_size"
         android:width="@dimen/volume_ringer_drawer_item_size" />
-    <solid android:color="?androidprv:attr/colorSurface" />
+    <solid android:color="?androidprv:attr/materialColorSurfaceContainerHigh" />
     <corners android:radius="@dimen/volume_ringer_drawer_item_size_half" />
 </shape>
