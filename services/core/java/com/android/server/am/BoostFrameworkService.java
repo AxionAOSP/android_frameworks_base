@@ -15,56 +15,69 @@
  */
 package com.android.server.am;
 
-import android.app.ActivityManager;
-import android.os.FileUtils;
-import android.os.IBinder;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.SystemProperties;
 import android.util.Log;
 import com.android.internal.os.IBoostFramework;
 
-import java.io.File;
-import java.io.IOException;
-
 public class BoostFrameworkService extends IBoostFramework.Stub {
 
-    private final static int BIG_CORES = 0;
-    private final static int SMALL_CORES = 1;
+    private static final String TAG = "BoostFrameworkService";
+
+    private static final int CPU_AFFINITY_BIG_CORES = 0;
+    private static final int CPU_AFFINITY_SMALL_CORES = 1;
 
     private static final long ANIMATION_BOOST_ON = 0L;
     private static final long ANIMATION_BOOST_OFF = -1L;
 
+    private final boolean useFifoUiScheduling =
+            SystemProperties.getBoolean("ro.sys.axion_is_modern_kernel", true);
+
     @Override
     public void animationBoost(int tid, long boost) throws RemoteException {
         try {
-            int threadPriority = Process.getThreadPriority(tid);
+            int originalPriority = Process.getThreadPriority(tid);
             if (boost >= ANIMATION_BOOST_ON) {
-                Process.setThreadScheduler(tid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 99);
+                applyBoost(tid);
             } else if (boost == ANIMATION_BOOST_OFF) {
-                Process.setThreadScheduler(tid, Process.SCHED_OTHER, 0);
-                try {
-                    Process.setThreadPriority(threadPriority);
-                } catch (Exception e) {
-                    Log.v("BoostFrameworkService", "Failed to restore thread priority for " + tid + ", setting to default.");
-                    Process.setThreadPriority(tid, Process.THREAD_PRIORITY_DEFAULT);
-                }
-                Process.setThreadScheduler(tid, Process.SCHED_OTHER, 0);
+                restoreThreadPriority(tid, originalPriority);
             }
         } catch (Exception e) {
-            Log.v("BoostFrameworkService", "Unexpected error in animationBoost: " + e.getMessage());
+            Log.e(TAG, "Error in animationBoost: " + e.getMessage(), e);
+        }
+    }
+
+    private void applyBoost(int tid) {
+        if (useFifoUiScheduling) {
+            Process.setThreadScheduler(tid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 99);
+        } else {
+            Process.setThreadPriority(tid, Process.THREAD_PRIORITY_TOP_APP_BOOST);
+        }
+    }
+
+    private void restoreThreadPriority(int tid, int originalPriority) {
+        try {
+            if (useFifoUiScheduling) {
+                Process.setThreadScheduler(tid, Process.SCHED_OTHER, 0);
+            }
+            Process.setThreadPriority(tid, originalPriority);
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to restore thread priority for " + tid + ", setting to default.", e);
+            Process.setThreadPriority(tid, Process.THREAD_PRIORITY_DEFAULT);
         }
     }
 
     @Override
     public void setProcThreadAffinity(int tid, int affinity) throws RemoteException {
         try {
-            int threadGroup = Process.THREAD_GROUP_TOP_APP;
-            if (affinity == SMALL_CORES) {
-                threadGroup = Process.THREAD_GROUP_BACKGROUND;
-            }
+            int threadGroup = (affinity == CPU_AFFINITY_SMALL_CORES)
+                    ? Process.THREAD_GROUP_BACKGROUND
+                    : Process.THREAD_GROUP_TOP_APP;
             Process.setThreadGroupAndCpuset(tid, threadGroup);
             Process.setThreadAffinity(tid, affinity);
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            Log.e(TAG, "Error in setProcThreadAffinity for tid: " + tid, e);
+        }
     }
 }
