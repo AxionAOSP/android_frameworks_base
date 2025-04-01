@@ -5643,7 +5643,7 @@ public class AppOpsManager {
             final long durationMillis = getDurationMillis();
             mBeginTimeMillis = Math.max(mBeginTimeMillis, beginTimeMillis);
             mEndTimeMillis = Math.min(mEndTimeMillis, endTimeMillis);
-            final double scaleFactor = Math.min((double) (endTimeMillis - beginTimeMillis)
+            final double scaleFactor = Math.min((double) (mEndTimeMillis - mBeginTimeMillis)
                     / (double) durationMillis, 1);
             final int uidCount = getUidCount();
             for (int i = uidCount - 1; i >= 0; i--) {

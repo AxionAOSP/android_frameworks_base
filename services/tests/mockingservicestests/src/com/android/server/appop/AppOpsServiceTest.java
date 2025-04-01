@@ -15,6 +15,9 @@
  */
 package com.android.server.appop;
 
+import static android.app.AppOpsManager.FILTER_BY_OP_NAMES;
+import static android.app.AppOpsManager.HISTORY_FLAG_AGGREGATE;
+import static android.app.AppOpsManager.HISTORY_FLAG_DISCRETE;
 import static android.app.AppOpsManager.MODE_ALLOWED;
 import static android.app.AppOpsManager.MODE_ERRORED;
 import static android.app.AppOpsManager.OP_COARSE_LOCATION;
@@ -26,6 +29,7 @@ import static android.app.AppOpsManager.OP_TAKE_AUDIO_FOCUS;
 import static android.app.AppOpsManager.OP_WIFI_SCAN;
 import static android.app.AppOpsManager.OP_WRITE_SMS;
 import static android.os.UserHandle.getAppId;
+import static android.app.AppOpsManager.UID_STATE_BACKGROUND;
 import static android.os.UserHandle.getUserId;
 
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
@@ -52,6 +56,8 @@ import android.app.AppOpsManager;
 import android.app.AppOpsManager.OpEntry;
 import android.app.AppOpsManager.PackageOps;
 import android.app.SyncNotedAppOp;
+import android.app.AppOpsManager.HistoricalOp;
+import android.app.AppOpsManager.HistoricalOps;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -386,6 +392,42 @@ public class AppOpsServiceTest {
         assertThat(getLoggedOps()).isNull();
     }
 
+    @Test
+    public void testHistoricalOpsFilterAll() {
+        final String opName = AppOpsManager.opToPublicName(OP_READ_SMS);
+        final String[] filterOpNames = new String[] { opName };
+        final int accessCount = 5;
+
+        HistoricalOps historicalOps = new HistoricalOps(0, 15000);
+        historicalOps.increaseAccessCount(OP_READ_SMS, mMyUid, sMyPackageName, null,
+            UID_STATE_BACKGROUND, OP_FLAG_SELF, accessCount);
+        assertThat(historicalOps.isEmpty()).isFalse();
+
+        // Filter to include all ops
+        historicalOps.filter(mMyUid,
+            null /* packageName */,
+            null /* attributionTag */,
+            filterOpNames,
+            HISTORY_FLAG_AGGREGATE,
+            FILTER_BY_OP_NAMES,
+            Long.MIN_VALUE /* beginTimeMillis */,
+            Long.MAX_VALUE /* endTimeMillis */);
+        assertThat(historicalOps.isEmpty()).isFalse();
+        HistoricalOp op = historicalOps.getUidOps(mMyUid)
+            .getPackageOps(sMyPackageName).getOp(opName);
+        assertEquals(accessCount, op.getBackgroundAccessCount(OP_FLAGS_ALL));
+
+        // Filter to include no ops
+        historicalOps.filter(mMyUid,
+            null /*packageName*/,
+            null /*attributionTag*/,
+            filterOpNames,
+            HISTORY_FLAG_AGGREGATE,
+            FILTER_BY_OP_NAMES,
+            Long.MIN_VALUE /* beginTimeMillis */,
+            Long.MIN_VALUE /* endTimeMillis */);
+        assertThat(historicalOps.isEmpty()).isTrue();
+    }
 
     /*
     TODO ntmyren: re enable when we have time to rewrite test.
