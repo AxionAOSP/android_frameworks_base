@@ -21,13 +21,9 @@ import android.provider.Settings
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
-
 import com.android.internal.util.android.OmniJawsClient
-
-import com.android.systemui.res.R
 import com.android.systemui.Dependency
 import com.android.systemui.plugins.statusbar.StatusBarStateController
-
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -43,82 +39,87 @@ class WeatherViewController(
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
 
     private var mDozing = false
-    private val statusBarStateController: StatusBarStateController = Dependency.get(StatusBarStateController::class.java)
+    private var isVisible = false
 
-    private val statusBarStateListener = object : StatusBarStateController.StateListener {
-        override fun onStateChanged(newState: Int) {}
+    private val statusBarStateController: StatusBarStateController =
+        Dependency.get(StatusBarStateController::class.java)
 
-        override fun onDozingChanged(dozing: Boolean) {
-            if (mDozing == dozing) {
-                return
-            }
-            mDozing = dozing
+    private val statusBarStateListener =
+        object : StatusBarStateController.StateListener {
+            override fun onStateChanged(newState: Int) {}
 
-            val weatherEnabled = weatherSettingsFlow.value.weatherEnabled
-
-            val visible = !mDozing && weatherEnabled
-            scope.launch {
-                updateViewVisibility(weatherInfoView, visible)
+            override fun onDozingChanged(dozing: Boolean) {
+                if (mDozing == dozing) return
+                mDozing = dozing
+                updateVisibility()
             }
         }
 
-    }
+    private val weatherSettingsFlow =
+        flow {
+                var lastSettings: WeatherSettings? = null
 
-    private val weatherSettingsFlow = flow {
-        while (true) {
-            emit(getWeatherSettings())
-            delay(1000)
-        }
-    }.stateIn(scope, SharingStarted.Eagerly, getWeatherSettings())
+                while (currentCoroutineContext().isActive) {
+                    val currentSettings = getWeatherSettings()
+                    if (currentSettings != lastSettings) {
+                        emit(currentSettings)
+                        lastSettings = currentSettings
+                    }
+                    delay(1000)
+                }
+            }
+            .flowOn(Dispatchers.IO)
+            .stateIn(scope, SharingStarted.Eagerly, getWeatherSettings())
 
     fun init() {
-        scope.launch {
-            weatherSettingsFlow.collectLatest { applyWeatherSettings(it) }
-        }
         statusBarStateController.addCallback(statusBarStateListener)
         statusBarStateListener.onDozingChanged(statusBarStateController.isDozing())
+
+        scope.launch {
+            weatherSettingsFlow.collectLatest { settings -> applyWeatherSettings(settings) }
+        }
     }
 
-    private fun getWeatherSettings() = WeatherSettings(
-        weatherEnabled = getSystemSetting(LOCKSCREEN_WEATHER_ENABLED),
-        showWeatherLocation = getSystemSetting(LOCKSCREEN_WEATHER_LOCATION),
-        showWeatherText = getSystemSetting(LOCKSCREEN_WEATHER_TEXT, defaultValue = 1),
-        showWindInfo = getSystemSetting(LOCKSCREEN_WEATHER_WIND_INFO),
-        showHumidityInfo = getSystemSetting(LOCKSCREEN_WEATHER_HUMIDITY_INFO)
-    )
-
-    private fun getSystemSetting(setting: String, defaultValue: Int = 0) =
-        Settings.System.getIntForUser(context.contentResolver, setting, defaultValue, UserHandle.USER_CURRENT) != 0
-
     private fun applyWeatherSettings(settings: WeatherSettings) {
-        scope.launch {
-            if (!settings.weatherEnabled) {
-                hideAllViews()
-                weatherClient.removeObserver(this@WeatherViewController)
-            } else {
-                weatherClient.addObserver(this@WeatherViewController)
-                updateWeather()
-            }
+        updateVisibility(settings)
+        if (isVisible && weatherInfo != null) {
+            weatherTemp.text = buildWeatherText(weatherInfo!!)
+        }
+    }
 
-            updateViewVisibility(weatherInfoView, settings.weatherEnabled)
-            updateViewVisibility(weatherIcon, settings.weatherEnabled)
-            updateViewVisibility(weatherTemp, settings.weatherEnabled)
+    private fun updateVisibility(settings: WeatherSettings = weatherSettingsFlow.value) {
+        val shouldBeVisible = !mDozing && settings.weatherEnabled
+        if (shouldBeVisible == isVisible) return
+
+        isVisible = shouldBeVisible
+
+        if (isVisible) {
+            weatherClient.addObserver(this)
+            updateWeather()
+        } else {
+            weatherClient.removeObserver(this)
+            hideAllViews()
+        }
+
+        scope.launch {
+            updateViewVisibility(weatherInfoView, isVisible)
+            updateViewVisibility(weatherIcon, isVisible)
+            updateViewVisibility(weatherTemp, isVisible)
         }
     }
 
     override fun weatherUpdated() = updateWeather()
 
     private fun updateWeather() {
-        if (!weatherSettingsFlow.value.weatherEnabled) {
-            hideAllViews()
-            return
-        }
+        if (!isVisible) return
 
         try {
             weatherClient.queryWeather()
             weatherInfo = weatherClient.weatherInfo
             weatherInfo?.let { info ->
-                weatherIcon.setImageDrawable(weatherClient.getWeatherConditionImage(info.conditionCode))
+                weatherIcon.setImageDrawable(
+                    weatherClient.getWeatherConditionImage(info.conditionCode)
+                )
                 weatherTemp.text = buildWeatherText(info)
                 weatherTemp.isSelected = true
             }
@@ -135,20 +136,27 @@ class WeatherViewController(
 
     private fun buildWeatherText(info: OmniJawsClient.WeatherInfo): String {
         val settings = weatherSettingsFlow.value
-        val conditionText = info.condition.split(" ").joinToString(" ") { it.replaceFirstChar { char -> char.uppercaseChar() } }
+        val conditionText =
+            info.condition.split(" ").joinToString(" ") {
+                it.replaceFirstChar { c -> c.uppercaseChar() }
+            }
 
-        val locationText = if (settings.showWeatherLocation) " • ${info.city}" else ""
-        val conditionDisplay = if (settings.showWeatherText) " • $conditionText" else ""
-        val windDisplay = if (settings.showWindInfo) " • ${info.windSpeed} ${info.windUnits} ${info.pinWheel}" else ""
-        val humidityDisplay = if (settings.showHumidityInfo) " • ${info.humidity}" else ""
+        val location = if (settings.showWeatherLocation) " • ${info.city}" else ""
+        val condition = if (settings.showWeatherText) " • $conditionText" else ""
+        val wind =
+            if (settings.showWindInfo) " • ${info.windSpeed} ${info.windUnits} ${info.pinWheel}"
+            else ""
+        val humidity = if (settings.showHumidityInfo) " • ${info.humidity}" else ""
 
-        return "${info.temp}${info.tempUnits}$locationText$conditionDisplay$windDisplay$humidityDisplay"
+        return "${info.temp}${info.tempUnits}$location$condition$wind$humidity"
     }
 
     override fun weatherError(errorReason: Int) {
         if (errorReason == OmniJawsClient.EXTRA_ERROR_DISABLED) {
             weatherInfo = null
             weatherIcon.setImageDrawable(null)
+            weatherTemp.text = ""
+            hideAllViews()
         }
     }
 
@@ -159,9 +167,27 @@ class WeatherViewController(
     }
 
     private suspend fun updateViewVisibility(view: View, visible: Boolean) {
-        withContext(Dispatchers.Main) {
+        withContext(Dispatchers.Main.immediate) {
             view.visibility = if (visible) View.VISIBLE else View.GONE
         }
+    }
+
+    private fun getWeatherSettings() =
+        WeatherSettings(
+            weatherEnabled = getSystemSetting(LOCKSCREEN_WEATHER_ENABLED),
+            showWeatherLocation = getSystemSetting(LOCKSCREEN_WEATHER_LOCATION),
+            showWeatherText = getSystemSetting(LOCKSCREEN_WEATHER_TEXT, defaultValue = 1),
+            showWindInfo = getSystemSetting(LOCKSCREEN_WEATHER_WIND_INFO),
+            showHumidityInfo = getSystemSetting(LOCKSCREEN_WEATHER_HUMIDITY_INFO),
+        )
+
+    private fun getSystemSetting(setting: String, defaultValue: Int = 0): Boolean {
+        return Settings.System.getIntForUser(
+            context.contentResolver,
+            setting,
+            defaultValue,
+            UserHandle.USER_CURRENT,
+        ) != 0
     }
 
     data class WeatherSettings(
@@ -169,7 +195,7 @@ class WeatherViewController(
         val showWeatherLocation: Boolean,
         val showWeatherText: Boolean,
         val showWindInfo: Boolean,
-        val showHumidityInfo: Boolean
+        val showHumidityInfo: Boolean,
     )
 
     companion object {
