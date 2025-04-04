@@ -17,30 +17,26 @@ package com.android.systemui.weather
 
 import android.content.Context
 import android.util.AttributeSet
-import androidx.constraintlayout.widget.ConstraintLayout
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.constraintlayout.widget.ConstraintLayout
 import com.android.systemui.res.R
 
-class WeatherInfoView @JvmOverloads constructor(
-    context: Context, attrs: AttributeSet? = null, defStyle: Int = 0
-) : ConstraintLayout(context, attrs, defStyle) {
+class WeatherInfoView
+@JvmOverloads
+constructor(context: Context, attrs: AttributeSet? = null, defStyle: Int = 0) :
+    ConstraintLayout(context, attrs, defStyle) {
 
     private lateinit var weatherIcon: ImageView
     private lateinit var weatherTemp: TextView
 
     private lateinit var controller: WeatherViewController
-    
+
     fun init() {
         weatherIcon = findViewById(R.id.weather_icon)
         weatherTemp = findViewById(R.id.weather_temp)
 
-        controller = WeatherViewController(
-            context,
-            weatherIcon,
-            weatherTemp,
-            this
-        )
+        controller = WeatherViewController(context, weatherIcon, weatherTemp, this)
 
         controller.init()
     }
