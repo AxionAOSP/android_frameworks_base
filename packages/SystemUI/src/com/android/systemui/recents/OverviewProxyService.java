@@ -145,7 +145,7 @@ public class OverviewProxyService implements CallbackController<OverviewProxyLis
     static final String ACTION_QUICKSTEP = "android.intent.action.QUICKSTEP_SERVICE";
 
     public static final String TAG_OPS = "OverviewProxyService";
-    private static final long BACKOFF_MILLIS = 1000;
+    private static final long BACKOFF_MILLIS = 100;
     private static final long DEFERRED_CALLBACK_MILLIS = 5000;
     // Max backoff caps at 5 mins
     private static final long MAX_BACKOFF_MILLIS = 10 * 60 * 1000;
