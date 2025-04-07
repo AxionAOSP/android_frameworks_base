@@ -70,4 +70,7 @@
     
     <!-- Statusbar Icons -->
     <string name="status_bar_nfc">NFC</string>
+    
+    <!-- Ringer QS tile -->
+    <string name="qs_tile_ringer_mode_label">Ringer mode</string>
 </resources>
