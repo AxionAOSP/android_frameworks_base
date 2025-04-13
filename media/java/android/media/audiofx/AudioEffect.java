@@ -534,15 +534,14 @@ public class AudioEffect {
                     + " when initializing AudioEffect.");
             switch (initResult) {
             case ERROR_BAD_VALUE:
-                throw (new IllegalArgumentException("Effect type: " + type
-                        + " not supported."));
+                Log.e(TAG, "Effect type: " + type + " is not supported.");
+                return;
             case ERROR_INVALID_OPERATION:
-                throw (new UnsupportedOperationException(
-                        "Effect library not loaded"));
+                Log.e(TAG, "Effect library not loaded.");
+                return;
             default:
-                throw (new RuntimeException(
-                        "Cannot initialize effect engine for type: " + type
-                                + " Error: " + initResult));
+                Log.e(TAG, "Cannot initialize effect engine for type: " + type + " Error: " + initResult);
+                return;
             }
         }
         mId = id[0];
