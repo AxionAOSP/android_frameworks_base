@@ -34,6 +34,7 @@ import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shared.clocks.ClockRegistry
 import com.android.systemui.util.settings.SecureSettings
+import com.android.systemui.util.settings.SystemSettings
 import com.android.systemui.util.settings.SettingsProxyExt.observerFlow
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -45,6 +46,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onStart
@@ -86,6 +88,7 @@ class KeyguardClockRepositoryImpl
 @Inject
 constructor(
     private val secureSettings: SecureSettings,
+    private val systemSettings: SystemSettings,
     private val clockRegistry: ClockRegistry,
     override val clockEventController: ClockEventController,
     @Background private val backgroundDispatcher: CoroutineDispatcher,
@@ -104,18 +107,28 @@ constructor(
     }
 
     override val selectedClockSize: StateFlow<ClockSizeSetting> =
-        secureSettings
-            .observerFlow(
+        combine(
+            secureSettings.observerFlow(
                 names = arrayOf(Settings.Secure.LOCKSCREEN_USE_DOUBLE_LINE_CLOCK),
-                userId = UserHandle.USER_ALL,
+                userId = UserHandle.USER_ALL
+            ),
+            systemSettings.observerFlow(
+                names = arrayOf("lockscreen_widgets_enabled"),
+                userId = UserHandle.USER_ALL
             )
-            .onStart { emit(Unit) } // Forces an initial update.
-            .map { withContext(backgroundDispatcher) { getClockSize() } }
-            .stateIn(
-                scope = applicationScope,
-                started = SharingStarted.WhileSubscribed(),
-                initialValue = getClockSize(),
-            )
+        ) { _, _ ->
+            withContext(backgroundDispatcher) {
+                getClockSize()
+            }
+        }
+        .onStart {
+            emit(withContext(backgroundDispatcher) { getClockSize() })
+        }
+        .stateIn(
+            scope = applicationScope,
+            started = SharingStarted.WhileSubscribed(),
+            initialValue = getClockSize()
+        )
 
     override val currentClockId: Flow<ClockId> =
         callbackFlow {
@@ -163,21 +176,33 @@ constructor(
         _notificationDefaultTop.value = top
     }
 
+    private fun lockscreenWidgetsEnabled(): Boolean {
+        return systemSettings.getIntForUser(
+            "lockscreen_widgets_enabled",
+            0,
+            UserHandle.USER_CURRENT
+        ) != 0
+    }
+
     override val shouldForceSmallClock: Boolean
         get() =
             featureFlags.isEnabled(Flags.LOCKSCREEN_ENABLE_LANDSCAPE) &&
                 // True on small landscape screens
-                context.resources.getBoolean(R.bool.force_small_clock_on_lockscreen)
+                context.resources.getBoolean(R.bool.force_small_clock_on_lockscreen) 
+                || lockscreenWidgetsEnabled()
 
     private fun getClockSize(): ClockSizeSetting {
-        return ClockSizeSetting.fromSettingValue(
-            secureSettings.getIntForUser(
-                Settings.Secure.LOCKSCREEN_USE_DOUBLE_LINE_CLOCK,
-                context.resources
-                    .getInteger(com.android.internal.R.integer
-                        .config_doublelineClockDefault),
-                UserHandle.USER_CURRENT,
-            )
-        )
+        val clockSizeValue = if (lockscreenWidgetsEnabled()) {
+                0
+            } else {
+                secureSettings.getIntForUser(
+                    Settings.Secure.LOCKSCREEN_USE_DOUBLE_LINE_CLOCK,
+                    context.resources
+                        .getInteger(com.android.internal.R.integer
+                            .config_doublelineClockDefault),
+                    UserHandle.USER_CURRENT,
+                )
+            }
+        return ClockSizeSetting.fromSettingValue(clockSizeValue)
     }
 }
