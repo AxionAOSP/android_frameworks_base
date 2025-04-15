@@ -19,38 +19,42 @@ package com.android.systemui.shade
 import android.content.Context
 import android.database.ContentObserver
 import android.os.PowerManager
+import android.os.UserHandle
 import android.view.GestureDetector
 import android.view.MotionEvent
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.plugins.FalsingManager
 import com.android.systemui.plugins.statusbar.StatusBarStateController
+import com.android.systemui.user.domain.interactor.SelectedUserInteractor
 import lineageos.providers.LineageSettings
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import org.lineageos.platform.internal.R.bool.config_dt2sGestureEnabledByDefault
 
 @SysUISingleton
 class QQSGestureListener @Inject constructor(
+        @Background private val backgroundScope: CoroutineScope,
         private val context: Context,
         private val falsingManager: FalsingManager,
         private val powerManager: PowerManager,
         private val statusBarStateController: StatusBarStateController,
+        private val selectedUserInteractor: SelectedUserInteractor,
 ) : GestureDetector.SimpleOnGestureListener() {
 
-    private var doubleTapToSleepEnabled = false
+    private var currentUserId: Int? = null
+    // Let our handling of this setting be reused by NotificationPanelViewController.
+    var notificationPanelViewControllerCallback: ((Boolean) -> Unit)? = null
+    private val doubleTapToSleepEnabledByDefault =
+        context.resources.getBoolean(config_dt2sGestureEnabledByDefault)
+    var doubleTapToSleepEnabled = doubleTapToSleepEnabledByDefault
+        private set
+
     private val quickQsOffsetHeight: Int
 
     init {
-        val contentObserver = object : ContentObserver(null) {
-            override fun onChange(selfChange: Boolean) {
-                doubleTapToSleepEnabled = LineageSettings.System.getInt(
-                        context.contentResolver, LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE,
-                        if (context.resources.getBoolean(org.lineageos.platform.internal.
-                                R.bool.config_dt2sGestureEnabledByDefault)) 1 else 0) != 0
-            }
-        }
-        context.contentResolver.registerContentObserver(
-                LineageSettings.System.getUriFor(LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE),
-                false, contentObserver)
-        contentObserver.onChange(true)
+        initDoubleTapToSleepSettingObserver()
 
         quickQsOffsetHeight = context.resources.getDimensionPixelSize(
                 com.android.internal.R.dimen.quick_qs_offset_height)
@@ -70,4 +74,43 @@ class QQSGestureListener @Inject constructor(
         return false
     }
 
+    private fun isDoubleTapToSleepEnabledForUser(userId: Int): Boolean =
+        LineageSettings.System.getIntForUser(
+            context.contentResolver,
+            LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE,
+            if (doubleTapToSleepEnabledByDefault) 1 else 0,
+            userId
+        ) != 0
+
+    /**
+     * Initialize all necessary handling of the double-tap-to-sleep setting and user switches.
+     * We need to keep track of user switches to know which user's setting to read.
+     */
+    private fun initDoubleTapToSleepSettingObserver() {
+        // Monitor setting changes.
+        val doubleTapToSleepSettingObserver = object : ContentObserver(null) {
+            override fun onChange(selfChange: Boolean) {
+                isDoubleTapToSleepEnabledForUser(currentUserId ?: return).let { value ->
+                    if (doubleTapToSleepEnabled != value) {
+                        doubleTapToSleepEnabled = value
+                        notificationPanelViewControllerCallback?.invoke(value)
+                    }
+                }
+            }
+        }
+        context.contentResolver.registerContentObserver(
+            LineageSettings.System.getUriFor(LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE),
+            false,
+            doubleTapToSleepSettingObserver,
+            UserHandle.USER_ALL
+        )
+
+        // Monitor user switches.
+        backgroundScope.launch {
+            selectedUserInteractor.selectedUser.collect { userId ->
+                currentUserId = userId
+                doubleTapToSleepSettingObserver.onChange(true)
+            }
+        }
+    }
 }
