@@ -19,11 +19,13 @@ package com.android.systemui.shade
 import android.content.Context
 import android.database.ContentObserver
 import android.os.PowerManager
+import android.os.UserHandle
 import android.view.GestureDetector
 import android.view.MotionEvent
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.plugins.FalsingManager
 import com.android.systemui.plugins.statusbar.StatusBarStateController
+import com.android.systemui.user.domain.interactor.SelectedUserInteractor
 import lineageos.providers.LineageSettings
 import javax.inject.Inject
 
@@ -33,6 +35,7 @@ class QQSGestureListener @Inject constructor(
         private val falsingManager: FalsingManager,
         private val powerManager: PowerManager,
         private val statusBarStateController: StatusBarStateController,
+        private val selectedUserInteractor: SelectedUserInteractor,
 ) : GestureDetector.SimpleOnGestureListener() {
 
     private var doubleTapToSleepEnabled = false
@@ -41,15 +44,16 @@ class QQSGestureListener @Inject constructor(
     init {
         val contentObserver = object : ContentObserver(null) {
             override fun onChange(selfChange: Boolean) {
-                doubleTapToSleepEnabled = LineageSettings.System.getInt(
+                doubleTapToSleepEnabled = LineageSettings.System.getIntForUser(
                         context.contentResolver, LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE,
                         if (context.resources.getBoolean(org.lineageos.platform.internal.
-                                R.bool.config_dt2sGestureEnabledByDefault)) 1 else 0) != 0
+                                R.bool.config_dt2sGestureEnabledByDefault)) 1 else 0,
+                    selectedUserInteractor.getSelectedUserId()) != 0
             }
         }
         context.contentResolver.registerContentObserver(
                 LineageSettings.System.getUriFor(LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE),
-                false, contentObserver)
+                false, contentObserver, UserHandle.USER_ALL)
         contentObserver.onChange(true)
 
         quickQsOffsetHeight = context.resources.getDimensionPixelSize(

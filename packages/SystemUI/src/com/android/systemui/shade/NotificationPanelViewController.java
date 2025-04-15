@@ -69,6 +69,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.PowerManager;
 import android.os.Trace;
+import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
 import android.util.IndentingPrintWriter;
@@ -234,6 +235,7 @@ import com.android.systemui.statusbar.policy.KeyguardUserSwitcherController;
 import com.android.systemui.statusbar.policy.KeyguardUserSwitcherView;
 import com.android.systemui.statusbar.policy.SplitShadeStateController;
 import com.android.systemui.unfold.SysUIUnfoldComponent;
+import com.android.systemui.user.domain.interactor.SelectedUserInteractor;
 import com.android.systemui.util.Compile;
 import com.android.systemui.util.SystemUIBoostFramework;
 import com.android.systemui.util.Utils;
@@ -775,6 +777,7 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
             NaturalScrollingSettingObserver naturalScrollingSettingObserver,
             MSDLPlayer msdlPlayer,
             BrightnessMirrorShowingInteractor brightnessMirrorShowingInteractor,
+            SelectedUserInteractor selectedUserInteractor,
             Context context,
             EdgeLightViewController edgeLightViewController) {
         SceneContainerFlag.assertInLegacyMode();
@@ -932,10 +935,11 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
         mDoubleTapToSleepObserver = new ContentObserver(handler) {
             @Override
             public void onChange(boolean selfChange) {
-                mDoubleTapToSleepEnabled = LineageSettings.System.getInt(mContentResolver,
+                mDoubleTapToSleepEnabled = LineageSettings.System.getIntForUser(mContentResolver,
                         LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE,
                         mResources.getBoolean(org.lineageos.platform.internal.R.bool.
-                                config_dt2sGestureEnabledByDefault) ? 1 : 0) != 0;
+                                config_dt2sGestureEnabledByDefault) ? 1 : 0,
+                        selectedUserInteractor.getSelectedUserId()) != 0;
             }
         };
         mConversationNotificationManager = conversationNotificationManager;
@@ -4727,7 +4731,7 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
             mConfigurationController.addCallback(mConfigurationListener);
             mContentResolver.registerContentObserver(LineageSettings.System.getUriFor(
                     LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE), false,
-                    mDoubleTapToSleepObserver);
+                    mDoubleTapToSleepObserver, UserHandle.USER_ALL);
             mDoubleTapToSleepObserver.onChange(true);
             // Theme might have changed between inflating this view and attaching it to the
             // window, so
