@@ -32,9 +32,9 @@ import java.util.concurrent.Executor;
 public final class BackgroundThread extends HandlerThread {
     private static final long SLOW_DISPATCH_THRESHOLD_MS = 10_000;
     private static final long SLOW_DELIVERY_THRESHOLD_MS = 30_000;
-    private static BackgroundThread sInstance;
-    private static Handler sHandler;
-    private static HandlerExecutor sHandlerExecutor;
+    private static volatile BackgroundThread sInstance;
+    private static volatile Handler sHandler;
+    private static volatile HandlerExecutor sHandlerExecutor;
 
     private BackgroundThread() {
         super("android.bg", android.os.Process.THREAD_PRIORITY_BACKGROUND);
@@ -49,13 +49,14 @@ public final class BackgroundThread extends HandlerThread {
 
     private static void ensureThreadLocked() {
         if (sInstance == null) {
-            sInstance = new BackgroundThread();
-            sInstance.start();
-            final Looper looper = sInstance.getLooper();
+            BackgroundThread thread = new BackgroundThread();
+            thread.start();
+            final Looper looper = thread.getLooper();
             looper.setTraceTag(Trace.TRACE_TAG_SYSTEM_SERVER);
             looper.setSlowLogThresholdMs(
                     SLOW_DISPATCH_THRESHOLD_MS, SLOW_DELIVERY_THRESHOLD_MS);
-            sHandler = new Handler(sInstance.getLooper(), /*callback=*/ null, /* async=*/ false,
+            sInstance = thread;
+            sHandler = new Handler(looper, /*callback=*/ null, /* async=*/ false,
                     /* shared=*/ true);
             sHandlerExecutor = new HandlerExecutor(sHandler);
         }
@@ -63,25 +64,31 @@ public final class BackgroundThread extends HandlerThread {
 
     @NonNull
     public static BackgroundThread get() {
-        synchronized (BackgroundThread.class) {
-            ensureThreadLocked();
-            return sInstance;
+        if (sInstance == null) {
+            synchronized (BackgroundThread.class) {
+                ensureThreadLocked();
+            }
         }
+        return sInstance;
     }
 
     @NonNull
     public static Handler getHandler() {
-        synchronized (BackgroundThread.class) {
-            ensureThreadLocked();
-            return sHandler;
+        if (sHandler == null) {
+            synchronized (BackgroundThread.class) {
+                ensureThreadLocked();
+            }
         }
+        return sHandler;
     }
 
     @NonNull
     public static Executor getExecutor() {
-        synchronized (BackgroundThread.class) {
-            ensureThreadLocked();
-            return sHandlerExecutor;
+        if (sHandlerExecutor == null) {
+            synchronized (BackgroundThread.class) {
+                ensureThreadLocked();
+            }
         }
+        return sHandlerExecutor;
     }
 }
