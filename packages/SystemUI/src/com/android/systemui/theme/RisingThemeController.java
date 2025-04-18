@@ -112,7 +112,7 @@ public class RisingThemeController {
                             mBackgroundHandler.post(() -> reevaluateSystemThemeCallback.run());
                         }
                     };
-                    mBackgroundHandler.postDelayed(mDebounceRunnable, 1000);
+                    mBackgroundHandler.postDelayed(mDebounceRunnable, 2000);
                 }
             };
             mContentResolver.registerContentObserver(uri, false, contentObserver);
