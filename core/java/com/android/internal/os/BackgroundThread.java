@@ -40,6 +40,13 @@ public final class BackgroundThread extends HandlerThread {
         super("android.bg", android.os.Process.THREAD_PRIORITY_BACKGROUND);
     }
 
+    @Override
+    public void run() {
+        // Make sure BackgroundThread runs on little cluster
+        android.os.Process.setThreadAffinity(android.os.Process.myTid(), 1);
+        super.run();
+    }
+
     private static void ensureThreadLocked() {
         if (sInstance == null) {
             sInstance = new BackgroundThread();
