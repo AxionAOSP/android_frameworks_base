@@ -36,6 +36,13 @@ public final class IoThread extends ServiceThread {
         super("android.io", android.os.Process.THREAD_PRIORITY_DEFAULT, true /*allowIo*/);
     }
 
+    @Override
+    public void run() {
+        // Make sure IoThread runs on little cluster
+        android.os.Process.setThreadAffinity(android.os.Process.myTid(), 1);
+        super.run();
+    }
+
     private static void ensureThreadLocked() {
         if (sInstance == null) {
             sInstance = new IoThread();
