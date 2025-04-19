@@ -38,6 +38,13 @@ public final class DisplayThread extends ServiceThread {
         super("android.display", Process.THREAD_PRIORITY_DISPLAY + 1, false /*allowIo*/);
     }
 
+    @Override
+    public void run() {
+        // Make sure DisplayThread runs on big cluster
+        android.os.Process.setThreadAffinity(android.os.Process.myTid(), 0);
+        super.run();
+    }
+
     private static void ensureThreadLocked() {
         if (sInstance == null) {
             sInstance = new DisplayThread();
