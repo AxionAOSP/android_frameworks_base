@@ -35,6 +35,13 @@ public final class AnimationThread extends ServiceThread {
         super("android.anim", THREAD_PRIORITY_DISPLAY, false /*allowIo*/);
     }
 
+    @Override
+    public void run() {
+        // Make sure AnimationThread runs on big cluster
+        android.os.Process.setThreadAffinity(android.os.Process.myTid(), 0);
+        super.run();
+    }
+
     private static void ensureThreadLocked() {
         if (sInstance == null) {
             sInstance = new AnimationThread();
