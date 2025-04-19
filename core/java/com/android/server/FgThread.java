@@ -46,6 +46,13 @@ public final class FgThread extends ServiceThread {
         super("android.fg", android.os.Process.THREAD_PRIORITY_DEFAULT, true /*allowIo*/);
     }
 
+    @Override
+    public void run() {
+        // Make sure FgThread runs on big cluster
+        android.os.Process.setThreadAffinity(android.os.Process.myTid(), 0);
+        super.run();
+    }
+
     private static void ensureThreadLocked() {
         if (sInstance == null) {
             sInstance = new FgThread();
