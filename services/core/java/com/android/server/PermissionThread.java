@@ -45,6 +45,13 @@ public final class PermissionThread extends ServiceThread {
         super("android.perm", android.os.Process.THREAD_PRIORITY_DEFAULT, /* allowIo= */ true);
     }
 
+    @Override
+    public void run() {
+        // Make sure PermissionThread runs on little cluster
+        android.os.Process.setThreadAffinity(android.os.Process.myTid(), 1);
+        super.run();
+    }
+
     @GuardedBy("sLock")
     private static void ensureThreadLocked() {
         if (sInstance != null) {
