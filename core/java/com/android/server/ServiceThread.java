@@ -45,6 +45,8 @@ public class ServiceThread extends HandlerThread {
         if (!mAllowIo) {
             StrictMode.initThreadDefaults(null);
         }
+        
+        android.os.Process.setThreadAffinity(android.os.Process.myTid(), 1);
 
         super.run();
     }
