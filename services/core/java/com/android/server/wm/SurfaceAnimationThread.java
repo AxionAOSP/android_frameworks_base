@@ -35,6 +35,13 @@ public final class SurfaceAnimationThread extends ServiceThread {
         super("android.anim.lf", THREAD_PRIORITY_DISPLAY, false /*allowIo*/);
     }
 
+    @Override
+    public void run() {
+        // Make sure SurfaceAnimationThread runs on big cluster
+        android.os.Process.setThreadAffinity(android.os.Process.myTid(), 0);
+        super.run();
+    }
+
     private static void ensureThreadLocked() {
         if (sInstance == null) {
             sInstance = new SurfaceAnimationThread();
