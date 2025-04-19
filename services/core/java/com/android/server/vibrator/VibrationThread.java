@@ -138,6 +138,8 @@ final class VibrationThread extends Thread {
     @Override
     public void run() {
         Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_DISPLAY);
+        // Make sure VibrationThread runs on big cluster
+        Process.setThreadAffinity(android.os.Process.myTid(), 0);
         while (true) {
             // mExecutingConductor is only modified in this loop.
             mExecutingConductor = Objects.requireNonNull(waitForVibrationRequest());
