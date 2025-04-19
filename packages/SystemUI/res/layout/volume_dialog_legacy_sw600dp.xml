@@ -89,6 +89,31 @@
         </LinearLayout>
 
         <FrameLayout
+            android:id="@+id/app_volume_container"
+            android:layout_width="@dimen/volume_dialog_caption_size"
+            android:layout_height="@dimen/volume_dialog_caption_size"
+            android:layout_marginTop="@dimen/volume_dialog_row_margin_bottom"
+            android:gravity="left"
+            android:clipToPadding="false"
+            android:clipToOutline="true"
+            android:background="@drawable/volume_row_rounded_background"
+            android:paddingTop="@dimen/volume_dialog_ringer_rows_padding"
+            android:paddingLeft="@dimen/volume_dialog_ringer_rows_padding"
+            android:paddingBottom="@dimen/volume_dialog_ringer_rows_padding"
+            android:paddingRight="@dimen/volume_dialog_ringer_rows_padding">
+            <com.android.keyguard.AlphaOptimizedImageButton
+                android:id="@+id/app_volume"
+                android:src="@drawable/ic_app_volume"
+                style="@style/VolumeButtons"
+                android:scaleType="centerInside"
+                android:background="@drawable/volume_drawer_selection_bg_legacy"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_gravity="center"
+                android:soundEffectsEnabled="false"/>
+        </FrameLayout>
+
+        <FrameLayout
             android:id="@+id/settings_container"
             android:layout_width="@dimen/volume_dialog_caption_size"
             android:layout_height="@dimen/volume_dialog_caption_size"
@@ -106,7 +131,7 @@
                 android:src="@drawable/horizontal_ellipsis"
                 style="@style/VolumeButtons"
                 android:scaleType="centerInside"
-                android:background="@drawable/volume_drawer_selection_bg"
+                android:background="@drawable/volume_drawer_selection_bg_legacy"
                 android:layout_width="@dimen/volume_dialog_tap_target_size"
                 android:layout_height="@dimen/volume_dialog_tap_target_size"
                 android:tint="?android:attr/colorAccent"
@@ -133,7 +158,7 @@
                 style="@style/VolumeButtons"
                 android:layout_width="@dimen/volume_dialog_tap_target_size"
                 android:layout_height="@dimen/volume_dialog_tap_target_size"
-                android:background="@drawable/volume_drawer_selection_bg"
+                android:background="@drawable/volume_drawer_selection_bg_legacy"
                 android:tint="?android:attr/colorAccent"
                 android:layout_gravity="center"
                 android:soundEffectsEnabled="false"/>
