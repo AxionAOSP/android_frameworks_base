@@ -50,10 +50,7 @@ import androidx.annotation.StyleRes;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.app.animation.Interpolators;
-import com.android.settingslib.graph.BatteryDrawable;
-import com.android.settingslib.graph.CircleBatteryDrawable;
-import com.android.settingslib.graph.RLandscapeBatteryDrawable;
-import com.android.settingslib.graph.LandscapeBatteryDrawable;
+import com.android.settingslib.graph.*;
 import com.android.systemui.DualToneHandler;
 import com.android.systemui.battery.unified.BatteryColors;
 import com.android.systemui.battery.unified.BatteryDrawableState;
@@ -78,6 +75,8 @@ public class BatteryMeterView extends LinearLayout implements DarkReceiver {
     protected static final int BATTERY_STYLE_TEXT = 2;
     protected static final int BATTERY_STYLE_RLANDSCAPE = 3;
     protected static final int BATTERY_STYLE_LANDSCAPE = 4;
+    protected static final int BATTERY_STYLE_LANDSCAPE_IOS15 = 5;
+    protected static final int BATTERY_STYLE_LANDSCAPE_IOS16 = 6;
 
     @Retention(SOURCE)
     @IntDef({MODE_DEFAULT, MODE_ON, MODE_OFF, MODE_ESTIMATE})
@@ -91,6 +90,8 @@ public class BatteryMeterView extends LinearLayout implements DarkReceiver {
     private final CircleBatteryDrawable mCircleDrawable;
     private final RLandscapeBatteryDrawable mRLandscapeDrawable;
     private final LandscapeBatteryDrawable mLandscapeDrawable;
+    private final LandscapeBatteryDrawableiOS15 mLandscapeDrawableiOS15;
+    private final LandscapeBatteryDrawableiOS16 mLandscapeDrawableiOS16;
     private final ImageView mBatteryIconView;
     private TextView mBatteryPercentView;
 
@@ -141,6 +142,8 @@ public class BatteryMeterView extends LinearLayout implements DarkReceiver {
         mCircleDrawable = new CircleBatteryDrawable(context, frameColor);
         mRLandscapeDrawable = new RLandscapeBatteryDrawable(context, frameColor);
         mLandscapeDrawable = new LandscapeBatteryDrawable(context, frameColor);
+        mLandscapeDrawableiOS15 = new LandscapeBatteryDrawableiOS15(context, frameColor);
+        mLandscapeDrawableiOS16 = new LandscapeBatteryDrawableiOS16(context, frameColor);
         atts.recycle();
 
         setupLayoutTransition();
@@ -610,7 +613,8 @@ public class BatteryMeterView extends LinearLayout implements DarkReceiver {
         boolean shouldShow =
                 (drawPercentOnly && (!drawPercentInside || isCharging()) ||
                 getBatteryStyle() == BATTERY_STYLE_TEXT);
-        shouldShow = shouldShow && !mBatteryStateUnknown;
+        shouldShow = shouldShow && !mBatteryStateUnknown 
+            && getBatteryStyle() != BATTERY_STYLE_LANDSCAPE_IOS16;
 
         if (shouldShow) {
             if (getBatteryDrawable() != null) {
@@ -760,6 +764,16 @@ public class BatteryMeterView extends LinearLayout implements DarkReceiver {
                         res.getDimensionPixelSize(R.dimen.status_bar_battery_icon_width_landscape),
                         res.getDimensionPixelSize(R.dimen.status_bar_battery_icon_height_landscape)
                 );
+            case BATTERY_STYLE_LANDSCAPE_IOS15:
+                return new Pair<>(
+                        res.getDimensionPixelSize(R.dimen.status_bar_battery_icon_width_landscape_ios15),
+                        res.getDimensionPixelSize(R.dimen.status_bar_battery_icon_height_landscape_ios15)
+                );
+            case BATTERY_STYLE_LANDSCAPE_IOS16:
+                return new Pair<>(
+                        res.getDimensionPixelSize(R.dimen.status_bar_battery_icon_width_landscape_ios16),
+                        res.getDimensionPixelSize(R.dimen.status_bar_battery_icon_height_landscape_ios16)
+                );
             case BATTERY_STYLE_PORTRAIT:
             default:
                 return new Pair<>(
@@ -784,6 +798,12 @@ public class BatteryMeterView extends LinearLayout implements DarkReceiver {
                 break;
             case BATTERY_STYLE_LANDSCAPE:
                 activeDrawable = mLandscapeDrawable;
+                break;
+            case BATTERY_STYLE_LANDSCAPE_IOS15:
+                activeDrawable = mLandscapeDrawableiOS15;
+                break;
+            case BATTERY_STYLE_LANDSCAPE_IOS16:
+                activeDrawable = mLandscapeDrawableiOS16;
                 break;
             case BATTERY_STYLE_TEXT:
                 mBatteryIconView.setVisibility(View.GONE);
