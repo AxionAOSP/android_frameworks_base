@@ -259,29 +259,37 @@ public class PropsHooksUtils {
         }
     }
 
-    private static void setPropValue(String key, Object value) {
+    private static void setPropValue(String key, Object newValue) {
         try {
             Field field = getBuildClassField(key);
             if (field == null) {
                 dlog("Field " + key + " not found in Build or Build.VERSION classes");
                 return;
             }
-            
-            field.setAccessible(true);
-            if (field.getType() == int.class) {
-                field.setInt(null, value instanceof Integer ? 
-                    (Integer) value : Integer.parseInt(value.toString()));
-            } else if (field.getType() == long.class) {
-                field.setLong(null, value instanceof Long ? 
-                    (Long) value : Long.parseLong(value.toString()));
-            } else {
-                field.set(null, value.toString());
+
+            Object currentValue = field.get(null);
+            if (isObjectEqual(currentValue, newValue)) {
+                return;
             }
-            field.setAccessible(false);
-            dlog("Set prop " + key + " to " + value);
+
+            if (field.getType() == int.class) {
+                field.setInt(null, newValue instanceof Integer ? 
+                    (Integer) newValue : Integer.parseInt(newValue.toString()));
+            } else if (field.getType() == long.class) {
+                field.setLong(null, newValue instanceof Long ? 
+                    (Long) newValue : Long.parseLong(newValue.toString()));
+            } else {
+                field.set(null, newValue.toString());
+            }
+            dlog("Set prop " + key + " to " + newValue);
         } catch (IllegalAccessException | IllegalArgumentException e) {
             Log.e(TAG, "Failed to set prop " + key, e);
         }
+    }
+
+    private static boolean isObjectEqual(Object oldValue, Object newValue) {
+        if (oldValue == null) return newValue == null;
+        return oldValue.toString().equals(newValue != null ? newValue.toString() : null);
     }
 
     private static Field getBuildClassField(String key) {
@@ -303,6 +311,7 @@ public class PropsHooksUtils {
             }
         }
         
+        field.setAccessible(true);
         fieldCache.put(key, field);
         return field;
     }
