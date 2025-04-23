@@ -166,6 +166,7 @@ import android.util.proto.ProtoOutputStream;
 import com.android.internal.annotations.CompositeRWLock;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.util.android.PinnerUtils;
 import com.android.server.ServiceThread;
 import com.android.server.am.PlatformCompatCache.CachedCompatChangeId;
 import com.android.server.wm.ActivityServiceConnectionsHolder;
@@ -1413,7 +1414,8 @@ public class OomAdjuster {
                         } else {
                             lastCachedGroupUid = lastCachedGroup = 0;
                         }
-                        if ((numCached - numCachedExtraGroup) > cachedProcessLimit) {
+                        if ((numCached - numCachedExtraGroup) > cachedProcessLimit 
+                            && !PinnerUtils.INSTANCE().isPinned(app.info.packageName)) {
                             app.killLocked("cached #" + numCached,
                                     "too many cached",
                                     ApplicationExitInfo.REASON_OTHER,
@@ -1425,7 +1427,8 @@ public class OomAdjuster {
                         break;
                     case PROCESS_STATE_CACHED_EMPTY:
                         if (numEmpty > mConstants.CUR_TRIM_EMPTY_PROCESSES
-                                && app.getLastActivityTime() < oldTime) {
+                                && app.getLastActivityTime() < oldTime
+                                && !PinnerUtils.INSTANCE().isPinned(app.info.packageName)) {
                             app.killLocked("empty for " + ((now
                                     - app.getLastActivityTime()) / 1000) + "s",
                                     "empty for too long",
@@ -1434,7 +1437,8 @@ public class OomAdjuster {
                                     true);
                         } else {
                             numEmpty++;
-                            if (numEmpty > emptyProcessLimit) {
+                            if (numEmpty > emptyProcessLimit 
+                                && !PinnerUtils.INSTANCE().isPinned(app.info.packageName)) {
                                 app.killLocked("empty #" + numEmpty,
                                         "too many empty",
                                         ApplicationExitInfo.REASON_OTHER,
@@ -1453,7 +1457,8 @@ public class OomAdjuster {
                 // TODO: b/319163103 - limit isolated/sandbox trimming to just the processes
                 //  evaluated in the current update.
                 if (app.isolated && psr.numberOfRunningServices() <= 0
-                        && app.getIsolatedEntryPoint() == null) {
+                        && app.getIsolatedEntryPoint() == null 
+                        && !PinnerUtils.INSTANCE().isPinned(app.info.packageName)) {
                     // If this is an isolated process, there are no services
                     // running in it, and it's not a special process with a
                     // custom entry point, then the process is no longer
@@ -1464,7 +1469,8 @@ public class OomAdjuster {
                     app.killLocked("isolated not needed", ApplicationExitInfo.REASON_OTHER,
                             ApplicationExitInfo.SUBREASON_ISOLATED_NOT_NEEDED, true);
                 } else if (app.isSdkSandbox && psr.numberOfRunningServices() <= 0
-                        && app.getActiveInstrumentation() == null) {
+                        && app.getActiveInstrumentation() == null 
+                        && !PinnerUtils.INSTANCE().isPinned(app.info.packageName)) {
                     // If this is an SDK sandbox process and there are no services running it, we
                     // aggressively kill the sandbox as we usually don't want to re-use the same
                     // sandbox again.
@@ -1505,7 +1511,8 @@ public class OomAdjuster {
                 && freeSwapPercent < lowSwapThresholdPercent    // Swap below threshold?
                 && lruCachedApp != null                         // If no cached app, let LMKD decide
                 // If swap is non-decreasing, give reclaim a chance to catch up
-                && freeSwapPercent < mLastFreeSwapPercent) {
+                && freeSwapPercent < mLastFreeSwapPercent
+                && !PinnerUtils.INSTANCE().isPinned(lruCachedApp.info.packageName)) {
             lruCachedApp.killLocked("swap low and too many cached",
                     ApplicationExitInfo.REASON_OTHER,
                     ApplicationExitInfo.SUBREASON_TOO_MANY_CACHED,
@@ -1944,8 +1951,15 @@ public class OomAdjuster {
         final int logUid = mService.mCurOomAdjUid;
 
         final ProcessServiceRecord psr = app.mServices;
+        
+        if (PinnerUtils.INSTANCE().isPinned(app.info.packageName)) {
+            state.setNoKillOnBgRestrictedAndIdle(true);
+            app.mOptRecord.setShouldNotFreeze(true,
+                    ProcessCachedOptimizerRecord.SHOULD_NOT_FREEZE_REASON_UID_ALLOWLISTED, mAdjSeq);
+        }
 
-        if (state.getMaxAdj() <= FOREGROUND_APP_ADJ) {
+        if (state.getMaxAdj() <= FOREGROUND_APP_ADJ 
+            || PinnerUtils.INSTANCE().isPinned(app.info.packageName)) {
             // The max adjustment doesn't allow this app to be anything
             // below foreground, so it is not worth doing work for it.
             if (DEBUG_OOM_ADJ_REASON || logUid == appUid) {
@@ -3581,7 +3595,8 @@ public class OomAdjuster {
         final int curSchedGroup = state.getCurrentSchedulingGroup();
         if (app.getWaitingToKill() != null && app.mReceivers.numberOfCurReceivers() == 0
                 && ActivityManager.isProcStateBackground(state.getCurProcState())
-                && !state.hasStartedServices()) {
+                && !state.hasStartedServices() 
+                && !PinnerUtils.INSTANCE().isPinned(app.info.packageName)) {
             app.killLocked(app.getWaitingToKill(), ApplicationExitInfo.REASON_USER_REQUESTED,
                     ApplicationExitInfo.SUBREASON_REMOVE_TASK, true);
             success = false;
@@ -3763,7 +3778,8 @@ public class OomAdjuster {
         final boolean curBoundByNonBgRestrictedApp = state.isCurBoundByNonBgRestrictedApp();
         if (curBoundByNonBgRestrictedApp != state.isSetBoundByNonBgRestrictedApp()) {
             state.setSetBoundByNonBgRestrictedApp(curBoundByNonBgRestrictedApp);
-            if (!curBoundByNonBgRestrictedApp && state.isBackgroundRestricted()) {
+            if (!curBoundByNonBgRestrictedApp && state.isBackgroundRestricted() 
+                && !PinnerUtils.INSTANCE().isPinned(app.info.packageName)) {
                 mService.mHandler.post(() -> {
                     synchronized (mService) {
                         mService.mServices.stopAllForegroundServicesLocked(
@@ -3807,7 +3823,11 @@ public class OomAdjuster {
             }
         }
         state.setSetCached(state.isCached());
-        state.setSetNoKillOnBgRestrictedAndIdle(state.shouldNotKillOnBgRestrictedAndIdle());
+        if (PinnerUtils.INSTANCE().isPinned(app.info.packageName)) {
+            state.setSetNoKillOnBgRestrictedAndIdle(true);
+        } else {
+            state.setSetNoKillOnBgRestrictedAndIdle(state.shouldNotKillOnBgRestrictedAndIdle());
+        }
         if (((oldProcState != state.getSetProcState()) || (oldOomAdj != state.getSetAdj()))
                 && mLogger.shouldLog(app.uid)) {
             mLogger.logProcStateChanged(app.uid, app.getPid(),

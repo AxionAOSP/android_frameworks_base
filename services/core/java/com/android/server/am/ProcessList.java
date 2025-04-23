@@ -136,6 +136,7 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.ProcessMap;
 import com.android.internal.os.Zygote;
+import com.android.internal.util.android.PinnerUtils;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.MemInfoReader;
 import com.android.server.AppStateTracker;
@@ -3443,7 +3444,8 @@ public final class ProcessList {
 
         if (!isolated && !isSdkSandbox
                 && (info.flags & PERSISTENT_MASK) == PERSISTENT_MASK
-                && (TextUtils.equals(proc, info.processName))) {
+                && (TextUtils.equals(proc, info.processName))
+                && PinnerUtils.INSTANCE().isPinned(r.info.packageName)) {
             // The system process is initialized to SCHED_GROUP_DEFAULT in init.rc.
             state.setCurrentSchedulingGroup(ProcessList.SCHED_GROUP_DEFAULT);
             state.setSetSchedGroup(ProcessList.SCHED_GROUP_DEFAULT);
@@ -5566,7 +5568,8 @@ public final class ProcessList {
         if (!mService.mConstants.mKillBgRestrictedAndCachedIdle
                 || app.isKilled() || app.getThread() == null || uidRec == null || !uidRec.isIdle()
                 || !app.isCached() || app.mState.shouldNotKillOnBgRestrictedAndIdle()
-                || !app.mState.isBackgroundRestricted() || lastCanKillTime == 0) {
+                || !app.mState.isBackgroundRestricted() || lastCanKillTime == 0
+                || PinnerUtils.INSTANCE().isPinned(app.info.packageName)) {
             return 0;
         }
         final long future = lastCanKillTime
