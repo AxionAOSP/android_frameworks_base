@@ -28,6 +28,7 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.view.SurfaceControlHdrLayerInfoListener;
@@ -99,6 +100,7 @@ public class HdrBrightnessModifier implements BrightnessStateModifier,
 
     private boolean mLowPowerMode = false;
     private final LowPowerModeSettingObserver mLowPowerModeSettingObserver;
+    private boolean mHdrDisplayEnabled = true;
 
     private @Nullable HdrBoostOverride mHdrBoostOverride = null;
     private Mode mMode = Mode.NO_HDR;
@@ -111,6 +113,7 @@ public class HdrBrightnessModifier implements BrightnessStateModifier,
 
     private boolean mHdrBrightnessEnabled = true;
     private float mHdrBrightnessBoostLevel = 1;
+    private int mHdrMaxBrightnessPercent = 100;
     private final HdrSettingsObserver mHdrSettingsObserver;
 
     HdrBrightnessModifier(Handler handler, Context context, DisplayManagerFlags flags,
@@ -195,6 +198,8 @@ public class HdrBrightnessModifier implements BrightnessStateModifier,
         pw.println("  mHdrSettingsObserver.mRegistered=" + mHdrSettingsObserver.mRegistered);
         pw.println("  mHdrBrightnessEnabled=" + mHdrBrightnessEnabled);
         pw.println("  mHdrBrightnessBoostLevel=" + mHdrBrightnessBoostLevel);
+        pw.println("  mHdrMaxBrightnessPercent=" + mHdrMaxBrightnessPercent);
+        pw.println("  mHdrDisplayEnabled=" + mHdrDisplayEnabled);
         pw.println("  ratioScaleFactor=" + getRatioScaleFactor());
         pw.println("  mHdrBoostOverride=" + mHdrBoostOverride);
     }
@@ -243,9 +248,7 @@ public class HdrBrightnessModifier implements BrightnessStateModifier,
         } else {
             registerHdrListener(displayData.mDisplayToken);
             registerHdrBoostOverrideListener(displayData.getUniqueDisplayId());
-            if (mFlags.isHdrBrightnessSettingEnabled()) {
-                mHdrSettingsObserver.register();
-            }
+            mHdrSettingsObserver.register();
         }
         if (data == null || data.allowInLowPowerMode) {
             mLowPowerModeSettingObserver.unregister();
@@ -338,6 +341,10 @@ public class HdrBrightnessModifier implements BrightnessStateModifier,
         if (mHdrLayerSize == DEFAULT_HDR_LAYER_SIZE) {
             return Mode.NO_HDR;
         }
+        // hdr display is disabled by user
+        if (!mHdrDisplayEnabled) {
+            return Mode.NO_HDR;
+        }
         // low power mode and not allowed in low power mode
         if (!data.allowInLowPowerMode && mLowPowerMode) {
             return Mode.NO_HDR;
@@ -368,12 +375,18 @@ public class HdrBrightnessModifier implements BrightnessStateModifier,
 
     private float getMaxBrightness(Mode mode, float maxBrightness, HdrBrightnessData data) {
         if (mode == Mode.NBM_HDR) {
-            return Math.min(data.hbmTransitionPoint, maxBrightness);
+            float nbmBrightness = Math.min(data.hbmTransitionPoint, maxBrightness);
+            return getHdrBrightnessLimit(nbmBrightness);
         } else if (mode == Mode.HBM_HDR) {
-            return maxBrightness;
+            return getHdrBrightnessLimit(maxBrightness);
         } else {
             return PowerManager.BRIGHTNESS_MAX;
         }
+    }
+
+    private float getHdrBrightnessLimit(float hdrBrightness) {
+        int brightnessPercentLimit = Math.max(10, Math.min(mHdrMaxBrightnessPercent, 100));
+        return hdrBrightness * (brightnessPercentLimit / 100.0f);
     }
 
     // Called in DisplayControllerHandler
@@ -455,7 +468,6 @@ public class HdrBrightnessModifier implements BrightnessStateModifier,
             mRegisteredUniqueDisplayId = null;
             mHdrBoostOverride = null;
         }
-
     }
 
     private float getRatioScaleFactor() {
@@ -518,6 +530,9 @@ public class HdrBrightnessModifier implements BrightnessStateModifier,
                 Settings.Secure.HDR_BRIGHTNESS_ENABLED);
         private static final Uri HDR_BRIGHTNESS_BOOST_LEVEL_SETTING = Settings.Secure.getUriFor(
                 Settings.Secure.HDR_BRIGHTNESS_BOOST_LEVEL);
+        private static final Uri HDR_MAX_BRIGHTNESS_PERCENT_SETTING = Settings.Secure.getUriFor(
+                "hdr_max_brightness_percent");
+        private static final Uri HDR_DISPLAY_SETTING = Settings.Secure.getUriFor("hdr_display");
 
         boolean mRegistered;
 
@@ -531,6 +546,10 @@ public class HdrBrightnessModifier implements BrightnessStateModifier,
                 updateHdrBrightnessEnabled();
             } else if (HDR_BRIGHTNESS_BOOST_LEVEL_SETTING.equals(uri)) {
                 updateHdrBrightnessBoostLevel();
+            } else if (HDR_MAX_BRIGHTNESS_PERCENT_SETTING.equals(uri)) {
+                updateHdrMaxBrightnessPercent();
+            } else if (HDR_DISPLAY_SETTING.equals(uri)) {
+                updateHdrDisplayEnabled();
             }
         }
 
@@ -539,6 +558,8 @@ public class HdrBrightnessModifier implements BrightnessStateModifier,
                 mInjector.registerHdrSettingsObserver(this);
                 mHdrBrightnessEnabled = mInjector.isHdrBrightnessEnabled();
                 mHdrBrightnessBoostLevel = mInjector.getHdrBrightnessBoostLevel();
+                mHdrMaxBrightnessPercent = mInjector.getHdrMaxBrightnessPercent();
+                mHdrDisplayEnabled = mInjector.isHdrDisplayEnabled();
                 mRegistered = true;
             }
         }
@@ -548,6 +569,8 @@ public class HdrBrightnessModifier implements BrightnessStateModifier,
                 mInjector.unregisterHdrSettingObserver(this);
                 mHdrBrightnessEnabled = true;
                 mHdrBrightnessBoostLevel = 1;
+                mHdrMaxBrightnessPercent = 100;
+                mHdrDisplayEnabled = true;
                 mRegistered = false;
             }
         }
@@ -568,6 +591,27 @@ public class HdrBrightnessModifier implements BrightnessStateModifier,
             mHdrBrightnessBoostLevel = mInjector.getHdrBrightnessBoostLevel();
             // boost level changed from settings
             if (isNbmOrHbmHdr()) {
+                mTransitionRate = CUSTOM_ANIMATION_RATE_NOT_SET;
+                mClamperChangeListener.onChanged();
+            }
+        }
+
+        // Called in DisplayControllerHandler
+        private void updateHdrMaxBrightnessPercent() {
+            mHdrMaxBrightnessPercent = mInjector.getHdrMaxBrightnessPercent();
+            // max brightness percent changed from settings
+            if (isNbmOrHbmHdr()) {
+                mTransitionRate = CUSTOM_ANIMATION_RATE_NOT_SET;
+                mClamperChangeListener.onChanged();
+            }
+        }
+
+        // Called in DisplayControllerHandler
+        private void updateHdrDisplayEnabled() {
+            mHdrDisplayEnabled = mInjector.isHdrDisplayEnabled();
+            Mode newMode = recalculateMode(mHdrBrightnessData, mHdrBoostOverride);
+            if (newMode != mMode) {
+                mMode = newMode;
                 mTransitionRate = CUSTOM_ANIMATION_RATE_NOT_SET;
                 mClamperChangeListener.onChanged();
             }
@@ -622,6 +666,12 @@ public class HdrBrightnessModifier implements BrightnessStateModifier,
             mContext.getContentResolver().registerContentObserver(
                     HdrSettingsObserver.HDR_BRIGHTNESS_BOOST_LEVEL_SETTING, false, observer,
                     UserHandle.USER_CURRENT);
+            mContext.getContentResolver().registerContentObserver(
+                    HdrSettingsObserver.HDR_MAX_BRIGHTNESS_PERCENT_SETTING, false, observer,
+                    UserHandle.USER_CURRENT);
+            mContext.getContentResolver().registerContentObserver(
+                    HdrSettingsObserver.HDR_DISPLAY_SETTING, false, observer,
+                    UserHandle.USER_CURRENT);
         }
 
         void unregisterHdrSettingObserver(ContentObserver observer) {
@@ -643,6 +693,22 @@ public class HdrBrightnessModifier implements BrightnessStateModifier,
             return Settings.Secure.getFloatForUser(mContext.getContentResolver(),
                     Settings.Secure.HDR_BRIGHTNESS_BOOST_LEVEL, /* def= */ 1,
                     UserHandle.USER_CURRENT);
+        }
+
+        int getHdrMaxBrightnessPercent() {
+            return Settings.Secure.getIntForUser(mContext.getContentResolver(),
+                    "hdr_max_brightness_percent", 100, UserHandle.USER_CURRENT);
+        }
+
+        boolean isHdrDisplayEnabled() {
+            boolean hasHdrDisplay = SystemProperties.getBoolean("ro.surface_flinger.has_HDR_display", false);
+            int defaultValue = hasHdrDisplay ? 1 : 0;
+            return Settings.Secure.getIntForUser(
+                    mContext.getContentResolver(),
+                    "hdr_display",
+                    defaultValue,
+                    UserHandle.USER_CURRENT
+            ) != 0;
         }
     }
 }
