@@ -1274,7 +1274,8 @@ final class ProcessStateRecord {
 
     @GuardedBy("mService")
     void setNoKillOnBgRestrictedAndIdle(boolean shouldNotKill) {
-        mNoKillOnBgRestrictedAndIdle = shouldNotKill;
+        boolean isPinned = com.android.internal.util.android.PinnerUtils.INSTANCE().isPinned(mApp.info.packageName);
+        mNoKillOnBgRestrictedAndIdle = isPinned ? true : shouldNotKill;
     }
 
     @GuardedBy("mService")
@@ -1294,7 +1295,8 @@ final class ProcessStateRecord {
 
     @GuardedBy("mService")
     void setSetNoKillOnBgRestrictedAndIdle(boolean shouldNotKill) {
-        mSetNoKillOnBgRestrictedAndIdle = shouldNotKill;
+        boolean isPinned = com.android.internal.util.android.PinnerUtils.INSTANCE().isPinned(mApp.info.packageName);
+        mSetNoKillOnBgRestrictedAndIdle = isPinned ? true : shouldNotKill;
     }
 
     @GuardedBy("mService")
