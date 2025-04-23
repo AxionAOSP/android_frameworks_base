@@ -230,6 +230,7 @@ class RecentTasks {
             int x = (int) ev.getX();
             int y = (int) ev.getY();
             mService.mH.post(PooledLambda.obtainRunnable((nonArg) -> {
+                WindowManagerService.boostPriorityForLockedSection();
                 synchronized (mService.mGlobalLock) {
                     final RootWindowContainer rac = mService.mRootWindowContainer;
                     final DisplayContent dc = rac.getDisplayContent(displayId).mDisplayContent;
@@ -262,6 +263,7 @@ class RecentTasks {
                         mService.mH.postDelayed(mResetFreezeTaskListOnTimeoutRunnable, 500);
                     }
                 }
+                WindowManagerService.resetPriorityAfterLockedSection();
             }, null).recycleOnUse());
         }
     };
@@ -369,6 +371,7 @@ class RecentTasks {
      */
     @VisibleForTesting
     void resetFreezeTaskListReorderingOnTimeout() {
+        WindowManagerService.boostPriorityForLockedSection();
         synchronized (mService.mGlobalLock) {
             final Task focusedStack = mService.getTopDisplayFocusedRootTask();
             final Task topTask = focusedStack != null ? focusedStack.getTopMostTask() : null;
@@ -376,6 +379,7 @@ class RecentTasks {
             ProtoLog.i(WM_DEBUG_TASKS, "Resetting frozen recents task list reason=timeout");
             resetFreezeTaskListReordering(reorderToEndTask);
         }
+        WindowManagerService.resetPriorityAfterLockedSection();
     }
 
     @VisibleForTesting
@@ -518,12 +522,14 @@ class RecentTasks {
      */
     void loadRecentTasksIfNeeded(int userId) {
         AtomicBoolean userLoaded;
+        WindowManagerService.boostPriorityForLockedSection();
         synchronized (mService.mGlobalLock) {
             userLoaded = mUsersWithRecentsLoaded.get(userId);
             if (userLoaded == null) {
                 mUsersWithRecentsLoaded.append(userId, userLoaded = new AtomicBoolean());
             }
         }
+        WindowManagerService.resetPriorityAfterLockedSection();
         synchronized (userLoaded) {
             if (userLoaded.get()) {
                 // The recent tasks of the user are already loaded.
@@ -533,9 +539,11 @@ class RecentTasks {
             final SparseBooleanArray persistedTaskIds =
                     mTaskPersister.readPersistedTaskIdsFromFileForUser(userId);
             final TaskPersister.RecentTaskFiles taskFiles = TaskPersister.loadTasksForUser(userId);
+            WindowManagerService.boostPriorityForLockedSection();
             synchronized (mService.mGlobalLock) {
                 restoreRecentTasksLocked(userId, persistedTaskIds, taskFiles);
             }
+            WindowManagerService.resetPriorityAfterLockedSection();
             userLoaded.set(true);
         }
     }
@@ -661,9 +669,11 @@ class RecentTasks {
     }
 
     void flush() {
+        WindowManagerService.boostPriorityForLockedSection();
         synchronized (mService.mGlobalLock) {
             syncPersistentTaskIdsLocked();
         }
+        WindowManagerService.resetPriorityAfterLockedSection();
         mTaskPersister.flush();
     }
 
