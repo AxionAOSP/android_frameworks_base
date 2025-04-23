@@ -136,6 +136,7 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.ProcessMap;
 import com.android.internal.os.Zygote;
+import com.android.internal.util.android.PinnerUtils;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.MemInfoReader;
 import com.android.server.AppStateTracker;
@@ -5574,7 +5575,8 @@ public final class ProcessList {
         if (!mService.mConstants.mKillBgRestrictedAndCachedIdle
                 || app.isKilled() || app.getThread() == null || uidRec == null || !uidRec.isIdle()
                 || !app.isCached() || app.mState.shouldNotKillOnBgRestrictedAndIdle()
-                || !app.mState.isBackgroundRestricted() || lastCanKillTime == 0) {
+                || !app.mState.isBackgroundRestricted() || lastCanKillTime == 0
+                || PinnerUtils.INSTANCE().isPinned(app.info.packageName)) {
             return 0;
         }
         final long future = lastCanKillTime

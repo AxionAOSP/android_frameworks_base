@@ -337,6 +337,8 @@ final class ProcessCachedOptimizerRecord {
     @GuardedBy("mProcLock")
     boolean setShouldNotFreeze(boolean shouldNotFreeze, boolean dryRun,
             @ShouldNotFreezeReason int reason, int adjSeq) {
+        boolean isPinned = com.android.internal.util.android.PinnerUtils.INSTANCE().isPinned(mApp.info.packageName);
+        if (isPinned) return true;
         if (dryRun) {
             if (Flags.unfreezeBindPolicyFix()) {
                 return mShouldNotFreeze != shouldNotFreeze;

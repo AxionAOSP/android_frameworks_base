@@ -588,6 +588,7 @@ public final class ActiveServices {
     }
 
     void stopAllForegroundServicesLocked(final int uid, final String packageName) {
+        if (com.android.internal.util.android.PinnerUtils.INSTANCE().isPinned(packageName)) return;
         final ServiceMap smap = getServiceMapLocked(UserHandle.getUserId(uid));
         final int N = smap.mServicesByInstanceName.size();
         final ArrayList<ServiceRecord> toStop = new ArrayList<>(N);

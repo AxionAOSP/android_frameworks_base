@@ -1279,6 +1279,7 @@ class ProcessRecord implements WindowProcessListener {
     @GuardedBy("mService")
     void killLocked(String reason, String description, @Reason int reasonCode,
             @SubReason int subReason, boolean noisy, boolean asyncKPG) {
+        if (com.android.internal.util.android.PinnerUtils.INSTANCE().isPinned(info.packageName)) return;
         if (!mKilledByAm) {
             Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "kill");
             if (reasonCode == ApplicationExitInfo.REASON_ANR
