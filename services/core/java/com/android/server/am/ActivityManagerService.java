@@ -19675,7 +19675,7 @@ public class ActivityManagerService extends IActivityManager.Stub
             if (proc != null) {
                 mOomAdjuster.mCachedAppOptimizer.compactApp(
                         proc,
-                        CachedAppOptimizer.CompactProfile.ANON,
+                        CachedAppOptimizer.CompactProfile.SOME,
                         CachedAppOptimizer.CompactSource.SHELL,
                         true);
             }
