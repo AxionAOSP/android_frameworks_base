@@ -939,6 +939,7 @@ public class NotificationStackScrollLayout
     void initView(Context context, NotificationSwipeHelper swipeHelper,
                   NotificationStackSizeCalculator notificationStackSizeCalculator) {
         mScroller = new OverScroller(getContext());
+        mScroller.setFriction(0.006f);
         mSwipeHelper = swipeHelper;
         mNotificationStackSizeCalculator = notificationStackSizeCalculator;
 
