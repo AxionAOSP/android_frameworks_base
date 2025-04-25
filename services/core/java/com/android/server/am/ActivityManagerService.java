@@ -19670,6 +19670,7 @@ public class ActivityManagerService extends IActivityManager.Stub
 
     @Override
     public void loadProcessMemory(String packageName) {
+        /*
         synchronized (mProcLock) {
             ProcessRecord proc = getProcessRecord(packageName);
             if (proc != null) {
@@ -19680,6 +19681,7 @@ public class ActivityManagerService extends IActivityManager.Stub
                         true);
             }
         }
+        */
     }
 
     public ProcessRecord getProcessRecord(String str) {
