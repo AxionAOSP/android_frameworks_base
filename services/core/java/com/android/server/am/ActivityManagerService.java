@@ -19670,18 +19670,16 @@ public class ActivityManagerService extends IActivityManager.Stub
 
     @Override
     public void loadProcessMemory(String packageName) {
-        /*
+        // MADV_POPULATE is only available on 5.14 +
+        if (!SystemProperties.getBoolean("ro.sys.axion_is_modern_kernel", true)) {
+            return;
+        }
         synchronized (mProcLock) {
             ProcessRecord proc = getProcessRecord(packageName);
             if (proc != null) {
-                mOomAdjuster.mCachedAppOptimizer.compactApp(
-                        proc,
-                        CachedAppOptimizer.CompactProfile.SOME,
-                        CachedAppOptimizer.CompactSource.SHELL,
-                        true);
+                mOomAdjuster.mCachedAppOptimizer.populateAppMemory(proc.getPid(), false);
             }
         }
-        */
     }
 
     public ProcessRecord getProcessRecord(String str) {
