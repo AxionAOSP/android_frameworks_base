@@ -1367,7 +1367,7 @@ public class OomAdjuster {
         int numEmpty = 0;
         int numTrimming = 0;
 
-        boolean proactiveKillsEnabled = android.os.SystemProperties.getBoolean("ro.sys.axion_is_modern_kernel", true);
+        boolean proactiveKillsEnabled = mService.mIsModernKernel;
         double lowSwapThresholdPercent = mConstants.LOW_SWAP_THRESHOLD_PERCENT;
         double freeSwapPercent =  proactiveKillsEnabled ? getFreeSwapPercent() : 1.00;
         ProcessRecord lruCachedApp = null;
