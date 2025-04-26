@@ -731,6 +731,8 @@ public class ActivityManagerService extends IActivityManager.Stub
     TraceErrorLogger mTraceErrorLogger;
 
     private volatile int mDeviceOwnerUid = INVALID_UID;
+    
+    final boolean mIsModernKernel = SystemProperties.getBoolean("ro.sys.axion_is_modern_kernel", true);
 
     /**
      * Map userId to its companion app uids.
@@ -19674,7 +19676,7 @@ public class ActivityManagerService extends IActivityManager.Stub
             ProcessRecord proc = getProcessRecord(packageName);
             if (proc != null) {
                 // MADV_POPULATE is only available on 5.14 +
-                if (SystemProperties.getBoolean("ro.sys.axion_is_modern_kernel", true)) {
+                if (mIsModernKernel) {
                     mOomAdjuster.mCachedAppOptimizer.populateAppMemory(proc.getPid(), false);
                 } else {
                     mOomAdjuster.mCachedAppOptimizer.compactApp(
