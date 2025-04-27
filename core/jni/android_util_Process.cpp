@@ -258,30 +258,36 @@ void android_os_Process_setThreadAffinity(JNIEnv* env, jobject clazz, int tid, j
     parseCpusets(android::base::GetProperty("persist.sys.axion_cpu_small", "0,1,2,3"), small_cores);
     parseCpusets(android::base::GetProperty("persist.sys.axion_cpu_big", "4,5,6,7"), big_cores);
 
+    const char* group_name = nullptr;
+
     if (grp == 1) {
         for (int core : small_cores) {
             CPU_SET(core, &target_cpu_set);
         }
+        group_name = "small cores";
     } 
     else if (grp == 0) {
         for (int core : big_cores) {
             CPU_SET(core, &target_cpu_set);
         }
+        group_name = "big cores";
     } 
     else if (grp == 2) {
         int max_cpus = sysconf(_SC_NPROCESSORS_ONLN);
         for (int i = 0; i < max_cpus; i++) {
             CPU_SET(i, &target_cpu_set);
         }
+        group_name = "all cores";
     } 
     else {
+        ALOGV("Invalid group %d for thread %d", grp, tid);
         return;
     }
 
     if (sched_setaffinity(tid, sizeof(cpu_set_t), &target_cpu_set) == -1) {
-        ALOGI("Failed to set CPU affinity for thread %d: %s", tid, strerror(errno));
+        ALOGV("Failed to set CPU affinity for thread %d to %s: %s", tid, group_name, strerror(errno));
     } else {
-        ALOGI("Successfully set affinity for thread %d", tid);
+        ALOGV("Successfully set affinity for thread %d to %s", tid, group_name);
     }
 }
 
