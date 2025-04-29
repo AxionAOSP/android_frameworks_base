@@ -7162,8 +7162,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         @Override
         public void run() {
             releaseMemoryAtScreenOn();
-            loadProcessMemory("com.android.systemui");
-            loadProcessMemory("com.android.launcher3");
         }
     };
     
@@ -8845,16 +8843,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         if (lastMemoryReleaseTime == 0L || currentTime - lastMemoryReleaseTime > MEMORY_RELEASE_INTERVAL_MS) {
             try {
                 ActivityManager.getService().releaseMemory(900, 20, false, false);
+                ActivityManager.getService().loadProcessMemory("com.android.systemui");
+                ActivityManager.getService().loadProcessMemory("com.android.launcher3");
                 lastMemoryReleaseTime = currentTime;
             } catch (RemoteException e) {
             }
-        }
-    }
-
-    private void loadProcessMemory(String packageName) {
-        try {
-            ActivityManager.getService().loadProcessMemory(packageName);
-        } catch (RemoteException e) {
         }
     }
 }
