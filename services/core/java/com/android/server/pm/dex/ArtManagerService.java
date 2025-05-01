@@ -81,7 +81,7 @@ import java.util.Objects;
  */
 public class ArtManagerService extends android.content.pm.dex.IArtManager.Stub {
     private static final String TAG = "ArtManagerService";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DEBUG = false;
 
     // Package name used to create the profile directory layout when
     // taking a snapshot of the boot image profile.
@@ -288,7 +288,7 @@ public class ArtManagerService extends android.content.pm.dex.IArtManager.Stub {
                 boolean profileBootClassPath = SystemProperties.getBoolean(
                         "persist.device_config.runtime_native_boot.profilebootclasspath",
                         SystemProperties.getBoolean("dalvik.vm.profilebootclasspath", false));
-                return (Build.IS_USERDEBUG || Build.IS_ENG) && profileBootClassPath;
+                return (Build.IS_ENG) && profileBootClassPath;
             default:
                 throw new IllegalArgumentException("Invalid profile type:" + profileType);
         }
