@@ -544,7 +544,7 @@ public final class BinderProxy implements IBinder {
             mWarnOnBlocking = false;
             warnOnBlocking = false;
 
-            if (Build.IS_USERDEBUG || Build.IS_ENG) {
+            if (Build.IS_ENG) {
                 // Log this as a WTF on userdebug and eng builds.
                 Log.wtf(Binder.TAG,
                         "Outgoing transactions from this process must be FLAG_ONEWAY",
