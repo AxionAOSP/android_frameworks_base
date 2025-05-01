@@ -337,6 +337,8 @@ import java.util.concurrent.TimeUnit;
 public final class SystemServer implements Dumpable {
 
     private static final String TAG = "SystemServer";
+    
+    private static final boolean DEBUG = false;
 
     private static final long SLOW_DISPATCH_THRESHOLD_MS = 100;
     private static final long SLOW_DELIVERY_THRESHOLD_MS = 200;
@@ -983,7 +985,7 @@ public final class SystemServer implements Dumpable {
             }
 
             // Attach JVMTI agent if this is a debuggable build and the system property is set.
-            if (Build.IS_DEBUGGABLE) {
+            if (DEBUG) {
                 // Property is of the form "library_path=parameters".
                 String jvmtiAgent = SystemProperties.get("persist.sys.dalvik.jvmtiagent");
                 if (!jvmtiAgent.isEmpty()) {
@@ -1505,7 +1507,7 @@ public final class SystemServer implements Dumpable {
 
         // TODO(b/277600174): Start CpuMonitorService on all builds and not just on debuggable
         // builds once the Android JobScheduler starts using this service.
-        if (Build.IS_DEBUGGABLE || Build.IS_ENG) {
+        if (DEBUG || Build.IS_ENG) {
           // Service for CPU monitor.
           t.traceBegin("CpuMonitorService");
           mSystemServiceManager.startService(CpuMonitorService.class);
@@ -1560,7 +1562,7 @@ public final class SystemServer implements Dumpable {
 
         if (!Flags.recoverabilityDetection()) {
             // For debugging RescueParty
-            if (Build.IS_DEBUGGABLE
+            if (DEBUG
                     && SystemProperties.getBoolean("debug.crash_system", false)) {
                 throw new RuntimeException();
             }
@@ -1795,7 +1797,7 @@ public final class SystemServer implements Dumpable {
             mSystemServiceManager.startService(PinnerService.class);
             t.traceEnd();
 
-            if (Build.IS_DEBUGGABLE && ProfcollectForwardingService.enabled()) {
+            if (DEBUG && ProfcollectForwardingService.enabled()) {
                 t.traceBegin("ProfcollectForwardingService");
                 mSystemServiceManager.startService(ProfcollectForwardingService.class);
                 t.traceEnd();
@@ -2844,7 +2846,7 @@ public final class SystemServer implements Dumpable {
             mSystemServiceManager.startService(WEAR_DISPLAY_SERVICE_CLASS);
             t.traceEnd();
 
-            if (Build.IS_DEBUGGABLE) {
+            if (DEBUG) {
                 t.traceBegin("StartWearDebugService");
                 mSystemServiceManager.startService(WEAR_DEBUG_SERVICE_CLASS);
                 t.traceEnd();
@@ -3550,7 +3552,7 @@ public final class SystemServer implements Dumpable {
     private void startApexServices(@NonNull TimingsTraceAndSlog t) {
         if (Flags.recoverabilityDetection()) {
             // For debugging RescueParty
-            if (Build.IS_DEBUGGABLE
+            if (DEBUG
                     && SystemProperties.getBoolean("debug.crash_system", false)) {
                 throw new RuntimeException();
             }
