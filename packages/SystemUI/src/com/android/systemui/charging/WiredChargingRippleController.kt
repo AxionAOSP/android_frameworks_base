@@ -35,6 +35,7 @@ import com.android.systemui.res.R
 import com.android.systemui.statusbar.commandline.Command
 import com.android.systemui.statusbar.commandline.CommandRegistry
 import com.android.systemui.statusbar.policy.BatteryController
+import com.android.systemui.statusbar.policy.KeyguardStateController
 import com.android.systemui.util.time.SystemClock
 import java.io.PrintWriter
 import javax.inject.Inject
@@ -57,7 +58,8 @@ class WiredChargingRippleController @Inject constructor(
     private val windowManager: WindowManager,
     private val viewCaptureAwareWindowManager: ViewCaptureAwareWindowManager,
     private val systemClock: SystemClock,
-    private val uiEventLogger: UiEventLogger
+    private val uiEventLogger: UiEventLogger,
+    private val keyguardStateController: KeyguardStateController
 ) {
     private var pluggedIn: Boolean = false
     private val rippleEnabled: Boolean = featureFlags.isEnabled(Flags.CHARGING_RIPPLE) &&
@@ -83,6 +85,13 @@ class WiredChargingRippleController @Inject constructor(
 
     @VisibleForTesting
     var rippleView: AXRippleView = AXRippleView(context, attrs = null)
+
+    private val keyguardStateCallback =
+        object : KeyguardStateController.Callback {
+            override fun onKeyguardGoingAwayChanged() {
+                startRipple()
+            }
+        }
 
     init {
         pluggedIn = batteryController.isPluggedIn
@@ -110,6 +119,7 @@ class WiredChargingRippleController @Inject constructor(
             }
         }
         batteryController.addCallback(batteryStateChangeCallback)
+        keyguardStateController.addCallback(keyguardStateCallback)
     }
 
     // Lazily debounce ripple to avoid triggering ripple constantly (e.g. from flaky chargers).
