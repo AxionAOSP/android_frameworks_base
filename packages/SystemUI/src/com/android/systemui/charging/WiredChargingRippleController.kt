@@ -20,6 +20,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.SystemProperties
+import android.os.UserHandle
 import android.view.Surface
 import android.view.View
 import android.view.WindowManager
@@ -36,6 +37,7 @@ import com.android.systemui.statusbar.commandline.Command
 import com.android.systemui.statusbar.commandline.CommandRegistry
 import com.android.systemui.statusbar.policy.BatteryController
 import com.android.systemui.statusbar.policy.KeyguardStateController
+import com.android.systemui.util.settings.SystemSettings
 import com.android.systemui.util.time.SystemClock
 import java.io.PrintWriter
 import javax.inject.Inject
@@ -59,7 +61,8 @@ class WiredChargingRippleController @Inject constructor(
     private val viewCaptureAwareWindowManager: ViewCaptureAwareWindowManager,
     private val systemClock: SystemClock,
     private val uiEventLogger: UiEventLogger,
-    private val keyguardStateController: KeyguardStateController
+    private val keyguardStateController: KeyguardStateController,
+    private val systemSettings: SystemSettings
 ) {
     private var pluggedIn: Boolean = false
     private val rippleEnabled: Boolean = featureFlags.isEnabled(Flags.CHARGING_RIPPLE) &&
@@ -89,7 +92,13 @@ class WiredChargingRippleController @Inject constructor(
     private val keyguardStateCallback =
         object : KeyguardStateController.Callback {
             override fun onKeyguardGoingAwayChanged() {
-                startRipple()
+                val isRippleEnabled = systemSettings.getIntForUser(
+                    "enable_ripple_unlock",
+                     1,
+                      UserHandle.USER_CURRENT) == 1
+                if (isRippleEnabled) {
+                    startRipple()
+                }
             }
         }
 
