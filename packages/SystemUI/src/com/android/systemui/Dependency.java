@@ -30,6 +30,7 @@ import com.android.systemui.broadcast.BroadcastDispatcher;
 import com.android.systemui.common.domain.interactor.SysUIStateDisplaysInteractor;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Background;
+import com.android.systemui.doze.DozeScreenStateEx;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.flags.FeatureFlags;
 import com.android.systemui.fragments.FragmentService;
@@ -196,7 +197,6 @@ public class Dependency {
         mProviders.put(SysUIStateDisplaysInteractor.class, mSysUIStateDisplaysInteractor::get);
         mProviders.put(
                 StatusBarWindowControllerStore.class, mStatusBarWindowControllerStoreLazy::get);
-
         Dependency.setInstance(this);
     }
 

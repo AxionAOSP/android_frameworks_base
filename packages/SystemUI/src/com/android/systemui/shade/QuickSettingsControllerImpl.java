@@ -2551,4 +2551,8 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             view.post(() -> view.onAppLockerUpdate());
         }
     }
+    
+    public boolean isVisible() {
+        return mVisible;
+    }
 }
