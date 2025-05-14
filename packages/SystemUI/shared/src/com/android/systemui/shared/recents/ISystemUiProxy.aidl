@@ -184,7 +184,7 @@ interface ISystemUiProxy {
      * Updates contextual education stats when target gesture type is triggered.
      */
     oneway void updateContextualEduStats(boolean isTrackpadGesture, String gestureType) = 58;
-
+    
     /**
      * Sent after layout is performed for the "recents" button and it is visible on screen.
      */
@@ -195,5 +195,7 @@ interface ISystemUiProxy {
      */
     oneway void onKeyEvent(int keycode, int displayId) = 60;
 
-    // Next id = 61
+    oneway void notifyGoingToSleepByDoubleClick(int x, int y) = 61;
+    
+    // Next id = 62
 }

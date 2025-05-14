@@ -18,6 +18,7 @@ package com.android.systemui.settings
 
 import android.hardware.display.DisplayManager
 import android.hardware.display.DisplayManager.PRIVATE_EVENT_TYPE_DISPLAY_BRIGHTNESS
+import android.hardware.display.DisplayManager.PRIVATE_EVENT_TYPE_DISPLAY_COMMITTED_STATE_CHANGED
 import android.os.Handler
 import android.view.Display
 import androidx.annotation.GuardedBy
@@ -42,6 +43,10 @@ internal constructor(
     private val displayCallbacks: MutableList<DisplayTrackerDataItem> = ArrayList()
     @GuardedBy("brightnessCallbacks")
     private val brightnessCallbacks: MutableList<DisplayTrackerDataItem> = ArrayList()
+    @GuardedBy("committedStateCallbacks")
+    private val committedStateCallbacks: MutableList<DisplayTrackerDataItem> = ArrayList()
+    
+    private var curCommittedState = Display.STATE_UNKNOWN
 
     @VisibleForTesting
     val displayChangedListener: DisplayManager.DisplayListener =
@@ -85,6 +90,22 @@ internal constructor(
             }
         }
 
+    @VisibleForTesting
+    val displayCommitedStateChangedListener: DisplayManager.DisplayListener =
+        object : DisplayManager.DisplayListener {
+            override fun onDisplayAdded(displayId: Int) {
+            }
+
+            override fun onDisplayRemoved(displayId: Int) {
+            }
+
+            override fun onDisplayChanged(displayId: Int) {
+                curCommittedState = displayManager.getDisplay(defaultDisplayId).getCommittedState()
+                val list = synchronized(committedStateCallbacks) { committedStateCallbacks.toList() }
+                onDisplayChanged(displayId, list)
+            }
+        }
+
     override fun addDisplayChangeCallback(callback: DisplayTracker.Callback, executor: Executor) {
         synchronized(displayCallbacks) {
             if (displayCallbacks.isEmpty()) {
@@ -111,6 +132,23 @@ internal constructor(
         }
     }
 
+    override fun addCommittedStateChangeCallback(
+        callback: DisplayTracker.Callback,
+        executor: Executor,
+    ) {
+        synchronized(committedStateCallbacks) {
+            if (committedStateCallbacks.isEmpty()) {
+                displayManager.registerDisplayListener(
+                    displayCommitedStateChangedListener,
+                    backgroundHandler,
+                    /* eventFlags */ 0,
+                    PRIVATE_EVENT_TYPE_DISPLAY_COMMITTED_STATE_CHANGED,
+                )
+            }
+            committedStateCallbacks.add(DisplayTrackerDataItem(WeakReference(callback), executor))
+        }
+    }
+
     override fun removeCallback(callback: DisplayTracker.Callback) {
         synchronized(displayCallbacks) {
             val changed = displayCallbacks.removeIf { it.sameOrEmpty(callback) }
@@ -125,10 +163,21 @@ internal constructor(
                 displayManager.unregisterDisplayListener(displayBrightnessChangedListener)
             }
         }
+        
+        synchronized(committedStateCallbacks) {
+            val changed = committedStateCallbacks.removeIf { it.sameOrEmpty(callback) }
+            if (changed && committedStateCallbacks.isEmpty()) {
+                displayManager.unregisterDisplayListener(displayCommitedStateChangedListener)
+            }
+        }
     }
 
     override fun getDisplay(displayId: Int): Display {
         return displayManager.getDisplay(displayId)
+    }
+
+    override fun getDefaultDisplayCommittedState(): Int {
+        return curCommittedState
     }
 
     @WorkerThread

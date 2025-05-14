@@ -34,8 +34,10 @@ import com.android.systemui.statusbar.notification.AnimatableProperty
 import com.android.systemui.statusbar.notification.PropertyAnimator
 import com.android.systemui.statusbar.notification.stack.AnimationProperties
 import com.android.systemui.statusbar.notification.stack.StackStateAnimator
+import com.android.systemui.statusbar.policy.KeyguardStateController
 import com.android.systemui.util.NTBoosterController
 import com.android.systemui.util.settings.GlobalSettings
+import com.android.systemui.util.ScreenAnimationController
 import dagger.Lazy
 import javax.inject.Inject
 
@@ -63,6 +65,7 @@ constructor(
     private val wakefulnessLifecycle: WakefulnessLifecycle,
     private val statusBarStateControllerImpl: StatusBarStateControllerImpl,
     private val keyguardViewMediatorLazy: Lazy<KeyguardViewMediator>,
+    private val keyguardStateController: KeyguardStateController,
     private val dozeParameters: Lazy<DozeParameters>,
     private val globalSettings: GlobalSettings,
     private val notifShadeWindowControllerLazy: Lazy<NotificationShadeWindowController>,
@@ -84,7 +87,11 @@ constructor(
 
     private var animatorDurationScale = 1f
     private var shouldAnimateInKeyguard = false
-    private var lightRevealAnimationPlaying = false
+    private var lightRevealAnimationPlaying: Boolean = false
+        set(value) {
+            field = value
+            UnlockedScreenOffAnimationControllerExt.isAnimationPlaying = value
+        }
 
     /**
      * The result of our decision whether to play the screen off animation in
@@ -99,9 +106,7 @@ constructor(
             interpolator = Interpolators.LINEAR
             addUpdateListener {
                 if (ambientAod()) return@addUpdateListener
-                if (lightRevealScrim.revealEffect !is CircleReveal) {
-                    lightRevealScrim.revealAmount = it.animatedValue as Float
-                }
+                lightRevealScrim.revealAmount = it.animatedValue as Float
                 if (
                     lightRevealScrim.isScrimAlmostOccludes &&
                         interactionJankMonitor.isInstrumenting(CUJ_SCREEN_OFF)
@@ -115,16 +120,36 @@ constructor(
                 object : AnimatorListenerAdapter() {
                     override fun onAnimationCancel(animation: Animator) {
                         if (ambientAod()) return
-                        if (lightRevealScrim.revealEffect !is CircleReveal) {
+                        lightRevealScrim.revealAmount = 1f
+                        if (lightRevealScrim.isScrimAlmostOccludes) {
+                            lightRevealScrim.revealAmount = 0.0f
+                        } else {
                             lightRevealScrim.revealAmount = 1f
                         }
                         NTBoosterController.get().releaseUnlockedScreenAnimationOffBoost()
+                        centralSurfaces.unlockedScreenOffAnimationCancel()
+                        UnlockedScreenOffAnimationControllerExt.onAnimationCancel()
                     }
 
                     override fun onAnimationEnd(animation: Animator) {
                         lightRevealAnimationPlaying = false
                         interactionJankMonitor.end(CUJ_SCREEN_OFF)
                         NTBoosterController.get().releaseUnlockedScreenAnimationOffBoost()
+                        val wakefulness = wakefulnessLifecycle.getWakefulness()
+                        if (ScreenAnimationController.INSTANCE().shouldPlayAnimation() 
+                            && (wakefulness == WakefulnessLifecycle.WAKEFULNESS_WAKING 
+                                || wakefulness == WakefulnessLifecycle.WAKEFULNESS_AWAKE)) {
+                            centralSurfaces.updateIsKeyguard()
+                        }
+                        if (powerManager.isInteractive(Display.DEFAULT_DISPLAY)) {
+                            if (lightRevealScrim.revealAmount == 1.0f) {
+                                return
+                            }
+                            if (keyguardStateController.isShowing()) {
+                                return
+                            }
+                            lightRevealScrim.revealAmount = 1.0f
+                        }
                     }
 
                     override fun onAnimationStart(animation: Animator) {
@@ -132,6 +157,7 @@ constructor(
                             notifShadeWindowControllerLazy.get().windowRootView,
                             CUJ_SCREEN_OFF,
                         )
+                        UnlockedScreenOffAnimationControllerExt.onAnimationStart()
                     }
                 }
             )
@@ -259,8 +285,12 @@ constructor(
 
         shouldAnimateInKeyguard = false
         DejankUtils.removeCallbacks(startLightRevealCallback)
+        if (!lightRevealAnimator.isStarted() && lightRevealAnimationPlaying) {
+            lightRevealAnimationPlaying = false
+        }
         lightRevealAnimator.cancel()
         handler.removeCallbacksAndMessages(null)
+        UnlockedScreenOffAnimationControllerExt.onAnimationEnd()
     }
 
     override fun onFinishedWakingUp() {
@@ -282,7 +312,11 @@ constructor(
         if (shouldPlayUnlockedScreenOffAnimation()) {
             decidedToAnimateGoingToSleep = true
 
+            lightRevealAnimationPlaying = true
+
             shouldAnimateInKeyguard = true
+
+            lightRevealAnimator.setDuration(500L)
 
             // Start the animation on the next frame. startAnimation() is called after
             // PhoneWindowManager makes a binder call to System UI on
@@ -306,6 +340,7 @@ constructor(
                         // #animateInKeyguard.
                         shadeLockscreenInteractorLazy.get().showAodUi()
                     }
+                    UnlockedScreenOffAnimationControllerExt.onAnimationEnd()
                 },
                 (ANIMATE_IN_KEYGUARD_DELAY * animatorDurationScale).toLong(),
             )
