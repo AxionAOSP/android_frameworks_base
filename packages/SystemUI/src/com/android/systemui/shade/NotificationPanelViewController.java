@@ -5421,5 +5421,14 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
             return super.performAccessibilityAction(host, action, args);
         }
     }
+    
+    public boolean isPanelFullyCollapsed() {
+        int state = mBarState;
+        if (state == StatusBarState.SHADE_LOCKED 
+            || state == StatusBarState.KEYGUARD) {
+            return mQsController.isVisible();
+        }
+        return mExpandedFraction <= 0.0f;
+    }
 }
 
