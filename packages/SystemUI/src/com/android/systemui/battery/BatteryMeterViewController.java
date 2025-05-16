@@ -112,6 +112,11 @@ public class BatteryMeterViewController extends ViewController<BatteryMeterView>
                 }
 
                 @Override
+                public void onBatteryAlertStateChanged(boolean isAlert) {
+                    mView.onBatteryAlertStateChanged(isAlert);
+                }
+
+                @Override
                 public void dump(@NonNull PrintWriter pw, @NonNull String[] args) {
                     pw.print(super.toString());
                     pw.println(" location=" + mLocation);
