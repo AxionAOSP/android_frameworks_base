@@ -8875,8 +8875,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         if (lastMemoryReleaseTime == 0L || currentTime - lastMemoryReleaseTime > MEMORY_RELEASE_INTERVAL_MS) {
             try {
                 ActivityManager.getService().releaseMemory(900, 20, false, false);
-                ActivityManager.getService().loadProcessMemory("com.android.systemui");
-                ActivityManager.getService().loadProcessMemory("com.android.launcher3");
                 lastMemoryReleaseTime = currentTime;
             } catch (RemoteException e) {
             }

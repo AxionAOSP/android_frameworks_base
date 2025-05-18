@@ -15,7 +15,6 @@
  */
 package com.android.server.am;
 
-import android.app.ActivityManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.SystemProperties;
