@@ -19671,25 +19671,6 @@ public class ActivityManagerService extends IActivityManager.Stub
         return mActivityTaskManager.shouldForceLongScreen(packageName);
     }
 
-    @Override
-    public void loadProcessMemory(String packageName) {
-        synchronized (mProcLock) {
-            ProcessRecord proc = getProcessRecord(packageName);
-            if (proc != null) {
-                // MADV_POPULATE is only available on 5.14 +
-                if (mIsModernKernel) {
-                    mOomAdjuster.mCachedAppOptimizer.populateAppMemory(proc.getPid(), false);
-                } else {
-                    mOomAdjuster.mCachedAppOptimizer.compactApp(
-                            proc,
-                            CachedAppOptimizer.CompactProfile.SOME,
-                            CachedAppOptimizer.CompactSource.SHELL,
-                            true);
-                }
-            }
-        }
-    }
-
     public ProcessRecord getProcessRecord(String str) {
         ProcessRecord processRecordLocked = null;
         synchronized (mProcLock) {
