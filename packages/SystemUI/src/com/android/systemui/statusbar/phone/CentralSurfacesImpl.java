@@ -2569,15 +2569,25 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, Medi
         final boolean sleepingFromApplication = !wakingUp 
                 && lastSleepReason
                 == PowerManager.GO_TO_SLEEP_REASON_APPLICATION;
-        if (wakingUpFromPowerButton || sleepingFromPowerButton || sleepingFromApplication) {
+        final CircleReveal tapLightReveal = getTapLightRevealEffect();
+        if (wakingUpFromPowerButton || sleepingFromPowerButton) {
             mLightRevealScrim.setRevealEffect(mPowerButtonReveal);
+        } else if (sleepingFromApplication) {
+            Point tapPos = TapPositionUtil.INSTANCE().getTapPos();
+            mLightRevealScrim.setRevealEffect(
+                tapPos == null 
+                ? mPowerButtonReveal
+                : new PowerButtonReveal(tapPos.y));
         } else if (!wakingUp) {
             mLightRevealScrim.setRevealEffect(LiftReveal.INSTANCE);
             if (lastSleepReason == PowerManager.GO_TO_SLEEP_REASON_SLEEP_BUTTON) {
                 mIsPressSleepButton = true;
             }
         } else if (lastWakeReason == PowerManager.WAKE_REASON_TAP) {
-            mLightRevealScrim.setRevealEffect(getTapLightRevealEffect(true));
+            mLightRevealScrim.setRevealEffect(
+                tapLightReveal == null 
+                ? mPowerButtonReveal
+                : tapLightReveal);
         } else if (lastWakeReason == PowerManager.WAKE_REASON_CAMERA_LAUNCH) {
             mLightRevealScrim.setRevealEffect(mPowerButtonReveal);
         } else if (lastWakeReason == PowerManager.WAKE_REASON_BIOMETRIC) {
@@ -2592,28 +2602,21 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, Medi
         mDozeParameters.updateControlScreenOff();
     }
 
-    private CircleReveal getTapLightRevealEffect(boolean wakingUp) {
+    private CircleReveal getTapLightRevealEffect() {
         Point tapPos = TapPositionUtil.INSTANCE().getTapPos();
-        int x, y;
-
-        if (tapPos != null) {
-            x = tapPos.x;
-            y = tapPos.y;
-        } else if (wakingUp) {
-            x = tapPos != null ? tapPos.x : 0;
-            y = tapPos != null ? tapPos.y : 0;
-        } else {
-            x = 0;
-            y = 0;
+        if (tapPos == null) {
+            return null;
         }
+
+        int x = tapPos.x;
+        int y = tapPos.y;
 
         int maxRadius = Math.max(
             Math.max(x, mDisplayMetrics.widthPixels - x),
             Math.max(y, mDisplayMetrics.heightPixels - y)
         );
 
-        CircleReveal circleReveal = new CircleReveal(x, y, 0, maxRadius);
-        return circleReveal;
+        return new CircleReveal(x, y, 0, maxRadius);
     }
 
     // TODO: Figure out way to remove these.

@@ -224,11 +224,11 @@ public class DozeScreenState implements DozeMachine.Part {
                 }
                 mHandler.postDelayed(mApplyPendingScreenState, mAuthController.isUdfpsEnrolled(mSelectedUserInteractor.getSelectedUserId()) ? 4900 : 500);
             } else if (mIsLandscapeScreenOff) {
-                mDozeService.setDozeScreenState(1);
+                mDozeService.setDozeScreenState(Display.STATE_OFF);
                 mHandler.postDelayed(mApplyPendingScreenState, 1500);
                 mIsLandscapeScreenOff = false;
             } else if (isPanelExpandedWhenScreenOff) {
-                mDozeService.setDozeScreenState(1);
+                mDozeService.setDozeScreenState(Display.STATE_OFF);
                 mHandler.postDelayed(mApplyPendingScreenState, 700);
             } else {
                 mHandler.post(mApplyPendingScreenState);
