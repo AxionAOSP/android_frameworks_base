@@ -222,7 +222,13 @@ public class DozeScreenState implements DozeMachine.Part {
                     applyScreenState(Display.STATE_ON);
                     mPendingScreenState = screenState;
                 }
-                mHandler.postDelayed(mApplyPendingScreenState, mAuthController.isUdfpsEnrolled(mSelectedUserInteractor.getSelectedUserId()) ? 4900 : 500);
+                boolean isUdfps = mAuthController.isUdfpsEnrolled(
+                    mSelectedUserInteractor.getSelectedUserId());
+                if (isUdfps && mUdfpsController != null) {
+                    mUdfpsController.showFakeUdfpsIcon(true);
+                }
+                long delay = isUdfps ? 4900 : 500;
+                mHandler.postDelayed(mApplyPendingScreenState, delay);
             } else if (mIsLandscapeScreenOff) {
                 mDozeService.setDozeScreenState(Display.STATE_OFF);
                 mHandler.postDelayed(mApplyPendingScreenState, 1500);

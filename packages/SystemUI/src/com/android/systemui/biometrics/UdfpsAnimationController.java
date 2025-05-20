@@ -25,6 +25,8 @@ import android.util.DisplayUtils;
 import android.view.Gravity;
 import android.view.WindowManager;
 
+import com.airbnb.lottie.LottieAnimationView;
+
 import com.android.systemui.res.R;
 
 public class UdfpsAnimationController {
@@ -38,9 +40,12 @@ public class UdfpsAnimationController {
     private final AuthController mAuthController;
     private final FingerprintSensorPropertiesInternal mProps;
     private UdfpsAnimation mUdfpsAnimation;
+    private LottieAnimationView mFakeUdfpsIcon;
     private final WindowManager.LayoutParams mAnimParams;
+    private final WindowManager.LayoutParams mFakeIconParams;
 
     private boolean mKeyguardShowing = true;
+    private boolean mFakeIconShown = false;
 
     private UdfpsAnimationController(Context context, WindowManager windowManager, 
                                      FingerprintSensorPropertiesInternal props, 
@@ -61,6 +66,21 @@ public class UdfpsAnimationController {
                 | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                 | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
         mAnimParams.gravity = Gravity.TOP | Gravity.CENTER;
+
+        int fakeIconSize = mContext.getResources().getDimensionPixelSize(R.dimen.udfps_fake_icon_size);
+
+        mFakeIconParams = new WindowManager.LayoutParams();
+        mFakeIconParams.height = fakeIconSize;
+        mFakeIconParams.width = fakeIconSize;
+        mFakeIconParams.format = PixelFormat.TRANSLUCENT;
+        mFakeIconParams.type = WindowManager.LayoutParams.TYPE_VOLUME_OVERLAY;
+        mFakeIconParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
+        mFakeIconParams.gravity = Gravity.TOP | Gravity.CENTER;
+
+        mFakeUdfpsIcon = new LottieAnimationView(context);
+        mFakeUdfpsIcon.setAnimation(R.raw.udfps_lockscreen_fp);
     }
 
     public static synchronized UdfpsAnimationController getInstance(Context context, 
@@ -84,6 +104,8 @@ public class UdfpsAnimationController {
         int animationOffset = (int) (mContext.getResources().getDimensionPixelSize(R.dimen.udfps_animation_offset) * scaleFactor);
         mAnimParams.y = (int) (udfpsLocationY * scaleFactor) - (int) (udfpsRadius * scaleFactor)
                         - (mAnimParams.height / 2) + animationOffset;
+        mFakeIconParams.y = (int) (udfpsLocationY * scaleFactor) - (int) (udfpsRadius * scaleFactor)
+                        - (mFakeIconParams.height / 2) + animationOffset;
 
         if (DEBUG) {
             Log.d(LOG_TAG, "updatePosition: displaySize=" + displaySize + 
@@ -132,5 +154,34 @@ public class UdfpsAnimationController {
 
     public void setKeyguardShowing(boolean showing) {
         mKeyguardShowing = showing;
+    }
+    
+    public void showFakeUdfpsIcon(boolean dozing) {
+        updatePosition();
+
+        if (dozing) {
+            if (!mFakeIconShown) {
+                try {
+                    mFakeUdfpsIcon = new LottieAnimationView(mContext);
+                    mFakeUdfpsIcon.setAnimation(R.raw.udfps_lockscreen_fp);
+                    mWindowManager.addView(mFakeUdfpsIcon, mFakeIconParams);
+                    mFakeIconShown = true;
+                } catch (RuntimeException e) {
+                    Log.e(LOG_TAG, "Error adding fake UDFPS icon", e);
+                    mFakeUdfpsIcon = null;
+                }
+            }
+        } else {
+            if (mFakeIconShown && mFakeUdfpsIcon != null && mFakeUdfpsIcon.getParent() != null) {
+                try {
+                    mWindowManager.removeView(mFakeUdfpsIcon);
+                } catch (Exception e) {
+                    Log.e(LOG_TAG, "Error removing fake UDFPS icon", e);
+                } finally {
+                    mFakeUdfpsIcon = null;
+                    mFakeIconShown = false;
+                }
+            }
+        }
     }
 }
