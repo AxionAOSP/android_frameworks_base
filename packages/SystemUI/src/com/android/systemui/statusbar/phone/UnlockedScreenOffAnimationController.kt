@@ -278,6 +278,9 @@ constructor(
 
         shouldAnimateInKeyguard = false
         DejankUtils.removeCallbacks(startLightRevealCallback)
+        if (!lightRevealAnimator.isStarted() && lightRevealAnimationPlaying) {
+            lightRevealAnimationPlaying = false
+        }
         lightRevealAnimator.cancel()
         handler.removeCallbacksAndMessages(null)
     }
@@ -306,7 +309,11 @@ constructor(
         if (shouldPlayUnlockedScreenOffAnimation()) {
             decidedToAnimateGoingToSleep = true
 
+            lightRevealAnimationPlaying = true
+
             shouldAnimateInKeyguard = true
+
+            lightRevealAnimator.setDuration(500L)
 
             // Start the animation on the next frame. startAnimation() is called after
             // PhoneWindowManager makes a binder call to System UI on
