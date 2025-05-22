@@ -172,7 +172,7 @@ public class PropsHooksUtils {
         GMS_SPOOF_KEYS = new String[] {
             "BRAND", "DEVICE", "DEVICE_INITIAL_SDK_INT", "FINGERPRINT", "ID",
             "MANUFACTURER", "MODEL", "PRODUCT", "RELEASE", "SECURITY_PATCH",
-            "TAGS", "TYPE"
+            "TAGS", "TYPE", "SDK_INT"
         };
         
         GMS_SPOOF_PROPERTIES = new String[GMS_SPOOF_KEYS.length];
