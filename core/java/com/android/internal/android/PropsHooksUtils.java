@@ -250,6 +250,8 @@ public class PropsHooksUtils {
             setPropValue("FINGERPRINT", "eng.nobody." +
                 new java.text.SimpleDateFormat("yyyyMMdd.HHmmss").format(new java.util.Date()));
         }
+        
+        spoofAttestationToLegacy();
 
         if (sIsGms) {
             setPropValue("TIME", System.currentTimeMillis());
@@ -370,6 +372,16 @@ public class PropsHooksUtils {
 
     private static boolean shouldSpoofPhotos() {
         return sIsPhotos && SystemProperties.getBoolean(SPOOF_PIXEL_GPHOTOS, true);
+    }
+
+    private static void spoofAttestationToLegacy() {
+        if (!shouldSpoofGMS()) return;
+        if (sIsGms || sIsFinsky) {
+            String phReleaseInt = SystemProperties.get(PROP_HOOKS + "RELEASE", "12");
+            String phSdk = SystemProperties.get(PROP_HOOKS + "SDK_INT", "32");
+            setPropValue("RELEASE", phReleaseInt);
+            setPropValue("SDK_INT", phSdk);
+        }
     }
 
     private static boolean isPixelDevice() {
