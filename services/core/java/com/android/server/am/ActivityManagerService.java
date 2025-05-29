@@ -984,6 +984,10 @@ public class ActivityManagerService extends IActivityManager.Stub
         final int pid = app.getPid();
         synchronized (mPidsSelfLocked) {
             mPidsSelfLocked.doAddInternal(pid, app);
+            ProcessFreezerManager freezer = ProcessFreezerManager.getInstance();
+            if (freezer != null && freezer.useFreezerManager()) {
+                freezer.addPidLocked(app);
+            }
         }
         synchronized (sActiveProcessInfoSelfLocked) {
             if (app.processInfo != null) {
@@ -1005,6 +1009,11 @@ public class ActivityManagerService extends IActivityManager.Stub
         final boolean removed;
         synchronized (mPidsSelfLocked) {
             removed = mPidsSelfLocked.doRemoveInternal(pid, app);
+            ProcessFreezerManager freezer = ProcessFreezerManager.getInstance();
+            if (freezer != null && freezer.useFreezerManager()) {
+                freezer.removePidLocked(pid, app);
+                freezer.startUnfreeze(app.processName, ProcessFreezerManager.REMOVE_PROCESS_UNFREEZE);
+            }
         }
         if (removed) {
             synchronized (sActiveProcessInfoSelfLocked) {
@@ -5419,6 +5428,7 @@ public class ActivityManagerService extends IActivityManager.Stub
         showMteOverrideNotificationIfActive();
 
         t.traceEnd();
+        ProcessFreezerManager.getInstance().init(mFreezer);
     }
 
     private void showConsoleNotificationIfActive() {
