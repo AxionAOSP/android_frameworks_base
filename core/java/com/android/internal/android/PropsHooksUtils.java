@@ -377,10 +377,14 @@ public class PropsHooksUtils {
     private static void spoofAttestationToLegacy() {
         if (!shouldSpoofGMS()) return;
         if (sIsGms || sIsFinsky) {
-            String phReleaseInt = SystemProperties.get(PROP_HOOKS + "RELEASE", "12");
-            String phSdk = SystemProperties.get(PROP_HOOKS + "SDK_INT", "32");
-            setPropValue("RELEASE", phReleaseInt);
-            setPropValue("SDK_INT", phSdk);
+            String phReleaseInt = SystemProperties.get(PROP_HOOKS + "RELEASE");
+            String phSdk = SystemProperties.get(PROP_HOOKS + "SDK_INT");
+            if (phReleaseInt != null && !phReleaseInt.isEmpty()) {
+                setPropValue("RELEASE", phReleaseInt);
+            }
+            if (phSdk != null && !phSdk.isEmpty()) {
+                setPropValue("SDK_INT", phSdk);
+            }
         }
     }
 
