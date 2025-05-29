@@ -2496,16 +2496,11 @@ public final class CameraManager {
 
         private String[] extractCameraIdListLocked(int deviceId, int devicePolicy) {
             addDeviceStatusHistoryLocked(TextUtils.formatSimple(
-                    "extractCameraIdListLocked(E): tid(%d): mDeviceStatus size %d",
-                    Thread.currentThread().getId(), mDeviceStatus.size()));
+                "extractCameraIdListLocked(E): tid(%d): mDeviceStatus size %d",
+                Thread.currentThread().getId(), mDeviceStatus.size()));
             try {
                 List<String> cameraIds = new ArrayList<>();
-                boolean exposeAuxCamera = Camera.shouldExposeAuxCamera();
-                int size = exposeAuxCamera ? mDeviceStatus.size() : 2;
-                if (mDeviceStatus.size() < size) {
-                     size = mDeviceStatus.size();
-                }
-                 for (int i = 0; i < size; i++) {
+                for (int i = 0; i < mDeviceStatus.size(); i++) {
                     int status = mDeviceStatus.valueAt(i);
                     DeviceCameraInfo info = mDeviceStatus.keyAt(i);
                     if (status == ICameraServiceListener.STATUS_NOT_PRESENT
@@ -2516,10 +2511,10 @@ public final class CameraManager {
                     cameraIds.add(info.mCameraId);
                 }
                 return cameraIds.toArray(new String[0]);
-            }  catch (ArrayIndexOutOfBoundsException e) {
+            } catch (ArrayIndexOutOfBoundsException e) {
                 String message = e.getMessage();
-                String messageWithHistory = message + ": {"
-                        + String.join(" -> ", mDeviceStatusHistory) + "}";
+                String messageWithHistory = message + ": {" +
+                        String.join(" -> ", mDeviceStatusHistory) + "}";
                 throw new ArrayIndexOutOfBoundsException(messageWithHistory);
             }
         }
