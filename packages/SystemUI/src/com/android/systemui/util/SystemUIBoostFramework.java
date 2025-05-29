@@ -16,12 +16,15 @@
 package com.android.systemui.util;
 
 import android.os.IBinder;
+import android.os.PerformanceHintManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.util.Log;
 
 import com.android.internal.os.IBoostFramework;
+
+import java.util.concurrent.TimeUnit;
 
 public class SystemUIBoostFramework {
 
@@ -49,6 +52,8 @@ public class SystemUIBoostFramework {
     private long mAnimationBoost = ANIMATION_BOOST_OFF;
     
     private static IBoostFramework sService;
+    private PerformanceHintManager mPerformanceHintManager;
+    private PerformanceHintManager.Session mAdpfSession = null;
     
     private static SystemUIBoostFramework instance = null;
 
@@ -67,6 +72,13 @@ public class SystemUIBoostFramework {
             sService = IBoostFramework.Stub.asInterface(binder);
         }
         return sService;
+    }
+
+    public void createAdpfSession(PerformanceHintManager performanceHintManager) {
+        int[] tids = {
+          android.os.Process.myTid()
+        };
+        mAdpfSession = performanceHintManager.createHintSession(tids, TimeUnit.SECONDS.toNanos(1));
     }
 
     public void bindBigCore() {
@@ -90,12 +102,19 @@ public class SystemUIBoostFramework {
         }
     }
 
+    private void sendAdpfHint(int hint) {
+        if (mAdpfSession != null) {
+            mAdpfSession.sendHint(hint);
+        }
+    }
+
     public void animationBoostOn(int type) {
         mAnimationBoostType |= type;
         if (mAnimationBoost != ANIMATION_BOOST_ON) {
             bindBigCore();
             mAnimationBoost = ANIMATION_BOOST_ON;
             executeSetAnimationBoost(ANIMATION_BOOST_ON);
+            sendAdpfHint(PerformanceHintManager.Session.CPU_LOAD_UP);
         }
     }
 
@@ -105,6 +124,7 @@ public class SystemUIBoostFramework {
             unbind();
             mAnimationBoost = ANIMATION_BOOST_OFF;
             executeSetAnimationBoost(ANIMATION_BOOST_OFF);
+            sendAdpfHint(PerformanceHintManager.Session.CPU_LOAD_RESET);
         }
     }
 
