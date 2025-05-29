@@ -21,6 +21,7 @@ import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.DrawableWrapper;
 import android.graphics.drawable.LayerDrawable;
+import android.provider.Settings;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
@@ -76,6 +77,17 @@ public class BrightnessSliderView extends FrameLayout {
                     .findDrawableByLayerId(android.R.id.progress);
             LayerDrawable actualProgressSlider = (LayerDrawable) progressSlider.getDrawable();
             mProgressDrawable = actualProgressSlider.findDrawableByLayerId(R.id.slider_foreground);
+            boolean blurEnabledByDefault = android.os.SystemProperties.getBoolean("ro.custom.blur.enable", false);
+            boolean blurEnabled =
+                    Settings.Global.getInt(mContext.getContentResolver(), Settings.Global.DISABLE_WINDOW_BLURS, blurEnabledByDefault ? 0 : 1) != 1;
+            if (blurEnabled) {
+                Drawable background = progress.findDrawableByLayerId(android.R.id.background);
+                if (background != null) {
+                    background.setAlpha((int) (com.android.systemui.util.ExpressiveConstants.EXPRESSIVE_QS_ELEMENTS_ALPHA * 255));
+                    int inactiveColor = com.android.settingslib.Utils.getColorAttrDefaultColor(mContext, R.attr.shadeInactiveExpressive);
+                    background.setTint(inactiveColor);
+                }
+            }
         } catch (Exception e) {
             // Nothing to do, mProgressDrawable will be null.
         }

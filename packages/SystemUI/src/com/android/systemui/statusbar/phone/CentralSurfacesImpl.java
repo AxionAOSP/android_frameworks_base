@@ -931,12 +931,20 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, Medi
                     if (sliceProvider != null) {
                         sliceProvider.setPulseOnNewTracks(showPulseOnNewTracks);
                     }
+                } else if (uri.equals(Settings.Global.getUriFor(Settings.Global.DISABLE_WINDOW_BLURS))) {
+                    boolean blurEnabledByDefault = android.os.SystemProperties.getBoolean("ro.custom.blur.enable", false);
+                    boolean blurEnabled =
+                            Settings.Global.getInt(mContext.getContentResolver(), Settings.Global.DISABLE_WINDOW_BLURS, blurEnabledByDefault ? 0 : 1) != 1;
+                    mScrimController.updateScrimAlpha(mContext, blurEnabled);
                 }
             }
         };
         mContext.getContentResolver().registerContentObserver(
                 Settings.Secure.getUriFor(Settings.Secure.PULSE_ON_NEW_TRACKS), false, contentObserver);
+        mContext.getContentResolver().registerContentObserver(
+                Settings.Global.getUriFor(Settings.Global.DISABLE_WINDOW_BLURS), false, contentObserver);
         contentObserver.onChange(true, Settings.Secure.getUriFor(Settings.Secure.PULSE_ON_NEW_TRACKS));
+        contentObserver.onChange(true, Settings.Global.getUriFor(Settings.Global.DISABLE_WINDOW_BLURS));
 
         mWindowManager = (WindowManager) mContext.getSystemService(Context.WINDOW_SERVICE);
 
