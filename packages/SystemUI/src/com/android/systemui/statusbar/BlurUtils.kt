@@ -45,7 +45,7 @@ open class BlurUtils @Inject constructor(
 ) : Dumpable {
     val minBlurRadius = resources.getDimensionPixelSize(R.dimen.min_window_blur_radius)
     val maxBlurRadius =
-        if (notificationShadeBlur()) {
+        if (com.android.systemui.shared.system.BlurUtils.supportsBlursOnWindows()) {
             resources.getDimensionPixelSize(R.dimen.max_shade_window_blur_radius)
         } else {
             resources.getDimensionPixelSize(R.dimen.max_window_blur_radius)

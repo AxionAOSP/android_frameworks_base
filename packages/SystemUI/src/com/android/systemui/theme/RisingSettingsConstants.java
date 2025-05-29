@@ -46,6 +46,7 @@ public class RisingSettingsConstants {
     };
 
     public static final String[] GLOBAL_SETTINGS_KEYS = {
+        Settings.Global.DISABLE_WINDOW_BLURS
     };
 
     public static final String[] SYSTEM_SETTINGS_NOTIFY_ONLY_KEYS = {};

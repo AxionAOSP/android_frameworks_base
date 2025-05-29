@@ -53,7 +53,6 @@ import java.io.PrintWriter
 import javax.inject.Inject
 import kotlin.math.max
 import kotlin.math.sign
-import com.android.systemui.Flags.notificationShadeBlur
 
 /**
  * Responsible for blurring the notification shade window, and applying a zoom effect to the
@@ -254,6 +253,10 @@ constructor(
             }
             notificationShadeWindowController.setBackgroundBlurRadius(blur)
         }
+        
+    fun notificationShadeBlur(): Boolean {
+        return blurUtils.supportsBlursOnWindows()
+    }
 
     /** Animate blurs when unlocking. */
     private val keyguardStateCallback =

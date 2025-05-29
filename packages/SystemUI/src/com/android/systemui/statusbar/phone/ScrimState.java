@@ -349,6 +349,7 @@ public enum ScrimState {
     float mFrontAlpha;
     float mBehindAlpha;
     float mNotifAlpha;
+    float mCustomScrimAlpha;
 
     float mScrimBehindAlphaKeyguard;
     float mDefaultScrimAlpha;
@@ -472,5 +473,9 @@ public enum ScrimState {
 
     public void setClipQsScrim(boolean clipsQsScrim) {
         mClipQsScrim = clipsQsScrim;
+    }
+    
+    public void setScrimAlpha(float customScrimAlpha) {
+        mCustomScrimAlpha = customScrimAlpha;
     }
 }

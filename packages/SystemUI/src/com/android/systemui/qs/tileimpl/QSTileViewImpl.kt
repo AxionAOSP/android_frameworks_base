@@ -33,6 +33,7 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.RippleDrawable
 import android.os.Trace
+import android.provider.Settings
 import android.service.quicksettings.Tile
 import android.text.TextUtils
 import android.util.Log
@@ -121,8 +122,15 @@ constructor(
             updateHeight()
         }
 
+    val blurEnabledByDefault = android.os.SystemProperties.getBoolean("ro.custom.blur.enable", false) 
+    val blurEnabled = Settings.Global.getInt(context.getContentResolver(),
+         Settings.Global.DISABLE_WINDOW_BLURS, if (blurEnabledByDefault) 0 else 1) != 1
+
     private val colorActive = Utils.getColorAttrDefaultColor(context, R.attr.shadeActive)
-    private val colorInactive = Utils.getColorAttrDefaultColor(context, R.attr.shadeInactive)
+    private val inactiveColorAttr = if (blurEnabled) R.attr.shadeInactiveExpressive else R.attr.shadeInactive
+    private val colorInactiveColor = Utils.getColorAttrDefaultColor(context, inactiveColorAttr)
+    private val inactiveAlpha = if (blurEnabled) com.android.systemui.util.ExpressiveConstants.EXPRESSIVE_QS_ELEMENTS_ALPHA else 1f
+    private val colorInactive = Utils.applyAlpha(inactiveAlpha, colorInactiveColor)
     private val colorUnavailable = Utils.applyAlpha(UNAVAILABLE_ALPHA, colorInactive)
 
     private val overlayColorActive =
