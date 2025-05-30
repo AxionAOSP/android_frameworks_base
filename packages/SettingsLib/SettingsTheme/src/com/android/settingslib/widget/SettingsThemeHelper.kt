@@ -46,31 +46,6 @@ object SettingsThemeHelper {
             return
         }
 
-        expressiveThemeState =
-            if (
-                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) &&
-                        getPropBoolean(context, IS_EXPRESSIVE_DESIGN_ENABLED, false)
-            ) {
-                ExpressiveThemeState.ENABLED
-            } else {
-                ExpressiveThemeState.DISABLED
-            }
-    }
-
-    private fun getPropBoolean(context: Context, property: String, def: Boolean): Boolean {
-        return try {
-            val systemProperties = context.classLoader.loadClass("android.os.SystemProperties")
-
-            val paramTypes =
-                arrayOf<Class<*>?>(String::class.java, Boolean::class.javaPrimitiveType)
-            val getBoolean = systemProperties.getMethod("getBoolean", *paramTypes)
-
-            val params = arrayOf<Any>(property, def)
-            getBoolean.invoke(systemProperties, *params) as Boolean
-        } catch (iae: IllegalArgumentException) {
-            throw iae
-        } catch (exception: Exception) {
-            def
-        }
+        expressiveThemeState = ExpressiveThemeState.ENABLED
     }
 }

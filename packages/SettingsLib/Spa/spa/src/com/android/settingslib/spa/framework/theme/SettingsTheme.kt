@@ -42,5 +42,4 @@ fun SettingsTheme(content: @Composable () -> Unit) {
     }
 }
 
-val isSpaExpressiveEnabled
-    by lazy { SystemProperties.getBoolean("is_expressive_design_enabled", false) }
+val isSpaExpressiveEnabled = true
