@@ -53,7 +53,9 @@ open class SettingsPreferenceGroupAdapter(preferenceGroup: PreferenceGroup) :
         "com.android.settingslib.widget.LayoutPreference",
         "com.android.settingslib.widget.IllustrationPreference",
         "com.android.settings.accessibility.TextReadingPreviewPreference",
-        "com.android.settings.accessibility.TextReadingResetPreference"
+        "com.android.settings.accessibility.TextReadingResetPreference",
+        "com.android.settings.fuelgauge.batteryusage.TextViewPreference",
+        "com.android.settingslib.widget.SettingsSpinnerPreference"
     )
 
     init {
