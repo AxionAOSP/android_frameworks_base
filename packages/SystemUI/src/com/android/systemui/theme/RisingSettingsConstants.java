@@ -44,7 +44,10 @@ public class RisingSettingsConstants {
         PREF_COLOR_SOURCE,
         PREF_WHOLE_PALETTE
     };
-    
+
+    public static final String[] GLOBAL_SETTINGS_KEYS = {
+    };
+
     public static final String[] SYSTEM_SETTINGS_NOTIFY_ONLY_KEYS = {};
     
     public static final String[] SECURE_SETTINGS_NOTIFY_ONLY_KEYS = {

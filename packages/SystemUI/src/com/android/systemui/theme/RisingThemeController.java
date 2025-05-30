@@ -36,6 +36,7 @@ public class RisingThemeController {
     private static final int TYPE_SYSTEM = 1;
     private static final int TYPE_LINEAGE_SYSTEM = 2;
     private static final int TYPE_LINEAGE_SECURE = 3;
+    private static final int TYPE_GLOBAL = 4;
 
     private final ContentResolver mContentResolver;
     private final Handler mBackgroundHandler;
@@ -56,6 +57,7 @@ public class RisingThemeController {
         observeSettingsKeys(RisingSettingsConstants.SECURE_SETTINGS_KEYS, reevaluateSystemThemeCallback, TYPE_SECURE);
         observeSettingsKeys(RisingSettingsConstants.SYSTEM_SETTINGS_NOTIFY_ONLY_KEYS, null, TYPE_SYSTEM);
         observeSettingsKeys(RisingSettingsConstants.SECURE_SETTINGS_NOTIFY_ONLY_KEYS, null, TYPE_SECURE);
+        observeSettingsKeys(RisingSettingsConstants.GLOBAL_SETTINGS_KEYS, reevaluateSystemThemeCallback, TYPE_GLOBAL);
         observeRestartKey();
     }
 
@@ -82,6 +84,9 @@ public class RisingThemeController {
                     break;
                 case TYPE_LINEAGE_SECURE:
                     settingsUri = LineageSettings.Secure.getUriFor(key);
+                    break;
+                case TYPE_GLOBAL:
+                    settingsUri = Settings.Global.getUriFor(key);
                     break;
                 default:
                     Log.e(TAG, "Unknown type for key: " + key);
