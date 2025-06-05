@@ -22,8 +22,6 @@ import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import com.android.internal.util.android.OmniJawsClient
-import com.android.systemui.Dependency
-import com.android.systemui.plugins.statusbar.StatusBarStateController
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -38,22 +36,7 @@ class WeatherViewController(
     private var weatherInfo: OmniJawsClient.WeatherInfo? = null
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
 
-    private var mDozing = false
     private var isVisible = false
-
-    private val statusBarStateController: StatusBarStateController =
-        Dependency.get(StatusBarStateController::class.java)
-
-    private val statusBarStateListener =
-        object : StatusBarStateController.StateListener {
-            override fun onStateChanged(newState: Int) {}
-
-            override fun onDozingChanged(dozing: Boolean) {
-                if (mDozing == dozing) return
-                mDozing = dozing
-                updateVisibility()
-            }
-        }
 
     private val weatherSettingsFlow =
         flow {
@@ -72,9 +55,6 @@ class WeatherViewController(
             .stateIn(scope, SharingStarted.Eagerly, getWeatherSettings())
 
     fun init() {
-        statusBarStateController.addCallback(statusBarStateListener)
-        statusBarStateListener.onDozingChanged(statusBarStateController.isDozing())
-
         scope.launch {
             weatherSettingsFlow.collectLatest { settings -> applyWeatherSettings(settings) }
         }
@@ -88,7 +68,7 @@ class WeatherViewController(
     }
 
     private fun updateVisibility(settings: WeatherSettings = weatherSettingsFlow.value) {
-        val shouldBeVisible = !mDozing && settings.weatherEnabled
+        val shouldBeVisible = settings.weatherEnabled
         if (shouldBeVisible == isVisible) return
 
         isVisible = shouldBeVisible
@@ -163,7 +143,6 @@ class WeatherViewController(
     fun removeObserver() {
         scope.cancel()
         weatherClient.removeObserver(this)
-        statusBarStateController.removeCallback(statusBarStateListener)
     }
 
     private suspend fun updateViewVisibility(view: View, visible: Boolean) {
