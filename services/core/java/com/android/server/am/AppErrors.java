@@ -1144,10 +1144,7 @@ class AppErrors {
             }
         }
         if (isSysUiSubprocess && proc.mOptRecord.isFrozen()) {
-            try {
-                Process.setProcessFrozen(proc.getPid(), proc.info.uid, false);
-            } catch (Exception e) {
-            }
+            ProcessFreezerManager.getInstance().unFreezeProcess(proc);
         }
         if (doKill) {
             mService.killAppAtUsersRequest(proc);
