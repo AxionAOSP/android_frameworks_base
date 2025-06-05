@@ -526,7 +526,7 @@ public class ProcessFreezerManager {
         }
     }
 
-    private void unFreezeProcess(ProcessRecord app) {
+    public void unFreezeProcess(ProcessRecord app) {
         if (mFreezer == null) return;
         final ProcessCachedOptimizerRecord opt = app.mOptRecord;
         final ProcessStateRecord state = app.mState;
@@ -596,7 +596,7 @@ public class ProcessFreezerManager {
         }
     }
 
-    private boolean freezeProcess(ProcessRecord app) {
+    public boolean freezeProcess(ProcessRecord app) {
         if (mFreezer == null) return false;
         final ProcessCachedOptimizerRecord opt = app.mOptRecord;
         final ProcessStateRecord state = app.mState;
