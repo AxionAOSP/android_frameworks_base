@@ -549,6 +549,7 @@ public class ActionButtonsPreference extends Preference implements GroupSectionD
                     ((MaterialButton) mButton).setIcon(mIcon);
                 }
                 mButton.setEnabled(mIsEnabled);
+                mButton.setOnClickListener(mListener);
                 mActionLayout.setOnClickListener(mListener);
                 mActionLayout.setEnabled(mIsEnabled);
                 mActionLayout.setContentDescription(mText);
