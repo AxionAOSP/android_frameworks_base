@@ -2704,6 +2704,8 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, Medi
                         () -> mCommandQueueCallbacks.onEmergencyActionLaunchGestureDetected());
             }
             updateIsKeyguard();
+            // make sure we do garbage collection at screen off but delay it to avoid black wallpaper
+            mHandler.postDelayed(mSystemUiGcOpt, 5000);
         }
 
         @Override
@@ -2741,8 +2743,6 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, Medi
             DejankUtils.stopDetectingBlockingIpcs(tag);
             com.android.systemui.util.ScrimUtils.getInstance(mContext).onScreenStateChange();
             doCpuStandbyOptimization(true);
-            // make sure we do garbage collection at screen off but delay it to avoid black wallpaper
-            mHandler.postDelayed(mSystemUiGcOpt, 1000);
         }
 
         @Override
