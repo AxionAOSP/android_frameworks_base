@@ -105,13 +105,17 @@ constructor(
         } else {
             // This config (exposed as a classic feature flag) is targeted only to tablet.
             // TODO(b/379181581): clean up usages of communal_hub flag
-            featureFlagsClassic.isEnabled(Flags.COMMUNAL_SERVICE_ENABLED) && communalHub()
+            featureFlagsClassic.isEnabled(Flags.COMMUNAL_SERVICE_ENABLED) && isCommunalServiceEnabled()
         }
+    }
+
+    fun isCommunalServiceEnabled(): Boolean {
+        return resources.getBoolean(com.android.systemui.res.R.bool.config_communalServiceEnabled)
     }
 
     override fun getV2FlagEnabled(): Boolean {
         return resources.getBoolean(com.android.internal.R.bool.config_glanceableHubEnabled) &&
-            glanceableHubV2()
+            glanceableHubV2() && isCommunalServiceEnabled()
     }
 
     override fun getEnabledState(user: UserInfo): Flow<CommunalEnabledState> {

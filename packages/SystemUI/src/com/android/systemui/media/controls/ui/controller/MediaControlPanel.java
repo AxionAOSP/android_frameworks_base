@@ -1451,7 +1451,8 @@ public class MediaControlPanel {
 
         // When on the hub, wrap in the communal animation controller to ensure we exit the hub
         // at the proper stage of the animation.
-        if (communalHub()
+        boolean communalServiceEnabled = mContext.getResources().getBoolean(R.bool.config_communalServiceEnabled);
+        if (communalServiceEnabled
                 && mMediaViewController.getCurrentEndLocation()
                 == MediaHierarchyManager.LOCATION_COMMUNAL_HUB) {
             mCommunalSceneInteractor.setIsLaunchingWidget(true);
