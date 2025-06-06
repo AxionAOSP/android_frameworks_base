@@ -46,7 +46,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onStart
@@ -107,28 +106,18 @@ constructor(
     }
 
     override val selectedClockSize: StateFlow<ClockSizeSetting> =
-        combine(
-            secureSettings.observerFlow(
+        secureSettings
+            .observerFlow(
                 names = arrayOf(Settings.Secure.LOCKSCREEN_USE_DOUBLE_LINE_CLOCK),
-                userId = UserHandle.USER_ALL
-            ),
-            systemSettings.observerFlow(
-                names = arrayOf("lockscreen_widgets_enabled"),
-                userId = UserHandle.USER_ALL
+                userId = UserHandle.USER_ALL,
             )
-        ) { _, _ ->
-            withContext(backgroundDispatcher) {
-                getClockSize()
-            }
-        }
-        .onStart {
-            emit(withContext(backgroundDispatcher) { getClockSize() })
-        }
-        .stateIn(
-            scope = applicationScope,
-            started = SharingStarted.WhileSubscribed(),
-            initialValue = getClockSize()
-        )
+            .onStart { emit(Unit) } // Forces an initial update.
+            .map { withContext(backgroundDispatcher) { getClockSize() } }
+            .stateIn(
+                scope = applicationScope,
+                started = SharingStarted.WhileSubscribed(),
+                initialValue = getClockSize(),
+            )
 
     override val currentClockId: Flow<ClockId> =
         callbackFlow {
