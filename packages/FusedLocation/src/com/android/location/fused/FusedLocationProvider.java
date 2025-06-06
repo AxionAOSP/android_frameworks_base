@@ -19,7 +19,7 @@ package com.android.location.fused;
 import static android.content.Intent.ACTION_USER_SWITCHED;
 import static android.location.LocationManager.GPS_PROVIDER;
 import static android.location.LocationManager.NETWORK_PROVIDER;
-import static android.location.LocationRequest.QUALITY_LOW_POWER;
+import static android.location.LocationRequest.QUALITY_HIGH_ACCURACY;
 import static android.location.provider.ProviderProperties.ACCURACY_FINE;
 import static android.location.provider.ProviderProperties.POWER_USAGE_LOW;
 
@@ -163,9 +163,12 @@ public class FusedLocationProvider extends LocationProviderBase {
         if (!mNlpPresent) {
             mNlpPresent = mLocationManager.hasProvider(NETWORK_PROVIDER);
         }
+        
+        boolean isHighAccuracyGpsRequest = mRequest.getQuality() == QUALITY_HIGH_ACCURACY
+                        && mRequest.getIntervalMillis() <= 5000;
 
         long gpsInterval =
-                mGpsPresent && (!mNlpPresent || mRequest.getQuality() < QUALITY_LOW_POWER)
+                mGpsPresent && isHighAccuracyGpsRequest
                         ? mRequest.getIntervalMillis() : INTERVAL_DISABLED;
         long networkInterval = mNlpPresent ? mRequest.getIntervalMillis() : INTERVAL_DISABLED;
 
