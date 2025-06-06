@@ -7102,9 +7102,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         getPocketModeInstance().onInteractiveChanged(false);
         
         mHandler.removeCallbacks(mMemoryOpt);
-
-        // make sure we do garbage collection at screen off but delay it to avoid black wallpaper
-        mHandler.postDelayed(mSystemServerGcOpt, 1000);
     }
 
     // Called on the PowerManager's Notifier thread.
@@ -7144,6 +7141,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
         mCameraGestureTriggeredDuringGoingToSleep = false;
         mCameraGestureTriggered = false;
+
+        // make sure we do garbage collection at screen off but delay it to avoid black wallpaper
+        mHandler.postDelayed(mSystemServerGcOpt, 5000);
     }
 
     // Called on the PowerManager's Notifier thread.
