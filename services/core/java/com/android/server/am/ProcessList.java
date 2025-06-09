@@ -2987,6 +2987,7 @@ public final class ProcessList {
 
     @GuardedBy("mService")
     void killAppZygotesLocked(String packageName, int appId, int userId, boolean force) {
+        if (PinnerUtils.INSTANCE().isPinned(packageName)) return;
         // See if there are any app zygotes running for this packageName / UID combination,
         // and kill it if so.
         final ArrayList<AppZygote> zygotesToKill = new ArrayList<>();
@@ -3069,6 +3070,7 @@ public final class ProcessList {
             int userId, int minOomAdj, boolean callerWillRestart, boolean allowRestart,
             boolean doit, boolean evenPersistent, boolean setRemoved, boolean uninstalling,
             int reasonCode, int subReason, String reason) {
+        if (PinnerUtils.INSTANCE().isPinned(packageName)) return false;
         final PackageManagerInternal pm = mService.getPackageManagerInternal();
         final ArrayList<Pair<ProcessRecord, Boolean>> procs = new ArrayList<>();
 
@@ -3208,6 +3210,7 @@ public final class ProcessList {
     @GuardedBy("mService")
     boolean removeProcessLocked(ProcessRecord app, boolean callerWillRestart,
             boolean allowRestart, int reasonCode, int subReason, String reason, boolean async) {
+        if (PinnerUtils.INSTANCE().isPinned(app.info.packageName)) return false;
         final String name = app.processName;
         final int uid = app.uid;
         if (DEBUG_PROCESSES) Slog.d(TAG_PROCESSES,
@@ -5685,7 +5688,7 @@ public final class ProcessList {
                 synchronized (mService.mPidsSelfLocked) {
                     app = mService.mPidsSelfLocked.get(pids[i]);
                 }
-                if (app != null) {
+                if (app != null && !PinnerUtils.INSTANCE().isPinned(app.info.packageName)) {
                     mImperceptibleKillRunner.enqueueLocked(app, reason, requester);
                 }
             }

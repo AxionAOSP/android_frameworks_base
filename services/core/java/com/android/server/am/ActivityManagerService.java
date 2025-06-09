@@ -526,6 +526,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
+import com.android.internal.util.android.PinnerUtils;
+
 public class ActivityManagerService extends IActivityManager.Stub
         implements Watchdog.Monitor, BatteryStatsImpl.BatteryCallback, ActivityManagerGlobalLock {
 
@@ -3900,6 +3902,7 @@ public class ActivityManagerService extends IActivityManager.Stub
 
     void forceStopPackage(final String packageName, int userId, int userRunningFlags,
             String reason) {
+        if (PinnerUtils.INSTANCE().isPinned(packageName)) return;
         if (checkCallingPermission(android.Manifest.permission.FORCE_STOP_PACKAGES)
                 != PackageManager.PERMISSION_GRANTED) {
             String msg = "Permission Denial: forceStopPackage() from pid="
@@ -4423,6 +4426,7 @@ public class ActivityManagerService extends IActivityManager.Stub
             boolean callerWillRestart, boolean purgeCache, boolean doit,
             boolean evenPersistent, boolean uninstalling, boolean packageStateStopped,
             int userId, String reasonString, int reason, int minOomAdj) {
+        if (PinnerUtils.INSTANCE().isPinned(packageName)) return false;
         int i;
 
         if (userId == UserHandle.USER_ALL && packageName == null) {
