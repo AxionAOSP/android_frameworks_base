@@ -22,7 +22,6 @@
         android:layout_height="wrap_content"
         android:textAppearance="@style/TextAppearance.Keyguard.Secondary"
         android:textColor="?attr/wallpaperTextColor"
-        android:fontFamily="@*android:string/config_clockFontFamily"
         android:visibility="gone"
         android:ellipsize="marquee"
         android:singleLine="true"
