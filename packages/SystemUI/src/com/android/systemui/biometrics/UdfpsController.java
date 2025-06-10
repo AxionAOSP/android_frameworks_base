@@ -92,7 +92,6 @@ import com.android.systemui.deviceentry.domain.interactor.DeviceEntryFaceAuthInt
 import com.android.systemui.doze.DozeReceiver;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.keyguard.ScreenLifecycle;
-import com.android.systemui.keyguard.WakefulnessLifecycle;
 import com.android.systemui.keyguard.domain.interactor.KeyguardTransitionInteractor;
 import com.android.systemui.log.SessionTracker;
 import com.android.systemui.plugins.FalsingManager;
@@ -258,28 +257,6 @@ public class UdfpsController implements DozeReceiver, Dumpable {
         @Override
         public void onScreenTurnedOff() {
             mScreenOn = false;
-        }
-    };
-    
-    private final WakefulnessLifecycle mWakefulnessLifecycle;
-
-    final WakefulnessLifecycle.Observer mWakefulnessObserver = new WakefulnessLifecycle.Observer() {
-        @Override
-        public void onFinishedGoingToSleep() {
-        }
-
-        @Override
-        public void onStartedGoingToSleep() {
-        }
-
-        @Override
-        public void onStartedWakingUp() {
-            showFakeUdfpsIcon(false);
-        }
-        
-        @Override
-        public void onFinishedWakingUp() {
-            showFakeUdfpsIcon(false);
         }
     };
 
@@ -513,10 +490,6 @@ public class UdfpsController implements DozeReceiver, Dumpable {
         mKeyguardViewManager.notifyKeyguardAuthenticated(false /* primaryAuth */);
         mAttemptedToDismissKeyguard = true;
     }
-    
-    public void showFakeUdfpsIcon(boolean show) {
-        mUdfpsAnimProxy.showFakeUdfpsIcon(show);
-    }
 
     private int getBiometricSessionType() {
         if (mOverlay == null) {
@@ -739,8 +712,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             @NonNull UdfpsOverlayInteractor udfpsOverlayInteractor,
             @NonNull PowerInteractor powerInteractor,
             @Application CoroutineScope scope,
-            @NonNull AuthController authController,
-            WakefulnessLifecycle wakefulnessLifecycle) {
+            @NonNull AuthController authController) {
         mContext = context;
         mExecution = execution;
         mVibrator = vibrator;
@@ -816,9 +788,6 @@ public class UdfpsController implements DozeReceiver, Dumpable {
         udfpsShell.setUdfpsOverlayController(mUdfpsOverlayController);
 
         mUdfpsAnimProxy = UdfpsAnimProxy.INSTANCE(mContext, mWindowManager, mSensorProps, mAuthController);
-
-        mWakefulnessLifecycle = wakefulnessLifecycle;
-        mWakefulnessLifecycle.addObserver(mWakefulnessObserver);
     }
 
     @Nullable
