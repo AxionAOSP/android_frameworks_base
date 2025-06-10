@@ -6,12 +6,18 @@ package com.android.internal.util.custom;
 
 import android.app.ActivityThread;
 import android.content.Context;
+import android.os.SystemProperties;
+import android.provider.Settings;
 import android.util.Log;
+import android.text.TextUtils;
 
 import com.android.internal.R;
 
+import org.json.JSONObject;
+
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -20,11 +26,7 @@ import java.util.Map;
  */
 public final class KeyProviderManager {
     private static final String TAG = "KeyProviderManager";
-
     private static final IKeyboxProvider PROVIDER = new DefaultKeyboxProvider();
-
-    private KeyProviderManager() {
-    }
 
     public static IKeyboxProvider getProvider() {
         return PROVIDER;
@@ -34,34 +36,66 @@ public final class KeyProviderManager {
         return PROVIDER.hasKeybox();
     }
 
+    private static void dlog(String msg) {
+        if (SystemProperties.getBoolean("persist.sys.keybox_debug", false)) {
+            Log.d(TAG, msg);
+        }
+    }
+
     private static class DefaultKeyboxProvider implements IKeyboxProvider {
         private final Map<String, String> keyboxData = new HashMap<>();
 
         private DefaultKeyboxProvider() {
-            Context context = getApplicationContext();
-            if (context == null) {
-                Log.e(TAG, "Failed to get application context");
-                return;
-            }
+            try {
+                Context context = ActivityThread.currentApplication().getApplicationContext();
+                
+                if (context == null) return;
 
-            String[] keybox = context.getResources().getStringArray(R.array.config_certifiedKeybox);
+                String json = Settings.System.getString(context.getContentResolver(), "custom_keybox_data");
 
-            Arrays.stream(keybox)
-                    .map(entry -> entry.split(":", 2))
-                    .filter(parts -> parts.length == 2)
-                    .forEach(parts -> keyboxData.put(parts[0], parts[1]));
+                if (TextUtils.isEmpty(json)) {
+                    dlog("No keybox data in Settings.System");
+                    return;
+                }
 
-            if (!hasKeybox()) {
-                Log.w(TAG, "Incomplete keybox data loaded");
+                JSONObject keyboxJson = new JSONObject(json);
+                Iterator<String> keys = keyboxJson.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    keyboxData.put(key, keyboxJson.getString(key));
+                }
+
+                if (!hasKeybox()) {
+                    dlog("Incomplete keybox data loaded");
+                    logMissingKeys();
+                } else {
+                    logLoadedKeys();
+                }
+
+            } catch (Exception e) {
+                dlog("Error retrieving keybox from settings: " + e.getMessage());
             }
         }
 
-        private static Context getApplicationContext() {
-            try {
-                return ActivityThread.currentApplication().getApplicationContext();
-            } catch (Exception e) {
-                Log.e(TAG, "Error getting application context", e);
-                return null;
+        private void logLoadedKeys() {
+            dlog("Successfully loaded keybox data:");
+            for (String key : Arrays.asList(
+                    "EC.PRIV", "EC.CERT_1", "EC.CERT_2", "EC.CERT_3",
+                    "RSA.PRIV", "RSA.CERT_1", "RSA.CERT_2", "RSA.CERT_3")) {
+                String value = keyboxData.get(key);
+                if (value != null) {
+                    dlog(key + ": " + value);
+                }
+            }
+        }
+
+        private void logMissingKeys() {
+            for (String key : Arrays.asList(
+                    "EC.PRIV", "EC.CERT_1", "EC.CERT_2", "EC.CERT_3",
+                    "RSA.PRIV", "RSA.CERT_1", "RSA.CERT_2", "RSA.CERT_3")) {
+                if (!keyboxData.containsKey(key)) {
+                    dlog("Missing key: " + key);
+                }
             }
         }
 
