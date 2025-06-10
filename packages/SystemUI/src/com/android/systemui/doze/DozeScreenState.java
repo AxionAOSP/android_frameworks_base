@@ -230,9 +230,6 @@ public class DozeScreenState implements DozeMachine.Part {
                         "screen_off_aod_enabled", 1, android.os.UserHandle.USER_CURRENT) == 1;
                 boolean isUdfps = mAuthController.isUdfpsEnrolled(
                     mSelectedUserInteractor.getSelectedUserId());
-                if (isUdfps && showAodOnScreenOff && mUdfpsController != null) {
-                    mUdfpsController.showFakeUdfpsIcon(true);
-                }
                 long delay = showAodOnScreenOff ? 4900 : 500;
                 mHandler.postDelayed(mApplyPendingScreenState, delay);
             } else if (mIsLandscapeScreenOff) {
