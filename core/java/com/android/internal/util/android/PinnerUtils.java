@@ -33,6 +33,9 @@ public class PinnerUtils {
     }
 
     public boolean isPinned(String packageName) {
+        if (packageName == null) {
+            return false;
+        }
         return pinnedProcesses.getOrDefault(packageName, false);
     }
 
