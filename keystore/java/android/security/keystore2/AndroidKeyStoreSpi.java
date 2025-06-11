@@ -91,8 +91,6 @@ import java.util.NoSuchElementException;
 
 import javax.crypto.SecretKey;
 
-import com.android.internal.util.android.PropsHooksUtils;
-
 /**
  * A java.security.KeyStore interface for the Android KeyStore. An instance of
  * it can be created via the {@link java.security.KeyStore#getInstance(String)
@@ -179,26 +177,9 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
         }
     }
 
-    private static int indexOf(byte[] array) {
-        final byte[] PATTERN = {48, 74, 4, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 10, 1, 2};
-        outer:
-        for (int i = 0; i < array.length - PATTERN.length + 1; i++) {
-            for (int j = 0; j < PATTERN.length; j++) {
-                if (array[i + j] != PATTERN[j]) {
-                    continue outer;
-                }
-            }
-            return i;
-        }
-        return -1;
-    }
-
     @Override
     public Certificate[] engineGetCertificateChain(String alias) {
         KeyEntryResponse response = getKeyMetadata(alias);
-        if (PropsHooksUtils.shouldSpoofGMS()) {
-            PropsHooksUtils.onEngineGetCertificateChain();
-        }
 
         if (response == null || response.metadata.certificate == null) {
             return null;
@@ -209,25 +190,9 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
             return null;
         }
 
-        X509Certificate modLeaf = leaf;
-        try {
-            byte[] bytes = leaf.getEncoded();
-            if (bytes != null && bytes.length > 0) {
-                int index = indexOf(bytes);
-                if (index != -1) {
-                    bytes[index + 38] = 1;
-                    bytes[index + 41] = 0;
-                    CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-                    X509Certificate modCert = (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(bytes));
-                    modLeaf = modCert;
-                }
-            }
-        } catch (CertificateException e) {
-            return null;
-        }
+        final Certificate[] caList;
 
         final byte[] caBytes = response.metadata.certificateChain;
-        final Certificate[] caList;
 
         if (caBytes != null) {
             final Collection<X509Certificate> caChain = toCertificates(caBytes);
@@ -243,7 +208,7 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
             caList = new Certificate[1];
         }
 
-        caList[0] = PropsHooksUtils.shouldSpoofGMS() ? modLeaf : leaf;
+        caList[0] = leaf;
 
         return caList;
     }

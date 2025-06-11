@@ -350,14 +350,6 @@ public class PropsHooksUtils {
         return false;
     }
 
-    public static void onEngineGetCertificateChain() {
-        if (!shouldSpoofGMS()) return;
-        if (isCallerSafetyNet() || sIsFinsky) {
-            Log.i(TAG, "Blocked key attestation");
-            throw new UnsupportedOperationException();
-        }
-    }
-
     public static boolean hasSystemFeature(String name, int version, boolean hasSystemFeature) {
         if (shouldSpoofPhotos()) {
             if (!isPixelDevice() && featuresPixel.contains(name)) return false;
@@ -376,7 +368,7 @@ public class PropsHooksUtils {
 
     private static void spoofAttestationToLegacy() {
         if (!shouldSpoofGMS()) return;
-        if (sIsGms || sIsFinsky) {
+        if (sIsFinsky) {
             String phReleaseInt = SystemProperties.get(PROP_HOOKS + "RELEASE");
             String phSdk = SystemProperties.get(PROP_HOOKS + "SDK_INT");
             if (phReleaseInt != null && !phReleaseInt.isEmpty()) {
