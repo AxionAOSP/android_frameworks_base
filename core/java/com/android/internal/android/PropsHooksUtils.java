@@ -350,14 +350,6 @@ public class PropsHooksUtils {
         return false;
     }
 
-    public static void onEngineGetCertificateChain() {
-        if (!shouldSpoofGMS()) return;
-        if (isCallerSafetyNet() || sIsFinsky) {
-            Log.i(TAG, "Blocked key attestation");
-            throw new UnsupportedOperationException();
-        }
-    }
-
     public static boolean hasSystemFeature(String name, int version, boolean hasSystemFeature) {
         if (shouldSpoofPhotos()) {
             if (!isPixelDevice() && featuresPixel.contains(name)) return false;
