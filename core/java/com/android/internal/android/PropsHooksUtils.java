@@ -38,14 +38,17 @@ public class PropsHooksUtils {
     private static final String PROP_HOOKS_MAINLINE = "persist.sys.pihooks_mainline_";
     private static final boolean DEBUG = SystemProperties.getBoolean(PROP_HOOKS + "DEBUG", false);
 
+    public static final String SPOOF_PIXEL_GMS = "persist.sys.pixelprops.gms";
     public static final String SPOOF_PIXEL_GPHOTOS = "persist.sys.pixelprops.gphotos";
     public static final String SPOOF_GAMES = "persist.sys.gameprops.enable";
     public static final String SPOOF_NETFLIX = "persist.sys.pixelprops.netflix";
     
-    private static volatile boolean sIsGms, sIsPhotos, sIsNetflix;
+    private static volatile boolean sIsGms, sIsFinsky, sIsPhotos, sIsNetflix;
 
     private static final Map<String, Object> propsToChangePixelXL;
     private static final Map<String, Field> fieldCache = new HashMap<>();
+    private static final String[] GMS_SPOOF_KEYS;
+    private static final String[] GMS_SPOOF_PROPERTIES;
     private static Boolean isPixelDevice = null;
     private static Boolean lastIsDeviceTablet = null;
 
@@ -165,6 +168,17 @@ public class PropsHooksUtils {
         propsToChangePixelXL.put("ID", "QP1A.191005.007.A3");
         propsToChangePixelXL.put("MODEL", "Pixel XL");
         propsToChangePixelXL.put("FINGERPRINT", "google/marlin/marlin:10/QP1A.191005.007.A3/5972272:user/release-keys");
+
+        GMS_SPOOF_KEYS = new String[] {
+            "BRAND", "DEVICE", "DEVICE_INITIAL_SDK_INT", "FINGERPRINT", "ID",
+            "MANUFACTURER", "MODEL", "PRODUCT", "RELEASE", "SECURITY_PATCH",
+            "TAGS", "TYPE", "SDK_INT"
+        };
+        
+        GMS_SPOOF_PROPERTIES = new String[GMS_SPOOF_KEYS.length];
+        for (int i = 0; i < GMS_SPOOF_KEYS.length; i++) {
+            GMS_SPOOF_PROPERTIES[i] = PROP_HOOKS + GMS_SPOOF_KEYS[i];
+        }
     }
 
     private static void addToPackageMap(Set<String> packages, Map<String, Object> props) {
@@ -216,7 +230,7 @@ public class PropsHooksUtils {
 
         sIsGms = packageName.equals("com.google.android.gms") 
             && processName.toLowerCase().contains("unstable");
-
+        sIsFinsky = packageName.equals("com.android.vending");
         sIsPhotos = packageName.equals("com.google.android.apps.photos");
         sIsNetflix = packageName.equals("com.netflix.mediaclient");
         
@@ -237,8 +251,13 @@ public class PropsHooksUtils {
                 new java.text.SimpleDateFormat("yyyyMMdd.HHmmss").format(new java.util.Date()));
         }
         
+        spoofAttestationToLegacy();
+
         if (sIsGms) {
             setPropValue("TIME", System.currentTimeMillis());
+            if (shouldSpoofGMS()) {
+                spoofBuildGms();
+            }
         }
     }
 
@@ -303,6 +322,42 @@ public class PropsHooksUtils {
         return SystemProperties.getBoolean(SPOOF_GAMES, false);
     }
 
+    public static boolean shouldSpoofGMS() {
+        return SystemProperties.getBoolean(SPOOF_PIXEL_GMS, true);
+    }
+
+    private static void spoofBuildGms() {
+        for (int i = 0; i < GMS_SPOOF_KEYS.length; i++) {
+            String key = GMS_SPOOF_KEYS[i];
+            String prop = GMS_SPOOF_PROPERTIES[i];
+            String value = SystemProperties.get(prop);
+            if (!TextUtils.isEmpty(value)) {
+                setPropValue(key, value);
+            } else {
+                dlog("Skipping empty property for " + key);
+            }
+        }
+    }
+
+    private static boolean isCallerSafetyNet() {
+        if (!sIsGms) return false;
+        StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+        for (StackTraceElement element : stackTrace) {
+            if (element.getClassName().contains("DroidGuard")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static void onEngineGetCertificateChain() {
+        if (!shouldSpoofGMS()) return;
+        if (isCallerSafetyNet() || sIsFinsky) {
+            Log.i(TAG, "Blocked key attestation");
+            throw new UnsupportedOperationException();
+        }
+    }
+
     public static boolean hasSystemFeature(String name, int version, boolean hasSystemFeature) {
         if (shouldSpoofPhotos()) {
             if (!isPixelDevice() && featuresPixel.contains(name)) return false;
@@ -317,6 +372,20 @@ public class PropsHooksUtils {
 
     private static boolean shouldSpoofPhotos() {
         return sIsPhotos && SystemProperties.getBoolean(SPOOF_PIXEL_GPHOTOS, true);
+    }
+
+    private static void spoofAttestationToLegacy() {
+        if (!shouldSpoofGMS()) return;
+        if (sIsGms || sIsFinsky) {
+            String phReleaseInt = SystemProperties.get(PROP_HOOKS + "RELEASE");
+            String phSdk = SystemProperties.get(PROP_HOOKS + "SDK_INT");
+            if (phReleaseInt != null && !phReleaseInt.isEmpty()) {
+                setPropValue("RELEASE", phReleaseInt);
+            }
+            if (phSdk != null && !phSdk.isEmpty()) {
+                setPropValue("SDK_INT", phSdk);
+            }
+        }
     }
 
     private static boolean isPixelDevice() {
