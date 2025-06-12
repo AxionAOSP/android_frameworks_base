@@ -6,17 +6,18 @@ package com.android.internal.util.custom;
 
 import android.app.ActivityThread;
 import android.content.Context;
-import android.util.Log;
 import android.os.SystemProperties;
+import android.provider.Settings;
+import android.util.Log;
+import android.text.TextUtils;
 
 import com.android.internal.R;
 
-import org.w3c.dom.*;
-import javax.xml.parsers.*;
+import org.json.JSONObject;
 
-import java.io.File;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -46,41 +47,22 @@ public final class KeyProviderManager {
 
         private DefaultKeyboxProvider() {
             try {
-                File xmlFile = new File("/data/misc/keybox/keybox.xml");
-                if (!xmlFile.exists()) {
-                    dlog("Keybox XML file not found: " + xmlFile.getAbsolutePath());
+                Context context = ActivityThread.currentApplication().getApplicationContext();
+                
+                if (context == null) return;
+
+                String json = Settings.System.getString(context.getContentResolver(), "custom_keybox_data");
+
+                if (TextUtils.isEmpty(json)) {
+                    dlog("No keybox data in Settings.System");
                     return;
                 }
 
-                DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-                DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-                Document doc = dBuilder.parse(xmlFile);
-                doc.getDocumentElement().normalize();
-
-                NodeList keyboxes = doc.getElementsByTagName("Keybox");
-
-                for (int i = 0; i < keyboxes.getLength(); i++) {
-                    Element keyboxElement = (Element) keyboxes.item(i);
-                    NodeList keys = keyboxElement.getElementsByTagName("Key");
-
-                    for (int j = 0; j < keys.getLength(); j++) {
-                        Element keyElement = (Element) keys.item(j);
-                        String algorithm = keyElement.getAttribute("algorithm").toUpperCase();
-                        if (algorithm.equals("ECDSA")) algorithm = "EC";
-
-                        Element privKeyElem = (Element) keyElement.getElementsByTagName("PrivateKey").item(0);
-                        String privKeyRaw = getRawText(privKeyElem);
-                        String privKey = extractBase64FromPEM(privKeyRaw);
-                        keyboxData.put(algorithm + ".PRIV", privKey);
-
-                        NodeList certList = keyElement.getElementsByTagName("Certificate");
-                        for (int k = 0; k < certList.getLength(); k++) {
-                            Element certElem = (Element) certList.item(k);
-                            String certRaw = getRawText(certElem);
-                            String cert = extractBase64FromPEM(certRaw);
-                            keyboxData.put(algorithm + ".CERT_" + (k + 1), cert);
-                        }
-                    }
+                JSONObject keyboxJson = new JSONObject(json);
+                Iterator<String> keys = keyboxJson.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    keyboxData.put(key, keyboxJson.getString(key));
                 }
 
                 if (!hasKeybox()) {
@@ -89,27 +71,10 @@ public final class KeyProviderManager {
                 } else {
                     logLoadedKeys();
                 }
+
             } catch (Exception e) {
-                dlog("Error reading keybox XML: " + e.getMessage());
+                dlog("Error retrieving keybox from settings: " + e.getMessage());
             }
-        }
-
-        private String extractBase64FromPEM(String pem) {
-            return pem.replaceAll("-----BEGIN [^-]+-----", "")
-                      .replaceAll("-----END [^-]+-----", "")
-                      .replaceAll("[\\r\\n\\s]+", "");
-        }
-
-        private String getRawText(Element element) {
-            StringBuilder builder = new StringBuilder();
-            NodeList children = element.getChildNodes();
-            for (int i = 0; i < children.getLength(); i++) {
-                Node node = children.item(i);
-                if (node.getNodeType() == Node.TEXT_NODE || node.getNodeType() == Node.CDATA_SECTION_NODE) {
-                    builder.append(node.getNodeValue());
-                }
-            }
-            return builder.toString().trim();
         }
 
         private void logLoadedKeys() {
