@@ -104,9 +104,7 @@ constructor(
             interpolator = Interpolators.LINEAR
             addUpdateListener {
                 if (lightRevealMigration()) return@addUpdateListener
-                if (lightRevealScrim.revealEffect !is CircleReveal) {
-                    lightRevealScrim.revealAmount = it.animatedValue as Float
-                }
+                lightRevealScrim.revealAmount = it.animatedValue as Float
                 if (
                     lightRevealScrim.isScrimAlmostOccludes &&
                         interactionJankMonitor.isInstrumenting(CUJ_SCREEN_OFF)
@@ -120,9 +118,13 @@ constructor(
                 object : AnimatorListenerAdapter() {
                     override fun onAnimationCancel(animation: Animator) {
                         if (lightRevealMigration()) return
-                        if (lightRevealScrim.revealEffect !is CircleReveal) {
+                        lightRevealScrim.revealAmount = 1f
+                        if (lightRevealScrim.isScrimAlmostOccludes) {
+                            lightRevealScrim.revealAmount = 0.0f
+                        } else {
                             lightRevealScrim.revealAmount = 1f
                         }
+                        centralSurfaces.unlockedScreenOffAnimationCancel()
                         SystemUIBoostFramework.getInstance().requestUnLimitOtherProcessCPU(SystemUIBoostFramework.REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_PLAY_SCREEN_OFF_ANIMATION)
                         SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_LIGHT_REVEAL)
                     }
@@ -133,11 +135,16 @@ constructor(
                         SystemUIBoostFramework.getInstance().requestUnLimitOtherProcessCPU(SystemUIBoostFramework.REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_PLAY_SCREEN_OFF_ANIMATION)
                         SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_LIGHT_REVEAL)
                         val wakefulness = wakefulnessLifecycle.getWakefulness()
-                        if (ScreenAnimationController.INSTANCE().shouldPlayAnimation() && (wakefulness == 1 || wakefulness == 2)) {
+                        if (ScreenAnimationController.INSTANCE().shouldPlayAnimation() 
+                            && (wakefulness == WakefulnessLifecycle.WAKEFULNESS_WAKING 
+                                || wakefulness == WakefulnessLifecycle.WAKEFULNESS_AWAKE)) {
                             centralSurfaces.updateIsKeyguard()
                         }
-                        if (powerManager.isInteractive(0)) {
+                        if (powerManager.isInteractive(Display.DEFAULT_DISPLAY)) {
                             if (lightRevealScrim.revealAmount == 1.0f) {
+                                return
+                            }
+                            if (keyguardStateController.isShowing()) {
                                 return
                             }
                             lightRevealScrim.revealAmount = 1.0f
@@ -417,10 +424,11 @@ constructor(
         // portrait. If we're in another orientation, disable the screen off animation so we don't
         // animate in the keyguard AOD UI sideways or upside down.
         if (
-            !keyguardStateController.isKeyguardScreenRotationAllowed &&
-                context.display?.rotation != Surface.ROTATION_0
+            keyguardStateController.isKeyguardScreenRotationAllowed &&
+                context.display?.rotation == Surface.ROTATION_0
         ) {
-            return false
+            return Settings.Secure.getIntForUser(context.getContentResolver(), 
+                "user_setup_complete", 0, android.os.UserHandle.USER_CURRENT) != 0
         }
 
         // Otherwise, good to go.

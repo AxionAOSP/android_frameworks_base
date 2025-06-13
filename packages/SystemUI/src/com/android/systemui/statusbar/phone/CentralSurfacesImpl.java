@@ -2569,7 +2569,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, Medi
         }
         updateRevealEffectEx(wakingUp);
     }
-    
+
     public void updateRevealEffectEx(boolean wakingUp) {
         int lastWakeReason = mWakefulnessLifecycle.getLastWakeReason();
         int lastSleepReason = mWakefulnessLifecycle.getLastSleepReason();
@@ -2579,33 +2579,23 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, Medi
         final boolean sleepingFromPowerButton = !wakingUp
                 && lastSleepReason
                 == PowerManager.GO_TO_SLEEP_REASON_POWER_BUTTON;
-        final boolean sleepingFromApplication = !wakingUp 
-                && lastSleepReason
-                == PowerManager.GO_TO_SLEEP_REASON_APPLICATION;
-        final CircleReveal tapLightReveal = getTapLightRevealEffect();
         if (wakingUpFromPowerButton || sleepingFromPowerButton) {
             mLightRevealScrim.setRevealEffect(mPowerButtonReveal);
-        } else if (sleepingFromApplication) {
-            Point tapPos = TapPositionUtil.INSTANCE().getTapPos();
-            mLightRevealScrim.setRevealEffect(
-                tapPos == null 
-                ? mPowerButtonReveal
-                : new PowerButtonReveal(tapPos.y));
         } else if (!wakingUp) {
-            mLightRevealScrim.setRevealEffect(LiftReveal.INSTANCE);
+            if (lastSleepReason == PowerManager.GO_TO_SLEEP_REASON_MIN) {
+                mLightRevealScrim.setRevealEffect(getTapLightRevealEffect(false));
+            } else {
+                mLightRevealScrim.setRevealEffect(LiftReveal.INSTANCE);
+            }
             if (lastSleepReason == PowerManager.GO_TO_SLEEP_REASON_SLEEP_BUTTON) {
                 mIsPressSleepButton = true;
             }
         } else if (lastWakeReason == PowerManager.WAKE_REASON_TAP) {
-            mLightRevealScrim.setRevealEffect(
-                tapLightReveal == null 
-                ? mPowerButtonReveal
-                : tapLightReveal);
+            mLightRevealScrim.setRevealEffect(getTapLightRevealEffect(true));
         } else if (lastWakeReason == PowerManager.WAKE_REASON_CAMERA_LAUNCH) {
             mLightRevealScrim.setRevealEffect(mPowerButtonReveal);
         } else if (lastWakeReason == PowerManager.WAKE_REASON_BIOMETRIC) {
             wakingUpFromBiometric = true;
-            mLightRevealScrim.setRevealEffect(LiftReveal.INSTANCE);
         } else {
             mLightRevealScrim.setRevealEffect(LiftReveal.INSTANCE);
         }
@@ -2615,20 +2605,26 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, Medi
         mDozeParameters.updateControlScreenOff();
     }
 
-    private CircleReveal getTapLightRevealEffect() {
-        Point tapPos = TapPositionUtil.INSTANCE().getTapPos();
-        if (tapPos == null) {
-            return null;
-        }
+    private CircleReveal getTapLightRevealEffect(boolean wakingUp) {
+        int x;
+        int y;
+        Point mTapPos = TapPositionUtil.INSTANCE().getTapPos();
 
-        int x = tapPos.x;
-        int y = tapPos.y;
+        if (mTapPos != null) {
+            x = mTapPos.x;
+            y = mTapPos.y;
+        } else if (!wakingUp) {
+            x = 0;
+            y = 0;
+        } else {
+            x = mDisplayMetrics.widthPixels / 2;
+            y = mDisplayMetrics.heightPixels / 2;
+        }
 
         int maxRadius = Math.max(
             Math.max(x, mDisplayMetrics.widthPixels - x),
             Math.max(y, mDisplayMetrics.heightPixels - y)
         );
-
         return new CircleReveal(x, y, 0, maxRadius);
     }
 
@@ -3523,5 +3519,12 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, Medi
     public ActivityTransitionAnimator.Controller getAnimatorControllerFromNotification(
             ExpandableNotificationRow associatedView) {
         return mNotificationAnimationProvider.getAnimatorController(associatedView);
+    }
+    
+    @Override
+    public void unlockedScreenOffAnimationCancel() {
+        if (mState == StatusBarState.KEYGUARD) {
+            mShadeSurface.cancelPendingCollapse();
+        }
     }
 }

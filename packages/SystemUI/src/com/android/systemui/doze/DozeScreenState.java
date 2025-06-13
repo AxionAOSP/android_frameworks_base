@@ -59,13 +59,18 @@ public class DozeScreenState implements DozeMachine.Part {
      * Delay entering low power mode when animating to make sure that we'll have
      * time to move all elements into their final positions while still at 60 fps.
      */
-    private static final int ENTER_DOZE_DELAY = 4000;
+    private static final int ENTER_DOZE_DELAY = 4900;
     /**
      * Hide wallpaper earlier when entering low power mode. The gap between
      * hiding the wallpaper and changing the display mode is necessary to hide
      * the black frame that's inherent to hardware specs.
      */
     public static final int ENTER_DOZE_HIDE_WALLPAPER_DELAY = 2500;
+    
+    private static final int ENTER_SCREEN_OFF_WITH_ANIMATION_DELAY = 4900;
+    private static final int ENTER_SCREEN_OFF_WITH_ANIMATION_DELAY_NO_UDFPS = 500;
+    private static final int ENTER_DOZE_DELAY_BY_QS_EXPANDED_SCREEN_OFF = 700;
+    private static final int ENTER_DOZE_DELAY_BY_LANDSCAPE_SCREEN_OFF = 1500;
 
     /**
      * Add an extra delay to the transition to DOZE when udfps is current activated before
@@ -230,15 +235,15 @@ public class DozeScreenState implements DozeMachine.Part {
                         "screen_off_aod_enabled", 1, android.os.UserHandle.USER_CURRENT) == 1;
                 boolean isUdfps = mAuthController.isUdfpsEnrolled(
                     mSelectedUserInteractor.getSelectedUserId());
-                long delay = showAodOnScreenOff ? 4900 : 500;
+                long delay = showAodOnScreenOff ? ENTER_SCREEN_OFF_WITH_ANIMATION_DELAY : ENTER_SCREEN_OFF_WITH_ANIMATION_DELAY_NO_UDFPS;
                 mHandler.postDelayed(mApplyPendingScreenState, delay);
             } else if (mIsLandscapeScreenOff) {
                 mDozeService.setDozeScreenState(Display.STATE_OFF);
-                mHandler.postDelayed(mApplyPendingScreenState, 1500);
+                mHandler.postDelayed(mApplyPendingScreenState, ENTER_DOZE_DELAY_BY_LANDSCAPE_SCREEN_OFF);
                 mIsLandscapeScreenOff = false;
             } else if (isPanelExpandedWhenScreenOff) {
                 mDozeService.setDozeScreenState(Display.STATE_OFF);
-                mHandler.postDelayed(mApplyPendingScreenState, 700);
+                mHandler.postDelayed(mApplyPendingScreenState, ENTER_DOZE_DELAY_BY_QS_EXPANDED_SCREEN_OFF);
             } else {
                 mHandler.post(mApplyPendingScreenState);
             }
@@ -263,7 +268,8 @@ public class DozeScreenState implements DozeMachine.Part {
 
     private void applyScreenState(int screenState) {
         if (screenState != Display.STATE_UNKNOWN) {
-            if (screenState == Display.STATE_DOZE_SUSPEND && ScreenAnimationController.INSTANCE().getCurDisplayState() != 3) {
+            if (screenState == Display.STATE_DOZE_SUSPEND 
+                && ScreenAnimationController.INSTANCE().getCurDisplayState() != Display.STATE_DOZE) {
                 mDozeService.setDozeScreenState(Display.STATE_DOZE);
                 mHandler.postDelayed(mApplyPendingScreenState, 3000);
                 return;
