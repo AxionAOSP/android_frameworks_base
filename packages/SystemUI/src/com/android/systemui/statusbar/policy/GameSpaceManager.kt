@@ -31,6 +31,7 @@ import android.os.UserHandle
 import android.provider.Settings
 
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.util.SystemUIBoostFramework
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -161,6 +162,7 @@ class GameSpaceManager @Inject constructor(
         if (!powerManager.isInteractive || keyguardStateController.isShowing) {
             if (_activeGame.value != null) {
                 _activeGame.value = null
+                SystemUIBoostFramework.getInstance().gameBoost(false)
                 dispatchGameState()
             }
             return
@@ -171,9 +173,11 @@ class GameSpaceManager @Inject constructor(
 
         if (_activeGame.value != currentPackage && isGame) {
             _activeGame.value = currentPackage
+            SystemUIBoostFramework.getInstance().gameBoost(true)
             dispatchGameState()
         } else if (!isGame && _activeGame.value != null) {
             _activeGame.value = null
+            SystemUIBoostFramework.getInstance().gameBoost(false)
             dispatchGameState()
         }
     }

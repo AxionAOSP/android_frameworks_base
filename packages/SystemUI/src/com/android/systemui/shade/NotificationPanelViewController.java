@@ -2841,6 +2841,13 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
         setPanelScrimMinFraction(0.0f);
         // Reset status bar alpha so alpha can be calculated upon updating view state.
         setKeyguardStatusBarAlpha(-1f);
+        if (!isPanelExpanded()) {
+            SystemUIBoostFramework.getInstance().requestUnLimitOtherProcessCPU(SystemUIBoostFramework.REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_NOTIFICATION_EXPAND);
+            mView.postDelayed(() -> {
+                SystemUIBoostFramework.getInstance().setLimitForegroundAppCpu(false);
+            }, 50);
+        }
+        SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_NOTIFICATION_PANEL_VIEW_EXPAND);
     }
 
     private void setListening(boolean listening) {
@@ -3734,7 +3741,11 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
             mIsExpandingOrCollapsing = true;
             mQsController.onExpandingStarted(mQsController.getFullyExpanded());
         }
-        SystemUIBoostFramework.getInstance().animationBoostOn(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_EXPANSION_ANIMATION);
+        SystemUIBoostFramework.getInstance().requestLimitOtherProcessCPU(SystemUIBoostFramework.REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_NOTIFICATION_EXPAND);
+        SystemUIBoostFramework.getInstance().animationBoostOn(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_NOTIFICATION_PANEL_VIEW_EXPAND);
+        mView.postDelayed(() -> {
+            SystemUIBoostFramework.getInstance().setLimitForegroundAppCpu(true);
+        }, 50);
     }
 
     void notifyExpandingFinished() {
@@ -3743,7 +3754,6 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
             mExpanding = false;
             onExpandingFinished();
         }
-        SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_EXPANSION_ANIMATION);
     }
 
     float getTouchSlop(MotionEvent event) {

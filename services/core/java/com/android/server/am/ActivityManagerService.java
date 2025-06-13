@@ -311,6 +311,7 @@ import android.database.ContentObserver;
 import android.graphics.Rect;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.DisplayManagerInternal;
+import android.hardware.power.Boost;
 import android.net.Uri;
 import android.os.AppZygote;
 import android.os.BatteryStats;
@@ -490,7 +491,10 @@ import dalvik.system.VMRuntime;
 
 import libcore.util.EmptyArray;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.FileDescriptor;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -19732,6 +19736,80 @@ public class ActivityManagerService extends IActivityManager.Stub
             }
 
         } catch (Exception e) {
+        }
+    }
+
+    @Override
+    public void executeAdjustCpusetCpus(String path, String cpuset) {
+        File file = new File(path);
+        try (FileWriter writer = new FileWriter(file)) {
+            writer.write(cpuset);
+            writer.flush();
+        } catch (IOException e) {
+            Log.e("executeAdjustCpusetCpus", "Failed to write to " + path + ": " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void adjustCpusetCpus(String path, String cpuset, long durationMillis) {
+        File file = new File(path);
+        String originalCpuset = null;
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            originalCpuset = reader.readLine();
+        } catch (IOException e) {
+            Log.e("adjustCpusetCpus", "Failed to read original cpuset from " + path + ": " + e.getMessage());
+            return;
+        }
+
+        executeAdjustCpusetCpus(path, cpuset);
+
+        String restoreCpuset = originalCpuset;
+        mHandler.postDelayed(() -> executeAdjustCpusetCpus(path, restoreCpuset), durationMillis);
+    }
+
+    @Override
+    public void animationBoost(int pid) {
+        ProcessRecord curProc;
+        synchronized (mPidsSelfLocked) {
+            curProc = mPidsSelfLocked.get(pid);
+        }
+        if (curProc == null) {
+            return;
+        }
+        try {
+            int policy = Process.SCHED_RESET_ON_FORK | Process.SCHED_FIFO;
+            Process.setThreadScheduler(pid, policy, 99);
+            Process.setThreadScheduler(curProc.getRenderThreadTid(), policy, 99);
+            doBoost(1000);
+        } catch (Exception e) {
+        }
+    }
+    
+    @Override
+    public void restoreThreadPriority(int pid, int originalPriority) {
+        ProcessRecord curProc;
+        synchronized (mPidsSelfLocked) {
+            curProc = mPidsSelfLocked.get(pid);
+        }
+        if (curProc == null) {
+            return;
+        }
+        try {
+            int policy = Process.SCHED_OTHER;
+            Process.setThreadScheduler(pid, policy, 0);
+            Process.setThreadPriority(originalPriority);
+            Process.setThreadScheduler(curProc.getRenderThreadTid(), policy, 0);
+        } catch (Exception e) {
+        }
+    }
+
+    private void doBoost(int duration) {
+        if (mLocalPowerManager != null) {
+            mLocalPowerManager.setPowerBoost(
+                    Boost.INTERACTION, duration);
+            mLocalPowerManager.setPowerBoost(
+                    Boost.DISPLAY_UPDATE_IMMINENT, duration);
         }
     }
 

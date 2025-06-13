@@ -816,6 +816,7 @@ public class KeyguardViewMediator implements CoreStartable, Dumpable,
             if (targetUserId != mSelectedUserInteractor.getSelectedUserId()) {
                 return;
             }
+            SystemUIBoostFramework.getInstance().setLimitOtherAppCpu(true);
             if (DEBUG) Log.d(TAG, "keyguardDone");
             tryKeyguardDone();
         }
@@ -877,6 +878,8 @@ public class KeyguardViewMediator implements CoreStartable, Dumpable,
                             "com.android.systemui:UNLOCK_DREAMING");
                 }
             }
+            SystemUIBoostFramework.getInstance().setLimitOtherAppCpu(false);
+            SystemUIBoostFramework.getInstance().unbind();
             mHandler.postDelayed(() -> 
                 SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_UNLOCK), 
                 800L

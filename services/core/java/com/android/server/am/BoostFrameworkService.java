@@ -15,11 +15,14 @@
  */
 package com.android.server.am;
 
+import android.app.ActivityManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.SystemProperties;
 import android.util.Log;
 import com.android.internal.os.IBoostFramework;
+
+import java.util.HashMap;
 
 public class BoostFrameworkService extends IBoostFramework.Stub {
 
@@ -30,41 +33,35 @@ public class BoostFrameworkService extends IBoostFramework.Stub {
 
     private static final long ANIMATION_BOOST_ON = 0L;
     private static final long ANIMATION_BOOST_OFF = -1L;
-
-    private final boolean useFifoUiScheduling =
-            SystemProperties.getBoolean("ro.sys.axion_is_modern_kernel", true);
+    
+    private final HashMap<Integer, Integer> mOriginalPriorities = new HashMap<>();
 
     @Override
     public void animationBoost(int tid, long boost) throws RemoteException {
         try {
-            int originalPriority = Process.getThreadPriority(tid);
             if (boost >= ANIMATION_BOOST_ON) {
-                applyBoost(tid);
+                if (!mOriginalPriorities.containsKey(tid)) {
+                    int originalPriority = Process.getThreadPriority(tid);
+                    mOriginalPriorities.put(tid, originalPriority);
+                }
+                ActivityManager.getService().animationBoost(tid);
             } else if (boost == ANIMATION_BOOST_OFF) {
-                restoreThreadPriority(tid, originalPriority);
+                Integer originalPriority = mOriginalPriorities.remove(tid);
+                if (originalPriority != null) {
+                    restoreThreadPriority(tid, originalPriority);
+                } else {
+                    Log.w(TAG, "No cached priority found for tid " + tid);
+                }
             }
         } catch (Exception e) {
             Log.e(TAG, "Error in animationBoost: " + e.getMessage(), e);
         }
     }
 
-    private void applyBoost(int tid) {
-        if (useFifoUiScheduling) {
-            Process.setThreadScheduler(tid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 99);
-        } else {
-            Process.setThreadPriority(tid, Process.THREAD_PRIORITY_TOP_APP_BOOST);
-        }
-    }
-
     private void restoreThreadPriority(int tid, int originalPriority) {
         try {
-            if (useFifoUiScheduling) {
-                Process.setThreadScheduler(tid, Process.SCHED_OTHER, 0);
-            }
-            Process.setThreadPriority(tid, originalPriority);
+            ActivityManager.getService().restoreThreadPriority(tid, originalPriority);
         } catch (Exception e) {
-            Log.w(TAG, "Failed to restore thread priority for " + tid + ", setting to default.", e);
-            Process.setThreadPriority(tid, Process.THREAD_PRIORITY_DEFAULT);
         }
     }
 

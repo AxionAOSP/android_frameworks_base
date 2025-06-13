@@ -15,11 +15,13 @@
  */
 package com.android.systemui.util;
 
+import android.app.ActivityManager;
 import android.os.IBinder;
 import android.os.PerformanceHintManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.SystemProperties;
 import android.util.Log;
 
 import com.android.internal.os.IBoostFramework;
@@ -29,6 +31,26 @@ import java.util.concurrent.TimeUnit;
 public class SystemUIBoostFramework {
 
     private static final String TAG = "SystemUIBoostFramework";
+    
+    private static final String CPUSET_PATH = "/dev/cpuset/";
+    private static final String CAMERA_DAEMON_GROUP = CPUSET_PATH + "camera-daemon/cpus";
+    private static final String TOP_APP_GROUP = CPUSET_PATH + "top-app/cpus";
+    private static final String DEX2OAT_GROUP = CPUSET_PATH + "dex2oat/cpus";
+    private static final String FG_GROUP = CPUSET_PATH + "foreground/cpus";
+    private static final String FG_WINDOWN_GROUP = CPUSET_PATH + "foreground_window/cpus";
+    private static final String RESTRICTED_GROUP = CPUSET_PATH + "restricted/cpus";
+    private static final String SYS_BG_GROUP = CPUSET_PATH + "system-background/cpus";
+    private static final String BG_GROUP = CPUSET_PATH + "background/cpus";
+  
+    private static final String CPUS_PARAMS_BG_LIMIT = SystemProperties.get("persist.sys.axion_cpu_limit_bg", "0-1");
+    private static final String CPUS_PARAMS_UI_LIMIT = SystemProperties.get("persist.sys.axion_cpu_limit_ui", "0-4");
+    private static final String CPUS_PARAMS_UI_UNLIMIT = SystemProperties.get("persist.sys.axion_cpu_unlimit_ui", "0-7");
+    private static final String CPUS_PARAMS_FG_UNLIMIT = SystemProperties.get("persist.sys.axion_cpu_fg", "0-5");
+    private static final String CPUS_PARAMS_BG_UNLIMIT = SystemProperties.get("persist.sys.axion_cpu_bg", "0-2");
+
+    public static int REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_NOTIFICATION_EXPAND = 16;
+    public static int REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_PLAY_SCREEN_OFF_ANIMATION = 256;
+    public static int REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_UNLOCK = 1;
 
     public static int REQUEST_ANIMATION_BOOST_TYPE_TRACKING_NOTIFICATION_PANEL_VIEW = 1 << 1;
     public static int REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_NOTIFICATION_PANEL_VIEW_EXPAND = 1 << 2;
@@ -50,6 +72,10 @@ public class SystemUIBoostFramework {
     private int mAnimationBoostType = 0;
     private int mBindStatus = STATUS_UNBIND;
     private long mAnimationBoost = ANIMATION_BOOST_OFF;
+
+    private int mLimitOtherProcessCpuReason = 0;
+    private boolean mLimitForegroundAppCpu = false;
+    private boolean mLimitOtherProcessCpu = false;
     
     private static IBoostFramework sService;
     private PerformanceHintManager mPerformanceHintManager;
@@ -165,6 +191,115 @@ public class SystemUIBoostFramework {
             }
         } catch (RemoteException e) {
             Log.e(TAG, "Failed to call animationBoost", e);
+        }
+    }
+    
+    public void setLimitCpusForIdle(boolean limit) {
+        if (limit) {
+            // ui groups
+            executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_LIMIT);
+            executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_UI_LIMIT);
+            executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_UI_LIMIT);
+            
+            // bg groups
+            executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_BG_LIMIT);
+            executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_LIMIT);
+            executeAdjustCpusetCpus(RESTRICTED_GROUP, CPUS_PARAMS_BG_LIMIT);
+            executeAdjustCpusetCpus(SYS_BG_GROUP, CPUS_PARAMS_BG_LIMIT);
+            executeAdjustCpusetCpus(BG_GROUP, CPUS_PARAMS_BG_LIMIT);
+        } else {
+            // ui groups
+            executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+            executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+            
+            // fg groups
+            executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_FG_UNLIMIT);
+            executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_FG_UNLIMIT);
+            
+            // bg groups
+            executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+            executeAdjustCpusetCpus(RESTRICTED_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+            executeAdjustCpusetCpus(SYS_BG_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+            executeAdjustCpusetCpus(BG_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+        }
+    }
+
+    public void setLimitForegroundAppCpu(boolean limitForegroundAppCpu) {
+        if (limitForegroundAppCpu != mLimitForegroundAppCpu) {
+            if (limitForegroundAppCpu) {
+                executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_UI_LIMIT);
+                executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_UI_LIMIT);
+            } else {
+                executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+                executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+            }
+            mLimitForegroundAppCpu = limitForegroundAppCpu;
+        }
+    }
+
+    public void setLimitOtherProcessCpu(boolean limitOtherProcessCpu) {    
+        if (limitOtherProcessCpu != mLimitOtherProcessCpu) {
+            if (limitOtherProcessCpu) {
+                executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_BG_LIMIT);
+                executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_LIMIT);
+            } else {
+                executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+                executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+            }
+            mLimitOtherProcessCpu = limitOtherProcessCpu;
+        }
+    }
+
+    public void requestLimitOtherProcessCPU(int type) {
+        mLimitOtherProcessCpuReason = type | mLimitOtherProcessCpuReason;
+        limitCameraHalCpu();
+    }
+
+    public void requestUnLimitOtherProcessCPU(int type) {
+        mLimitOtherProcessCpuReason = (~type) & mLimitOtherProcessCpuReason;
+        limitCameraHalCpu();
+    }
+
+    private void limitCameraHalCpu() {
+        boolean limit = mLimitOtherProcessCpuReason > 0;
+        setLimitOtherProcessCpu(limit);
+    }
+
+    public void setLimitOtherAppCpu(boolean on) {
+        if (on) {
+            requestLimitOtherProcessCPU(REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_UNLOCK);
+        } else {
+            requestUnLimitOtherProcessCPU(REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_UNLOCK);
+        }
+        setLimitForegroundAppCpu(on);
+    }
+
+    public void gameBoost(boolean boost) {
+        if (boost) {
+            executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+            executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_LIMIT);
+            executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_BG_LIMIT);
+            executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_BG_LIMIT);
+            executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_BG_LIMIT);
+            executeAdjustCpusetCpus(RESTRICTED_GROUP, CPUS_PARAMS_BG_LIMIT);
+            executeAdjustCpusetCpus(BG_GROUP, CPUS_PARAMS_BG_LIMIT);
+            executeAdjustCpusetCpus(SYS_BG_GROUP, CPUS_PARAMS_BG_LIMIT);
+        } else {
+            executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+            executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+            executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+            executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_FG_UNLIMIT);
+            executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_FG_UNLIMIT);
+            executeAdjustCpusetCpus(RESTRICTED_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+            executeAdjustCpusetCpus(BG_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+            executeAdjustCpusetCpus(SYS_BG_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+        }
+    }
+
+    private void executeAdjustCpusetCpus(String path, String cpus) {
+        try {
+            ActivityManager.getService().executeAdjustCpusetCpus(path, cpus);
+        } catch (Exception e) {
         }
     }
 }

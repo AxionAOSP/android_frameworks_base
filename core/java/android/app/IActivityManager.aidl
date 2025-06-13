@@ -1049,4 +1049,8 @@ interface IActivityManager {
     boolean shouldForceLongScreen(in String packageName);
 
     void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera);
+    void executeAdjustCpusetCpus(String path, String cpuset);
+    void adjustCpusetCpus(String path, String cpuset, long durationMillis);
+    void animationBoost(int pid);
+    void restoreThreadPriority(int pid, int originalPriority);
 }

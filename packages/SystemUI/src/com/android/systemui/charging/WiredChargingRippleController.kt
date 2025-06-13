@@ -99,6 +99,7 @@ class WiredChargingRippleController @Inject constructor(
                 if (isRippleEnabled) {
                     startRipple()
                 }
+                com.android.systemui.util.SystemUIBoostFramework.getInstance().setLimitOtherAppCpu(false)
             }
         }
 

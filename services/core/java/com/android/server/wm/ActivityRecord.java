@@ -261,6 +261,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.Size;
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.ActivityManager.TaskDescription;
 import android.app.ActivityOptions;
 import android.app.IScreenCaptureObserver;
@@ -6563,6 +6564,8 @@ final class ActivityRecord extends WindowToken implements WindowManagerService.A
 
         // Schedule an idle timeout in case the app doesn't do it for us.
         mTaskSupervisor.scheduleIdleTimeout(this);
+        adjustCpusetCpus("/dev/cpuset/background/cpus", 
+            android.os.SystemProperties.get("persist.sys.axion_cpu_limit_bg", "0-1"), 500L);
 
         mTaskSupervisor.mStoppingActivities.remove(this);
         if (getDisplayArea().allResumedActivitiesComplete()) {
@@ -6583,6 +6586,13 @@ final class ActivityRecord extends WindowToken implements WindowManagerService.A
             // the keyguard is not showing don't attempt to sleep. Otherwise the Activity will
             // pause and then resume again later, which will result in a double life-cycle event.
             rootTask.checkReadyForSleep();
+        }
+    }
+
+    private void adjustCpusetCpus(String path, String cpuset, long durationMillis) {
+        try {
+            ActivityManager.getService().adjustCpusetCpus(path, cpuset, durationMillis);
+        } catch (Exception e) {
         }
     }
 
