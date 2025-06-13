@@ -19,15 +19,23 @@ package com.android.internal.util.android;
 
 import android.app.Application;
 import android.content.Context;
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.SystemProperties;
-import android.util.Log;
+import android.provider.Settings;
 import android.text.TextUtils;
+import android.util.DisplayMetrics;
+import android.util.Log;
+import android.view.WindowManager;
+
+import org.json.JSONObject;
+import org.json.JSONException;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -47,10 +55,8 @@ public class PropsHooksUtils {
 
     private static final Map<String, Object> propsToChangePixelXL;
     private static final Map<String, Field> fieldCache = new HashMap<>();
-    private static final String[] GMS_SPOOF_KEYS;
-    private static final String[] GMS_SPOOF_PROPERTIES;
     private static Boolean isPixelDevice = null;
-    private static Boolean lastIsDeviceTablet = null;
+    private static Boolean isLargeScreen = null;
 
     private static final Set<String> featuresPixel = new HashSet<>(Set.of(
             "PIXEL_2017_PRELOAD",
@@ -168,17 +174,6 @@ public class PropsHooksUtils {
         propsToChangePixelXL.put("ID", "QP1A.191005.007.A3");
         propsToChangePixelXL.put("MODEL", "Pixel XL");
         propsToChangePixelXL.put("FINGERPRINT", "google/marlin/marlin:10/QP1A.191005.007.A3/5972272:user/release-keys");
-
-        GMS_SPOOF_KEYS = new String[] {
-            "BRAND", "DEVICE", "DEVICE_INITIAL_SDK_INT", "FINGERPRINT", "ID",
-            "MANUFACTURER", "MODEL", "PRODUCT", "RELEASE", "SECURITY_PATCH",
-            "TAGS", "TYPE", "SDK_INT"
-        };
-        
-        GMS_SPOOF_PROPERTIES = new String[GMS_SPOOF_KEYS.length];
-        for (int i = 0; i < GMS_SPOOF_KEYS.length; i++) {
-            GMS_SPOOF_PROPERTIES[i] = PROP_HOOKS + GMS_SPOOF_KEYS[i];
-        }
     }
 
     private static void addToPackageMap(Set<String> packages, Map<String, Object> props) {
@@ -197,13 +192,11 @@ public class PropsHooksUtils {
     public static void setProps(Context context) {
         if (context == null) return;
         
-        boolean currentIsDeviceTablet = isDeviceTablet(context);
+        boolean isTablet = isLargeScreen(context);
 
-        if (lastIsDeviceTablet == null || lastIsDeviceTablet != currentIsDeviceTablet) {
-            packagePropsMap.keySet().removeAll(pubgPackages);
-            addToPackageMap(pubgPackages, currentIsDeviceTablet ? propsToChangeS9Tab : propsToChangeROG8P);
-            lastIsDeviceTablet = currentIsDeviceTablet;
-        }
+        packagePropsMap.keySet().removeAll(pubgPackages);
+
+        addToPackageMap(pubgPackages, isTablet ? propsToChangeS9Tab : propsToChangeROG8P);
 
         String packageName = context.getPackageName();
 
@@ -256,7 +249,7 @@ public class PropsHooksUtils {
         if (sIsGms) {
             setPropValue("TIME", System.currentTimeMillis());
             if (shouldSpoofGMS()) {
-                spoofBuildGms();
+                spoofBuildGms(context);
             }
         }
     }
@@ -326,28 +319,24 @@ public class PropsHooksUtils {
         return SystemProperties.getBoolean(SPOOF_PIXEL_GMS, true);
     }
 
-    private static void spoofBuildGms() {
-        for (int i = 0; i < GMS_SPOOF_KEYS.length; i++) {
-            String key = GMS_SPOOF_KEYS[i];
-            String prop = GMS_SPOOF_PROPERTIES[i];
-            String value = SystemProperties.get(prop);
-            if (!TextUtils.isEmpty(value)) {
-                setPropValue(key, value);
-            } else {
-                dlog("Skipping empty property for " + key);
+    private static void spoofBuildGms(Context context) {
+        if (context == null) return;
+        try {
+            String jsonString = Settings.System.getString(context.getContentResolver(), "pif_props_data");
+            if (!TextUtils.isEmpty(jsonString)) {
+                JSONObject jsonObject = new JSONObject(jsonString);
+                Iterator<String> keys = jsonObject.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    String value = jsonObject.optString(key, null);
+                    if (!TextUtils.isEmpty(value)) {
+                        setPropValue(key, value);
+                    }
+                }
             }
+        } catch (JSONException e) {
+            Log.e(TAG, "Failed to parse pif_props_data JSON", e);
         }
-    }
-
-    private static boolean isCallerSafetyNet() {
-        if (!sIsGms) return false;
-        StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-        for (StackTraceElement element : stackTrace) {
-            if (element.getClassName().contains("DroidGuard")) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public static boolean hasSystemFeature(String name, int version, boolean hasSystemFeature) {
@@ -388,11 +377,20 @@ public class PropsHooksUtils {
         return isPixelDevice;
     }
 
-    public static boolean isDeviceTablet(Context context) {
-        if (context == null) {
-            return false;
+    private static boolean isLargeScreen(Context context) {
+        if (isLargeScreen == null) {
+            WindowManager windowManager = context.getSystemService(WindowManager.class);
+            final Rect bounds = windowManager.getMaximumWindowMetrics().getBounds();
+            float smallestWidth = dpiFromPx(Math.min(bounds.width(), bounds.height()),
+                    context.getResources().getConfiguration().densityDpi);
+            isLargeScreen = smallestWidth >= 600;
         }
-        return context.getResources().getConfiguration().smallestScreenWidthDp >= 600;
+        return isLargeScreen;
+    }
+
+    private static float dpiFromPx(float size, int densityDpi) {
+        float densityRatio = (float) densityDpi / DisplayMetrics.DENSITY_DEFAULT;
+        return (size / densityRatio);
     }
 
     private static void dlog(String msg) {
