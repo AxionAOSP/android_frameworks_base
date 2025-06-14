@@ -2573,7 +2573,6 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, Medi
     public void updateRevealEffectEx(boolean wakingUp) {
         int lastWakeReason = mWakefulnessLifecycle.getLastWakeReason();
         int lastSleepReason = mWakefulnessLifecycle.getLastSleepReason();
-        boolean wakingUpFromBiometric = false;
         final boolean wakingUpFromPowerButton = wakingUp
                 && lastWakeReason == PowerManager.WAKE_REASON_POWER_BUTTON;
         final boolean sleepingFromPowerButton = !wakingUp
@@ -2582,8 +2581,10 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, Medi
         if (wakingUpFromPowerButton || sleepingFromPowerButton) {
             mLightRevealScrim.setRevealEffect(mPowerButtonReveal);
         } else if (!wakingUp) {
-            if (lastSleepReason == PowerManager.GO_TO_SLEEP_REASON_MIN) {
-                mLightRevealScrim.setRevealEffect(getTapLightRevealEffect(false));
+            CircleReveal sleepTapReveal = getTapLightRevealEffect(false);
+            if (lastSleepReason == PowerManager.GO_TO_SLEEP_REASON_MIN 
+                    && sleepTapReveal != null) {
+                mLightRevealScrim.setRevealEffect(sleepTapReveal);
             } else {
                 mLightRevealScrim.setRevealEffect(LiftReveal.INSTANCE);
             }
@@ -2591,15 +2592,20 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, Medi
                 mIsPressSleepButton = true;
             }
         } else if (lastWakeReason == PowerManager.WAKE_REASON_TAP) {
-            mLightRevealScrim.setRevealEffect(getTapLightRevealEffect(true));
+            CircleReveal wakeTapReveal = getTapLightRevealEffect(true);
+            mLightRevealScrim.setRevealEffect(
+                wakeTapReveal == null ? LiftReveal.INSTANCE : wakeTapReveal);
         } else if (lastWakeReason == PowerManager.WAKE_REASON_CAMERA_LAUNCH) {
             mLightRevealScrim.setRevealEffect(mPowerButtonReveal);
         } else if (lastWakeReason == PowerManager.WAKE_REASON_BIOMETRIC) {
-            wakingUpFromBiometric = true;
+            FingerprintManager fpm = mFingerprintManager.get();
+            final boolean isSfps = fpm != null && fpm.isPowerbuttonFps();
+            mLightRevealScrim.setRevealEffect(
+                isSfps ? mPowerButtonReveal : LiftReveal.INSTANCE);
         } else {
             mLightRevealScrim.setRevealEffect(LiftReveal.INSTANCE);
         }
-        if ((wakingUp || (!mPanelExpandedWhenScreenOff && !mLandscapeWhenScreenOff)) && !wakingUpFromBiometric) {
+        if (wakingUp || (!mPanelExpandedWhenScreenOff && !mLandscapeWhenScreenOff)) {
             mLightRevealScrim.setRevealAmount(1.0f - mStatusBarStateController.getDozeAmount());
         }
         mDozeParameters.updateControlScreenOff();
@@ -2613,12 +2619,8 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, Medi
         if (mTapPos != null) {
             x = mTapPos.x;
             y = mTapPos.y;
-        } else if (!wakingUp) {
-            x = 0;
-            y = 0;
         } else {
-            x = mDisplayMetrics.widthPixels / 2;
-            y = mDisplayMetrics.heightPixels / 2;
+            return null;
         }
 
         int maxRadius = Math.max(
