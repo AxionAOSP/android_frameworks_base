@@ -1065,7 +1065,8 @@ public class UdfpsController implements DozeReceiver, Dumpable {
                     + " current: " + mOverlay.getRequestId());
             return;
         }
-        
+
+        SystemUIBoostFramework.getInstance().bindBigCore();
         SystemUIBoostFramework.getInstance().animationBoostOn(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_UNLOCK);
 
         if (isOptical()) {

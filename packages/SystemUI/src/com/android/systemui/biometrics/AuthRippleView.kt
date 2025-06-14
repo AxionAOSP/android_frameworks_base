@@ -287,8 +287,9 @@ class AuthRippleView(context: Context?, attrs: AttributeSet?) : View(context, at
                     drawRipple = false
                     visibility = GONE
                     unlockedRippleAnimator = null
-                    SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_UNLOCK)
                     SystemUIBoostFramework.getInstance().setLimitOtherAppCpu(false)
+                    SystemUIBoostFramework.getInstance().unbind()
+                    SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_UNLOCK)
                 }
             })
         }

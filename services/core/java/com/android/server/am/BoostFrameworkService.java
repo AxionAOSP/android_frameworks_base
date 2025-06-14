@@ -68,9 +68,9 @@ public class BoostFrameworkService extends IBoostFramework.Stub {
     @Override
     public void setProcThreadAffinity(int tid, int affinity) throws RemoteException {
         try {
-            int threadGroup = (affinity == CPU_AFFINITY_SMALL_CORES)
-                    ? Process.THREAD_GROUP_BACKGROUND
-                    : Process.THREAD_GROUP_TOP_APP;
+            int threadGroup = (affinity == CPU_AFFINITY_BIG_CORES)
+                    ? Process.THREAD_GROUP_TOP_APP
+                    : Process.THREAD_GROUP_BACKGROUND;
             Process.setThreadGroupAndCpuset(tid, threadGroup);
             Process.setThreadAffinity(tid, affinity);
         } catch (Exception e) {

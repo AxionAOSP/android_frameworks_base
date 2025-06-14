@@ -17,7 +17,6 @@ package com.android.systemui.util;
 
 import android.app.ActivityManager;
 import android.os.IBinder;
-import android.os.PerformanceHintManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
@@ -52,15 +51,15 @@ public class SystemUIBoostFramework {
     public static int REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_PLAY_SCREEN_OFF_ANIMATION = 256;
     public static int REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_UNLOCK = 1;
 
+    public static int REQUEST_ANIMATION_BOOST_TYPE_BASE = 1;
+    public static int REQUEST_ANIMATION_BOOST_TYPE_FLING_NOTIFICATION_PANEL_VIEW = REQUEST_ANIMATION_BOOST_TYPE_BASE;
     public static int REQUEST_ANIMATION_BOOST_TYPE_TRACKING_NOTIFICATION_PANEL_VIEW = 1 << 1;
     public static int REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_NOTIFICATION_PANEL_VIEW_EXPAND = 1 << 2;
     public static int REQUEST_ANIMATION_BOOST_TYPE_UNLOCK = 1 << 3;
     public static int REQUEST_ANIMATION_BOOST_TYPE_LIGHT_REVEAL = 1 << 4;
     public static int REQUEST_ANIMATION_BOOST_TYPE_TRACKING_NOTIFICATION_STACK_SCROLL_LAYOUT = 1 << 5;
     public static int REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_EXPANSION_ANIMATION = 1 << 6;
-
-    public static int REQUEST_ANIMATION_BOOST_TYPE_BASE = 1;
-    public static int REQUEST_ANIMATION_BOOST_TYPE_FLING_NOTIFICATION_PANEL_VIEW = 1;
+    public static int REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_SB_ANIMATION = 1 << 7;
 
     private static final int STATUS_BIND_BIG_CORE = 0;
     private static final int STATUS_BIND_SMALL_CORE = 1;
@@ -78,8 +77,6 @@ public class SystemUIBoostFramework {
     private boolean mLimitOtherProcessCpu = false;
     
     private static IBoostFramework sService;
-    private PerformanceHintManager mPerformanceHintManager;
-    private PerformanceHintManager.Session mAdpfSession = null;
     
     private static SystemUIBoostFramework instance = null;
 
@@ -98,13 +95,6 @@ public class SystemUIBoostFramework {
             sService = IBoostFramework.Stub.asInterface(binder);
         }
         return sService;
-    }
-
-    public void createAdpfSession(PerformanceHintManager performanceHintManager) {
-        int[] tids = {
-          android.os.Process.myTid()
-        };
-        mAdpfSession = performanceHintManager.createHintSession(tids, TimeUnit.SECONDS.toNanos(1));
     }
 
     public void bindBigCore() {
@@ -128,19 +118,12 @@ public class SystemUIBoostFramework {
         }
     }
 
-    private void sendAdpfHint(int hint) {
-        if (mAdpfSession != null) {
-            mAdpfSession.sendHint(hint);
-        }
-    }
-
     public void animationBoostOn(int type) {
         mAnimationBoostType |= type;
         if (mAnimationBoost != ANIMATION_BOOST_ON) {
             bindBigCore();
             mAnimationBoost = ANIMATION_BOOST_ON;
             executeSetAnimationBoost(ANIMATION_BOOST_ON);
-            sendAdpfHint(PerformanceHintManager.Session.CPU_LOAD_UP);
         }
     }
 
@@ -150,7 +133,6 @@ public class SystemUIBoostFramework {
             unbind();
             mAnimationBoost = ANIMATION_BOOST_OFF;
             executeSetAnimationBoost(ANIMATION_BOOST_OFF);
-            sendAdpfHint(PerformanceHintManager.Session.CPU_LOAD_RESET);
         }
     }
 
@@ -227,11 +209,9 @@ public class SystemUIBoostFramework {
     public void setLimitForegroundAppCpu(boolean limitForegroundAppCpu) {
         if (limitForegroundAppCpu != mLimitForegroundAppCpu) {
             if (limitForegroundAppCpu) {
-                executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_UI_LIMIT);
-                executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_UI_LIMIT);
+                executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_LIMIT);
             } else {
-                executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_UI_UNLIMIT);
-                executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+                executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT);
             }
             mLimitForegroundAppCpu = limitForegroundAppCpu;
         }

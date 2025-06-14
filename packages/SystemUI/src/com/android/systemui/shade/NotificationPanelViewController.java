@@ -3852,10 +3852,6 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
      *                         gesture), we always play haptic.
      */
     private void maybeVibrateOnOpening(boolean openingWithTouch) {
-        if (openingWithTouch) {
-            SystemUIBoostFramework.getInstance().animationBoostOn(
-                SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_FLING_NOTIFICATION_PANEL_VIEW);
-        }
         if (mVibrateOnOpening && mBarState != KEYGUARD && mBarState != SHADE_LOCKED) {
             if (!openingWithTouch || !mHasVibratedOnOpen) {
                 performHapticFeedback(HapticFeedbackConstants.GESTURE_START);
@@ -4037,19 +4033,19 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
             @Override
             public void onAnimationCancel(Animator animation) {
                 mCancelled = true;
-                SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_FLING_NOTIFICATION_PANEL_VIEW);
+                SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_SB_ANIMATION);
             }
 
             @Override
             public void onAnimationEnd(Animator animation) {
                 mIsSpringBackAnimation = false;
                 onFlingEnd(mCancelled);
-                SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_FLING_NOTIFICATION_PANEL_VIEW);
+                SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_SB_ANIMATION);
             }
         });
         setAnimator(animator);
         animator.start();
-        SystemUIBoostFramework.getInstance().animationBoostOn(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_FLING_NOTIFICATION_PANEL_VIEW);
+        SystemUIBoostFramework.getInstance().animationBoostOn(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_SB_ANIMATION);
     }
 
     @VisibleForTesting

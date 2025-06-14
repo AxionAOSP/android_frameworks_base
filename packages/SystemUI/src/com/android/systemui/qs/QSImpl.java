@@ -153,6 +153,9 @@ public class QSImpl implements QS, CommandQueue.Callbacks, StatusBarStateControl
 
     private final DumpManager mDumpManager;
 
+    private boolean enableBoost;
+    private float expandFraction;
+
     /**
      * Progress of pull down from the center of the lock screen.
      * @see com.android.systemui.statusbar.LockscreenShadeTransitionController
@@ -725,6 +728,7 @@ public class QSImpl implements QS, CommandQueue.Callbacks, StatusBarStateControl
         mQSPanelController.setRevealExpansion(expansion);
         mQSPanelController.getTileLayout().setExpansion(expansion, proposedTranslation);
         mQuickQSPanelController.getTileLayout().setExpansion(expansion, proposedTranslation);
+        setExpansionEx(expansion);
 
         if (!SceneContainerFlag.isEnabled()) {
             float qsScrollViewTranslation =
@@ -763,13 +767,25 @@ public class QSImpl implements QS, CommandQueue.Callbacks, StatusBarStateControl
             mQsMediaHost.setSquishFraction(mSquishinessFraction);
         }
         updateMediaPositions();
-        SystemUIBoostFramework sbf = SystemUIBoostFramework.getInstance();
-        if (expansion == 1.0f || expansion == 0.0f) {
-            sbf.animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_EXPANSION_ANIMATION);
-        } else {
-            sbf.animationBoostOn(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_EXPANSION_ANIMATION);
-        }
         com.android.systemui.util.ScrimUtils.getInstance(mRootView.getContext()).setQsExpansion(expansion);
+    }
+    
+    private void setExpansionEx(float expansion) {
+        SystemUIBoostFramework sbf = SystemUIBoostFramework.getInstance();
+        if (expansion != expandFraction) {
+            if (expansion == 1.0f || expansion == 0.0f) {
+                if (enableBoost) {
+                    sbf.animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_EXPANSION_ANIMATION);
+                }
+                enableBoost = false;
+            } else {
+                if (!enableBoost) {
+                    sbf.animationBoostOn(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_EXPANSION_ANIMATION);
+                }
+                enableBoost = true;
+            }
+        }
+        expandFraction = expansion;
     }
 
     private void setAlphaAnimationProgress(float progress) {

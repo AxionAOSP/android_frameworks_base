@@ -19778,9 +19778,9 @@ public class ActivityManagerService extends IActivityManager.Stub
             return;
         }
         try {
-            int policy = Process.SCHED_RESET_ON_FORK | Process.SCHED_FIFO;
-            Process.setThreadScheduler(pid, policy, 99);
-            Process.setThreadScheduler(curProc.getRenderThreadTid(), policy, 99);
+            int policy = Process.SCHED_RESET_ON_FORK | Process.SCHED_RR;
+            Process.setThreadScheduler(pid, policy, 1);
+            Process.setThreadScheduler(curProc.getRenderThreadTid(), policy, 1);
             doBoost(1000);
         } catch (Exception e) {
         }

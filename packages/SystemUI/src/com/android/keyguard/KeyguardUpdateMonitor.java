@@ -1815,6 +1815,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
                             ActiveUnlockConfig.ActiveUnlockRequestOrigin.BIOMETRIC_FAIL,
                             "fingerprintFailure");
                     handleFingerprintAuthFailed();
+                    SystemUIBoostFramework.getInstance().unbind();
                     SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_UNLOCK);
                 }
 
