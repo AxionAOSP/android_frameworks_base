@@ -159,6 +159,8 @@ public final class GameManagerService extends IGameManagerService.Stub {
             "ro.surface_flinger.game_default_frame_rate_override";
     static final String PROPERTY_PERSIST_PERFORMANCE_MODE = 
             "persist.sys.power_mode_perf";
+    static final String PROPERTY_GAME_STATUS_CHECK = 
+            "perf_game_is_running";
 
     private static final String PACKAGE_NAME_MSG_KEY = "packageName";
     private static final String USER_ID_MSG_KEY = "userId";
@@ -2464,6 +2466,9 @@ public final class GameManagerService extends IGameManagerService.Stub {
     }
 
     void boostGameService(boolean enable) {
+        Settings.System.putIntForUser(mContext.getContentResolver(),
+            PROPERTY_GAME_STATUS_CHECK, enable ? 1 : 0,
+            UserHandle.USER_CURRENT);
         boolean perfModeEnabledByUser = Settings.System.getIntForUser(
             mContext.getContentResolver(), "power_mode_perf_by_user", 0,
             UserHandle.USER_CURRENT) == 1;
