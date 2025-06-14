@@ -384,6 +384,11 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
     private KeyguardBottomAreaView mKeyguardBottomArea;
     private boolean mExpanding;
     private boolean mSplitShadeEnabled;
+
+    private ValueAnimator lastFlingToHeightAnimator;
+    private boolean lastFlingToHeightExpand;
+    private float lastFlingToHeightVel;
+
     /** The bottom padding reserved for elements of the keyguard measuring notifications. */
     private float mKeyguardNotificationBottomPadding;
     /**
@@ -999,6 +1004,7 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
                 });
         mAlternateBouncerInteractor = alternateBouncerInteractor;
         dumpManager.registerDumpable(this);
+        mStatusBarKeyguardViewManager.setNotificationPanelViewController(this);
     }
 
     private Unit setDoubleTapToSleepEnabled(boolean value) {
@@ -2136,6 +2142,9 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
             overshootAmount += mOverExpansion / mPanelFlingOvershootAmount;
         }
         ValueAnimator animator = createHeightAnimator(target, overshootAmount);
+        if (shouldIgnoreStartFlingAnimavor(animator, mHeightAnimator, vel, expand)) {
+            return;
+        }
         if (expand) {
             maybeVibrateOnOpening(true /* openingWithTouch */);
             if (expandBecauseOfFalsing && vel < 0) {
@@ -2148,19 +2157,14 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
                 animator.setDuration(SHADE_OPEN_SPRING_OUT_DURATION);
             }
         } else {
-            mHasVibratedOnOpen = false;
-            if (shouldUseDismissingAnimation()) {
-                if (vel == 0) {
-                    animator.setInterpolator(Interpolators.PANEL_CLOSE_ACCELERATED);
-                    long duration = (long) (200 + mExpandedHeight / this.mView.getHeight() * 100);
-                    animator.setDuration(duration);
-                } else {
-                    mFlingAnimationUtilsDismissing.apply(animator, mExpandedHeight, target, vel,
-                            this.mView.getHeight());
-                }
+            this.mHasVibratedOnOpen = false;
+            if (!shouldUseDismissingAnimation()) {
+                mFlingAnimationUtilsClosing.apply(animator, mExpandedHeight, target, vel, this.mView.getHeight());
+            } else if (vel == 0.0f) {
+                animator.setInterpolator(Interpolators.PANEL_CLOSE_ACCELERATED);
+                animator.setDuration((long) (((mExpandedHeight / this.mView.getHeight()) * 100.0f) + 200.0f));
             } else {
-                mFlingAnimationUtilsClosing.apply(
-                        animator, mExpandedHeight, target, vel, this.mView.getHeight());
+                mFlingAnimationUtilsDismissing.apply(animator, mExpandedHeight, target, vel, this.mView.getHeight());
             }
 
             // Make it shorter if we run a canned animation
@@ -2187,6 +2191,9 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
                 if (!mStatusBarStateController.isDozing()) {
                     mQsController.beginJankMonitoring(isFullyCollapsed());
                 }
+                if (expand && mHeadsUpManager.hasPinnedHeadsUp()) {
+                    notifyExpandingStarted();
+                }
             }
 
             @Override
@@ -2210,11 +2217,46 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
         if (!mScrimController.isScreenOn() && !mForceFlingAnimationForTest) {
             animator.setDuration(1);
         }
+        if (mHeightAnimator != null && mHeightAnimator.isRunning()) {
+            stopHeightAnimator();
+        }
         setAnimator(animator);
         animator.start();
         SystemUIBoostFramework.getInstance().animationBoostOn(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_FLING_NOTIFICATION_PANEL_VIEW);
     }
 
+    private final boolean shouldIgnoreStartFlingAnimavor(ValueAnimator newAnimator, ValueAnimator oldAnimator, float vel, boolean expand) {
+        if (newAnimator == null) {
+            return false;
+        }
+        if (oldAnimator != null 
+            && oldAnimator.equals(lastFlingToHeightAnimator) 
+            && isSameDirection(vel) 
+            && expand == lastFlingToHeightExpand 
+            && oldAnimator.isRunning()) {
+            return true;
+        }
+        lastFlingToHeightAnimator = newAnimator;
+        lastFlingToHeightVel = vel;
+        lastFlingToHeightExpand = expand;
+        return false;
+    }
+
+    private final boolean isSameDirection(float vel) {
+        return (vel <= 0.0f && lastFlingToHeightVel <= 0.0f) || (vel >= 0.0f && lastFlingToHeightVel >= 0.0f);
+    }
+
+    public void stopHeightAnimator() {
+        if (mHeightAnimator == null || !mHeightAnimator.isRunning()) {
+            return;
+        }
+        mHeightAnimator.cancel();
+    }
+
+    public void resetHeightForBouncerShowing() {
+        setExpandedHeight(0.0f);
+    }
+    
     @VisibleForTesting
     void setForceFlingAnimationForTest(boolean force) {
         mForceFlingAnimationForTest = force;
@@ -3257,15 +3299,21 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
 
     @Override
     public void setDozing(boolean dozing, boolean animate) {
+        boolean shouldAnimate;
         if (dozing == mDozing) return;
         mView.setDozing(dozing);
         mDozing = dozing;
+        if (!isKeyguardShowing() || mDozing) {
+            shouldAnimate = animate;
+        } else {
+            shouldAnimate = false;
+        }
         // TODO (b/) make listeners for this
         mNotificationStackScrollLayoutController.setDozing(mDozing, animate);
         if (KeyguardBottomAreaRefactor.isEnabled()) {
-            mKeyguardInteractor.setAnimateDozingTransitions(animate);
+            mKeyguardInteractor.setAnimateDozingTransitions(shouldAnimate);
         } else {
-            mKeyguardBottomAreaInteractor.setAnimateDozingTransitions(animate);
+            mKeyguardBottomAreaInteractor.setAnimateDozingTransitions(shouldAnimate);
         }
         mKeyguardStatusBarViewController.setDozing(mDozing);
         mQsController.setDozing(mDozing);
@@ -3275,7 +3323,7 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
         }
 
         if (mBarState == KEYGUARD || mBarState == StatusBarState.SHADE_LOCKED) {
-            updateDozingVisibilities(animate);
+            updateDozingVisibilities(shouldAnimate);
         }
 
         final float dozeAmount = dozing ? 1 : 0;
@@ -3974,7 +4022,6 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
     private void springBack() {
         if (mOverExpansion == 0) {
             onFlingEnd(false /* cancelled */);
-            SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_FLING_NOTIFICATION_PANEL_VIEW);
             return;
         }
         mIsSpringBackAnimation = true;
@@ -4768,10 +4815,15 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
         public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft,
                 int oldTop, int oldRight, int oldBottom) {
             DejankUtils.startDetectingBlockingIpcs("NVP#onLayout");
-            updateExpandedHeightToMaxHeight();
+            boolean changed = (left == oldLeft && top == oldTop && right == oldRight && bottom == oldBottom) ? false : true;
+            if (!mKeyguardStateController.isShowing() || !mKeyguardStateController.isKeyguardGoingAway() || changed) {
+                updateExpandedHeightToMaxHeight();
+            }
             mHasLayoutedSinceDown = true;
             if (mUpdateFlingOnLayout) {
-                abortAnimations();
+                if (isTracking() || !mIsSpringBackAnimation || left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
+                    abortAnimations();
+                }
                 fling(mUpdateFlingVelocity);
                 mUpdateFlingOnLayout = false;
             }
