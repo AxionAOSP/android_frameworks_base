@@ -16,6 +16,7 @@ import android.media.AudioManager
 import android.media.AudioManager.RINGER_MODE_NORMAL
 import android.media.AudioManager.RINGER_MODE_SILENT
 import android.media.AudioManager.RINGER_MODE_VIBRATE
+import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -235,10 +236,14 @@ class RingerQSTileViewImpl @JvmOverloads constructor(
 
         init {
             // Replicate @drawable/qs_tile_background_shape
+            val blurEnabledByDefault = android.os.SystemProperties.getBoolean("ro.custom.blur.enable", false) 
+            val blurEnabled = Settings.Global.getInt(context.contentResolver,
+                 Settings.Global.DISABLE_WINDOW_BLURS, if (blurEnabledByDefault) 0 else 1) != 1
             shape = RECTANGLE
             cornerRadius =
                 context.resources.getDimensionPixelSize(R.dimen.qs_ringer_corner_radius).toFloat()
-            setColor(Utils.getColorAttrDefaultColor(context, R.attr.shadeInactive))
+            val inactiveColorAttr = if (blurEnabled) R.attr.shadeInactiveExpressive else R.attr.shadeInactive
+            setColor(Utils.getColorAttrDefaultColor(context, inactiveColorAttr))
         }
 
         override fun draw(canvas: Canvas) {
