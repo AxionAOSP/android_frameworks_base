@@ -19742,6 +19742,9 @@ public class ActivityManagerService extends IActivityManager.Stub
     @Override
     public void executeAdjustCpusetCpus(String path, String cpuset) {
         File file = new File(path);
+        if (!file.exists()) {
+            return;
+        }
         try (FileWriter writer = new FileWriter(file)) {
             writer.write(cpuset);
             writer.flush();
@@ -19753,6 +19756,9 @@ public class ActivityManagerService extends IActivityManager.Stub
     @Override
     public void adjustCpusetCpus(String path, String cpuset, long durationMillis) {
         File file = new File(path);
+        if (!file.exists()) {
+            return;
+        }
         String originalCpuset = null;
 
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
