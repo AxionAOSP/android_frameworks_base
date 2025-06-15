@@ -21,7 +21,10 @@ import com.android.systemui.statusbar.phone.StatusBarLocation
 import com.android.systemui.statusbar.pipeline.mobile.domain.interactor.MobileIconInteractor
 import com.android.systemui.statusbar.pipeline.mobile.ui.VerboseMobileViewLogger
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 
 /**
  * A view model for an individual mobile icon that embeds the notion of a [StatusBarLocation]. This
@@ -103,7 +106,10 @@ class ShadeCarrierGroupMobileIconViewModel(
     val carrierName = interactor.carrierName
 
     override val isVisible: StateFlow<Boolean> =
-        MutableStateFlow(false)
+        combine(super.isVisible, isSingleCarrier) { isVisible, isSingleCarrier ->
+                if (isSingleCarrier) false else isVisible
+            }
+            .stateIn(scope, SharingStarted.WhileSubscribed(), super.isVisible.value)
 }
 
 class KeyguardMobileIconViewModel(
