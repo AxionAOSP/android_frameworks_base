@@ -294,7 +294,8 @@ class AppOpService(private val service: AccessCheckingService) : AppOpsCheckingS
 
         if (
             Flags.runtimePermissionAppopsMappingEnabled() &&
-                appOpCode in runtimeAppOpToPermissionNames
+                appOpCode in runtimeAppOpToPermissionNames &&
+                packageName != "com.google.pixel.iwlan"
         ) {
             Slog.w(
                 LOG_TAG,
