@@ -17,6 +17,7 @@
 package com.android.systemui.statusbar.pipeline.mobile.ui.view
 
 import android.content.Context
+import android.graphics.Color
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
@@ -58,6 +59,9 @@ class ModernShadeCarrierGroupMobileView(
             setTextColor(color)
             textAlignment = View.TEXT_ALIGNMENT_VIEW_END
         }
+        val colorInverse = if (color == Color.BLACK) Color.WHITE else Color.BLACK
+        requireViewById<ModernStatusBarMobileView>(R.id.mobile_combo)
+            .setStaticDrawableColor(color, colorInverse)
     }
 
     companion object {
