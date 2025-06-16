@@ -564,7 +564,7 @@ public class DisplayPolicy {
                 }
 
                 private void setPerformancePowerMode(boolean enabled) {
-                    if (mService.mPowerManagerInternal == null || isTopAppGame()) return;
+                    if (mService.mPowerManagerInternal == null || enabled && isTopAppGame()) return;
                     if (mBoosting == enabled) return;
                     mBoosting = enabled;
                     mService.mPowerManagerInternal.setPowerMode(
