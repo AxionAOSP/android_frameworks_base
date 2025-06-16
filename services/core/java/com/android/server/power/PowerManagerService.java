@@ -4723,6 +4723,13 @@ public final class PowerManagerService extends SystemService
     }
 
     private boolean setPowerModeInternal(int mode, boolean enabled) {
+        String cfsControl = SystemProperties.get("persist.sys.cfs_temp_control");
+        final boolean isCfsThrottled = "1".equals(cfsControl);
+        final boolean shouldSkipBoost = (mode == Mode.LAUNCH 
+            || mode == Mode.FIXED_PERFORMANCE) && isCfsThrottled;
+        if (enabled && shouldSkipBoost) {
+            return false;
+        }
         // Maybe filter the event.
         if (mode == Mode.LAUNCH && enabled && mBatterySaverStateMachine != null
                 && mBatterySaverStateMachine.getBatterySaverController().isLaunchBoostDisabled()) {
