@@ -25,7 +25,8 @@ import android.util.Log;
 
 import com.android.internal.os.IBoostFramework;
 
-import java.util.concurrent.TimeUnit;
+import java.util.Arrays;
+import java.util.IntSummaryStatistics;
 
 public class SystemUIBoostFramework {
 
@@ -40,12 +41,15 @@ public class SystemUIBoostFramework {
     private static final String RESTRICTED_GROUP = CPUSET_PATH + "restricted/cpus";
     private static final String SYS_BG_GROUP = CPUSET_PATH + "system-background/cpus";
     private static final String BG_GROUP = CPUSET_PATH + "background/cpus";
-  
+
     private static final String CPUS_PARAMS_BG_LIMIT = SystemProperties.get("persist.sys.axion_cpu_limit_bg", "0-1");
     private static final String CPUS_PARAMS_UI_LIMIT = SystemProperties.get("persist.sys.axion_cpu_limit_ui", "0-4");
     private static final String CPUS_PARAMS_UI_UNLIMIT = SystemProperties.get("persist.sys.axion_cpu_unlimit_ui", "0-7");
     private static final String CPUS_PARAMS_FG_UNLIMIT = SystemProperties.get("persist.sys.axion_cpu_fg", "0-5");
     private static final String CPUS_PARAMS_BG_UNLIMIT = SystemProperties.get("persist.sys.axion_cpu_bg", "0-2");
+    private static final String CPUS_PARAMS_BIG_CORES = SystemProperties.get("persist.sys.axion_cpu_big", "4,5,6,7");
+
+    private static final String CPUS_PARAMS_BIG_LIMIT;
 
     public static int REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_NOTIFICATION_EXPAND = 16;
     public static int REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_PLAY_SCREEN_OFF_ANIMATION = 256;
@@ -80,7 +84,18 @@ public class SystemUIBoostFramework {
     
     private static SystemUIBoostFramework instance = null;
 
+    static {
+        CPUS_PARAMS_BIG_LIMIT = getCpuRange(CPUS_PARAMS_BIG_CORES);
+    }
+
     private SystemUIBoostFramework() {}
+
+    private static String getCpuRange(String cpuList) {
+        IntSummaryStatistics stats = Arrays.stream(cpuList.split(","))
+            .mapToInt(Integer::parseInt)
+            .summaryStatistics();
+        return stats.getMin() + "-" + stats.getMax();
+    }
 
     public static synchronized SystemUIBoostFramework getInstance() {
         if (instance == null) {
@@ -209,7 +224,7 @@ public class SystemUIBoostFramework {
     public void setLimitForegroundAppCpu(boolean limitForegroundAppCpu) {
         if (limitForegroundAppCpu != mLimitForegroundAppCpu) {
             if (limitForegroundAppCpu) {
-                executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_LIMIT);
+                executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_BIG_LIMIT);
             } else {
                 executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT);
             }
