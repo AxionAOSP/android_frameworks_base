@@ -311,7 +311,7 @@ import android.database.ContentObserver;
 import android.graphics.Rect;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.DisplayManagerInternal;
-import android.hardware.power.Boost;
+import android.hardware.power.Mode;
 import android.net.Uri;
 import android.os.AppZygote;
 import android.os.BatteryStats;
@@ -19787,7 +19787,7 @@ public class ActivityManagerService extends IActivityManager.Stub
             int policy = Process.SCHED_RESET_ON_FORK | Process.SCHED_RR;
             Process.setThreadScheduler(pid, policy, 1);
             Process.setThreadScheduler(curProc.getRenderThreadTid(), policy, 1);
-            doBoost(1000);
+            setPerformancePowerMode(true);
         } catch (Exception e) {
         }
     }
@@ -19806,16 +19806,17 @@ public class ActivityManagerService extends IActivityManager.Stub
             Process.setThreadScheduler(pid, policy, 0);
             Process.setThreadPriority(originalPriority);
             Process.setThreadScheduler(curProc.getRenderThreadTid(), policy, 0);
+            setPerformancePowerMode(false);
         } catch (Exception e) {
         }
     }
 
-    private void doBoost(int duration) {
+    private void setPerformancePowerMode(boolean enabled) {
         if (mLocalPowerManager != null) {
-            mLocalPowerManager.setPowerBoost(
-                    Boost.INTERACTION, duration);
-            mLocalPowerManager.setPowerBoost(
-                    Boost.DISPLAY_UPDATE_IMMINENT, duration);
+            mLocalPowerManager.setPowerMode(
+                    Mode.LAUNCH, enabled);
+            mLocalPowerManager.setPowerMode(
+                    PowerManagerInternal.MODE_FIXED_PERFORMANCE, enabled);
         }
     }
 
