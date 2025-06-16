@@ -7144,6 +7144,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
         // make sure we do garbage collection at screen off but delay it to avoid black wallpaper
         mHandler.postDelayed(mSystemServerGcOpt, 5000);
+        
+        setLowPowerMode(true);
     }
 
     // Called on the PowerManager's Notifier thread.
@@ -7188,6 +7190,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         getPocketModeInstance().onInteractiveChanged(true);
 
         mCameraGestureTriggered = false;
+        
+        setLowPowerMode(false);
     }
 
     private final Runnable mMemoryOpt = new Runnable() {
@@ -8878,6 +8882,15 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 lastMemoryReleaseTime = currentTime;
             } catch (RemoteException e) {
             }
+        }
+    }
+    
+    private void setLowPowerMode(boolean enabled) {
+        boolean isBatterySaverOn = mPowerManager.isPowerSaveMode();
+        if (!isBatterySaverOn && mPowerManagerInternal != null) {
+            mPowerManagerInternal.setPowerMode(
+                android.hardware.power.Mode.LOW_POWER, enabled);
+            Log.d("Power Opt", (enabled ? "Enabling" : "Disabling") + " low power mode");
         }
     }
 }
