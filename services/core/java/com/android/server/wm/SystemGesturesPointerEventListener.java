@@ -419,6 +419,7 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
     private final class FlingGestureDetector extends GestureDetector.SimpleOnGestureListener {
 
         private OverScroller mOverscroller;
+        private Runnable mFlingEndRunnable;
 
         FlingGestureDetector() {
             mOverscroller = new OverScroller(mContext);
@@ -429,6 +430,7 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
             if (!mOverscroller.isFinished()) {
                 mOverscroller.forceFinished(true);
             }
+            onCancelGestures();
             return true;
         }
         @Override
@@ -446,9 +448,19 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
             if (duration > MAX_FLING_TIME_MILLIS) {
                 duration = MAX_FLING_TIME_MILLIS;
             }
-            mLastFlingTime = now;
+            onCancelGestures();
             mCallbacks.onFling(duration);
+            mLastFlingTime = now;
+            mFlingEndRunnable = () -> mCallbacks.onFlingEnd();
+            mHandler.postDelayed(mFlingEndRunnable, duration + 160);
             return true;
+        }
+        void onCancelGestures() {
+            if (mFlingEndRunnable != null) {
+                mHandler.removeCallbacks(mFlingEndRunnable);
+                mCallbacks.onFlingEnd();
+                mFlingEndRunnable = null;
+            }
         }
     }
 
@@ -458,6 +470,7 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
         void onSwipeFromRight();
         void onSwipeFromLeft();
         void onFling(int durationMs);
+        void onFlingEnd();
         void onDown();
         void onUpOrCancel();
         void onMouseHoverAtLeft();

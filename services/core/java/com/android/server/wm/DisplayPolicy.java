@@ -17,6 +17,7 @@
 package com.android.server.wm;
 
 import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
+import static android.view.Display.INVALID_DISPLAY;
 import static android.view.Display.TYPE_INTERNAL;
 import static android.view.InsetsFrameProvider.SOURCE_ARBITRARY_RECTANGLE;
 import static android.view.InsetsFrameProvider.SOURCE_CONTAINER_BOUNDS;
@@ -81,6 +82,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.Px;
 import android.app.ActivityManager;
+import android.app.ActivityTaskManager;
 import android.app.ActivityThread;
 import android.app.LoadedApk;
 import android.app.ResourcesManager;
@@ -88,6 +90,7 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
+import android.content.pm.ApplicationInfo;
 import android.database.ContentObserver;
 import android.graphics.Insets;
 import android.graphics.PixelFormat;
@@ -423,6 +426,36 @@ public class DisplayPolicy {
         }
     }
 
+    private String getAppPackageName() {
+        String currentPackage;
+        try {
+            ActivityManager.RunningTaskInfo rti = ActivityTaskManager.getService().getTasks(
+                1, false /* filterVisibleRecents */, false /*keepIntentExtra */,
+                INVALID_DISPLAY).get(0);
+            currentPackage = rti.topActivity.getPackageName();
+        } catch (Exception e) {
+            currentPackage = null;
+        }
+        return currentPackage;
+    }
+
+    private boolean isTopAppGame() {
+        String currentPackage = getAppPackageName();
+        if (currentPackage == null) return false;
+        boolean isGame = false;
+        try {
+            ApplicationInfo ai = mContext.getPackageManager().getApplicationInfo(currentPackage, 0);
+            if(ai != null) {
+                isGame = (ai.category == ApplicationInfo.CATEGORY_GAME) ||
+                        ((ai.flags & ApplicationInfo.FLAG_IS_GAME) ==
+                            ApplicationInfo.FLAG_IS_GAME);
+            }
+        } catch (Exception e) {
+            return false;
+        }
+        return isGame;
+    }
+
     DisplayPolicy(WindowManagerService service, DisplayContent displayContent) {
         mService = service;
         mContext = displayContent.isDefaultDisplay ? service.mContext
@@ -460,6 +493,7 @@ public class DisplayPolicy {
                     new SystemGesturesPointerEventListener.Callbacks() {
 
                 private static final long MOUSE_GESTURE_DELAY_MS = 500;
+                private boolean mBoosting = false;
 
                 private Runnable mOnSwipeFromLeft = this::onSwipeFromLeft;
                 private Runnable mOnSwipeFromTop = this::onSwipeFromTop;
@@ -529,12 +563,24 @@ public class DisplayPolicy {
                     excludedRegion.recycle();
                 }
 
+                private void setPerformancePowerMode(boolean enabled) {
+                    if (mService.mPowerManagerInternal == null || isTopAppGame()) return;
+                    if (mBoosting == enabled) return;
+                    mBoosting = enabled;
+                    mService.mPowerManagerInternal.setPowerMode(
+                            android.hardware.power.Mode.LAUNCH, enabled);
+                    mService.mPowerManagerInternal.setPowerMode(
+                            android.os.PowerManagerInternal.MODE_FIXED_PERFORMANCE, enabled);
+                }
+
                 @Override
                 public void onFling(int duration) {
-                    if (mService.mPowerManagerInternal != null) {
-                        mService.mPowerManagerInternal.setPowerBoost(
-                                Boost.INTERACTION, duration);
-                    }
+                    setPerformancePowerMode(true);
+                }
+
+                @Override
+                public void onFlingEnd() {
+                    setPerformancePowerMode(false);
                 }
 
                 @Override
