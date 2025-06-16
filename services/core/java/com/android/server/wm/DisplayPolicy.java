@@ -533,7 +533,7 @@ public class DisplayPolicy {
                 public void onFling(int duration) {
                     if (mService.mPowerManagerInternal != null) {
                         mService.mPowerManagerInternal.setPowerBoost(
-                                Boost.DISPLAY_UPDATE_IMMINENT, duration);
+                                Boost.INTERACTION, duration);
                     }
                 }
                 
@@ -541,7 +541,7 @@ public class DisplayPolicy {
                 public void onScroll(int duration) {
                     if (mService.mPowerManagerInternal != null) {
                         mService.mPowerManagerInternal.setPowerBoost(
-                                Boost.DISPLAY_UPDATE_IMMINENT, duration);
+                                Boost.INTERACTION, duration);
                     }
                 }
 
