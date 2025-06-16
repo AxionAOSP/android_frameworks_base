@@ -104,8 +104,8 @@ class LsWidgetsCallbacksController(private val controller: LockScreenWidgetsCont
 
     val cellSignalCallback = object : SignalCallback {
         override fun setMobileDataIndicators(indicators: MobileDataIndicators) {
-            if (indicators.qsIcon == null) {
-                controller.updateMobileDataState(false)
+            if (indicators.qsIcon == null || !indicators.isDefault) {
+                // Not data sim, don't display.
                 return
             }
             controller.updateMobileDataState(
