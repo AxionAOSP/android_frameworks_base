@@ -244,7 +244,9 @@ class RingerQSTileViewImpl @JvmOverloads constructor(
             cornerRadius =
                 context.resources.getDimensionPixelSize(R.dimen.qs_ringer_corner_radius).toFloat()
             val inactiveColorAttr = if (blurEnabled) R.attr.shadeInactiveExpressive else R.attr.shadeInactive
-            setColor(Utils.getColorAttrDefaultColor(context, inactiveColorAttr))
+            val inactiveAlpha = if (blurEnabled) com.android.systemui.util.ExpressiveConstants.EXPRESSIVE_QS_ELEMENTS_ALPHA else 1f
+            val colorInactive = Utils.applyAlpha(inactiveAlpha, Utils.getColorAttrDefaultColor(context, inactiveColorAttr))
+            setColor(colorInactive)
         }
 
         override fun draw(canvas: Canvas) {
