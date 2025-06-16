@@ -903,9 +903,14 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
 
         if (mSustainedPerformanceModeCurrent != mSustainedPerformanceModeEnabled) {
             mSustainedPerformanceModeEnabled = mSustainedPerformanceModeCurrent;
-            mWmService.mPowerManagerInternal.setPowerMode(
-                    Mode.SUSTAINED_PERFORMANCE,
-                    mSustainedPerformanceModeEnabled);
+            // we use efficient frequencies for MODE_FIXED_PERFORMANCE on axion pixel devices
+            // other devices might still be using max frequencies so limit this boost to pixels
+            if (mSustainedPerformanceModeEnabled && 
+                "google".equalsIgnoreCase(android.os.Build.MANUFACTURER)) {
+                mWmService.mPowerManagerInternal.setPowerMode(
+                        Mode.FIXED_PERFORMANCE,
+                        mSustainedPerformanceModeEnabled);
+            }
         }
 
         if (mUpdateRotation) {
