@@ -242,61 +242,6 @@ void android_os_Process_setThreadGroupAndCpuset(JNIEnv* env, jobject clazz, int 
     }
 }
 
-void android_os_Process_setThreadAffinity(JNIEnv* env, jobject clazz, int tid, jint grp) {
-    cpu_set_t target_cpu_set;
-    CPU_ZERO(&target_cpu_set);
-
-    std::vector<int32_t> small_cores, big_cores;
-
-    auto parseCpusets = [](const std::string& cpuset_str, std::vector<int32_t>& cpus) {
-        std::istringstream ss(cpuset_str);
-        std::string token;
-        while (std::getline(ss, token, ',')) {
-            char* endptr;
-            long cpu = std::strtol(token.c_str(), &endptr, 10);
-            if (*endptr == '\0' && cpu >= 0) {
-                cpus.push_back(static_cast<int32_t>(cpu));
-            } else {
-                ALOGI("Invalid CPU core value: %s", token.c_str());
-            }
-        }
-    };
-
-    parseCpusets(android::base::GetProperty("persist.sys.axion_cpu_small", "0,1,2,3"), small_cores);
-    parseCpusets(android::base::GetProperty("persist.sys.axion_cpu_big", "4,5,6,7"), big_cores);
-
-    const char* group_name = nullptr;
-
-    if (grp == 1) {
-        for (int core : small_cores) {
-            CPU_SET(core, &target_cpu_set);
-        }
-        group_name = "small cores";
-    } 
-    else if (grp == 0) {
-        for (int core : big_cores) {
-            CPU_SET(core, &target_cpu_set);
-        }
-        group_name = "big cores";
-    } 
-    else if (grp == 2) {
-        int max_cpus = sysconf(_SC_NPROCESSORS_ONLN);
-        for (int i = 0; i < max_cpus; i++) {
-            CPU_SET(i, &target_cpu_set);
-        }
-        group_name = "all cores";
-    } 
-    else {
-        ALOGV("Invalid group %d for thread %d", grp, tid);
-        return;
-    }
-
-    if (sched_setaffinity(tid, sizeof(cpu_set_t), &target_cpu_set) == -1) {
-        ALOGV("Failed to set CPU affinity for thread %d to %s: %s", tid, group_name, strerror(errno));
-    } else {
-        ALOGV("Successfully set affinity for thread %d to %s", tid, group_name);
-    }
-}
 
 // Look up the user ID of a process in /proc/${pid}/status. The Uid: line is present in
 // /proc/${pid}/status since at least kernel v2.5.
@@ -509,6 +454,42 @@ static void get_cpuset_cores_for_policy(SchedPolicy policy, cpu_set_t *cpu_set)
     return;
 }
 
+void android_os_Process_setThreadAffinity(JNIEnv* env, jobject clazz, int tid, jint grp) {
+    cpu_set_t target_cpu_set;
+    CPU_ZERO(&target_cpu_set);
+
+    std::string cpuset_str;
+    const char* group_name = nullptr;
+
+    if (grp == 1) {
+        cpuset_str = android::base::GetProperty("persist.sys.axion_cpu_small", "0,1,2,3");
+        group_name = "small cores";
+    } else if (grp == 0) {
+        cpuset_str = android::base::GetProperty("persist.sys.axion_cpu_big", "4,5,6,7");
+        group_name = "big cores";
+    } else if (grp == 2) {
+        int max_cpus = sysconf(_SC_NPROCESSORS_ONLN);
+        for (int i = 0; i < max_cpus; ++i) {
+            CPU_SET(i, &target_cpu_set);
+        }
+        group_name = "all cores";
+    } else {
+        ALOGV("Invalid group %d for thread %d", grp, tid);
+        return;
+    }
+
+    if (grp == 0 || grp == 1) {
+        std::vector<char> cpus_buf(cpuset_str.begin(), cpuset_str.end());
+        cpus_buf.push_back('\0');
+        parse_cpuset_cpus(cpus_buf.data(), &target_cpu_set);
+    }
+
+    if (sched_setaffinity(tid, sizeof(cpu_set_t), &target_cpu_set) == -1) {
+        ALOGV("Failed to set CPU affinity for thread %d to %s: %s", tid, group_name, strerror(errno));
+    } else {
+        ALOGV("Successfully set affinity for thread %d to %s", tid, group_name);
+    }
+}
 
 /**
  * Determine CPU cores exclusively assigned to the
