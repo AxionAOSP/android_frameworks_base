@@ -5364,6 +5364,7 @@ public class ActivityManagerService extends IActivityManager.Stub
 
             // Start PSI monitoring in LMKD if it was skipped earlier.
             ProcessList.startPsiMonitoringAfterBoot();
+            initTaskProfiles();
 
             mUserController.onBootComplete(
                     new IIntentReceiver.Stub() {
@@ -19840,6 +19841,51 @@ public class ActivityManagerService extends IActivityManager.Stub
             this.adj = record.getSetAdj();
             this.name = record.processName;
             this.record = record;
+        }
+    }
+    
+    private void initTaskProfiles() {
+        String[] bgProfiles = { "ProcessCapacityLow" };
+        String[] bgProcs = { "kswapd" };
+        setTaskProfilesForProcs(bgProcs, bgProfiles);
+    }
+    
+    public static void setTaskProfilesForProcs(String[] procGroups, String[] profiles) {
+        File procDir = new File("/proc");
+        File[] entries = procDir.listFiles(file -> file.isDirectory() && file.getName().matches("\\d+"));
+        if (entries == null) {
+            Slog.w("setTaskProfilesForProcs", "/proc not accessible or empty.");
+            return;
+        }
+
+        for (File pidDir : entries) {
+            File commFile = new File(pidDir, "comm");
+            String processName = null;
+
+            try (BufferedReader reader = new BufferedReader(new FileReader(commFile))) {
+                processName = reader.readLine();
+            } catch (IOException e) {
+                Slog.w("setTaskProfilesForProcs", "Could not read " + commFile.getPath() + ": " + e);
+                continue;
+            }
+
+            if (processName == null) continue;
+
+            for (String proc : procGroups) {
+                if (processName.contains(proc)) {
+                    try {
+                        int pid = Integer.parseInt(pidDir.getName());
+                        Process.setTaskProfiles(pid, profiles);
+                        Slog.i("setTaskProfilesForProcs", "Applied profiles " + Arrays.toString(profiles) +
+                                " to process " + processName + " (PID " + pid + ")");
+                    } catch (NumberFormatException e) {
+                        Slog.w("setTaskProfilesForProcs", "Invalid PID: " + pidDir.getName());
+                    } catch (Exception e) {
+                        Slog.w("setTaskProfilesForProcs", "Failed to set profiles for PID " + pidDir.getName() + ": " + e);
+                    }
+                    break;
+                }
+            }
         }
     }
 }
