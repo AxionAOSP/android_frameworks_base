@@ -4718,6 +4718,11 @@ public final class PowerManagerService extends SystemService
     }
 
     private void setPowerBoostInternal(int boost, int durationMs) {
+        String cfsControl = SystemProperties.get("persist.sys.cfs_temp_control");
+        final boolean isCfsThrottled = "1".equals(cfsControl);
+        if (isCfsThrottled) {
+            return;
+        }
         // Maybe filter the event.
         mNativeWrapper.nativeSetPowerBoost(boost, durationMs);
     }
