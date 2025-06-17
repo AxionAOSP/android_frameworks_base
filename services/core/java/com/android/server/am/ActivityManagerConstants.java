@@ -2048,11 +2048,15 @@ final class ActivityManagerConstants extends ContentObserver {
         final long GB = android.util.DataUnit.GIGABYTES.toBytes(1);
 
         if (ramBytes <= 4 * GB) {
-            CUR_MAX_CACHED_PROCESSES = 32;
+            CUR_MAX_CACHED_PROCESSES = 24;
         } else if (ramBytes <= 6 * GB) {
-            CUR_MAX_CACHED_PROCESSES = 48;
+            CUR_MAX_CACHED_PROCESSES = 40;
+        } else if (ramBytes <= 8 * GB) {
+            CUR_MAX_CACHED_PROCESSES = 60;
+        } else if (ramBytes <= 12 * GB) {
+            CUR_MAX_CACHED_PROCESSES = 80;
         } else {
-            CUR_MAX_CACHED_PROCESSES = 128;
+            CUR_MAX_CACHED_PROCESSES = 100;
         }
 
         CUR_MAX_EMPTY_PROCESSES = computeEmptyProcessLimit(CUR_MAX_CACHED_PROCESSES);
