@@ -207,6 +207,33 @@ static bool verifyGroup(JNIEnv* env, int grp)
     return true;
 }
 
+void android_os_Process_setTaskProfiles(JNIEnv* env, jobject clazz, jint tid, jobjectArray profilesArray) {
+    if (profilesArray == nullptr) return;
+
+    jsize len = env->GetArrayLength(profilesArray);
+    std::vector<std::string> profiles;
+    profiles.reserve(len);
+
+    for (jsize i = 0; i < len; ++i) {
+        jstring jprofile = (jstring) env->GetObjectArrayElement(profilesArray, i);
+        if (jprofile == nullptr) continue;
+        const jchar* chars = env->GetStringCritical(jprofile, nullptr);
+        if (chars) {
+            String8 profile8(reinterpret_cast<const char16_t*>(chars), env->GetStringLength(jprofile));
+            profiles.push_back(std::string(profile8.c_str()));
+            env->ReleaseStringCritical(jprofile, chars);
+        }
+        env->DeleteLocalRef(jprofile);
+    }
+
+    if (!profiles.empty()) {
+        bool success = SetTaskProfiles(tid, profiles);
+        if (!success) {
+            signalExceptionForGroupError(env, errno, tid);
+        }
+    }
+}
+
 void android_os_Process_setThreadGroup(JNIEnv* env, jobject clazz, int tid, jint grp)
 {
     ALOGV("%s tid=%d grp=%" PRId32, __func__, tid, grp);
@@ -1447,6 +1474,7 @@ static const JNINativeMethod methods[] = {
         {"setThreadGroup", "(II)V", (void*)android_os_Process_setThreadGroup},
         {"setThreadGroupAndCpuset", "(II)V", (void*)android_os_Process_setThreadGroupAndCpuset},
         {"setThreadAffinity", "(II)V", (void*)android_os_Process_setThreadAffinity},
+        {"setTaskProfiles", "(I[Ljava/lang/String;)V", (void*)android_os_Process_setTaskProfiles},
         {"setProcessGroup", "(II)V", (void*)android_os_Process_setProcessGroup},
         {"getProcessGroup", "(I)I", (void*)android_os_Process_getProcessGroup},
         {"createProcessGroup", "(II)I", (void*)android_os_Process_createProcessGroup},

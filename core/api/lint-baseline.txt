@@ -1,4 +1,8 @@
 // Baseline format: 1.0
+MissingNullability: android.os.Process#setTaskProfiles(int, String[]) parameter #1:
+    Missing nullability on parameter `profiles` in method `setTaskProfiles`
+BannedThrow: android.os.Process#setTaskProfiles(int, String[]):
+     Methods must not throw unchecked exceptions
 BannedThrow: android.os.Process#setThreadAffinity(int, int):
      Methods must not throw unchecked exceptions
 BroadcastBehavior: android.app.AlarmManager#ACTION_NEXT_ALARM_CLOCK_CHANGED:
@@ -1517,6 +1521,8 @@ UnflaggedApi: android.os.PerformanceHintManager.Session#setPreferPowerEfficiency
     New API must be flagged with @FlaggedApi: method android.os.PerformanceHintManager.Session.setPreferPowerEfficiency(boolean)
 UnflaggedApi: android.os.Process#setThreadAffinity(int, int):
      New API must be flagged with @FlaggedApi: method android.os.Process.setThreadAffinity(int,int)
+UnflaggedApi: android.os.Process#setTaskProfiles(int, String[]):
+     New API must be flagged with @FlaggedApi: method android.os.Process.setTaskProfiles(int,String[])
 UnflaggedApi: android.os.UserManager#DISALLOW_NEAR_FIELD_COMMUNICATION_RADIO:
     New API must be flagged with @FlaggedApi: field android.os.UserManager.DISALLOW_NEAR_FIELD_COMMUNICATION_RADIO
 UnflaggedApi: android.provider.Settings#ACTION_CREDENTIAL_PROVIDER:

@@ -1144,7 +1144,16 @@ public class Process {
     public static final native void setThreadGroupAndCpuset(int tid, int group)
             throws IllegalArgumentException, SecurityException;
 
+    /**
+     * @hide
+     */
     public static final native void setThreadAffinity(int tid, int group)
+            throws IllegalArgumentException, SecurityException;
+
+    /**
+     * @hide
+     */
+    public static final native void setTaskProfiles(int tid, String[] profiles)
             throws IllegalArgumentException, SecurityException;
 
     /**
