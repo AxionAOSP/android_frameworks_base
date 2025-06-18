@@ -101,7 +101,6 @@ public class PulseControllerImpl implements
     private boolean mIsMediaPlaying;
     private boolean mAttached;
 
-    private boolean mNavPulseEnabled;
     private boolean mLsPulseEnabled;
     private boolean mAmbPulseEnabled;
     private boolean mPulseEnabled;
@@ -172,9 +171,6 @@ public class PulseControllerImpl implements
 
         void register() {
             mContext.getContentResolver().registerContentObserver(
-                    Settings.Secure.getUriFor(Settings.Secure.NAVBAR_PULSE_ENABLED), false, this,
-                    UserHandle.USER_ALL);
-            mContext.getContentResolver().registerContentObserver(
                     Settings.Secure.getUriFor(Settings.Secure.LOCKSCREEN_PULSE_ENABLED), false, this,
                     UserHandle.USER_ALL);
             mContext.getContentResolver().registerContentObserver(
@@ -187,8 +183,7 @@ public class PulseControllerImpl implements
 
         @Override
         public void onChange(boolean selfChange, Uri uri) {
-            if (uri.equals(Settings.Secure.getUriFor(Settings.Secure.NAVBAR_PULSE_ENABLED))
-                    || uri.equals(Settings.Secure.getUriFor(Settings.Secure.LOCKSCREEN_PULSE_ENABLED))
+            if (uri.equals(Settings.Secure.getUriFor(Settings.Secure.LOCKSCREEN_PULSE_ENABLED))
                     || uri.equals(Settings.Secure.getUriFor(Settings.Secure.AMBIENT_PULSE_ENABLED))) {
                 updateEnabled();
                 updatePulseVisibility();
@@ -204,13 +199,11 @@ public class PulseControllerImpl implements
         }
 
         void updateEnabled() {
-            mNavPulseEnabled = Settings.Secure.getIntForUser(mContext.getContentResolver(),
-                    Settings.Secure.NAVBAR_PULSE_ENABLED, 0, UserHandle.USER_CURRENT) == 1;
             mLsPulseEnabled = Settings.Secure.getIntForUser(mContext.getContentResolver(),
                     Settings.Secure.LOCKSCREEN_PULSE_ENABLED, 0, UserHandle.USER_CURRENT) == 1;
             mAmbPulseEnabled = Settings.Secure.getIntForUser(mContext.getContentResolver(),
                     Settings.Secure.AMBIENT_PULSE_ENABLED, 0, UserHandle.USER_CURRENT) == 1;
-            mPulseEnabled = mNavPulseEnabled || mLsPulseEnabled || mAmbPulseEnabled;
+            mPulseEnabled = mLsPulseEnabled || mAmbPulseEnabled;
         }
 
         void updateRenderMode() {
@@ -237,14 +230,9 @@ public class PulseControllerImpl implements
                 && mAmbPulseEnabled && mKeyguardShowing && mDozing;
         boolean allowLsPulse = vv != null && vv.isAttached()
                 && mLsPulseEnabled && mKeyguardShowing && !mDozing;
-        boolean allowNavPulse = nv!= null && nv.isAttached()
-            && mNavPulseEnabled && !mKeyguardShowing;
 
         if (mKeyguardGoingAway) {
-            detachPulseFrom(vv, allowNavPulse/*keep linked*/);
-        } else if (allowNavPulse) {
-            detachPulseFrom(vv, allowNavPulse/*keep linked*/);
-            attachPulseTo(nv);
+            detachPulseFrom(vv, false/*keep linked*/);
         } else if (allowLsPulse || allowAmbPulse) {
             detachPulseFrom(nv, allowLsPulse || allowAmbPulse/*keep linked*/);
             attachPulseTo(vv);
