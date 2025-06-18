@@ -229,7 +229,7 @@ void android_os_Process_setTaskProfiles(JNIEnv* env, jobject clazz, jint tid, jo
     if (!profiles.empty()) {
         bool success = SetTaskProfiles(tid, profiles);
         if (!success) {
-            signalExceptionForGroupError(env, errno, tid);
+            ALOGV("Failed to set task profiles for tidL %d : %s", tid, strerror(errno));
         }
     }
 }
