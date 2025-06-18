@@ -19846,7 +19846,7 @@ public class ActivityManagerService extends IActivityManager.Stub
     
     private void initTaskProfiles() {
         String[] bgProfiles = { "ProcessCapacityLow" };
-        String[] bgProcs = { "kswapd" };
+        String[] bgProcs = { "kswapd", "crtc" };
         setTaskProfilesForProcs(bgProcs, bgProfiles);
     }
     
