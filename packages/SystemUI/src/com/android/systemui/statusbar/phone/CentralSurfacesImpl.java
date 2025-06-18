@@ -2736,7 +2736,6 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces, Medi
             }
 
             DejankUtils.stopDetectingBlockingIpcs(tag);
-            com.android.systemui.util.ScrimUtils.getInstance(mContext).onScreenStateChange();
             doCpuStandbyOptimization(true);
         }
 

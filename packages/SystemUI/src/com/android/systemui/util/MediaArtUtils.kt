@@ -19,6 +19,7 @@ import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.content.Context
 import android.content.res.Configuration
+import android.database.ContentObserver
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
@@ -26,6 +27,9 @@ import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.LayerDrawable
 import android.media.MediaMetadata
+import android.os.Handler
+import android.os.Looper
+import android.os.UserHandle
 import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup
@@ -44,14 +48,30 @@ import kotlin.math.*
 
 class MediaArtUtils private constructor(context: Context) : MediaSessionManagerHelper.MediaMetadataListener {
 
+    private enum class MediaScrimState {
+        STATE_SCRIM_SHOWING,
+        STATE_SCRIM_HIDDEN
+    }
+
     private val context = context.applicationContext
-    private val scrimController: ScrimController = Dependency.get(ScrimController::class.java)
     private val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
 
-    private val _dozing = MutableStateFlow(false)
-    private val _keyguard = MutableStateFlow(false)
-    private val _mediaEvents = MutableSharedFlow<Unit>()
-    private val _qsExpanded = MutableStateFlow(false)
+    private val _dozing = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val _keyguard = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val _mediaEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val _qsExpanded = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    
+    private var currentMediaScrimState = MediaScrimState.STATE_SCRIM_HIDDEN
+    
+    private var listening = false
+    private var featureEnabled = false
+
+    private var stateObserversJob: Job? = null
+    private val settingsObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            updateSettings()
+        }
+    }
 
     private val mediaScrim = FrameLayout(context).apply {
         layoutParams = FrameLayout.LayoutParams(
@@ -63,55 +83,107 @@ class MediaArtUtils private constructor(context: Context) : MediaSessionManagerH
     private var mediaArtJob: Job? = null
     private var isAlbumArtVisible = false
     private val mediaFadeLevel = 40
+    private var dismissingKeyguard = false
 
     init {
         MSMHProxy.INSTANCE(context).addMediaMetadataListener(this)
-        setupStateObservers()
+        
+        context.contentResolver.registerContentObserver(
+            Settings.System.getUriFor(LS_MEDIA_ART_ENABLED),
+            false,
+            settingsObserver
+        )
+
+        updateSettings()
     }
 
-    private fun setupStateObservers() {
-        coroutineScope.launch {
+    private fun updateSettings() {
+        featureEnabled = Settings.System.getIntForUser(
+            context.contentResolver,
+            LS_MEDIA_ART_ENABLED,
+            0,
+            UserHandle.USER_CURRENT
+        ) == 1
+
+        if (featureEnabled) {
+            registerStateObservers()
+        } else {
+            unregisterStateObservers()
+        }
+    }
+
+    private fun registerStateObservers() {
+        if (listening) return
+
+        listening = true
+
+        stateObserversJob = coroutineScope.launch {
             merge(
                 _dozing,
                 _keyguard,
                 _mediaEvents,
                 _qsExpanded,
-            ).collect { updateMediaVisibility() }
-        }
-        coroutineScope.launch {
-            _keyguard.flatMapLatest { isKeyguard ->
-                if (isKeyguard) flow {
-                    while (currentCoroutineContext().isActive) {
-                        emit(Unit)
-                        kotlinx.coroutines.delay(1000)
-                    }
-                } else flow { }
-            }.collect { updateMediaVisibility() }
+            )
+            .debounce(100)
+            .collect { updateMediaVisibility() }
         }
     }
 
+    private fun unregisterStateObservers() {
+        if (!listening) return
+        stateObserversJob?.cancel()
+        stateObserversJob = null
+        listening = false
+    }
+
     private suspend fun shouldShowMediaArt(): Boolean {
-        val settingsEnabled = Settings.System.getInt(
-            context.contentResolver,
-            LS_MEDIA_ART_ENABLED,
-            0
-        ) == 1
-
+        val scrimUtils = ScrimUtils.getInstance(context)
         val isPortrait = context.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
-        val scrimStateKeyguard = scrimController.state.toString() == "KEYGUARD"
-        val mediaPlaying = MSMHProxy.INSTANCE(context).isMediaPlaying()
+        val isKeyguard = scrimUtils.isKeyguardShowing()
+        val isDozing = scrimUtils.isDozing()
+        val isPanelFullyCollapsed = scrimUtils.isPanelFullyCollapsed()
+        val isMediaPlaying = MSMHProxy.INSTANCE(context).isMediaPlaying()
 
-        return settingsEnabled && !_dozing.value 
-            && isPortrait && scrimStateKeyguard 
-            && mediaPlaying && !_qsExpanded.value
+        val shouldShow = featureEnabled && !isDozing &&
+            isPortrait && isKeyguard &&
+            isMediaPlaying && isPanelFullyCollapsed
+
+        return shouldShow
     }
 
     fun updateMediaVisibility() {
         coroutineScope.launch {
-            if (shouldShowMediaArt()) updateMediaArt() else cleanupResources()
+            val shouldShow = shouldShowMediaArt()
+
+            val newState = if (shouldShow) MediaScrimState.STATE_SCRIM_SHOWING else MediaScrimState.STATE_SCRIM_HIDDEN
+            if (newState == currentMediaScrimState) {
+                return@launch
+            }
+
+            currentMediaScrimState = newState
+
+            if (shouldShow) {
+                showMediaArt()
+            } else {
+                cleanupResources()
+            }
         }
     }
 
+    private fun showMediaArt() {
+        if (dismissingKeyguard) return
+        updateMediaArt()
+        mediaScrim.apply {
+            alpha = 0f
+            visibility = View.VISIBLE
+            animate()
+                .alpha(1f)
+                .setDuration(300)
+                .setListener(null)
+                .start()
+        }
+    }
+    
     private fun updateMediaArt() {
         mediaArtJob?.cancel()
         mediaArtJob = coroutineScope.launch {
@@ -119,15 +191,19 @@ class MediaArtUtils private constructor(context: Context) : MediaSessionManagerH
                 updateScrim(drawable)
             }
         }
-        mediaScrim.visibility = View.VISIBLE
     }
 
     private suspend fun processMediaArtwork(): LayerDrawable {
-        val metadata = MSMHProxy.INSTANCE(context).getMediaMetadata() ?: return LayerDrawable(arrayOf())
+        val metadata = MSMHProxy.INSTANCE(context).getMediaMetadata()
+        if (metadata == null) {
+            return LayerDrawable(arrayOf())
+        }
+
         val bitmap = withContext(Dispatchers.IO) {
             MSMHProxy.INSTANCE(context).getMediaBitmap()
-                ?: return@withContext null
-        } ?: return LayerDrawable(arrayOf())
+        }
+
+        if (bitmap == null) return LayerDrawable(arrayOf())
 
         val processedBitmap = withContext(Dispatchers.Default) {
             getResizedBitmap(bitmap)
@@ -151,11 +227,24 @@ class MediaArtUtils private constructor(context: Context) : MediaSessionManagerH
         mediaScrim.background = drawable
     }
 
-    private fun cleanupResources() {
+    fun cleanupResources() {
+        dismissingKeyguard = true
         mediaArtJob?.cancel()
-        recycleDrawable(mediaScrim.background)
-        mediaScrim.background = null
-        mediaScrim.visibility = View.GONE
+        mediaScrim.animate()
+            .alpha(0f)
+            .setDuration(100)
+            .setListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    recycleDrawable(mediaScrim.background)
+                    mediaScrim.background = null
+                    mediaScrim.visibility = View.GONE
+                    currentMediaScrimState = MediaScrimState.STATE_SCRIM_HIDDEN
+                    mediaScrim.postDelayed({
+                        dismissingKeyguard = false
+                    }, 100)
+                }
+            })
+            .start()
     }
 
     private fun recycleDrawable(drawable: Drawable?) {
@@ -190,21 +279,22 @@ class MediaArtUtils private constructor(context: Context) : MediaSessionManagerH
             min(bounds.height(), scaledBitmap.height)
         )
     }
-
-    override fun onMediaMetadataChanged() {
-        _mediaEvents.tryEmit(Unit)
+    
+    override fun onAlbumArtChanged() {
+        coroutineScope.launch {
+            _mediaEvents.tryEmit(Unit)
+            if (currentMediaScrimState == MediaScrimState.STATE_SCRIM_SHOWING) {
+                updateMediaArt()
+            }
+        }
     }
 
-    override fun onPlaybackStateChanged() {
-        _mediaEvents.tryEmit(Unit)
+    fun onDozingChanged() {
+        _dozing.tryEmit(Unit)
     }
 
-    fun onDozingChanged(dozing: Boolean) {
-        _dozing.value = dozing
-    }
-
-    fun setOnKeyguard(active: Boolean) {
-        _keyguard.value = active
+    fun onKeyguardShowingChanged() {
+        _keyguard.tryEmit(Unit)
     }
 
     fun getMediaArtScrim() = mediaScrim
@@ -212,9 +302,9 @@ class MediaArtUtils private constructor(context: Context) : MediaSessionManagerH
     fun setSubjectAlpha(alpha: Float) {
         mediaScrim.alpha = alpha
     }
-    
-    fun setQsExpansion(expanded: Boolean) {
-        _qsExpanded.value = expanded
+
+    fun setQsExpansion() {
+        _qsExpanded.tryEmit(Unit)
     }
 
     companion object {

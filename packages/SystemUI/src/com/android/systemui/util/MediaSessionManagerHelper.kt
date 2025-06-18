@@ -20,12 +20,14 @@ import android.app.WallpaperColors
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.*
+import android.graphics.drawable.*
 import android.media.MediaMetadata
 import android.media.session.*
 import android.net.Uri
 import android.os.SystemClock
 import android.provider.Settings
 import android.text.TextUtils
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 
@@ -44,6 +46,7 @@ class MediaSessionManagerHelper private constructor(private val context: Context
         fun onMediaMetadataChanged() {}
         fun onPlaybackStateChanged() {}
         fun onMediaColorsChanged() {}
+        fun onAlbumArtChanged() {}
     }
 
     private val _mediaMetadata = MutableStateFlow<MediaMetadata?>(null)
@@ -66,6 +69,8 @@ class MediaSessionManagerHelper private constructor(private val context: Context
     private val activityLauncherUtils = ActivityLauncherUtils(context)
     private var activeController: MediaController? = null
     private val listeners = mutableSetOf<MediaMetadataListener>()
+    
+    private var artworkDrawable: Drawable? = null
 
     private val mediaControllerCallback = object : MediaController.Callback() {
         override fun onMetadataChanged(metadata: MediaMetadata?) {
@@ -74,6 +79,10 @@ class MediaSessionManagerHelper private constructor(private val context: Context
 
         override fun onPlaybackStateChanged(state: PlaybackState?) {
             _playbackState.value = state
+        }
+        
+        override fun onSessionDestroyed() {
+            clearSessionState()
         }
     }
 
@@ -143,18 +152,13 @@ class MediaSessionManagerHelper private constructor(private val context: Context
     }
 
     private suspend fun updateMediaColors() = withContext(Dispatchers.Default) {
-        val bitmap = mediaMetadata.value?.run {
-            getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART) ?: 
-            getBitmap(MediaMetadata.METADATA_KEY_ART) ?: 
-            getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-        } ?: return@withContext
+        val bitmap = getMediaBitmap() ?: return@withContext
 
         val wallpaperColors = WallpaperColors.fromBitmap(bitmap) ?: return@withContext
         val config = context.resources.configuration
-        val isDarkTheme = config.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-        
-        ColorScheme(wallpaperColors, isDarkTheme).let { scheme ->
-            val newColor = if (isDarkTheme) scheme.accent1.s100 else scheme.accent1.s800
+
+        ColorScheme(wallpaperColors, false).let { scheme ->
+            val newColor = scheme.accent1.s100
             if (_mediaColors.value != newColor) {
                 _mediaColors.value = newColor
                 _currentColorScheme.value = scheme
@@ -170,6 +174,7 @@ class MediaSessionManagerHelper private constructor(private val context: Context
         listener.onMediaMetadataChanged()
         listener.onPlaybackStateChanged()
         listener.onMediaColorsChanged()
+        listener.onAlbumArtChanged()
     }
 
     fun removeMediaMetadataListener(listener: MediaMetadataListener) {
@@ -184,6 +189,7 @@ class MediaSessionManagerHelper private constructor(private val context: Context
             launch { mediaMetadata.collect { notifyListeners { onMediaMetadataChanged() } } }
             launch { playbackState.collect { notifyListeners { onPlaybackStateChanged() } } }
             launch { mediaColors.collect { notifyListeners { onMediaColorsChanged() } } }
+            launch { mediaColors.collect { notifyListeners { onAlbumArtChanged() } } }
         }
     }
 
@@ -216,22 +222,7 @@ class MediaSessionManagerHelper private constructor(private val context: Context
     }
 
     fun getMediaBitmap(): Bitmap? {
-        val metadata = mediaMetadata.value ?: return null
-        return metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-            ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
-            ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-            ?: loadBitmapFromUri(metadata.getString(MediaMetadata.METADATA_KEY_ART_URI))
-    }
-
-    private fun loadBitmapFromUri(uri: String?): Bitmap? {
-        if (uri.isNullOrEmpty()) return null
-        return try {
-            context.contentResolver.openInputStream(Uri.parse(uri)).use { inputStream ->
-                BitmapFactory.decodeStream(inputStream)
-            }
-        } catch (e: Exception) {
-            null
-        }
+        return (artworkDrawable as? BitmapDrawable)?.bitmap
     }
 
     fun getMediaMetadata(): MediaMetadata? {
@@ -312,13 +303,35 @@ class MediaSessionManagerHelper private constructor(private val context: Context
         )
     }
 
+    // called by MediaControlPanel
+    fun setArtworkDrawable(drawable: Drawable) {
+        artworkDrawable = drawable
+        notifyListeners { onAlbumArtChanged() }
+        Log.d("setArtworkDrawable", "Album art updated from MediaControlPanel")
+    }
+
+    fun clearArtworkDrawable() {
+        artworkDrawable = null
+        notifyListeners { onAlbumArtChanged() }
+    }
+
+    private fun clearSessionState() {
+        clearArtworkDrawable()
+        _mediaMetadata.value = null
+        _playbackState.value = null
+        _mediaColors.value = 0
+        _currentColorScheme.value = null
+        activeController?.unregisterCallback(mediaControllerCallback)
+        activeController = null
+    }
+
     companion object {
         @Volatile
         private var instance: MediaSessionManagerHelper? = null
 
         fun getInstance(context: Context): MediaSessionManagerHelper =
             instance ?: synchronized(this) {
-                instance ?: MediaSessionManagerHelper(context).also { instance = it }
+                instance ?: MediaSessionManagerHelper(context.applicationContext).also { instance = it }
             }
     }
 }

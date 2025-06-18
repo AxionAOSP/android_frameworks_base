@@ -22,6 +22,7 @@ import android.os.Handler;
 
 import com.android.systemui.Dependency;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
+import com.android.systemui.shade.NotificationPanelViewController;
 import com.android.systemui.statusbar.phone.ScrimController;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
 
@@ -38,15 +39,18 @@ public class ScrimUtils {
     private final ScrimController mScrimController;
     private final StatusBarStateController mStatusBarStateController;
     private final KeyguardStateController mKeyguardStateController;
+    private NotificationPanelViewController mNotificationPanelViewController;
     
     private ExpansionState mExpansionState = ExpansionState.QS_NOT_EXPANDED;
+    private boolean mIsDozing = false;
 
     private final KeyguardStateController.Callback mKeyguardStateCallback =
             new KeyguardStateController.Callback() {
                 @Override
                 public void onKeyguardShowingChanged() {
-                    onKgShowingChanged(mKeyguardStateController.isShowing());
+                    onKgShowingChanged();
                 }
+
                 @Override
                 public void onKeyguardFadingAwayChanged() {
                     onKgFadingAwayChanged();
@@ -65,7 +69,10 @@ public class ScrimUtils {
                 }
                 @Override
                 public void onDozingChanged(boolean dozing) {
-                    onDozeChanged(dozing);
+                    if (mIsDozing != dozing) {
+                        mIsDozing = dozing;
+                        onDozeChanged();
+                    }
                 }
             };
 
@@ -97,48 +104,48 @@ public class ScrimUtils {
     }
 
     public void setQsExpansion(float expansion) {
-        ExpansionState state = expansion < 1
-                ? ExpansionState.QS_NOT_EXPANDED
-                : ExpansionState.QS_FULLY_EXPANDED;
-        if (state == mExpansionState) {
-            return;
-        }
-        mExpansionState = state;
-        if (mExpansionState == ExpansionState.QS_NOT_EXPANDED) {
-        } else if (mExpansionState == ExpansionState.QS_FULLY_EXPANDED) {
-        }
-        getMediaInstance().setQsExpansion(mExpansionState == ExpansionState.QS_FULLY_EXPANDED);
-    }
-    
-    public void onScreenStateChange() {}
-
-    private void updateNotifContainerElements() {
+        getMediaInstance().setQsExpansion();
     }
 
     public void onScrimDispatched() {
         getMediaInstance().updateMediaVisibility();
     }
-
-    private void onDozeChanged(boolean dozing) {
-        MediaArtUtils mediaArtUtils = getMediaInstance();
-        if (mediaArtUtils != null) {
-            mediaArtUtils.onDozingChanged(dozing);
-        }
-    }
-
-    private void onKgShowingChanged(boolean showing) {
-        getMediaInstance().setOnKeyguard(showing);
+    
+    private void onKgShowingChanged() {
+        getMediaInstance().onKeyguardShowingChanged();
     }
 
     private void onKgFadingAwayChanged() {
-        getMediaInstance().setOnKeyguard(false);
+        getMediaInstance().cleanupResources();
     }
 
     private void onKgGoingAwayChanged() {
-        getMediaInstance().setOnKeyguard(false);
+        getMediaInstance().cleanupResources();
+    }
+    
+    private void onDozeChanged() {
+        getMediaInstance().onDozingChanged();
     }
 
     public float getScrimBehindAlphaKeyguard() {
         return mScrimController.getScrimBehindAlpha();
+    }
+    
+    public void setNotificationPanelViewController(NotificationPanelViewController npc) {
+        mNotificationPanelViewController = npc;
+    }
+    
+    public boolean isDozing() {
+        return mIsDozing;
+    }
+    
+    public boolean isPanelFullyCollapsed() {
+        return mNotificationPanelViewController != null 
+            && mNotificationPanelViewController.isPanelFullyCollapsed();
+    }
+
+    public boolean isKeyguardShowing() {
+        return mNotificationPanelViewController != null 
+            && mNotificationPanelViewController.isKeyguardShowing();
     }
 }

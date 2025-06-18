@@ -919,6 +919,8 @@ public class MediaControlPanel {
             Drawable artwork;
             boolean isArtworkBound;
             Icon artworkIcon = data.getArtwork();
+            Drawable albumArt = getScaledBackground(artworkIcon, finalWidth, finalHeight);
+            com.android.systemui.util.MSMHProxy.INSTANCE(mContext).setArtworkDrawable(albumArt);
             WallpaperColors wallpaperColors = getWallpaperColor(artworkIcon);
             if (wallpaperColors != null) {
                 mutableColorScheme = new ColorScheme(wallpaperColors, true, Style.CONTENT);

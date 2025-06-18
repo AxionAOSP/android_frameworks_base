@@ -236,6 +236,7 @@ import com.android.systemui.statusbar.policy.SplitShadeStateController;
 import com.android.systemui.unfold.SysUIUnfoldComponent;
 import com.android.systemui.util.Compile;
 import com.android.systemui.util.SystemUIBoostFramework;
+import com.android.systemui.util.ScrimUtils;
 import com.android.systemui.util.Utils;
 import com.android.systemui.util.time.SystemClock;
 import com.android.wm.shell.animation.FlingAnimationUtils;
@@ -1005,6 +1006,7 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
         mAlternateBouncerInteractor = alternateBouncerInteractor;
         dumpManager.registerDumpable(this);
         mStatusBarKeyguardViewManager.setNotificationPanelViewController(this);
+        ScrimUtils.getInstance(context).setNotificationPanelViewController(this);
     }
 
     private Unit setDoubleTapToSleepEnabled(boolean value) {
@@ -2578,7 +2580,7 @@ public final class NotificationPanelViewController implements ShadeSurface, Dump
         }
     }
 
-    boolean isKeyguardShowing() {
+    public boolean isKeyguardShowing() {
         return mBarState == KEYGUARD;
     }
 
