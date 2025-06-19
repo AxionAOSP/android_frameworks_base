@@ -44,8 +44,7 @@ public class ThermalControlService extends SystemService {
     private static final String CPUS_PARAMS_BG_LIMIT = SystemProperties.get("persist.sys.axion_cpu_limit_bg", "0-1");
     private static final String CPUS_PARAMS_BG_UNLIMIT = SystemProperties.get("persist.sys.axion_cpu_bg", "0-2");
 
-    private static final float DEFAULT_TEMP_THRESHOLD_C = 37.0f;
-    private static final float HIGH_TEMP_THRESHOLD_C = 43.0f;
+    private static final float HIGH_TEMP_THRESHOLD_C = 46.0f;
 
     private static final String PROPERTY_CFS_TEMP_CTRL = "persist.sys.cfs_temp_control";
 
@@ -113,8 +112,7 @@ public class ThermalControlService extends SystemService {
                 return;
             }
 
-            float threshold = (mPowerModePerfByUser == 1) ? HIGH_TEMP_THRESHOLD_C : DEFAULT_TEMP_THRESHOLD_C;
-            boolean shouldThrottle = temp >= threshold;
+            boolean shouldThrottle = temp >= HIGH_TEMP_THRESHOLD_C;
 
             String bgLimit = shouldThrottle ? CPUS_PARAMS_BG_LIMIT : CPUS_PARAMS_BG_UNLIMIT;
             String fgLimit = shouldThrottle ? CPUS_PARAMS_UI_LIMIT : CPUS_PARAMS_FG_UNLIMIT;
