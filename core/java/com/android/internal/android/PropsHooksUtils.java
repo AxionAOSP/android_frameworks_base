@@ -143,7 +143,8 @@ public class PropsHooksUtils {
             "com.tencent.tmgp.kr.codm",
             "com.vng.codmvn"
     ));
-    
+
+    private static final Map<String, Object> propsToChangeS24Ultra  = createMap("SM-S928B", "samsung");
     private static final Map<String, Object> propsToChangeS9Tab = createMap("SM-X916B", "samsung");
     private static final Set<String> pubgPackages = new HashSet<>(Set.of(
             "com.pubg.imobile",
@@ -196,7 +197,7 @@ public class PropsHooksUtils {
 
         packagePropsMap.keySet().removeAll(pubgPackages);
 
-        addToPackageMap(pubgPackages, isTablet ? propsToChangeS9Tab : propsToChangeROG8P);
+        addToPackageMap(pubgPackages, isTablet ? propsToChangeS9Tab : propsToChangeS24Ultra);
 
         String packageName = context.getPackageName();
 
