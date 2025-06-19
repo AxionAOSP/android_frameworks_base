@@ -445,8 +445,6 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         mTouchSlop = configuration.getScaledTouchSlop();
         mSlopMultiplier = configuration.getScaledAmbiguousGestureMultiplier();
         mStatusBarMinHeight = SystemBarUtils.getStatusBarHeight(mPanelView.getContext());
-        mScrimCornerRadius = mResources.getDimensionPixelSize(
-                R.dimen.notification_scrim_corner_radius);
         mScreenCornerRadius = (int) ScreenDecorationsUtils.getWindowCornerRadius(
                 mPanelView.getContext());
         mFalsingThreshold = mResources.getDimensionPixelSize(R.dimen.qs_falsing_threshold);
@@ -1305,7 +1303,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
 
     private void applyClippingImmediately(int left, int top, int right, int bottom,
             boolean qsVisible) {
-        int radius = mScrimCornerRadius;
+        int radius = 0;
         boolean clipStatusView = false;
         mLastClipBounds.set(left, top, right, bottom);
         if (mIsFullWidth) {
@@ -1313,8 +1311,8 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             float screenCornerRadius =
                     mRecordingController.isRecording() || mCastController.hasConnectedCastDevice()
                             ? 0 : mScreenCornerRadius;
-            radius = (int) MathUtils.lerp(screenCornerRadius, mScrimCornerRadius,
-                    Math.min(top / (float) mScrimCornerRadius, 1f));
+            radius = (int) MathUtils.lerp(screenCornerRadius, radius,
+                    Math.min(top / (float) radius, 1f));
 
             float bottomRadius = mSplitShadeEnabled ? screenCornerRadius : 0;
             if (!getExpanded()) {
@@ -1393,7 +1391,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
      */
     @VisibleForTesting
     int calculateBottomCornerRadius(float screenCornerRadius) {
-        return (int) MathUtils.lerp(screenCornerRadius, mScrimCornerRadius,
+        return (int) MathUtils.lerp(screenCornerRadius, 0,
                 Math.min(calculateBottomRadiusProgress(), 1f));
     }
 
@@ -1404,7 +1402,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
 
     @VisibleForTesting
     int getScrimCornerRadius() {
-        return mScrimCornerRadius;
+        return 0;
     }
 
     void setDisplayInsets(int leftInset, int rightInset) {
