@@ -177,7 +177,6 @@ import com.android.systemui.util.DeviceConfigProxy;
 import com.android.systemui.util.kotlin.JavaAdapter;
 import com.android.systemui.util.settings.SecureSettings;
 import com.android.systemui.util.settings.SystemSettings;
-import com.android.systemui.util.SystemUIBoostFramework;
 import com.android.systemui.util.time.SystemClock;
 import com.android.systemui.wallpapers.data.repository.WallpaperRepository;
 import com.android.window.flags.Flags;
@@ -816,7 +815,6 @@ public class KeyguardViewMediator implements CoreStartable, Dumpable,
             if (targetUserId != mSelectedUserInteractor.getSelectedUserId()) {
                 return;
             }
-            SystemUIBoostFramework.getInstance().setLimitOtherAppCpu(true);
             if (DEBUG) Log.d(TAG, "keyguardDone");
             tryKeyguardDone();
         }
@@ -878,12 +876,6 @@ public class KeyguardViewMediator implements CoreStartable, Dumpable,
                             "com.android.systemui:UNLOCK_DREAMING");
                 }
             }
-            SystemUIBoostFramework.getInstance().setLimitOtherAppCpu(false);
-            SystemUIBoostFramework.getInstance().unbind();
-            mHandler.postDelayed(() -> 
-                SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_UNLOCK), 
-                800L
-            );
             Trace.endSection();
         }
 

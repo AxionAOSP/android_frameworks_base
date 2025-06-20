@@ -30,7 +30,6 @@ import android.view.animation.PathInterpolator
 import com.android.internal.graphics.ColorUtils
 import com.android.app.animation.Interpolators
 import com.android.settingslib.Utils
-import com.android.systemui.util.SystemUIBoostFramework
 import com.android.systemui.surfaceeffects.ripple.RippleShader
 
 private const val RIPPLE_SPARKLE_STRENGTH: Float = 0.3f
@@ -279,7 +278,6 @@ class AuthRippleView(context: Context?, attrs: AttributeSet?) : View(context, at
                 override fun onAnimationStart(animation: Animator) {
                     drawRipple = true
                     visibility = VISIBLE
-                    SystemUIBoostFramework.getInstance().animationBoostOn(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_UNLOCK)
                 }
 
                 override fun onAnimationEnd(animation: Animator) {
@@ -287,9 +285,6 @@ class AuthRippleView(context: Context?, attrs: AttributeSet?) : View(context, at
                     drawRipple = false
                     visibility = GONE
                     unlockedRippleAnimator = null
-                    SystemUIBoostFramework.getInstance().setLimitOtherAppCpu(false)
-                    SystemUIBoostFramework.getInstance().unbind()
-                    SystemUIBoostFramework.getInstance().animationBoostOff(SystemUIBoostFramework.REQUEST_ANIMATION_BOOST_TYPE_UNLOCK)
                 }
             })
         }
