@@ -17,6 +17,7 @@
 package com.android.systemui.accessibility.data.repository
 
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.os.Handler
 import android.view.accessibility.AccessibilityManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
@@ -28,11 +29,13 @@ import com.android.systemui.testKosmos
 import com.android.systemui.util.mockito.whenever
 import com.android.systemui.util.mockito.withArgCaptor
 import com.google.common.truth.Truth.assertThat
+import java.util.concurrent.Executor
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mock
 import org.mockito.Mockito.verify
@@ -51,8 +54,19 @@ class AccessibilityRepositoryTest : SysuiTestCase() {
     private val testScope = testKosmos.testScope
     private val backgroundScope = testKosmos.backgroundScope
 
+    @Mock private lateinit var bgExecutor: Executor
+
+    @Mock private lateinit var bgHandler: Handler
+
     // real impls
-    private val underTest by lazy { AccessibilityRepository(a11yManager, backgroundScope) }
+    private val underTest by lazy {
+        AccessibilityRepository(
+            a11yManager = a11yManager,
+            backgroundExecutor = bgExecutor,
+            backgroundHandler = bgHandler,
+            backgroundScope = backgroundScope,
+        )
+    }
 
     @Test
     fun isTouchExplorationEnabled_reflectsA11yManager_initFalse() = runTest {
@@ -73,7 +87,10 @@ class AccessibilityRepositoryTest : SysuiTestCase() {
         whenever(a11yManager.isTouchExplorationEnabled).thenReturn(false)
         val isTouchExplorationEnabled by collectLastValue(underTest.isTouchExplorationEnabled)
         runCurrent()
-        withArgCaptor { verify(a11yManager).addTouchExplorationStateChangeListener(capture()) }
+        withArgCaptor {
+                verify(a11yManager)
+                    .addTouchExplorationStateChangeListener(capture(), ArgumentMatchers.notNull())
+            }
             .onTouchExplorationStateChanged(/* enabled= */ true)
         assertThat(isTouchExplorationEnabled).isTrue()
     }
@@ -83,7 +100,10 @@ class AccessibilityRepositoryTest : SysuiTestCase() {
         whenever(a11yManager.isTouchExplorationEnabled).thenReturn(true)
         val isTouchExplorationEnabled by collectLastValue(underTest.isTouchExplorationEnabled)
         runCurrent()
-        withArgCaptor { verify(a11yManager).addTouchExplorationStateChangeListener(capture()) }
+        withArgCaptor {
+                verify(a11yManager)
+                    .addTouchExplorationStateChangeListener(capture(), ArgumentMatchers.notNull())
+            }
             .onTouchExplorationStateChanged(/* enabled= */ false)
         assertThat(isTouchExplorationEnabled).isFalse()
     }
@@ -105,7 +125,11 @@ class AccessibilityRepositoryTest : SysuiTestCase() {
             val isEnabledFiltered by collectLastValue(underTest.isEnabledFiltered)
             runCurrent()
             withArgCaptor {
-                    verify(a11yManager).addAccessibilityServicesStateChangeListener(capture())
+                    verify(a11yManager)
+                        .addAccessibilityServicesStateChangeListener(
+                            ArgumentMatchers.notNull(),
+                            capture(),
+                        )
                 }
                 .onAccessibilityServicesStateChanged(a11yManager)
             assertThat(isEnabledFiltered).isFalse()
@@ -117,7 +141,11 @@ class AccessibilityRepositoryTest : SysuiTestCase() {
             val isEnabledFiltered2 by collectLastValue(underTest.isEnabledFiltered)
             runCurrent()
             withArgCaptor {
-                    verify(a11yManager).addAccessibilityServicesStateChangeListener(capture())
+                    verify(a11yManager)
+                        .addAccessibilityServicesStateChangeListener(
+                            ArgumentMatchers.notNull(),
+                            capture(),
+                        )
                 }
                 .onAccessibilityServicesStateChanged(a11yManager)
             assertThat(isEnabledFiltered2).isTrue()
@@ -132,7 +160,11 @@ class AccessibilityRepositoryTest : SysuiTestCase() {
             val isEnabledFiltered by collectLastValue(underTest.isEnabledFiltered)
             runCurrent()
             withArgCaptor {
-                    verify(a11yManager).addAccessibilityServicesStateChangeListener(capture())
+                    verify(a11yManager)
+                        .addAccessibilityServicesStateChangeListener(
+                            ArgumentMatchers.notNull(),
+                            capture(),
+                        )
                 }
                 .onAccessibilityServicesStateChanged(a11yManager)
             assertThat(isEnabledFiltered).isTrue()
@@ -144,7 +176,11 @@ class AccessibilityRepositoryTest : SysuiTestCase() {
             val isEnabledFiltered2 by collectLastValue(underTest.isEnabledFiltered)
             runCurrent()
             withArgCaptor {
-                    verify(a11yManager).addAccessibilityServicesStateChangeListener(capture())
+                    verify(a11yManager)
+                        .addAccessibilityServicesStateChangeListener(
+                            ArgumentMatchers.notNull(),
+                            capture(),
+                        )
                 }
                 .onAccessibilityServicesStateChanged(a11yManager)
             assertThat(isEnabledFiltered2).isFalse()

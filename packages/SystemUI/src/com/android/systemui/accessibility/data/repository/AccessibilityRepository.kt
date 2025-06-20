@@ -17,6 +17,7 @@
 package com.android.systemui.accessibility.data.repository
 
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.os.Handler
 import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityManager.TouchExplorationStateChangeListener
 import com.android.app.tracing.FlowTracing.tracedAwaitClose
@@ -24,6 +25,7 @@ import com.android.app.tracing.FlowTracing.tracedConflatedCallbackFlow
 import com.android.systemui.dagger.qualifiers.Background
 import dagger.Module
 import dagger.Provides
+import java.util.concurrent.Executor
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CoroutineScope
@@ -48,8 +50,16 @@ interface AccessibilityRepository {
     companion object {
         operator fun invoke(
             a11yManager: AccessibilityManager,
+            @Background backgroundExecutor: Executor,
+            @Background backgroundHandler: Handler,
             @Background backgroundScope: CoroutineScope,
-        ): AccessibilityRepository = AccessibilityRepositoryImpl(a11yManager, backgroundScope)
+        ): AccessibilityRepository =
+            AccessibilityRepositoryImpl(
+                a11yManager,
+                backgroundExecutor,
+                backgroundHandler,
+                backgroundScope,
+            )
     }
 }
 
@@ -57,12 +67,14 @@ private const val TAG = "AccessibilityRepository"
 
 private class AccessibilityRepositoryImpl(
     private val manager: AccessibilityManager,
-    @Background private val scope: CoroutineScope,
+    @Background private val bgExecutor: Executor,
+    @Background private val bgHandler: Handler,
+    @Background private val bgScope: CoroutineScope,
 ) : AccessibilityRepository {
     override val isTouchExplorationEnabled: Flow<Boolean> =
         tracedConflatedCallbackFlow(TAG) {
                 val listener = TouchExplorationStateChangeListener(::trySend)
-                manager.addTouchExplorationStateChangeListener(listener)
+                manager.addTouchExplorationStateChangeListener(listener, bgHandler)
                 trySend(manager.isTouchExplorationEnabled)
                 tracedAwaitClose(TAG) {
                     manager.removeTouchExplorationStateChangeListener(listener)
@@ -73,7 +85,7 @@ private class AccessibilityRepositoryImpl(
     override val isEnabled: Flow<Boolean> =
         tracedConflatedCallbackFlow(TAG) {
                 val listener = AccessibilityManager.AccessibilityStateChangeListener(::trySend)
-                manager.addAccessibilityStateChangeListener(listener)
+                manager.addAccessibilityStateChangeListener(listener, bgHandler)
                 trySend(manager.isEnabled)
                 tracedAwaitClose(TAG) { manager.removeAccessibilityStateChangeListener(listener) }
             }
@@ -96,12 +108,12 @@ private class AccessibilityRepositoryImpl(
                                 .isNotEmpty()
                         )
                     }
-                manager.addAccessibilityServicesStateChangeListener(listener)
+                manager.addAccessibilityServicesStateChangeListener(bgExecutor, listener)
                 tracedAwaitClose(TAG) {
                     manager.removeAccessibilityServicesStateChangeListener(listener)
                 }
             }
-            .stateIn(scope = scope, started = SharingStarted.Eagerly, initialValue = false)
+            .stateIn(scope = bgScope, started = SharingStarted.Eagerly, initialValue = false)
 
     override fun getRecommendedTimeout(originalTimeout: Duration, uiFlags: Int): Duration {
         return manager
@@ -113,6 +125,10 @@ private class AccessibilityRepositoryImpl(
 @Module
 object AccessibilityRepositoryModule {
     @Provides
-    fun provideRepo(manager: AccessibilityManager, @Background backgroundScope: CoroutineScope) =
-        AccessibilityRepository(manager, backgroundScope)
+    fun provideRepo(
+        manager: AccessibilityManager,
+        @Background backgroundExecutor: Executor,
+        @Background backgroundHandler: Handler,
+        @Background backgroundScope: CoroutineScope,
+    ) = AccessibilityRepository(manager, backgroundExecutor, backgroundHandler, backgroundScope)
 }
