@@ -16,16 +16,22 @@
 
 package com.android.systemui.accessibility.data.repository
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityManager.TouchExplorationStateChangeListener
 import com.android.app.tracing.FlowTracing.tracedAwaitClose
 import com.android.app.tracing.FlowTracing.tracedConflatedCallbackFlow
+import com.android.systemui.dagger.qualifiers.Background
 import dagger.Module
 import dagger.Provides
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.stateIn
 
 /** Exposes accessibility-related state. */
 interface AccessibilityRepository {
@@ -34,18 +40,25 @@ interface AccessibilityRepository {
     /** @see [AccessibilityManager.isEnabled] */
     val isEnabled: Flow<Boolean>
 
+    /** Returns whether a filtered set of [AccessibilityServiceInfo]s are enabled. */
+    val isEnabledFiltered: StateFlow<Boolean>
+
     fun getRecommendedTimeout(originalTimeout: Duration, uiFlags: Int): Duration
 
     companion object {
-        operator fun invoke(a11yManager: AccessibilityManager): AccessibilityRepository =
-            AccessibilityRepositoryImpl(a11yManager)
+        operator fun invoke(
+            a11yManager: AccessibilityManager,
+            @Background backgroundScope: CoroutineScope,
+        ): AccessibilityRepository = AccessibilityRepositoryImpl(a11yManager, backgroundScope)
     }
 }
 
 private const val TAG = "AccessibilityRepository"
 
-private class AccessibilityRepositoryImpl(private val manager: AccessibilityManager) :
-    AccessibilityRepository {
+private class AccessibilityRepositoryImpl(
+    private val manager: AccessibilityManager,
+    @Background private val scope: CoroutineScope,
+) : AccessibilityRepository {
     override val isTouchExplorationEnabled: Flow<Boolean> =
         tracedConflatedCallbackFlow(TAG) {
                 val listener = TouchExplorationStateChangeListener(::trySend)
@@ -66,6 +79,30 @@ private class AccessibilityRepositoryImpl(private val manager: AccessibilityMana
             }
             .distinctUntilChanged()
 
+    override val isEnabledFiltered: StateFlow<Boolean> =
+        tracedConflatedCallbackFlow(TAG) {
+                val listener =
+                    AccessibilityManager.AccessibilityServicesStateChangeListener {
+                        accessibilityManager ->
+                        trySend(
+                            accessibilityManager
+                                .getEnabledAccessibilityServiceList(
+                                    AccessibilityServiceInfo.FEEDBACK_AUDIBLE or
+                                        AccessibilityServiceInfo.FEEDBACK_SPOKEN or
+                                        AccessibilityServiceInfo.FEEDBACK_VISUAL or
+                                        AccessibilityServiceInfo.FEEDBACK_HAPTIC or
+                                        AccessibilityServiceInfo.FEEDBACK_BRAILLE
+                                )
+                                .isNotEmpty()
+                        )
+                    }
+                manager.addAccessibilityServicesStateChangeListener(listener)
+                tracedAwaitClose(TAG) {
+                    manager.removeAccessibilityServicesStateChangeListener(listener)
+                }
+            }
+            .stateIn(scope = scope, started = SharingStarted.Eagerly, initialValue = false)
+
     override fun getRecommendedTimeout(originalTimeout: Duration, uiFlags: Int): Duration {
         return manager
             .getRecommendedTimeoutMillis(originalTimeout.inWholeMilliseconds.toInt(), uiFlags)
@@ -75,5 +112,7 @@ private class AccessibilityRepositoryImpl(private val manager: AccessibilityMana
 
 @Module
 object AccessibilityRepositoryModule {
-    @Provides fun provideRepo(manager: AccessibilityManager) = AccessibilityRepository(manager)
+    @Provides
+    fun provideRepo(manager: AccessibilityManager, @Background backgroundScope: CoroutineScope) =
+        AccessibilityRepository(manager, backgroundScope)
 }
