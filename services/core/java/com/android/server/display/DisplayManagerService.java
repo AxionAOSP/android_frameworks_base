@@ -687,12 +687,10 @@ public final class DisplayManagerService extends SystemService {
         // android.display and android.anim is critical to user experience and we should make sure
         // it is not in the default foregroup groups, add it to top-app to make sure it uses all
         // the cores and scheduling settings for top-app when it runs.
-        Process.setThreadGroupAndCpuset(DisplayThread.get().getThreadId(),
-                Process.THREAD_GROUP_TOP_APP);
-        Process.setThreadGroupAndCpuset(AnimationThread.get().getThreadId(),
-                Process.THREAD_GROUP_TOP_APP);
-        Process.setThreadGroupAndCpuset(SurfaceAnimationThread.get().getThreadId(),
-                Process.THREAD_GROUP_TOP_APP);
+        String[] profiles = { "DisplayCapacity", "DisplayPerformance" };
+        Process.setTaskProfiles(DisplayThread.get().getThreadId(), profiles);
+        Process.setTaskProfiles(AnimationThread.get().getThreadId(), profiles);
+        Process.setTaskProfiles(SurfaceAnimationThread.get().getThreadId(), profiles);
     }
 
     @Override
