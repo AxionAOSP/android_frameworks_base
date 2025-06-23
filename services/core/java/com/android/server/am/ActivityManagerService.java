@@ -1339,6 +1339,7 @@ public class ActivityManagerService extends IActivityManager.Stub
     @GuardedBy("this") boolean mCallFinishBooting = false;
     @GuardedBy("this") boolean mBootAnimationComplete = false;
     boolean mAnimationBoosted = false;
+    int mTopAppPid = -1;
 
     final Context mContext;
 
@@ -19784,6 +19785,35 @@ public class ActivityManagerService extends IActivityManager.Stub
         mHandler.postDelayed(() -> executeAdjustCpusetCpus(path, restoreCpuset), durationMillis);
     }
 
+    private String getTopAppPackageName() {
+        String currentPackage;
+        try {
+            RunningTaskInfo rti = mActivityTaskManager.getTasks(
+                1, false /* filterVisibleRecents */, false /*keepIntentExtra */,
+                INVALID_DISPLAY).get(0);
+            currentPackage = rti.topActivity.getPackageName();
+        } catch (Exception e) {
+            currentPackage = null;
+        }
+        return currentPackage;
+    }
+
+    private boolean isTopAppGame(String packageName) {
+        if (packageName == null) return false;
+        boolean isGame = false;
+        try {
+            ApplicationInfo ai = mContext.getPackageManager().getApplicationInfo(packageName, 0);
+            if(ai != null) {
+                isGame = (ai.category == ApplicationInfo.CATEGORY_GAME) ||
+                        ((ai.flags & ApplicationInfo.FLAG_IS_GAME) ==
+                            ApplicationInfo.FLAG_IS_GAME);
+            }
+        } catch (Exception e) {
+            return false;
+        }
+        return isGame;
+    }
+
     @Override
     public void animationBoost(int pid, boolean enabled) {
         ProcessRecord curProc;
@@ -19793,6 +19823,50 @@ public class ActivityManagerService extends IActivityManager.Stub
         if (curProc == null) {
             return;
         }
+
+        if (enabled) {
+            String topApp = getTopAppPackageName();
+            if (topApp == null) {
+                return;
+            }
+
+            ProcessRecord topAppProc = getProcessRecord(topApp);
+            if (topAppProc == null) {
+                return;
+            }
+
+            int topAppPid = topAppProc.getPid();
+            final boolean isGame = isTopAppGame(topApp);
+            int group = isGame
+                    ? Process.THREAD_GROUP_DEFAULT 
+                    : Process.THREAD_GROUP_BACKGROUND;
+            int priority = isGame 
+                    ? Process.THREAD_PRIORITY_DEFAULT 
+                    : Process.THREAD_PRIORITY_BACKGROUND;
+            try {
+                Process.setProcessGroup(topAppPid, group);
+                Process.setThreadGroupAndCpuset(topAppPid, group);
+                Process.setThreadPriority(topAppPid, priority);
+                mTopAppPid = topAppPid;
+            } catch (Exception e) {
+                Slog.w(TAG, "Failed to demote top-app process: " + e);
+                mTopAppPid = -1;
+                return;
+            }
+        } else {
+            if (mTopAppPid != -1) {
+                try {
+                    Process.setProcessGroup(mTopAppPid, Process.THREAD_GROUP_TOP_APP);
+                    Process.setThreadGroupAndCpuset(mTopAppPid, Process.THREAD_GROUP_TOP_APP);
+                    Process.setThreadPriority(mTopAppPid, Process.THREAD_PRIORITY_TOP_APP_BOOST);
+                } catch (Exception e) {
+                    Slog.w(TAG, "Failed to restore top-app process group: " + e);
+                } finally {
+                    mTopAppPid = -1;
+                }
+            }
+        }
+
         setFifoPriority(curProc, enabled, 99);
         mAnimationBoosted = enabled;
     }
