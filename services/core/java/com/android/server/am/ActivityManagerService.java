@@ -1338,6 +1338,7 @@ public class ActivityManagerService extends IActivityManager.Stub
 
     @GuardedBy("this") boolean mCallFinishBooting = false;
     @GuardedBy("this") boolean mBootAnimationComplete = false;
+    boolean mAnimationBoosted = false;
 
     final Context mContext;
 
@@ -2028,7 +2029,6 @@ public class ActivityManagerService extends IActivityManager.Stub
             ServiceManager.addService("permission", new PermissionController(this));
             ServiceManager.addService("processinfo", new ProcessInfoService(this));
             ServiceManager.addService("cacheinfo", new CacheBinder(this));
-            ServiceManager.addService("boost_framework", new BoostFrameworkService());
 
             ApplicationInfo info = mContext.getPackageManager().getApplicationInfo(
                     "android", STOCK_PM_FLAGS | MATCH_SYSTEM_ONLY);
@@ -8385,6 +8385,10 @@ public class ActivityManagerService extends IActivityManager.Stub
         }
         return false;
     }
+    
+    public static boolean scheduleAsFifoPriority(int tid, boolean suppressLogs) {
+        return scheduleAsFifoPriority(tid, suppressLogs, 1);
+    }
 
     /**
      * Schedule the given thread an FIFO scheduling priority.
@@ -8394,9 +8398,9 @@ public class ActivityManagerService extends IActivityManager.Stub
      *
      * @return {@code true} if this succeeded.
      */
-    public static boolean scheduleAsFifoPriority(int tid, boolean suppressLogs) {
+    public static boolean scheduleAsFifoPriority(int tid, boolean suppressLogs, int prio) {
         try {
-            Process.setThreadScheduler(tid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 1);
+            Process.setThreadScheduler(tid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, prio);
             return true;
         } catch (IllegalArgumentException e) {
             if (!suppressLogs) {
@@ -8410,18 +8414,23 @@ public class ActivityManagerService extends IActivityManager.Stub
         return false;
     }
 
+    @GuardedBy("mProcLock")
+    static void setFifoPriority(@NonNull ProcessRecord app, boolean enable) {
+        setFifoPriority(app, enable, 1);
+    }
+
     /**
      * Switches the priority between SCHED_FIFO and SCHED_OTHER for the main thread and render
      * thread of the given process.
      */
     @GuardedBy("mProcLock")
-    static void setFifoPriority(@NonNull ProcessRecord app, boolean enable) {
+    static void setFifoPriority(@NonNull ProcessRecord app, boolean enable, int prio) {
         final int pid = app.getPid();
         final int renderThreadTid = app.getRenderThreadTid();
         if (enable) {
-            scheduleAsFifoPriority(pid, true /* suppressLogs */);
+            scheduleAsFifoPriority(pid, true /* suppressLogs */, prio);
             if (renderThreadTid != 0) {
-                scheduleAsFifoPriority(renderThreadTid, true /* suppressLogs */);
+                scheduleAsFifoPriority(renderThreadTid, true /* suppressLogs */, prio);
             }
         } else {
             scheduleAsRegularPriority(pid, true /* suppressLogs */);
@@ -19776,7 +19785,7 @@ public class ActivityManagerService extends IActivityManager.Stub
     }
 
     @Override
-    public void animationBoost(int pid) {
+    public void animationBoost(int pid, boolean enabled) {
         ProcessRecord curProc;
         synchronized (mPidsSelfLocked) {
             curProc = mPidsSelfLocked.get(pid);
@@ -19784,35 +19793,40 @@ public class ActivityManagerService extends IActivityManager.Stub
         if (curProc == null) {
             return;
         }
-        try {
-            int policy = Process.SCHED_RESET_ON_FORK | Process.SCHED_FIFO;
-            Process.setThreadScheduler(pid, policy, 99);
-            Process.setThreadScheduler(curProc.getRenderThreadTid(), policy, 99);
-            setPerformancePowerMode(true);
-        } catch (Exception e) {
-        }
-    }
-    
-    @Override
-    public void restoreThreadPriority(int pid, int originalPriority) {
-        ProcessRecord curProc;
-        synchronized (mPidsSelfLocked) {
-            curProc = mPidsSelfLocked.get(pid);
-        }
-        if (curProc == null) {
-            return;
-        }
-        try {
-            int policy = Process.SCHED_OTHER;
-            Process.setThreadScheduler(pid, policy, 0);
-            Process.setThreadPriority(originalPriority);
-            Process.setThreadScheduler(curProc.getRenderThreadTid(), policy, 0);
-            setPerformancePowerMode(false);
-        } catch (Exception e) {
-        }
+        setFifoPriority(curProc, enabled, 99);
+        mAnimationBoosted = enabled;
     }
 
-    private void setPerformancePowerMode(boolean enabled) {
+    @Override
+    public void setThreadAffinity(int pid, int affinity) {
+        ProcessRecord curProc;
+        synchronized (mPidsSelfLocked) {
+            curProc = mPidsSelfLocked.get(pid);
+        }
+        if (curProc == null) {
+            return;
+        }
+
+        int threadGroup = (affinity == 0)
+                ? Process.THREAD_GROUP_TOP_APP
+                : Process.THREAD_GROUP_BACKGROUND;
+
+        Process.setThreadGroupAndCpuset(pid, threadGroup);
+        Process.setThreadAffinity(pid, affinity);
+        
+        int rTid = curProc.getRenderThreadTid();
+        if (rTid == 0) return;
+        Process.setThreadGroupAndCpuset(rTid, threadGroup);
+        Process.setThreadAffinity(rTid, affinity);
+    }
+
+    @Override
+    public boolean isBoostingAnimation() {
+        return mAnimationBoosted;
+    }
+
+    @Override
+    public void setPerformanceMode(boolean enabled) {
         if (mLocalPowerManager != null) {
             mLocalPowerManager.setPowerMode(
                     Mode.LAUNCH, enabled);

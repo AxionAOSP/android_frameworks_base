@@ -438,6 +438,16 @@ public class DisplayPolicy {
         }
         return currentPackage;
     }
+    
+    private boolean isSystemBoostingAnimation() {
+        try {
+            if (ActivityManager.getService().isBoostingAnimation()){
+                return true;
+            }
+        } catch (Exception e) {
+        }
+        return false;
+    }
 
     private boolean isTopAppGame() {
         String currentPackage = getAppPackageName();
@@ -564,13 +574,12 @@ public class DisplayPolicy {
                 }
 
                 private void setPerformancePowerMode(boolean enabled) {
-                    if (mService.mPowerManagerInternal == null || enabled && isTopAppGame()) return;
-                    if (mBoosting == enabled) return;
-                    mBoosting = enabled;
-                    mService.mPowerManagerInternal.setPowerMode(
-                            android.hardware.power.Mode.LAUNCH, enabled);
-                    mService.mPowerManagerInternal.setPowerMode(
-                            android.os.PowerManagerInternal.MODE_FIXED_PERFORMANCE, enabled);
+                    if (mBoosting == enabled || !enabled && isSystemBoostingAnimation() || enabled && isTopAppGame()) return;
+                    try {
+                        ActivityManager.getService().setPerformanceMode(enabled);
+                        mBoosting = enabled;
+                    } catch (Exception e) {
+                    }
                 }
 
                 @Override

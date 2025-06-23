@@ -23,8 +23,6 @@ import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.util.Log;
 
-import com.android.internal.os.IBoostFramework;
-
 import java.util.Arrays;
 import java.util.IntSummaryStatistics;
 
@@ -80,8 +78,6 @@ public class SystemUIBoostFramework {
     private boolean mLimitForegroundAppCpu = false;
     private boolean mLimitOtherProcessCpu = false;
     
-    private static IBoostFramework sService;
-    
     private static SystemUIBoostFramework instance = null;
 
     static {
@@ -102,14 +98,6 @@ public class SystemUIBoostFramework {
             instance = new SystemUIBoostFramework();
         }
         return instance;
-    }
-
-    private static IBoostFramework getService() {
-        if (sService == null) {
-            IBinder binder = ServiceManager.getService("boost_framework");
-            sService = IBoostFramework.Stub.asInterface(binder);
-        }
-        return sService;
     }
 
     public void bindBigCore() {
@@ -134,7 +122,11 @@ public class SystemUIBoostFramework {
     }
 
     public void animationBoostOn(int type) {
-        mAnimationBoostType |= type;
+        if ((mAnimationBoostType & type) == 0) {
+            mAnimationBoostType |= type;
+            executePerformanceMode(false);
+            executePerformanceMode(true);
+        }
         if (mAnimationBoost != ANIMATION_BOOST_ON) {
             bindBigCore();
             mAnimationBoost = ANIMATION_BOOST_ON;
@@ -148,46 +140,26 @@ public class SystemUIBoostFramework {
             unbind();
             mAnimationBoost = ANIMATION_BOOST_OFF;
             executeSetAnimationBoost(ANIMATION_BOOST_OFF);
+            executePerformanceMode(false);
         }
     }
 
     private void executeSetAnimationBoost(long boost) {
         try {
-            animationBoost(boost);
+            final boolean enabled = boost == ANIMATION_BOOST_ON;
+            int pid = Process.myPid();
+            ActivityManager.getService().animationBoost(pid, enabled);
         } catch (Exception e) {
-            Log.w(TAG, "executeSetAnimationBoost() Exception: ", e);
+            Log.e(TAG, "Failed to call animationBoost", e);
         }
     }
 
     private void executeSetThreadAffinity(int affinity) {
         try {
-            setProcThreadAffinity(affinity);
+            int pid = Process.myPid();
+            ActivityManager.getService().setThreadAffinity(pid, affinity);
         } catch (Exception e) {
-            Log.w(TAG, "executeSetThreadAffinity() Exception: ", e);
-        }
-    }
-    
-    public static void setProcThreadAffinity(int affinity) {
-        try {
-            int tid = Process.myPid();
-            IBoostFramework service = getService();
-            if (service != null) {
-                service.setProcThreadAffinity(tid, affinity);
-            }
-        } catch (RemoteException e) {
-            Log.e(TAG, "Failed to call setProcThreadAffinity", e);
-        }
-    }
-
-    public static void animationBoost(long boost) {
-        try {
-            int tid = Process.myPid();
-            IBoostFramework service = getService();
-            if (service != null) {
-                service.animationBoost(tid, boost);
-            }
-        } catch (RemoteException e) {
-            Log.e(TAG, "Failed to call animationBoost", e);
+            Log.e(TAG, "Failed to call setThreadAffinity", e);
         }
     }
     
@@ -294,6 +266,13 @@ public class SystemUIBoostFramework {
     private void executeAdjustCpusetCpus(String path, String cpus) {
         try {
             ActivityManager.getService().executeAdjustCpusetCpus(path, cpus);
+        } catch (Exception e) {
+        }
+    }
+    
+    private void executePerformanceMode(boolean enabled) {
+        try {
+            ActivityManager.getService().setPerformanceMode(enabled);
         } catch (Exception e) {
         }
     }
