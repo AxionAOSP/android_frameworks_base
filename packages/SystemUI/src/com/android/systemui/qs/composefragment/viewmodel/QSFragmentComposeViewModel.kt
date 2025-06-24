@@ -286,22 +286,23 @@ constructor(
 
     var overScrollAmount by mutableStateOf(0)
 
-    val viewTranslationY by derivedStateOf {
-        if (isOverscrolling) {
-            overScrollAmount.toFloat()
-        } else {
-            if (onKeyguardAndExpanded) {
-                translationScaleY * qqsHeight
+    val viewTranslationY: Float
+        get() =
+            if (isOverscrolling) {
+                overScrollAmount.toFloat()
             } else {
-                headerTranslation
+                if (onKeyguardAndExpanded) {
+                    translationScaleY * qqsHeight
+                } else {
+                    headerTranslation
+                }
             }
-        }
-    }
 
-    val qsScrollTranslationY by derivedStateOf {
-        val panelTranslationY = translationScaleY * heightDiff
-        if (onKeyguardAndExpanded) panelTranslationY else 0f
-    }
+    val qsScrollTranslationY: Float
+        get() {
+            val panelTranslationY = translationScaleY * heightDiff
+            return if (onKeyguardAndExpanded) panelTranslationY else 0f
+        }
 
     val viewAlpha by derivedStateOf {
         when {
@@ -476,9 +477,8 @@ constructor(
     private val translationScaleY: Float
         get() = ((qsExpansion - 1) * (if (isInSplitShade) 1f else SHORT_PARALLAX_AMOUNT))
 
-    private val headerTranslation by derivedStateOf {
-        if (isTransitioningToFullShade) 0f else proposedTranslation
-    }
+    private val headerTranslation: Float
+        get() = if (isTransitioningToFullShade) 0f else proposedTranslation
 
     private val alphaProgress by derivedStateOf {
         when {
