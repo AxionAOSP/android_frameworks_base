@@ -162,10 +162,24 @@ constructor(
             initialValue = 0,
             source =
                 configurationInteractor.onAnyConfigurationChange.map {
-                    if (LargeScreenUtils.shouldUseLargeScreenShadeHeader(resources)) {
+                    if (isInSplitShade || LargeScreenUtils.shouldUseLargeScreenShadeHeader(resources)) {
                         0
                     } else {
                         largeScreenHeaderHelper.getLargeScreenHeaderHeight()
+                    }
+                },
+        )
+
+    val qsExtraPaddingTop by
+        hydrator.hydratedStateOf(
+            traceName = "qsExtraPaddingTop",
+            initialValue = 0,
+            source =
+                configurationInteractor.onAnyConfigurationChange.map {
+                    if (isInSplitShade || LargeScreenUtils.shouldUseLargeScreenShadeHeader(resources)) {
+                        0
+                    } else {
+                        resources.getDimensionPixelSize(R.dimen.nt_qs_panel_padding_top)
                     }
                 },
         )
@@ -503,8 +517,30 @@ constructor(
         }
         qsMediaHost.apply {
             expansion = MediaHostState.EXPANDED
-            showsOnlyActiveMedia = false
+            showsOnlyActiveMedia = true
             init(LOCATION_QS)
+        }
+        updateMediaHostVisibility(qsMediaHost)
+    }
+
+    fun updateMediaHostVisibility(mediaHost: MediaHost): Flow<Boolean> {
+        return callbackFlow {
+            val originalVisible = mediaHost.visible
+
+            trySend(!originalVisible)
+            trySend(originalVisible)
+
+            val listener: (Boolean) -> Unit = { newVisibleState ->
+                trySend(newVisibleState).isSuccess
+            }
+
+            mediaHost.addVisibilityChangeListener(listener)
+
+            awaitClose {
+                mediaHost.removeVisibilityChangeListener(listener)
+            }
+        }.onStart {
+            emit(mediaHost.visible)
         }
     }
 
