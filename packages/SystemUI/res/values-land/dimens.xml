@@ -122,6 +122,10 @@
 
     <!-- Keyboard shortcuts helper -->
     <dimen name="ksh_container_horizontal_margin">48dp</dimen>
-    
+
     <dimen name="custom_qs_tile_height">68dp</dimen>
+    
+    <!-- Volume -->
+    <dimen name="nt_volume_row_slider_height">108dp</dimen>
+    <dimen name="nt_volume_row_slider_progress_height">82dp</dimen>
 </resources>

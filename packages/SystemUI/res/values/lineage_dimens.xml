@@ -36,4 +36,13 @@
     <dimen name="qs_brightness_slider_height">56dp</dimen>
     <dimen name="qqs_min_height">307.5dp</dimen>
     <dimen name="qqs_brightness_margin_top">12dp</dimen>
+
+    <!-- Volume -->
+    <dimen name="nt_volume_row_slider_height">184dp</dimen>
+    <dimen name="nt_volume_row_slider_progress_height">160dp</dimen>
+    <dimen name="nt_volume_row_slider_min_height">48dp</dimen>
+    <dimen name="nt_volume_row_seekbar_default_height">12dp</dimen>
+    <dimen name="nt_volume_row_seekbar_large_height">36dp</dimen>
+    <dimen name="dot_gap">6dp</dimen>
+    <dimen name="dot_width">4dp</dimen>
 </resources>

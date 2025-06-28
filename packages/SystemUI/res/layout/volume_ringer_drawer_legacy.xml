@@ -18,6 +18,7 @@
 <!-- Contains the active ringer icon and a hidden drawer containing all three ringer options. -->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:androidprv="http://schemas.android.com/apk/prv/res/android"
     android:id="@+id/volume_ringer_and_drawer_container"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
@@ -26,7 +27,7 @@
     android:paddingTop="@dimen/volume_dialog_ringer_rows_padding"
     android:paddingRight="@dimen/volume_dialog_ringer_rows_padding"
     android:paddingBottom="@dimen/volume_dialog_ringer_rows_padding"
-    android:background="@drawable/volume_background_top_legacy"
+    android:background="@drawable/volume_background_top_rounded"
     android:layoutDirection="ltr"
     android:clipToPadding="false"
     android:clipChildren="false">
@@ -68,7 +69,8 @@
                     android:layout_height="@dimen/volume_ringer_drawer_icon_size"
                     android:layout_gravity="center"
                     android:src="@drawable/ic_legacy_volume_ringer_vibrate"
-                    android:tint="?android:attr/textColorPrimary" />
+                    android:alpha="?android:attr/secondaryContentAlpha"
+                    android:tint="?androidprv:attr/colorAccentSecondary" />
 
             </FrameLayout>
 
@@ -86,7 +88,8 @@
                     android:layout_height="@dimen/volume_ringer_drawer_icon_size"
                     android:layout_gravity="center"
                     android:src="@drawable/ic_legacy_speaker_mute"
-                    android:tint="?android:attr/textColorPrimary" />
+                    android:alpha="?android:attr/secondaryContentAlpha"
+                    android:tint="?androidprv:attr/colorAccentSecondary" />
 
             </FrameLayout>
 
@@ -104,7 +107,8 @@
                     android:layout_height="@dimen/volume_ringer_drawer_icon_size"
                     android:layout_gravity="center"
                     android:src="@drawable/ic_legacy_speaker_on"
-                    android:tint="?android:attr/textColorPrimary" />
+                    android:alpha="?android:attr/secondaryContentAlpha"
+                    android:tint="?androidprv:attr/colorAccentSecondary" />
 
             </FrameLayout>
 
@@ -127,7 +131,7 @@
             android:layout_width="@dimen/volume_ringer_drawer_icon_size"
             android:layout_height="@dimen/volume_ringer_drawer_icon_size"
             android:layout_gravity="center"
-            android:tint="?android:attr/textColorPrimaryInverse"
+            android:tint="?android:attr/colorAccent"
             android:src="@drawable/ic_volume_media" />
 
     </FrameLayout>
