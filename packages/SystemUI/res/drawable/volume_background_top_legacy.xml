@@ -14,12 +14,11 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License
   -->
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:androidprv="http://schemas.android.com/apk/prv/res/android">
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:gravity="bottom|end">
         <shape>
             <size android:width="@dimen/volume_dialog_panel_width" />
-            <solid android:color="?androidprv:attr/colorSurface" />
+            <solid android:color="@color/volume_dialog_color" />
             <corners android:topLeftRadius="@dimen/volume_dialog_panel_width_half"
                 android:topRightRadius="@dimen/volume_dialog_panel_width_half"/>
         </shape>
