@@ -440,6 +440,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private static final String ACTION_TORCH_OFF =
             "com.android.server.policy.PhoneWindowManager.ACTION_TORCH_OFF";
 
+    private static final long MEMORY_RELEASE_INTERVAL_MS = 10 * 60 * 1000L; // 10 minutes
+    private long lastMemoryReleaseTime = 0L;
+
     /**
      * Keyguard stuff
      */
@@ -6844,6 +6847,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         if (mKeyguardDelegate != null) {
             mKeyguardDelegate.onStartedGoingToSleep(pmSleepReason);
         }
+
+        setLowPowerMode(true);
     }
 
     // Called on the PowerManager's Notifier thread.
@@ -6917,6 +6922,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
 
         mPowerButtonLaunchGestureTriggered = false;
+        
+        releaseMemoryAtScreenOn();
+        setLowPowerMode(false);
     }
 
     // Called on the PowerManager's Notifier thread.
@@ -8500,6 +8508,26 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
         public boolean isAnyCameraInUse() {
             return !mCameraInUse.isEmpty();
+        }
+    }
+
+    private void releaseMemoryAtScreenOn() {
+        long currentTime = System.currentTimeMillis();
+        if (lastMemoryReleaseTime == 0L || currentTime - lastMemoryReleaseTime > MEMORY_RELEASE_INTERVAL_MS) {
+            try {
+                ActivityManager.getService().releaseMemory(900, 20, false, false);
+                lastMemoryReleaseTime = currentTime;
+            } catch (RemoteException e) {
+            }
+        }
+    }
+    
+    private void setLowPowerMode(boolean enabled) {
+        boolean isBatterySaverOn = mPowerManager.isPowerSaveMode();
+        if (!isBatterySaverOn && mPowerManagerInternal != null) {
+            mPowerManagerInternal.setPowerMode(
+                android.hardware.power.Mode.LOW_POWER, enabled);
+            Log.d("Power Opt", (enabled ? "Enabling" : "Disabling") + " low power mode");
         }
     }
 }

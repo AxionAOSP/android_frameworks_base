@@ -127,6 +127,7 @@ import com.android.systemui.lifecycle.setSnapshotBinding
 import com.android.systemui.media.controls.ui.view.MediaHost
 import com.android.systemui.plugins.qs.QS
 import com.android.systemui.plugins.qs.QSContainerController
+import com.android.systemui.qs.composefragment.Booster
 import com.android.systemui.qs.composefragment.SceneKeys.QuickQuickSettings
 import com.android.systemui.qs.composefragment.SceneKeys.QuickSettings
 import com.android.systemui.qs.composefragment.SceneKeys.debugName
@@ -147,6 +148,7 @@ import com.android.systemui.qs.ui.composable.QuickSettingsShade.systemGestureExc
 import com.android.systemui.qs.ui.composable.QuickSettingsTheme
 import com.android.systemui.res.R
 import com.android.systemui.util.LifecycleFragment
+import com.android.systemui.util.NTCpuBindController
 import com.android.systemui.util.animation.UniqueObjectHostView
 import com.android.systemui.util.asIndenting
 import com.android.systemui.util.printSection
@@ -472,6 +474,7 @@ constructor(
         viewModel.panelExpansionFraction = panelExpansionFraction
         viewModel.squishinessFraction = squishinessFraction
         viewModel.proposedTranslation = headerTranslation
+        Booster.setExpansionEx(panelExpansionFraction, viewModel.isKeyguardState)
     }
 
     override fun setHeaderListening(listening: Boolean) {
@@ -1490,5 +1493,24 @@ private fun AlwaysDarkMode(content: @Composable () -> Unit) {
         ) {
             content()
         }
+    }
+}
+
+object Booster {
+    private val TYPE_EXPAND = NTCpuBindController.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_EXPANSION_ANIMATION
+    private var enableBoost: Boolean? = null
+
+    fun boost(type: Int, enabled: Boolean) {
+        val cpuBindController = NTCpuBindController.INSTANCE()
+        cpuBindController.setLimitOtherProcessCpu(enabled)
+        cpuBindController.setLimitForegroundAppCpu(enabled)
+        cpuBindController.animationBoost(type, enabled)
+    }
+
+    fun setExpansionEx(expansion: Float, onKeyguard: Boolean) {
+        val boost = expansion > 0f && !onKeyguard
+        if (enableBoost == boost) return
+        boost(TYPE_EXPAND, boost)
+        enableBoost = boost
     }
 }

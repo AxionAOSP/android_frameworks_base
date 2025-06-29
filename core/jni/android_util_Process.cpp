@@ -29,6 +29,7 @@
 #include <processgroup/processgroup.h>
 #include <processgroup/sched_policy.h>
 #include <android-base/logging.h>
+#include <android-base/properties.h>
 #include <android-base/unique_fd.h>
 
 #include <algorithm>
@@ -436,6 +437,69 @@ static void get_cpuset_cores_for_policy(SchedPolicy policy, cpu_set_t *cpu_set)
     return;
 }
 
+void android_os_Process_setThreadAffinity(JNIEnv* env, jobject clazz, int tid, jint grp) {
+    cpu_set_t target_cpu_set;
+    CPU_ZERO(&target_cpu_set);
+
+    std::string cpuset_str;
+    const char* group_name = nullptr;
+
+    if (grp == 1) {
+        cpuset_str = android::base::GetProperty("persist.sys.axion_cpu_small", "0,1,2,3");
+        group_name = "small cores";
+    } else if (grp == 0) {
+        cpuset_str = android::base::GetProperty("persist.sys.axion_cpu_big", "4,5,6,7");
+        group_name = "big cores";
+    } else if (grp == 2) {
+        int max_cpus = sysconf(_SC_NPROCESSORS_ONLN);
+        for (int i = 0; i < max_cpus; ++i) {
+            CPU_SET(i, &target_cpu_set);
+        }
+        group_name = "all cores";
+    } else {
+        ALOGV("Invalid group %d for thread %d", grp, tid);
+        return;
+    }
+
+    if (grp == 0 || grp == 1) {
+        std::vector<char> cpus_buf(cpuset_str.begin(), cpuset_str.end());
+        cpus_buf.push_back('\0');
+        parse_cpuset_cpus(cpus_buf.data(), &target_cpu_set);
+    }
+
+    if (sched_setaffinity(tid, sizeof(cpu_set_t), &target_cpu_set) == -1) {
+        ALOGV("Failed to set CPU affinity for thread %d to %s: %s", tid, group_name, strerror(errno));
+    } else {
+        ALOGV("Successfully set affinity for thread %d to %s", tid, group_name);
+    }
+}
+
+void android_os_Process_setTaskProfiles(JNIEnv* env, jobject clazz, jint tid, jobjectArray profilesArray) {
+    if (profilesArray == nullptr) return;
+
+    jsize len = env->GetArrayLength(profilesArray);
+    std::vector<std::string> profiles;
+    profiles.reserve(len);
+
+    for (jsize i = 0; i < len; ++i) {
+        jstring jprofile = (jstring) env->GetObjectArrayElement(profilesArray, i);
+        if (jprofile == nullptr) continue;
+        const jchar* chars = env->GetStringCritical(jprofile, nullptr);
+        if (chars) {
+            String8 profile8(reinterpret_cast<const char16_t*>(chars), env->GetStringLength(jprofile));
+            profiles.push_back(std::string(profile8.c_str()));
+            env->ReleaseStringCritical(jprofile, chars);
+        }
+        env->DeleteLocalRef(jprofile);
+    }
+
+    if (!profiles.empty()) {
+        bool success = SetTaskProfiles(tid, profiles);
+        if (!success) {
+            ALOGV("Failed to set task profiles for tidL %d : %s", tid, strerror(errno));
+        }
+    }
+}
 
 /**
  * Determine CPU cores exclusively assigned to the
@@ -1388,6 +1452,8 @@ static const JNINativeMethod methods[] = {
         {"getThreadScheduler", "(I)I", (void*)android_os_Process_getThreadScheduler},
         {"setThreadGroup", "(II)V", (void*)android_os_Process_setThreadGroup},
         {"setThreadGroupAndCpuset", "(II)V", (void*)android_os_Process_setThreadGroupAndCpuset},
+        {"setThreadAffinity", "(II)V", (void*)android_os_Process_setThreadAffinity},
+        {"setTaskProfiles", "(I[Ljava/lang/String;)V", (void*)android_os_Process_setTaskProfiles},
         {"setProcessGroup", "(II)V", (void*)android_os_Process_setProcessGroup},
         {"getProcessGroup", "(I)I", (void*)android_os_Process_getProcessGroup},
         {"createProcessGroup", "(II)I", (void*)android_os_Process_createProcessGroup},
