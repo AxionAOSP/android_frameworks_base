@@ -525,12 +525,25 @@ public class DisplayPolicy {
                     excludedRegion.recycle();
                 }
 
+                private void setPerformancePowerMode(boolean enabled) {
+                    try {
+                        // systemui is boosting animation abort
+                        if (!enabled && ActivityManager.getService().isBoostingAnimation()){
+                            return;
+                        }
+                        ActivityManager.getService().setPerformanceMode(enabled);
+                    } catch (Exception e) {
+                    }
+                }
+
                 @Override
                 public void onFling(int duration) {
-                    if (mService.mPowerManagerInternal != null) {
-                        mService.mPowerManagerInternal.setPowerBoost(
-                                Boost.INTERACTION, duration);
-                    }
+                    setPerformancePowerMode(true);
+                }
+
+                @Override
+                public void onFlingEnd() {
+                    setPerformancePowerMode(false);
                 }
 
                 @Override
