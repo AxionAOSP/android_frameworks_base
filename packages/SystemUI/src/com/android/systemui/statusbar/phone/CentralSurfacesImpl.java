@@ -226,6 +226,7 @@ import com.android.systemui.statusbar.policy.DeviceProvisionedController.DeviceP
 import com.android.systemui.statusbar.policy.ExtensionController;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.statusbar.policy.UserInfoControllerImpl;
+import com.android.systemui.statusbar.WifiStandardViewModel;
 import com.android.systemui.statusbar.window.StatusBarWindowControllerStore;
 import com.android.systemui.statusbar.window.StatusBarWindowStateController;
 import com.android.systemui.surfaceeffects.ripple.RippleShader.RippleShape;
@@ -856,6 +857,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
 
         mWindowManager = windowManager;
         mWindowManagerProvider = windowManagerProvider;
+        WifiStandardViewModel.Companion.init(mContext);
     }
 
     private void initBubbles(Bubbles bubbles) {
