@@ -27,9 +27,11 @@ import com.android.keyguard.KeyguardSliceViewController
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.dump.DumpManager
+import com.android.systemui.keyguard.domain.interactor.KeyguardInteractor
 import com.android.systemui.keyguard.shared.model.KeyguardSection
 import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.plugins.clocks.ClockViewIds
+import com.android.systemui.power.domain.interactor.PowerInteractor
 import com.android.systemui.res.R
 import com.android.systemui.settings.DisplayTracker
 import com.android.systemui.statusbar.lockscreen.LockscreenSmartspaceController
@@ -47,6 +49,8 @@ constructor(
     val configurationController: ConfigurationController,
     val dumpManager: DumpManager,
     val displayTracker: DisplayTracker,
+    val keyguardInteractor: KeyguardInteractor,
+    val powerInteractor: PowerInteractor,
 ) : KeyguardSection() {
     private lateinit var sliceView: KeyguardSliceView
 
@@ -70,6 +74,8 @@ constructor(
                 configurationController,
                 dumpManager,
                 displayTracker,
+                keyguardInteractor,
+                powerInteractor,
             )
         controller.init()
     }
