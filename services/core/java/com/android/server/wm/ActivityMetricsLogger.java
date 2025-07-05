@@ -1285,6 +1285,9 @@ class ActivityMetricsLogger {
         sb.append(info.userId);
         sb.append(": ");
         TimeUtils.formatDuration(info.windowsDrawnDelayMs, sb);
+        if (info.processRecord != null) {
+            com.android.internal.util.BoostHelper.boostHint("first draw", info.windowsDrawnDelayMs);
+        }
         Log.i(TAG, sb.toString());
     }
 

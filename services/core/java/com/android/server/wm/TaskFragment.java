@@ -102,6 +102,7 @@ import android.window.TaskFragmentOrganizerToken;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.protolog.ProtoLog;
+import com.android.internal.util.BoostHelper;
 import com.android.internal.util.ToBooleanFunction;
 import com.android.server.am.HostingRecord;
 import com.android.server.pm.pkg.AndroidPackage;
@@ -1590,13 +1591,19 @@ class TaskFragment extends WindowContainer<WindowContainer> {
             if (prev.finishing) {
                 if (mTaskSupervisor.mNoAnimActivities.contains(prev)) {
                     anim = false;
+                } else {
+                    BoostHelper.boostHint("TaskFragment", 250);
                 }
                 prev.setVisibility(false);
             } else if (mTaskSupervisor.mNoAnimActivities.contains(next)) {
                 anim = false;
+            } else {
+                BoostHelper.boostHint("TaskFragment", 250);
             }
         } else if (mTaskSupervisor.mNoAnimActivities.contains(next)) {
             anim = false;
+        } else {
+            BoostHelper.boostHint("TaskFragment", 250);
         }
 
         if (anim) {

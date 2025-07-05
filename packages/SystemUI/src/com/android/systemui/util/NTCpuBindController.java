@@ -15,10 +15,11 @@
  */
 package com.android.systemui.util;
 
-import android.app.ActivityManager;
 import android.os.Process;
 import android.os.SystemProperties;
 import android.util.Log;
+
+import com.android.internal.util.BoostHelper;
 
 import java.util.Arrays;
 import java.util.IntSummaryStatistics;
@@ -93,21 +94,21 @@ public class NTCpuBindController {
     public void bindBigCore() {
         if (mBindStatus != STATUS_BIND_BIG_CORE) {
             mBindStatus = STATUS_BIND_BIG_CORE;
-            executeSetThreadAffinity(STATUS_BIND_BIG_CORE);
+            BoostHelper.setThreadAffinity(Process.myPid(), STATUS_BIND_BIG_CORE);
         }
     }
 
     public void bindSmallCore() {
         if (mBindStatus != STATUS_BIND_SMALL_CORE) {
             mBindStatus = STATUS_BIND_SMALL_CORE;
-            executeSetThreadAffinity(STATUS_BIND_SMALL_CORE);
+            BoostHelper.setThreadAffinity(Process.myPid(), STATUS_BIND_SMALL_CORE);
         }
     }
 
     public void unbind() {
         if (mBindStatus != STATUS_UNBIND) {
             mBindStatus = STATUS_UNBIND;
-            executeSetThreadAffinity(STATUS_UNBIND);
+            BoostHelper.setThreadAffinity(Process.myPid(), STATUS_UNBIND);
         }
     }
     
@@ -122,10 +123,10 @@ public class NTCpuBindController {
     private void animationBoostOn(int type) {
         mAnimationBoostType |= type;
         if (mAnimationBoost != ANIMATION_BOOST_ON) {
-            executePerformanceMode(true);
+            BoostHelper.setPerformanceMode(true, "sysui");
             bindBigCore();
             mAnimationBoost = ANIMATION_BOOST_ON;
-            executeSetAnimationBoost(ANIMATION_BOOST_ON);
+            BoostHelper.animationBoost(Process.myPid(), true);
         }
     }
 
@@ -134,66 +135,47 @@ public class NTCpuBindController {
         if (mAnimationBoostType <= 0 && mAnimationBoost != ANIMATION_BOOST_OFF) {
             unbind();
             mAnimationBoost = ANIMATION_BOOST_OFF;
-            executeSetAnimationBoost(ANIMATION_BOOST_OFF);
-            executePerformanceMode(false);
-        }
-    }
-
-    private void executeSetAnimationBoost(long boost) {
-        try {
-            final boolean enabled = boost == ANIMATION_BOOST_ON;
-            int pid = Process.myPid();
-            ActivityManager.getService().animationBoost(pid, enabled);
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to call animationBoost", e);
-        }
-    }
-
-    private void executeSetThreadAffinity(int affinity) {
-        try {
-            int pid = Process.myPid();
-            ActivityManager.getService().setThreadAffinity(pid, affinity);
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to call setThreadAffinity", e);
+            BoostHelper.animationBoost(Process.myPid(), false);
+            BoostHelper.setPerformanceMode(false, "sysui");
         }
     }
     
     public void setLimitCpusForIdle(boolean limit) {
         if (limit) {
             // ui groups
-            executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_LIMIT);
-            executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_UI_LIMIT);
-            executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_UI_LIMIT);
+            BoostHelper.executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_LIMIT);
+            BoostHelper.executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_UI_LIMIT);
+            BoostHelper.executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_UI_LIMIT);
             
             // bg groups
-            executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_BG_LIMIT);
-            executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_LIMIT);
-            executeAdjustCpusetCpus(RESTRICTED_GROUP, CPUS_PARAMS_BG_LIMIT);
-            executeAdjustCpusetCpus(SYS_BG_GROUP, CPUS_PARAMS_BG_LIMIT);
-            executeAdjustCpusetCpus(BG_GROUP, CPUS_PARAMS_BG_LIMIT);
+            BoostHelper.executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_BG_LIMIT);
+            BoostHelper.executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_LIMIT);
+            BoostHelper.executeAdjustCpusetCpus(RESTRICTED_GROUP, CPUS_PARAMS_BG_LIMIT);
+            BoostHelper.executeAdjustCpusetCpus(SYS_BG_GROUP, CPUS_PARAMS_BG_LIMIT);
+            BoostHelper.executeAdjustCpusetCpus(BG_GROUP, CPUS_PARAMS_BG_LIMIT);
         } else {
             // ui groups
-            executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT);
-            executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_UI_UNLIMIT);
             
             // fg groups
-            executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_FG_UNLIMIT);
-            executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_FG_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_FG_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_FG_UNLIMIT);
             
             // bg groups
-            executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_UNLIMIT);
-            executeAdjustCpusetCpus(RESTRICTED_GROUP, CPUS_PARAMS_BG_UNLIMIT);
-            executeAdjustCpusetCpus(SYS_BG_GROUP, CPUS_PARAMS_BG_UNLIMIT);
-            executeAdjustCpusetCpus(BG_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(RESTRICTED_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(SYS_BG_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(BG_GROUP, CPUS_PARAMS_BG_UNLIMIT);
         }
     }
 
     public void setLimitForegroundAppCpu(boolean limitForegroundAppCpu) {
         if (limitForegroundAppCpu != mLimitForegroundAppCpu) {
             if (limitForegroundAppCpu) {
-                executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_BIG_LIMIT);
+                BoostHelper.executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_BIG_LIMIT);
             } else {
-                executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+                BoostHelper.executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT);
             }
             mLimitForegroundAppCpu = limitForegroundAppCpu;
         }
@@ -202,11 +184,11 @@ public class NTCpuBindController {
     public void setLimitOtherProcessCpu(boolean limitOtherProcessCpu) {    
         if (limitOtherProcessCpu != mLimitOtherProcessCpu) {
             if (limitOtherProcessCpu) {
-                executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_BG_LIMIT);
-                executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_LIMIT);
+                BoostHelper.executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_BG_LIMIT);
+                BoostHelper.executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_LIMIT);
             } else {
-                executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_UI_UNLIMIT);
-                executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+                BoostHelper.executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+                BoostHelper.executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_UNLIMIT);
             }
             mLimitOtherProcessCpu = limitOtherProcessCpu;
         }
@@ -238,37 +220,23 @@ public class NTCpuBindController {
 
     public void gameBoost(boolean boost) {
         if (boost) {
-            executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT);
-            executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_LIMIT);
-            executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_BG_LIMIT);
-            executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_BG_LIMIT);
-            executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_BG_LIMIT);
-            executeAdjustCpusetCpus(RESTRICTED_GROUP, CPUS_PARAMS_BG_LIMIT);
-            executeAdjustCpusetCpus(BG_GROUP, CPUS_PARAMS_BG_LIMIT);
-            executeAdjustCpusetCpus(SYS_BG_GROUP, CPUS_PARAMS_BG_LIMIT);
+            BoostHelper.executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_LIMIT);
+            BoostHelper.executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_BG_LIMIT);
+            BoostHelper.executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_BG_LIMIT);
+            BoostHelper.executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_BG_LIMIT);
+            BoostHelper.executeAdjustCpusetCpus(RESTRICTED_GROUP, CPUS_PARAMS_BG_LIMIT);
+            BoostHelper.executeAdjustCpusetCpus(BG_GROUP, CPUS_PARAMS_BG_LIMIT);
+            BoostHelper.executeAdjustCpusetCpus(SYS_BG_GROUP, CPUS_PARAMS_BG_LIMIT);
         } else {
-            executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT);
-            executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_UNLIMIT);
-            executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_UI_UNLIMIT);
-            executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_FG_UNLIMIT);
-            executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_FG_UNLIMIT);
-            executeAdjustCpusetCpus(RESTRICTED_GROUP, CPUS_PARAMS_BG_UNLIMIT);
-            executeAdjustCpusetCpus(BG_GROUP, CPUS_PARAMS_BG_UNLIMIT);
-            executeAdjustCpusetCpus(SYS_BG_GROUP, CPUS_PARAMS_BG_UNLIMIT);
-        }
-    }
-
-    private void executeAdjustCpusetCpus(String path, String cpus) {
-        try {
-            ActivityManager.getService().executeAdjustCpusetCpus(path, cpus);
-        } catch (Exception e) {
-        }
-    }
-    
-    private void executePerformanceMode(boolean enabled) {
-        try {
-            ActivityManager.getService().setPerformanceMode(enabled);
-        } catch (Exception e) {
+            BoostHelper.executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_UI_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_FG_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_FG_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(RESTRICTED_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(BG_GROUP, CPUS_PARAMS_BG_UNLIMIT);
+            BoostHelper.executeAdjustCpusetCpus(SYS_BG_GROUP, CPUS_PARAMS_BG_UNLIMIT);
         }
     }
 }

@@ -2611,6 +2611,13 @@ public final class ProcessList {
                 storageManagerInternal.prepareStorageDirs(userId, pkgDataInfoMap.keySet(),
                         app.processName);
             }
+            if ((hostingRecord.getType() != null)
+                   && (hostingRecord.getType().equals(HostingRecord.HOSTING_TYPE_NEXT_ACTIVITY)
+                           || hostingRecord.getType().equals(HostingRecord.HOSTING_TYPE_NEXT_TOP_ACTIVITY))) {
+                if (startResult != null) {
+                    com.android.internal.util.BoostHelper.boostHint("Start proc", 5000);
+                }
+            }
             checkSlow(startTime, "startProcess: returned from zygote!");
             return startResult;
         } finally {

@@ -91,6 +91,7 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
     private boolean mMouseHoveringAtRight;
     private boolean mMouseHoveringAtBottom;
     private long mLastFlingTime;
+    private boolean mScrollFired;
 
     SystemGesturesPointerEventListener(Context context, Handler handler, Callbacks callbacks) {
         mContext = checkNull("context", context);
@@ -184,6 +185,7 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
             case MotionEvent.ACTION_DOWN:
                 mSwipeFireable = true;
                 mDebugFireable = true;
+                mScrollFired = false;
                 mDownPointers = 0;
                 captureDown(event, 0);
                 if (mMouseHoveringAtLeft) {
@@ -290,6 +292,9 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
             case MotionEvent.ACTION_CANCEL:
                 mSwipeFireable = false;
                 mDebugFireable = false;
+                if (mScrollFired)
+                    mCallbacks.onScroll(false);
+                mScrollFired = false;
                 mCallbacks.onUpOrCancel();
                 break;
             default:
@@ -419,7 +424,6 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
     private final class FlingGestureDetector extends GestureDetector.SimpleOnGestureListener {
 
         private OverScroller mOverscroller;
-        private Runnable mFlingEndRunnable;
 
         FlingGestureDetector() {
             mOverscroller = new OverScroller(mContext);
@@ -430,7 +434,6 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
             if (!mOverscroller.isFinished()) {
                 mOverscroller.forceFinished(true);
             }
-            onCancelGestures();
             return true;
         }
         @Override
@@ -448,19 +451,18 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
             if (duration > MAX_FLING_TIME_MILLIS) {
                 duration = MAX_FLING_TIME_MILLIS;
             }
-            onCancelGestures();
             mCallbacks.onFling(duration);
             mLastFlingTime = now;
-            mFlingEndRunnable = () -> mCallbacks.onFlingEnd();
-            mHandler.postDelayed(mFlingEndRunnable, duration + 160);
             return true;
         }
-        void onCancelGestures() {
-            if (mFlingEndRunnable != null) {
-                mHandler.removeCallbacks(mFlingEndRunnable);
-                mCallbacks.onFlingEnd();
-                mFlingEndRunnable = null;
-            }
+        @Override
+        public boolean onScroll(MotionEvent e1, MotionEvent e2,
+                                   float distanceX, float distanceY) {
+           if (!mScrollFired) {
+               mCallbacks.onScroll(true);
+               mScrollFired = true;
+           }
+           return true;
         }
     }
 
@@ -470,7 +472,7 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
         void onSwipeFromRight();
         void onSwipeFromLeft();
         void onFling(int durationMs);
-        void onFlingEnd();
+        void onScroll(boolean started);
         void onDown();
         void onUpOrCancel();
         void onMouseHoverAtLeft();

@@ -6038,6 +6038,7 @@ final class ActivityRecord extends WindowToken {
                 Slog.v(TAG_VISIBILITY, "Start visible activity, " + this);
             }
             setState(STARTED, "makeActiveIfNeeded");
+            com.android.internal.util.BoostHelper.boostHint("start activity", 5000);
 
             final StartActivityItem item = new StartActivityItem(token, takeSceneTransitionInfo());
             try {

@@ -1135,6 +1135,7 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         boolean knownToBeDead = false;
         if (wpc != null && wpc.hasThread()) {
             try {
+                com.android.internal.util.BoostHelper.boostHint("First Launch", 5000);
                 realStartActivityLocked(r, wpc, andResume, checkConfig);
                 return;
             } catch (RemoteException e) {
@@ -1164,6 +1165,7 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
             ProcessFreezerManager freezer = ProcessFreezerManager.getInstance();
             if (freezer != null && freezer.useFreezerManager()) {
                 freezer.startFreeze(r.processName, ProcessFreezerManager.COLD_LAUNCH_FREEZE);
+                com.android.internal.util.BoostHelper.boostHint("Cold Launch", 5000);
             }
         }
         mService.startProcessAsync(r, knownToBeDead, isTop,

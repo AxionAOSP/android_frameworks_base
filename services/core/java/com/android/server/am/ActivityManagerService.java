@@ -644,6 +644,8 @@ public class ActivityManagerService extends IActivityManager.Stub
     private static final DateTimeFormatter DROPBOX_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSZ");
 
+    public static boolean mForceStopKill = false;
+
     OomAdjuster mOomAdjuster;
     @GuardedBy("this")
     ProcessStateController mProcessStateController;
@@ -1331,8 +1333,8 @@ public class ActivityManagerService extends IActivityManager.Stub
     @GuardedBy("this") boolean mCallFinishBooting = false;
     @GuardedBy("this") boolean mBootAnimationComplete = false;
 
-    boolean mBoostingAnimation = false;
     int mTopAppPid = -1;
+    String currentReason;
 
     final Context mContext;
 
@@ -3481,6 +3483,10 @@ public class ActivityManagerService extends IActivityManager.Stub
                 }
             }
 
+            if (!mForceStopKill && !app.mErrorState.isNotResponding() && !app.mErrorState.isCrashing()) {
+                boostHint("kill", 500);
+            }
+
             EventLogTags.writeAmProcDied(app.userId, pid, app.processName, setAdj, setProcState);
             if (DEBUG_CLEANUP) Slog.v(TAG_CLEANUP,
                 "Dying app: " + app + ", pid: " + pid + ", thread: " + thread.asBinder());
@@ -4278,6 +4284,7 @@ public class ActivityManagerService extends IActivityManager.Stub
         // A specific subset of the work done in forceStopPackageLocked(), because we are
         // intentionally not rendering the app nonfunctional; we're just halting its current
         // execution.
+        mForceStopKill = true;
         final int appId = UserHandle.getAppId(uid);
         synchronized (this) {
             synchronized (mProcLock) {
@@ -4360,6 +4367,7 @@ public class ActivityManagerService extends IActivityManager.Stub
 
             mAppErrors.resetProcessCrashTime(packageName == null, appId, userId);
         }
+        mForceStopKill = true;
 
         synchronized (mProcLock) {
             // Notify first that the package is stopped, so its process won't be restarted
@@ -4625,6 +4633,10 @@ public class ActivityManagerService extends IActivityManager.Stub
         }
 
         EventLogTags.writeAmProcBound(app.userId, pid, app.processName);
+
+        if (app.getHostingRecord() != null && app.getHostingRecord().isTopApp()) {
+            boostHint("attach app", 5000);
+        }
 
         synchronized (mProcLock) {
             mProcessStateController.setAttachingProcessStatesLSP(app);
@@ -19702,7 +19714,6 @@ public class ActivityManagerService extends IActivityManager.Stub
         }
 
         setFifoPriority(curProc, enabled, 99);
-        mBoostingAnimation = enabled;
     }
 
     @Override
@@ -19729,22 +19740,30 @@ public class ActivityManagerService extends IActivityManager.Stub
     }
 
     @Override
-    public boolean isBoostingAnimation() {
-        return mBoostingAnimation;
+    public void setPerformanceMode(boolean enabled, String reason) {
+        final boolean sysuiBoosting = !enabled && !reason.equals("sysui") && currentReason.equals("sysui");
+        final boolean topAppGame = enabled && isTopAppGame(getTopAppPackageName());
+        if (mLocalPowerManager == null || sysuiBoosting || topAppGame) return;
+        if (enabled) {
+            // Always reset to retrigger LAUNCH powerhint
+            mLocalPowerManager.setPowerMode(Mode.LAUNCH, false);
+            mLocalPowerManager.setPowerMode(Mode.LAUNCH, true);
+            mLocalPowerManager.setPowerMode(PowerManagerInternal.MODE_FIXED_PERFORMANCE, true);
+            currentReason = reason;
+        } else {
+            if (!reason.equals(currentReason)) return;
+            mLocalPowerManager.setPowerMode(Mode.LAUNCH, false);
+            mLocalPowerManager.setPowerMode(PowerManagerInternal.MODE_FIXED_PERFORMANCE, false);
+            currentReason = "";
+        }
     }
 
     @Override
-    public void setPerformanceMode(boolean enabled) {
-        if (enabled && isTopAppGame(getTopAppPackageName())) return;
-        if (mLocalPowerManager != null) {
-            // alway reset to retrigger LAUNCH powerhint
-            if (enabled) {
-                mLocalPowerManager.setPowerMode(Mode.LAUNCH, false);
-            }
-            mLocalPowerManager.setPowerMode(Mode.LAUNCH, enabled);
-            mLocalPowerManager.setPowerMode(
-                PowerManagerInternal.MODE_FIXED_PERFORMANCE, enabled);
-        }
+    public void boostHint(String reason, long duration) {
+        setPerformanceMode(true, reason);
+        mHandler.postDelayed(() -> {
+            setPerformanceMode(false, reason);
+        }, duration);
     }
 
     public class ProcessComparator implements Comparator<ProcessToKill> {

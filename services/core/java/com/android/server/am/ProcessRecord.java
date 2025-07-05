@@ -1315,6 +1315,12 @@ class ProcessRecord implements WindowProcessListener {
                     mKillTime = SystemClock.uptimeMillis();
                 }
             }
+            if (!mService.mForceStopKill && !mErrorState.isNotResponding()
+                && !mErrorState.isCrashing()) {
+                com.android.internal.util.BoostHelper.boostHint("kill", 500);
+            } else {
+                mService.mForceStopKill = false;
+            }
             Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
         }
     }

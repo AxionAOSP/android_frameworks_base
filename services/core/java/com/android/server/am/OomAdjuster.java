@@ -2053,6 +2053,7 @@ public class OomAdjuster {
             schedGroup = SCHED_GROUP_TOP_APP;
             state.setAdjType("running-remote-anim");
             procState = PROCESS_STATE_CUR_TOP;
+            com.android.internal.util.BoostHelper.boostHint("renderthread anim", 5000);
             if (DEBUG_OOM_ADJ_REASON || logUid == appUid) {
                 reportOomAdjMessageLocked(TAG_OOM_ADJ, "Making running remote anim: " + app);
             }
