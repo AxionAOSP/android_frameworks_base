@@ -254,6 +254,7 @@ import com.android.server.AccessibilityManagerInternal;
 import com.android.server.DockObserverInternal;
 import com.android.server.ExtconStateObserver;
 import com.android.server.ExtconUEventObserver;
+import com.android.server.gesture.threefinger.NtGestureImpl;
 import com.android.server.GestureLauncherService;
 import com.android.server.LocalServices;
 import com.android.server.SystemServiceManager;
@@ -729,6 +730,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private Action mAppSwitchPressAction;
     private Action mAppSwitchLongPressAction;
     private Action mEdgeLongSwipeAction;
+    private Action mThreeFingersSwipeAction;
 
     // support for activating the lock screen while the screen is on
     private HashSet<Integer> mAllowLockscreenWhenOnDisplays = new HashSet<>();
@@ -822,6 +824,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private SingleKeyGestureDetector mSingleKeyGestureDetector;
     private GestureLauncherService mGestureLauncherService;
     private ButtonOverridePermissionChecker mButtonOverridePermissionChecker;
+    
+    private NtGestureImpl mNtGestureImpl;
 
     private boolean mLockNowPending = false;
 
@@ -1129,6 +1133,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     UserHandle.USER_ALL);
             resolver.registerContentObserver(LineageSettings.System.getUriFor(
                     LineageSettings.System.VOLUME_UP_AND_DOWN_MUTE), false, this,
+                    UserHandle.USER_ALL);
+            resolver.registerContentObserver(Settings.Secure.getUriFor(
+                    "nothing_three_finger_screenshot"), false, this,
                     UserHandle.USER_ALL);
             updateSettings();
         }
@@ -2064,6 +2071,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     }
 
     private void interceptScreenshotChord(int type, int source, long pressDelay) {
+        if (mNtGestureImpl.shouldBlockKeyChordScreenshot() && source == SCREENSHOT_KEY_CHORD) return;
         mHandler.removeMessages(MSG_SCREENSHOT_CHORD);
         mHandler.sendMessageDelayed(mHandler.obtainMessage(MSG_SCREENSHOT_CHORD, source, type),
                 pressDelay);
@@ -3418,6 +3426,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mEdgeLongSwipeAction = Action.fromSettings(resolver,
                 LineageSettings.System.KEY_EDGE_LONG_SWIPE_ACTION,
                 mEdgeLongSwipeAction);
+
+        mThreeFingersSwipeAction = Action.fromIntSafe(Settings.Secure.getIntForUser(
+                resolver, "nothing_three_finger_screenshot", 
+                0, UserHandle.USER_CURRENT));
 
         mShortPressOnWindowBehavior = SHORT_PRESS_WINDOW_NOTHING;
         if (mPackageManager.hasSystemFeature(FEATURE_PICTURE_IN_PICTURE)) {
@@ -6803,6 +6815,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 mSettingsObserver.onChange(false);
                 mDefaultDisplayRotation.onUserSwitch();
                 mWindowManagerFuncs.onUserSwitched();
+                mNtGestureImpl.onUserSwitching();
             }
         }
     };
@@ -7404,6 +7417,19 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
         mAutofillManagerInternal = LocalServices.getService(AutofillManagerInternal.class);
         mGestureLauncherService = LocalServices.getService(GestureLauncherService.class);
+        mNtGestureImpl = new NtGestureImpl(new NtGestureImpl.Callbacks() {
+            @Override
+            public void onThreeFingerSwipe() {
+                if (mThreeFingersSwipeAction == Action.NOTHING)
+                    return;
+                long now = SystemClock.uptimeMillis();
+                KeyEvent event = new KeyEvent(now, now, KeyEvent.ACTION_DOWN,
+                        KeyEvent.KEYCODE_SYSRQ, 0, 0, KeyCharacterMap.VIRTUAL_KEYBOARD, 0,
+                        KeyEvent.FLAG_FROM_SYSTEM, InputDevice.SOURCE_TOUCHSCREEN);
+                performKeyAction(mThreeFingersSwipeAction, event);
+                performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, "Three Fingers Swipe");
+            }
+        });
     }
 
     /** {@inheritDoc} */
