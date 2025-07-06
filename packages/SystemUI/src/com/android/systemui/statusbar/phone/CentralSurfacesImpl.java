@@ -140,6 +140,7 @@ import com.android.systemui.fragments.FragmentHostManager;
 import com.android.systemui.fragments.FragmentService;
 import com.android.systemui.keyguard.KeyguardUnlockAnimationController;
 import com.android.systemui.keyguard.KeyguardViewMediator;
+import com.android.systemui.keyguard.MistouchPreventionWindowController;
 import com.android.systemui.keyguard.ScreenLifecycle;
 import com.android.systemui.keyguard.WakefulnessLifecycle;
 import com.android.systemui.media.MediaViewController;
@@ -1019,6 +1020,8 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
         mLifecycle.setCurrentState(RESUMED);
 
         mAccessibilityFloatingMenuController.init();
+
+        MistouchPreventionWindowController.get(mContext).init();
 
         // When the StatusBarConnectedDisplays flag is enabled, this logic will be done in
         // StatusBarOrchestrator

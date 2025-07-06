@@ -25,6 +25,7 @@ import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.dagger.qualifiers.PerUser;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.keyguard.KeyguardSliceProvider;
+import com.android.systemui.keyguard.MistouchPreventionWindowController;
 import com.android.systemui.media.MediaViewController;
 import com.android.systemui.people.PeopleProvider;
 import com.android.systemui.startable.Dependencies;
@@ -190,6 +191,9 @@ public interface SysUIComponent {
     
     @SysUISingleton
     MediaViewController mediaViewController();
+
+    @SysUISingleton
+    MistouchPreventionWindowController mistouchPreventionWindowController();
 
     /**
      * Member injection into the supplied argument.
