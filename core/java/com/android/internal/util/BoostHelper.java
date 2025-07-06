@@ -34,6 +34,14 @@ public class BoostHelper {
         }
     }
 
+    public static void adjustCpusetCpus(String cgroup, long durationMillis) {
+        try {
+            ActivityManager.getService().adjustCpusetCpus(cgroup, durationMillis);
+        } catch (Exception e) {
+            logException("adjustCpusetCpus", e);
+        }
+    }
+
     public static void animationBoost(int pid, boolean enabled) {
         try {
             ActivityManager.getService().animationBoost(pid, enabled);

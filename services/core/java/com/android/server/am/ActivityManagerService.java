@@ -19614,6 +19614,37 @@ public class ActivityManagerService extends IActivityManager.Stub
     }
 
     @Override
+    public void adjustCpusetCpus(String cgroup, long durationMillis) {
+        String path = null;
+        String cpuset = null;
+        String bgCpuset = SystemProperties.get("persist.sys.axion_cpu_limit_bg", "0-1");
+        String fgCpuSet = SystemProperties.get("persist.sys.axion_cpu_unlimit_ui", "0-7");
+
+        switch (cgroup) {
+            case "bg":
+                path = "/dev/cpuset/background/cpus";
+                cpuset = bgCpuset;
+                break;
+            case "restricted":
+                path = "/dev/cpuset/restricted/cpus";
+                cpuset = bgCpuset;
+                break;
+            case "fg":
+                path = "/dev/cpuset/foreground/cpus";
+                cpuset = fgCpuSet;
+                break;
+            case "sys-bg":
+                path = "/dev/cpuset/system-background/cpus";
+                cpuset = bgCpuset;
+                break;
+            default:
+                Log.w("adjustCpusetCpus", "Unknown cgroup: " + cgroup);
+                return;
+        }
+
+        adjustCpusetCpus(path, cpuset, durationMillis);
+    }
+
     public void adjustCpusetCpus(String path, String cpuset, long durationMillis) {
         File file = new File(path);
         if (!file.exists()) {
@@ -19761,9 +19792,16 @@ public class ActivityManagerService extends IActivityManager.Stub
     @Override
     public void boostHint(String reason, long duration) {
         setPerformanceMode(true, reason);
-        mHandler.postDelayed(() -> {
-            setPerformanceMode(false, reason);
-        }, duration);
+
+        if (reason != null && reason.toLowerCase().contains("launch")) {
+            adjustCpusetCpus("fg", duration);
+        }
+
+        adjustCpusetCpus("bg", duration);
+        adjustCpusetCpus("sys-bg", duration);
+        adjustCpusetCpus("restricted", duration);
+
+        mHandler.postDelayed(() -> setPerformanceMode(false, reason), duration);
     }
 
     public class ProcessComparator implements Comparator<ProcessToKill> {
