@@ -140,4 +140,7 @@
     <string name="keyguard_mistouch_description">Remove anything covering this area</string>
     <string name="keyguard_mistouch_exit_desciption">Press volume up key to exit</string>
     <string name="keyguard_mistouch_title">Mistouch prevention</string>
+
+    <!-- Internet -->
+    <string name="status_bar_settings_network_speed">Internet speed</string>
 </resources>
