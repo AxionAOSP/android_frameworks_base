@@ -118,7 +118,7 @@
                         android:orientation="horizontal"
                         android:clipChildren="false"/>
 
-                    <com.android.systemui.statusbar.LineageStatusBarItemHolder
+                    <!--<com.android.systemui.statusbar.LineageStatusBarItemHolder
                         android:id="@+id/network_traffic_holder_start"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -135,7 +135,7 @@
                             android:gravity="center"
                         />
 
-                    </com.android.systemui.statusbar.LineageStatusBarItemHolder>
+                    </com.android.systemui.statusbar.LineageStatusBarItemHolder>-->
 
                 </LinearLayout>
             </FrameLayout>
@@ -149,7 +149,7 @@
             android:gravity="center_horizontal|center_vertical"
         />
 
-        <com.android.systemui.statusbar.LineageStatusBarItemHolder
+        <!--<com.android.systemui.statusbar.LineageStatusBarItemHolder
             android:id="@+id/network_traffic_holder_center"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -164,7 +164,7 @@
                 android:maxLines="2"
                 android:gravity="center" />
 
-        </com.android.systemui.statusbar.LineageStatusBarItemHolder>
+        </com.android.systemui.statusbar.LineageStatusBarItemHolder>-->
 
         <!-- Container for the entire end half of the status bar. It will always use the same
              width, independent of the number of visible children and sub-children. -->
@@ -188,7 +188,7 @@
                 android:gravity="center_vertical|end"
                 android:clipChildren="false">
 
-                <com.android.systemui.statusbar.LineageStatusBarItemHolder
+                <!--<com.android.systemui.statusbar.LineageStatusBarItemHolder
                     android:id="@+id/network_traffic_holder_end"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -205,7 +205,7 @@
                         android:gravity="center"
                     />
 
-                </com.android.systemui.statusbar.LineageStatusBarItemHolder>
+                </com.android.systemui.statusbar.LineageStatusBarItemHolder>-->
 
                 <include
                     android:id="@+id/user_switcher_container"
