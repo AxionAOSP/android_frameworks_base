@@ -20,6 +20,7 @@ import static android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREG
 import static android.companion.AssociationRequest.DEVICE_PROFILE_AUTOMOTIVE_PROJECTION;
 
 import static com.android.internal.util.CollectionUtils.any;
+import static com.android.server.companion.utils.RolesUtils.NLS_PROFILES;
 import static com.android.server.companion.utils.RolesUtils.removeRoleHolderForAssociation;
 
 import static java.util.concurrent.TimeUnit.DAYS;
@@ -146,15 +147,18 @@ public class DisassociationProcessor {
         // Revoke NLS if the last association has been removed for the package
         Binder.withCleanCallingIdentity(() -> {
             if (mAssociationStore.getAssociationsByPackage(userId, packageName).isEmpty()) {
-                Intent nlsIntent = new Intent(
-                        NotificationListenerService.SERVICE_INTERFACE);
-                List<ResolveInfo> matchedServiceList = mContext.getPackageManager()
-                        .queryIntentServicesAsUser(nlsIntent, /* flags */ 0, userId);
-                for (ResolveInfo service : matchedServiceList) {
-                    if (service.getComponentInfo().getComponentName().getPackageName()
-                            .equals(packageName)) {
-                        mNotificationManager.setNotificationListenerAccessGranted(
-                                service.getComponentInfo().getComponentName(), false);
+                if (association.getDeviceProfile() != null
+                        && NLS_PROFILES.contains(association.getDeviceProfile())) {
+                    Intent nlsIntent = new Intent(
+                            NotificationListenerService.SERVICE_INTERFACE);
+                    List<ResolveInfo> matchedServiceList = mContext.getPackageManager()
+                            .queryIntentServicesAsUser(nlsIntent, /* flags */ 0, userId);
+                    for (ResolveInfo service : matchedServiceList) {
+                        if (service.getComponentInfo().getComponentName().getPackageName()
+                                .equals(packageName)) {
+                            mNotificationManager.setNotificationListenerAccessGranted(
+                                    service.getComponentInfo().getComponentName(), false, false);
+                        }
                     }
                 }
             }
