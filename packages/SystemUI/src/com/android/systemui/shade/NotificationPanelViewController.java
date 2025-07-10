@@ -843,6 +843,7 @@ public final class NotificationPanelViewController implements
         mIsBrightnessMirrorShowing.setValue(
                 mBrightnessMirrorShowingRepository.isShowing().getValue()
         );
+        com.android.systemui.util.NTAppLockerHelper.init(context.getApplicationContext());
         onFinishInflate();
         keyguardUnlockAnimationController.addKeyguardUnlockAnimationListener(
                 new KeyguardUnlockAnimationController.KeyguardUnlockAnimationListener() {

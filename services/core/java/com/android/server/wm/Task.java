@@ -1787,7 +1787,9 @@ class Task extends TaskFragment {
             @NonNull int[] finishCount) {
         // Stop operation once we reach the boundary activity.
         if (r == boundaryActivity) return true;
-
+        if (!r.finishing && AppLockUtils.isAppLockerActivity(r.intent.getComponent()) && AppLockUtils.isAppLocked(boundaryActivity)) {
+            return true;
+        }
         if (!r.finishing && !r.isTaskOverlay()) {
             final ActivityOptions opts = r.getOptions();
             if (opts != null) {
@@ -2129,6 +2131,7 @@ class Task extends TaskFragment {
 
         if (prevWindowingMode != getWindowingMode()) {
             taskDisplayArea.onRootTaskWindowingModeChanged(this);
+            AppLockUtils.onWindowingModeChanged(this, prevWindowingMode);
         }
 
         if (!isOrganized() && !getRequestedOverrideBounds().isEmpty() && mDisplayContent != null) {

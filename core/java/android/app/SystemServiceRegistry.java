@@ -277,6 +277,7 @@ import android.view.translation.UiTranslationManager;
 import android.webkit.WebViewBootstrapFrameworkInitializer;
 
 import com.android.internal.R;
+import com.android.internal.app.IAppLockManager;
 import com.android.internal.app.IAppOpsService;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.app.ISoundTriggerService;
@@ -1808,6 +1809,16 @@ public final class SystemServiceRegistry {
                         return new IntrusionDetectionManager(service);
                     }
                 });
+
+        registerService(Context.APP_LOCK_SERVICE, AppLockManager.class,
+            new CachedServiceFetcher<AppLockManager>() {
+                @Override
+                public AppLockManager createService(ContextImpl ctx) {
+                    IBinder b = ServiceManager.getService(Context.APP_LOCK_SERVICE);
+                    IAppLockManager service = IAppLockManager.Stub.asInterface(b);
+                    return new AppLockManager(ctx.getOuterContext(), service);
+                }
+            });
 
         sInitializing = true;
         try {

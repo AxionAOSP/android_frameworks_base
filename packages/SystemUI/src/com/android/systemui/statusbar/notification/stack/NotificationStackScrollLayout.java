@@ -60,6 +60,7 @@ import android.os.Bundle;
 import android.os.SystemClock;
 import android.os.Trace;
 import android.provider.Settings;
+import android.service.notification.StatusBarNotification;
 import android.util.AttributeSet;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
@@ -144,6 +145,7 @@ import com.android.systemui.util.Assert;
 import com.android.systemui.util.ColorUtilKt;
 import com.android.systemui.util.DumpUtilsKt;
 import com.android.systemui.util.ListenerSet;
+import com.android.systemui.util.NTAppLockerHelper;
 import com.android.systemui.wallpapers.domain.interactor.WallpaperInteractor;
 
 import com.google.errorprone.annotations.CompileTimeConstant;
@@ -7042,5 +7044,23 @@ public class NotificationStackScrollLayout
         if (SPEW) {
             Log.v(TAG, logMsg);
         }
+    }
+    
+    public void onAppLockerUpdate() {
+        int childCount = getChildCount();
+        for (int i = 0; i < childCount; i++) {
+            ExpandableView child = getChildAtIndex(i);
+            if (child instanceof ExpandableNotificationRow) {
+                ExpandableNotificationRow row = (ExpandableNotificationRow) child;
+                NotificationEntry entry = row.getEntry();
+                if (entry != null) {
+                    StatusBarNotification sbn = entry.getSbn();
+                    if (!NTAppLockerHelper.Companion.get().isAppLocked(sbn.getPackageName())) {
+                        row.setHeadsUpAnimatingAway(row.isHeadsUpAnimatingAway());
+                    }
+                }
+            }
+        }
+        updateContentHeight();
     }
 }

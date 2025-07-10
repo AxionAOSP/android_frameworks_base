@@ -65,6 +65,7 @@ import com.android.systemui.qs.external.TileLifecycleManager.TileChangeListener;
 import com.android.systemui.qs.logging.QSLogger;
 import com.android.systemui.qs.tileimpl.QSTileImpl;
 import com.android.systemui.settings.DisplayTracker;
+import com.android.systemui.util.NTAppLockerHelper;
 
 import dagger.Lazy;
 import dagger.assisted.Assisted;
@@ -543,8 +544,9 @@ public class CustomTile extends QSTileImpl<State> implements TileChangeListener,
         } else {
             Log.i(TAG, "The activity is starting");
 
+            String packageName = pendingIntent.getIntent().getComponent().getPackageName();
             ActivityTransitionAnimator.Controller controller =
-                    mExpandableClicked == null ? null :
+                    (NTAppLockerHelper.Companion.get().isAppLocked(packageName) || mExpandableClicked == null) ? null :
                             mExpandableClicked.activityTransitionController(
                                     InteractionJankMonitor.CUJ_SHADE_APP_LAUNCH_FROM_QS_TILE);
             mActivityStarter.startPendingIntentMaybeDismissingKeyguard(

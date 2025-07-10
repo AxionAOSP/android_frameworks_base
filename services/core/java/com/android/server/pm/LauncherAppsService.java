@@ -122,6 +122,7 @@ import com.android.internal.content.PackageMonitor;
 import com.android.internal.os.BackgroundThread;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.CollectionUtils;
+import com.android.internal.util.NTAppLockerHelper;
 import com.android.internal.util.Preconditions;
 import com.android.internal.util.SizedInputStream;
 import com.android.server.LocalServices;
@@ -1022,6 +1023,12 @@ public class LauncherAppsService extends SystemService {
                                 user.getIdentifier());
                 if (incrementalStatesInfo == null) {
                     // package doesn't exist any more; should not happen
+                    continue;
+                }
+                if(!NTAppLockerHelper.isInitialized()) {
+                    NTAppLockerHelper.init(mContext);
+                }
+                if (NTAppLockerHelper.get().isPackageHidden(packageName)) {
                     continue;
                 }
                 results.add(new LauncherActivityInfoInternal(ri.activityInfo,
