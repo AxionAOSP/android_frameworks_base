@@ -485,6 +485,7 @@ import com.android.server.wm.ActivityMetricsLaunchObserver;
 import com.android.server.wm.ActivityServiceConnectionsHolder;
 import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.ActivityTaskManagerService;
+import com.android.server.wm.AppLockManagerService;
 import com.android.server.wm.GameSpaceService;
 import com.android.server.wm.WindowManagerInternal;
 import com.android.server.wm.WindowManagerService;
@@ -5291,6 +5292,7 @@ public class ActivityManagerService extends IActivityManager.Stub
         t.traceEnd();
         ProcessFreezerManager.getInstance().init(mFreezer);
         GameSpaceService.init(mContext, this);
+        AppLockManagerService.init(mContext, mActivityTaskManager);
     }
 
     private void showConsoleNotificationIfActive() {

@@ -658,6 +658,10 @@ class TaskFragment extends WindowContainer<WindowContainer> {
             getTask().touchActiveTime();
         }
 
+        if (AppLockUtils.checkLockApp(this.mResumedActivity, r)) {
+            return;
+        }
+
         final ActivityRecord prevR = mResumedActivity;
         mResumedActivity = r;
         final ActivityRecord topResumed = mTaskSupervisor.updateTopResumedActivityIfNeeded(reason);
@@ -1537,6 +1541,10 @@ class TaskFragment extends WindowContainer<WindowContainer> {
             executeAppTransition(options);
             ProtoLog.d(WM_DEBUG_STATES, "resumeTopActivity: Top activity resumed "
                     + "(dontWaitForPause) %s", next);
+            return true;
+        }
+
+        if (AppLockUtils.checkLockApp(prev, next)) {
             return true;
         }
 

@@ -84,6 +84,7 @@ import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRowDragController;
 import com.android.systemui.statusbar.notification.row.OnUserInteractionCallback;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
+import com.android.systemui.util.NTAppLockerHelper;
 import com.android.systemui.wmshell.BubblesManager;
 
 import dagger.Lazy;
@@ -499,7 +500,13 @@ public class StatusBarNotificationActivityStarter implements NotificationActivit
             boolean isActivityIntent) {
         mLogger.logStartNotificationIntent(entry);
         final int displayId = mContextInteractor.getContext().getDisplayId();
+        boolean playAnimation = animate;
         try {
+            if (animate && row != null && row.getEntry() != null) {
+                if (NTAppLockerHelper.Companion.get().isAppLockedWithoutCache(row.getEntry().getSbn().getPackageName())) {
+                    playAnimation = false;
+                }
+            }
             ActivityTransitionAnimator.Controller animationController =
                     new StatusBarTransitionAnimatorController(
                             mNotificationAnimationProvider.getAnimatorController(row, null),
@@ -511,7 +518,7 @@ public class StatusBarNotificationActivityStarter implements NotificationActivit
                             isActivityIntent);
             mActivityTransitionAnimator.startPendingIntentWithAnimation(
                     animationController,
-                    animate,
+                    playAnimation,
                     intent.getCreatorPackage(),
                     (adapter) -> {
                         long eventTime = row.getAndResetLastActionUpTime();

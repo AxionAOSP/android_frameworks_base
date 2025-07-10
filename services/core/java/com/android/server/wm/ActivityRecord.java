@@ -2392,6 +2392,10 @@ final class ActivityRecord extends WindowToken {
     private int getStartingWindowType(boolean newTask, boolean taskSwitch, boolean processRunning,
             boolean allowTaskSnapshot, boolean activityCreated, boolean activityAllDrawn,
             TaskSnapshot snapshot) {
+        boolean isAppLockerActivity = AppLockUtils.isAppLockerActivity(this.intent.getComponent());
+        if (AppLockUtils.isAppLocked(this) || isAppLockerActivity) {
+            return (isAppLockerActivity || processRunning) ? STARTING_WINDOW_TYPE_NONE : STARTING_WINDOW_TYPE_SPLASH_SCREEN;
+        }
         // A special case that a new activity is launching to an existing task which is moving to
         // front. If the launching activity is the one that started the task, it could be a
         // trampoline that will be always created and finished immediately. Then give a chance to
@@ -3449,6 +3453,9 @@ final class ActivityRecord extends WindowToken {
     private void finishActivityResults(int resultCode, Intent resultData,
             NeededUriGrants resultGrants) {
         // Send the result if needed
+        if (AppLockUtils.checkUnlockApp(this, resultCode, resultData)) {
+            this.resultTo = null;
+        }
         if (resultTo != null) {
             if (DEBUG_RESULTS) {
                 Slog.v(TAG_RESULTS, "Adding result to " + resultTo
@@ -4583,6 +4590,9 @@ final class ActivityRecord extends WindowToken {
             }
             return true;
         } else if (fromActivity.mStartingData != null) {
+            if (AppLockUtils.isAppLockerActivity(this.intent.getComponent())) {
+                return false;
+            }
             if (fromActivity.mStartingData instanceof SnapshotStartingData
                     && !isStartingOrientationCompatible(fromActivity)) {
                 // Do not transfer because the snapshot will be distorted in different orientation.
@@ -6310,7 +6320,9 @@ final class ActivityRecord extends WindowToken {
             throw new IllegalStateException("Request to stop a finishing activity: " + this);
         }
         if (isNoHistory()) {
-            if (!task.shouldSleepActivities()) {
+            if (AppLockUtils.isAppLocked(this)) {
+                Slog.d(TAG_STATES, "AppLocker: Skip no-history finish for locked app " + this);
+            } else if (!task.shouldSleepActivities()) {
                 ProtoLog.d(WM_DEBUG_STATES, "no-history finish of %s", this);
                 if (finishIfPossible("stop-no-history", false /* oomAdj */)
                         != FINISH_RESULT_CANCELLED) {
@@ -8890,6 +8902,10 @@ final class ActivityRecord extends WindowToken {
     private boolean allowTaskSnapshot() {
         if (newIntents == null) {
             return true;
+        }
+        
+        if (AppLockUtils.isAppLocked(this) || AppLockUtils.isAppLockerActivity(this.intent.getComponent())) {
+            return false;
         }
 
         // Restrict task snapshot starting window to launcher start, or is same as the last

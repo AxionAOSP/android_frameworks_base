@@ -4050,6 +4050,7 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
             if (newTask != null) newTask.onAppFocusChanged(true);
         }
 
+        AppLockUtils.onAppFocusChanged(mFocusedApp, newTask);
         getInputMonitor().setFocusedAppLw(newFocus);
         return true;
     }

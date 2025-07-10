@@ -50,6 +50,7 @@ import android.os.Process;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
+import android.service.notification.StatusBarNotification;
 import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseBooleanArray;
@@ -85,6 +86,7 @@ import com.android.systemui.statusbar.pipeline.wifi.data.repository.WifiReposito
 import com.android.systemui.statusbar.policy.DeviceProvisionedController;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.util.ListenerSet;
+import com.android.systemui.util.NTAppLockerHelper;
 import com.android.systemui.util.kotlin.JavaAdapterKt;
 import com.android.systemui.util.settings.SecureSettings;
 
@@ -767,6 +769,10 @@ public class NotificationLockscreenUserManagerImpl implements
      * doesn't apply.
      */
     public @RedactionType int getRedactionType(NotificationEntry ent) {
+        StatusBarNotification sbn = ent.getSbn();
+        if (sbn != null && NTAppLockerHelper.Companion.get().isAppLocked(sbn.getPackageName())) {
+            return REDACTION_TYPE_PUBLIC;
+        }
         int userId = ent.getSbn().getUserId();
 
         boolean isCurrentUserRedactingNotifs =

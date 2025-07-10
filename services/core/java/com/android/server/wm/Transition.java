@@ -1548,6 +1548,9 @@ class Transition implements BLASTSyncEngine.TransactionReadyListener {
                     mController.mAtm.mRootWindowContainer.getDisplayContent(mRecentsDisplayId);
             dc.getInputMonitor().setActiveRecents(null /* task */, null /* layer */);
             dc.getInputMonitor().updateInputWindowsLw(false /* force */);
+            if (mRecentsDisplayId == 0) {
+                AppLockUtils.clearUnlockedApp(dc.mFocusedApp);
+            }
         }
         if (mTransientLaunches != null) {
             for (int i = mTransientLaunches.size() - 1; i >= 0; --i) {

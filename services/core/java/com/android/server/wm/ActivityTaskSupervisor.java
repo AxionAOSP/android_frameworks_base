@@ -1821,6 +1821,7 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         }
         task.mInRemoveTask = true;
         try {
+            AppLockUtils.removeTask(task, reason);
             task.removeActivities(reason, false /* excludingTaskOverlay */);
             cleanUpRemovedTask(task, killProcess, removeFromRecents);
             mService.getLockTaskController().clearLockedTask(task);
