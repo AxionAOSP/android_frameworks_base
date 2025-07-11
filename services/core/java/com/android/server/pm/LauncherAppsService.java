@@ -121,6 +121,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.content.PackageMonitor;
 import com.android.internal.os.BackgroundThread;
 import com.android.internal.util.ArrayUtils;
+import com.android.internal.util.ClonedAppsUtils;
 import com.android.internal.util.CollectionUtils;
 import com.android.internal.util.NTAppLockerHelper;
 import com.android.internal.util.Preconditions;
@@ -1029,6 +1030,13 @@ public class LauncherAppsService extends SystemService {
                     NTAppLockerHelper.init(mContext);
                 }
                 if (NTAppLockerHelper.get().isPackageHidden(packageName)) {
+                    continue;
+                }
+                // do not show cloned system apps
+                ApplicationInfo appInfo = ri.activityInfo.applicationInfo;
+                if (ClonedAppsUtils.isClonedUser(user.getIdentifier())
+                    && ((appInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0 
+                        || (appInfo.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0)) {
                     continue;
                 }
                 results.add(new LauncherActivityInfoInternal(ri.activityInfo,
