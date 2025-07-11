@@ -145,6 +145,7 @@ import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
 import com.android.internal.net.LegacyVpnInfo;
 import com.android.internal.net.VpnConfig;
 import com.android.internal.net.VpnProfile;
+import com.android.internal.util.ClonedAppsUtils;
 import com.android.net.module.util.BinderUtils;
 import com.android.net.module.util.LinkPropertiesUtils;
 import com.android.net.module.util.NetdUtils;
@@ -1888,6 +1889,7 @@ public class Vpn {
                 }
             }
         }
+
         return ranges;
     }
 
