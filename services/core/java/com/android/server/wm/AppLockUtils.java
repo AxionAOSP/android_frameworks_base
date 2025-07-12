@@ -50,38 +50,10 @@ public class AppLockUtils {
         return service != null && r != null && service.checkLockApp(r, r2);
     }
 
-    public static void removeTask(Task task, String reason) {
-        IAppLockService service = getService();
-        if (service != null && task != null) {
-            service.removeTask(task, reason);
-        }
-    }
-
     public static void clearUnlockedApp(ActivityRecord record) {
         IAppLockService service = getService();
         if (service != null && record != null) {
             service.clearUnlockedApp(record);
-        }
-    }
-
-    public static void setKeyguardDoneLocked(boolean showing) {
-        IAppLockService service = getService();
-        if (service != null) {
-            service.setKeyguardDoneLocked(showing);
-        }
-    }
-
-    public static void onAppFocusChanged(ActivityRecord record, Task task) {
-        IAppLockService service = getService();
-        if (service != null && record != null) {
-            service.onAppFocusChanged(record, task);
-        }
-    }
-
-    public static void onWindowingModeChanged(Task task, int mode) {
-        IAppLockService service = getService();
-        if (service != null && task != null) {
-            service.onWindowingModeChanged(task, mode);
         }
     }
 }

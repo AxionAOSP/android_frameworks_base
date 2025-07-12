@@ -2131,7 +2131,7 @@ class Task extends TaskFragment {
 
         if (prevWindowingMode != getWindowingMode()) {
             taskDisplayArea.onRootTaskWindowingModeChanged(this);
-            AppLockUtils.onWindowingModeChanged(this, prevWindowingMode);
+            WindowEventHelper.onWindowingModeChanged(this, prevWindowingMode);
         }
 
         if (!isOrganized() && !getRequestedOverrideBounds().isEmpty() && mDisplayContent != null) {
