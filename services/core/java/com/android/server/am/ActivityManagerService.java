@@ -19727,11 +19727,32 @@ public class ActivityManagerService extends IActivityManager.Stub
         return curProc;
     }
     
+    public ProcessRecord getProcessRecord(String str) {
+        ProcessRecord processRecordLocked = null;
+        synchronized (mProcLock) {
+            try {
+                int currentUserId = getCurrentUserId();
+                int packageUid = getPackageManagerInternal().getPackageUid(str, 0, currentUserId);
+                processRecordLocked = getProcessRecordLocked(str, packageUid);
+            } catch (Exception e) {
+            }
+        }
+        return processRecordLocked;
+    }
+
+    public boolean isPackageTopApp(String str) {
+        ProcessRecord gameProc = getProcessRecord(str);
+        return gameProc != null
+            && gameProc.getThread() != null
+            && gameProc.mState != null
+            && gameProc.mState.getCurrentSchedulingGroup() == ProcessList.SCHED_GROUP_TOP_APP;
+    }
+
     @Override
     public void adjustCpusetCpus(String group, String cpus, long duration) {
         AxExtServiceFactory.getBoostAdjuster().adjustCpusetCpus(group, cpus, duration);
     }
-
+    
     @Override
     public void animationBoost(int pid, long duration) {
         if (pid <= 0) return;

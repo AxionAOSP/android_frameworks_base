@@ -272,6 +272,7 @@ class KeyguardController {
 
         if (displayId == DEFAULT_DISPLAY && keyguardChanged) {
             AxSandboxService.get().setKeyguardDoneLocked(!keyguardShowing);
+            GameSpaceService.get().setKeyguardDoneLocked(!keyguardShowing);
         }
 
         // Update the sleep token first such that ensureActivitiesVisible has correct sleep token
