@@ -485,6 +485,7 @@ import com.android.server.wm.ActivityMetricsLaunchObserver;
 import com.android.server.wm.ActivityServiceConnectionsHolder;
 import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.ActivityTaskManagerService;
+import com.android.server.wm.GameSpaceService;
 import com.android.server.wm.WindowManagerInternal;
 import com.android.server.wm.WindowManagerService;
 import com.android.server.wm.WindowProcessController;
@@ -5289,6 +5290,7 @@ public class ActivityManagerService extends IActivityManager.Stub
 
         t.traceEnd();
         ProcessFreezerManager.getInstance().init(mFreezer);
+        GameSpaceService.init(mContext, this);
     }
 
     private void showConsoleNotificationIfActive() {
@@ -19554,6 +19556,14 @@ public class ActivityManagerService extends IActivityManager.Stub
             }
         }
         return processRecordLocked;
+    }
+    
+    public boolean isPackageTopApp(String str) {
+        ProcessRecord gameProc = getProcessRecord(str);
+        return gameProc != null
+            && gameProc.getThread() != null
+            && gameProc.mState != null
+            && gameProc.mState.getCurrentSchedulingGroup() == ProcessList.SCHED_GROUP_TOP_APP;
     }
 
     @Override
