@@ -123,6 +123,7 @@ public class StatusBarNotificationActivityStarter implements NotificationActivit
     private final Handler mMainThreadHandler;
     private final Executor mUiBgExecutor;
 
+    private final CentralSurfaces mCentralSurfaces;
     private final NotificationVisibilityProvider mVisibilityProvider;
     private final HeadsUpManager mHeadsUpManager;
     private final ActivityStarter mActivityStarter;
@@ -190,7 +191,8 @@ public class StatusBarNotificationActivityStarter implements NotificationActivit
             NotificationLaunchAnimatorControllerProvider notificationAnimationProvider,
             LaunchFullScreenIntentProvider launchFullScreenIntentProvider,
             PowerInteractor powerInteractor,
-            UserTracker userTracker) {
+            UserTracker userTracker,
+            CentralSurfaces centralSurfaces) {
         mContext = context;
         mContextInteractor = contextInteractor;
         mMainThreadHandler = mainThreadHandler;
@@ -223,6 +225,7 @@ public class StatusBarNotificationActivityStarter implements NotificationActivit
         mNotificationAnimationProvider = notificationAnimationProvider;
         mPowerInteractor = powerInteractor;
         mUserTracker = userTracker;
+        mCentralSurfaces = centralSurfaces;
 
         launchFullScreenIntentProvider.registerListener(entry -> launchFullScreenIntent(entry));
     }
@@ -693,6 +696,7 @@ public class StatusBarNotificationActivityStarter implements NotificationActivit
 
     @VisibleForTesting
     void launchFullScreenIntent(NotificationEntry entry) {
+        if (mCentralSurfaces.shouldSuppressFullScreenIntent()) return;
         // Skip if device is in VR mode.
         if (mPresenter.isDeviceInVrMode()) {
             mLogger.logFullScreenIntentSuppressedByVR(entry);
