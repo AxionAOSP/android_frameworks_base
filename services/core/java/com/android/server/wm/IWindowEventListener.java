@@ -15,13 +15,9 @@
  */
 package com.android.server.wm;
 
-import android.content.ComponentName;
-import android.content.Intent;
-
-public interface IAppLockService {
-    boolean isAppLocked(ActivityRecord r);
-    boolean checkUnlockApp(ActivityRecord activityRecord, int i, Intent intent);
-    boolean checkLockApp(ActivityRecord r, ActivityRecord r2);
-    boolean isAppLockerActivity(ComponentName cmp);
-    void clearUnlockedApp(ActivityRecord r);
+public interface IWindowEventListener {
+    default void onAppFocusChanged(ActivityRecord r, Task task) {}
+    default void onWindowingModeChanged(Task task, int mode) {}
+    default void setKeyguardDoneLocked(boolean showing) {}
+    default void removeTask(Task task, String reason) {}
 }

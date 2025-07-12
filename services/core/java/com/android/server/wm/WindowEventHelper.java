@@ -15,13 +15,21 @@
  */
 package com.android.server.wm;
 
-import android.content.ComponentName;
-import android.content.Intent;
+public class WindowEventHelper {
 
-public interface IAppLockService {
-    boolean isAppLocked(ActivityRecord r);
-    boolean checkUnlockApp(ActivityRecord activityRecord, int i, Intent intent);
-    boolean checkLockApp(ActivityRecord r, ActivityRecord r2);
-    boolean isAppLockerActivity(ComponentName cmp);
-    void clearUnlockedApp(ActivityRecord r);
+    public static void setKeyguardDoneLocked(boolean showing) {
+        WindowEventDispatcher.get().notifyKeyguardDoneLocked(showing);
+    }
+
+    public static void onAppFocusChanged(ActivityRecord record, Task task) {
+        WindowEventDispatcher.get().notifyAppFocusChanged(record, task);
+    }
+
+    public static void onWindowingModeChanged(Task task, int mode) {
+        WindowEventDispatcher.get().notifyWindowingModeChanged(task, mode);
+    }
+
+    public static void removeTask(Task task, String reason) {
+        WindowEventDispatcher.get().notifyTaskRemoved(task, reason);
+    }
 }

@@ -30,7 +30,7 @@ import java.io.File;
 import java.util.*;
 import java.util.function.Consumer;
 
-public class AppLockManagerService extends IAppLockManager.Stub implements IAppLockService {
+public class AppLockManagerService extends IAppLockManager.Stub implements IAppLockService,IWindowEventListener {
     private static final String TAG = "AppLockManagerService";
 
     private static final String SETTING_LOCK_TYPE = "nothing_applocker_locktype";
@@ -97,6 +97,7 @@ public class AppLockManagerService extends IAppLockManager.Stub implements IAppL
         if (sInstance == null) {
             sInstance = new AppLockManagerService(context, atmService);
             ServiceManager.addService("app_lock", sInstance);
+            WindowEventDispatcher.get().registerListener(sInstance);
         } else {
             Slog.w(TAG, "AppLockManagerService already initialized");
         }
