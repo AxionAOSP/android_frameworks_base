@@ -143,4 +143,8 @@
 
     <!-- Internet -->
     <string name="status_bar_settings_network_speed">Internet speed</string>
+    
+    <!-- Mistouch - Game -->
+    <string name="click_again">Click again</string>
+    <string name="swipe_again">Swipe again</string>
 </resources>
