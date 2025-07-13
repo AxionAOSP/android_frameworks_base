@@ -416,6 +416,8 @@ class ClockSizeTransition(
             // Notifications normally and media on split shade needs to be moved
             addTarget(R.id.aod_notification_icon_container)
             addTarget(R.id.status_view_media_container)
+
+            addTarget(R.id.keyguard_widgets_area)
         }
 
         override fun initTargets(from: Target, to: Target) {

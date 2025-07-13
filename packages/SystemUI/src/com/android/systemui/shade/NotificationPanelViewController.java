@@ -1225,7 +1225,7 @@ public final class NotificationPanelViewController implements
     }
 
     private ClockSize computeDesiredClockSizeForSingleShade() {
-        if (hasVisibleNotifications()) {
+        if (hasVisibleNotifications() || mKeyguardClockInteractor.getAreLockscreenWidgetsEnabled()) {
             return ClockSize.SMALL;
         }
         return ClockSize.LARGE;

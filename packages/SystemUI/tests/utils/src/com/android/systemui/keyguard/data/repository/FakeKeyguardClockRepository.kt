@@ -54,6 +54,11 @@ class FakeKeyguardClockRepository() : KeyguardClockRepository {
 
     private var _shouldForceSmallClock: Boolean = false
 
+    override val areLockscreenWidgetsEnabled: Boolean
+        get() = _areLockscreenWidgetsEnabled
+
+    private var _areLockscreenWidgetsEnabled: Boolean = false
+
     override fun setClockSize(size: ClockSize) {
         _clockSize.value = size
     }
@@ -69,6 +74,10 @@ class FakeKeyguardClockRepository() : KeyguardClockRepository {
 
     fun setShouldForceSmallClock(shouldForceSmallClock: Boolean) {
         _shouldForceSmallClock = shouldForceSmallClock
+    }
+
+    fun setAreLockscreenWidgetsEnabled(areLockscreenWidgetsEnabled: Boolean) {
+        _areLockscreenWidgetsEnabled = areLockscreenWidgetsEnabled
     }
 
     fun setCurrentClockId(clockId: ClockId) {

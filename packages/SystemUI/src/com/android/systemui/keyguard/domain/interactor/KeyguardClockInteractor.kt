@@ -90,6 +90,9 @@ constructor(
 
     var clock: ClockController? by keyguardClockRepository.clockEventController::clock
 
+    val areLockscreenWidgetsEnabled: Boolean
+        get() = keyguardClockRepository.areLockscreenWidgetsEnabled
+
     private val isAodPromotedNotificationPresent: Flow<Boolean> =
         if (PromotedNotificationUi.isEnabled) {
             aodPromotedNotificationInteractor.isPresent
@@ -119,7 +122,8 @@ constructor(
                 isOnAod,
             ) { isShadeLayoutWide, hasNotifs, hasMedia, isDozing, isOnAod ->
                 when {
-                    keyguardClockRepository.shouldForceSmallClock && !isOnAod -> ClockSize.SMALL
+                    (keyguardClockRepository.shouldForceSmallClock && !isOnAod) || 
+                        keyguardClockRepository.areLockscreenWidgetsEnabled -> ClockSize.SMALL
                     !isShadeLayoutWide && (hasNotifs || hasMedia) -> ClockSize.SMALL
                     !isShadeLayoutWide -> ClockSize.LARGE
                     hasMedia && !isDozing -> ClockSize.SMALL
