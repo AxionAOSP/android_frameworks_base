@@ -39,4 +39,12 @@
     <dimen name="essential_section_padding">1.5dp</dimen>
     <dimen name="essential_section_corner_radius">16dp</dimen>
     <dimen name="essential_section_header_height">36dp</dimen>
+    
+    <!-- Lockscreen Widgets -->
+    <dimen name="kg_widget_circle_size">72dp</dimen>
+    <dimen name="kg_widgets_spacing">12dp</dimen>
+    <dimen name="kg_widgets_label_start_padding">24dp</dimen>
+    <dimen name="kg_widgets_icon_size">24dp</dimen>
+    <dimen name="kg_widgets_doze_stroke">1.5dp</dimen>
+    <dimen name="kg_widgets_top_padding">22dp</dimen>
 </resources>

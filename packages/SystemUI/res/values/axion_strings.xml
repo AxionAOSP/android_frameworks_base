@@ -38,4 +38,16 @@
     <string name="essential_notifications_title">Essential Notifications</string>
     <string name="notification_section_header_essential">Essential notification</string>
     <string name="accessibility_notification_section_header_gentle_clear_all">Clear all essential notifications</string>
+    
+    <!-- Lockscreen Widget -->
+    <string name="widget_data">Data</string>
+    <string name="widget_wifi">Wi-Fi</string>
+    <string name="widget_hotspot">Hotspot</string>
+    <string name="widget_torch">Torch</string>
+    <string name="widget_bluetooth">Bluetooth</string>
+    <string name="widget_ringer">Ringer</string>
+    <string name="ringer_vibrate">Vibrate</string>
+    <string name="ringer_silent">Silent</string>
+    <string name="ringer_normal">Sound</string>
+    <string name="widget_unknown">Widget</string>
 </resources>

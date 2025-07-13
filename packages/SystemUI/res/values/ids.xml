@@ -300,4 +300,7 @@
 
     <!-- id for the composable battery meter (see UnifiedBattery.kt) -->
     <item type="id" name="battery_meter_composable_view" />
+    
+    <!-- id for the widgets container -->
+    <item type="id" name="widgets_container" />
 </resources>

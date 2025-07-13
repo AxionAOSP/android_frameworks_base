@@ -74,6 +74,8 @@ interface KeyguardClockRepository {
 
     val shouldForceSmallClock: Boolean
 
+    val areLockscreenWidgetsEnabled: Boolean
+
     fun setClockSize(size: ClockSize)
 }
 
@@ -152,11 +154,29 @@ constructor(
                 // True on small landscape screens
                 context.resources.getBoolean(R.bool.force_small_clock_on_lockscreen)
 
+    override val areLockscreenWidgetsEnabled: Boolean
+        get() {
+            val isEnabled = Settings.System.getIntForUser(
+                context.contentResolver,
+                "lockscreen_widgets_enabled",
+                0,
+                UserHandle.USER_CURRENT
+            ) == 1
+            val widgetConfig = Settings.System.getStringForUser(
+                context.contentResolver,
+                "lockscreen_widgets_extras",
+                UserHandle.USER_CURRENT
+            ) ?: ""
+            return isEnabled && widgetConfig.isNotEmpty()
+        }
+
     private fun getClockSize(): ClockSizeSetting {
         return ClockSizeSetting.fromSettingValue(
             secureSettings.getIntForUser(
                 Settings.Secure.LOCKSCREEN_USE_DOUBLE_LINE_CLOCK,
-                /* defaultValue= */ 1,
+                context.resources.getInteger(
+                    com.android.internal.R.integer.config_doublelineClockDefault
+                ),
                 UserHandle.USER_CURRENT,
             )
         )
