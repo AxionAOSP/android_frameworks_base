@@ -69,4 +69,12 @@
     <dimen name="network_speed_unit_text_size">6dp</dimen>
     <dimen name="network_speed_view_padding_end">2dp</dimen>
     <dimen name="network_speed_view_width">22dp</dimen>
+    
+    <!-- Lockscreen Widgets -->
+    <dimen name="kg_widget_circle_size">72dp</dimen>
+    <dimen name="kg_widgets_margin_horizontal">12dp</dimen>
+    <dimen name="kg_widgets_margin_side">4dp</dimen>
+    <dimen name="kg_widgets_icon_padding">24dp</dimen>
+    <dimen name="kg_widget_margin_vertical">16dp</dimen>
+    <dimen name="kg_widget_margin_bottom">6dp</dimen>
 </resources>
