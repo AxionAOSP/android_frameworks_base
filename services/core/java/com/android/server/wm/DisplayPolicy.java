@@ -1071,7 +1071,9 @@ public class DisplayPolicy {
                     "DisplayPolicy");
         }
         if ((attrs.privateFlags & PRIVATE_FLAG_INTERCEPT_GLOBAL_DRAG_AND_DROP) != 0) {
-            ActivityTaskManagerService.enforceTaskPermission("DisplayPolicy");
+            mContext.enforcePermission(
+                    android.Manifest.permission.MANAGE_ACTIVITY_TASKS, callingPid, callingUid,
+                    "DisplayPolicy");
         }
 
         final String systemUiPermission =
