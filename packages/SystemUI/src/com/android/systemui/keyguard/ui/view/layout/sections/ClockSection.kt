@@ -234,10 +234,7 @@ constructor(
                 START,
                 PARENT_ID,
                 START,
-                context.resources.getDimensionPixelSize(customR.dimen.clock_padding_start) +
-                    context.resources.getDimensionPixelSize(
-                        customR.dimen.status_view_margin_horizontal
-                    ),
+                0
             )
             val smallClockTopMargin = keyguardClockViewModel.getSmallClockTopMargin()
             create(R.id.small_clock_guideline_top, ConstraintSet.HORIZONTAL_GUIDELINE)

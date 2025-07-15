@@ -99,7 +99,7 @@ constructor(
             connect(
                 R.id.keyguard_widgets_area,
                 ConstraintSet.TOP,
-                R.id.keyguard_slice_view,
+                custR.id.lockscreen_clock_view,
                 ConstraintSet.BOTTOM
             )
 

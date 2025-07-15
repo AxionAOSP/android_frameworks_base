@@ -50,6 +50,14 @@ interface ClockFaceEvents {
 
     /** Called to notify the clock about its display. */
     fun onSecondaryDisplayChanged(onSecondaryDisplay: Boolean)
+    
+    fun onStartedWakingUp() {}
+
+    fun onRegionDarknessChanged(isRegionDark: Boolean) {}
+
+    fun onScreenOff(screenOff: Boolean) {}
+    
+    fun onDozeChanged(dozing: Boolean) {}
 }
 
 /** Contains Theming information for the clock face */

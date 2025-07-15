@@ -129,6 +129,7 @@ import com.android.systemui.biometrics.AuthController;
 import com.android.systemui.biometrics.FingerprintInteractiveToAuthProvider;
 import com.android.systemui.bouncer.domain.interactor.AlternateBouncerInteractor;
 import com.android.systemui.broadcast.BroadcastDispatcher;
+import com.android.systemui.calendar.CalendarManager;
 import com.android.systemui.communal.domain.interactor.CommunalSceneInteractor;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Background;
@@ -150,7 +151,8 @@ import com.android.systemui.keyguard.domain.interactor.KeyguardServiceShowLocksc
 import com.android.systemui.keyguard.domain.interactor.ShowWhileAwakeReason;
 import com.android.systemui.keyguard.shared.constants.TrustAgentUiEvent;
 import com.android.systemui.log.SessionTracker;
-import com.android.systemui.plugins.clocks.WeatherData;
+import com.android.systemui.media.MediaManager;
+import com.android.systemui.plugins.clocks.*;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
 import com.android.systemui.res.R;
 import com.android.systemui.scene.domain.interactor.SceneInteractor;
@@ -169,6 +171,7 @@ import com.android.systemui.user.domain.interactor.SelectedUserInteractor;
 import com.android.systemui.util.Assert;
 import com.android.systemui.util.kotlin.JavaAdapter;
 import com.android.systemui.util.ScrimUtils;
+import com.android.systemui.weather.WeatherManager;
 
 import dalvik.annotation.optimization.NeverCompile;
 
@@ -326,6 +329,9 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
         }
     };
     private final FaceWakeUpTriggersConfig mFaceWakeUpTriggersConfig;
+    private final CalendarManager mCalendarManager;
+    private final MediaManager mMediaManager;
+    private final WeatherManager mWeatherManager;
 
     private final Object mSimDataLockObject = new Object();
     HashMap<Integer, SimData> mSimDatas = new HashMap<>();
@@ -443,6 +449,62 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
     }
 
     private final Handler mHandler;
+
+    private final WeatherManager.Callback mWeatherCallback = new WeatherManager.Callback() {
+        @Override
+        public void onWeatherUpdated(NTWeatherData data) {
+            for (int i = 0; i < mCallbacks.size(); i++) {
+                KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
+                if (cb != null) {
+                    cb.onNTWeatherDataChanged(data);
+                }
+            }
+        }
+    };
+
+    private final CalendarManager.Callback mCalendarCallback = new CalendarManager.Callback() {
+        @Override
+        public void onCalendarDataChanged(CalendarSimpleData data) {
+            for (int i = 0; i < mCallbacks.size(); i++) {
+                KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
+                if (cb != null) {
+                    cb.onCalendarDataChanged(data);
+                }
+            }
+        }
+    };
+
+    private final MediaManager.Callback mMediaCallback = new MediaManager.Callback() {
+        @Override
+        public void onQLPlaybackStateChanged(boolean play) {
+            for (int i = 0; i < mCallbacks.size(); i++) {
+                KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
+                if (cb != null) {
+                    cb.onQLPlaybackStateChanged(play);
+                }
+            }
+        }
+
+        @Override
+        public void onQLMetadataChanged(String track, String artist) {
+            for (int i = 0; i < mCallbacks.size(); i++) {
+                KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
+                if (cb != null) {
+                    cb.onQLMetadataChanged(track, artist);
+                }
+            }
+        }
+        
+        @Override
+        public void onNowPlayingUpdate(String nowPlayingText) {
+            for (int i = 0; i < mCallbacks.size(); i++) {
+                KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
+                if (cb != null) {
+                    cb.onNowPlayingUpdate(nowPlayingText);
+                }
+            }
+        }
+    };
 
     private final IBiometricEnabledOnKeyguardCallback mBiometricEnabledCallback =
             new IBiometricEnabledOnKeyguardCallback.Stub() {
@@ -837,6 +899,17 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
 
         if (occlusionChanged || showingChanged) {
             updateFingerprintListeningState(BIOMETRIC_ACTION_UPDATE);
+        }
+
+        if (!showingChanged) return;
+        if (mKeyguardShowing) {
+            mCalendarManager.addCallback(mCalendarCallback);
+            mWeatherManager.addCallback(mWeatherCallback);
+            mMediaManager.addCallback(mMediaCallback);
+        } else {
+            mCalendarManager.removeCallback(mCalendarCallback);
+            mWeatherManager.removeCallback(mWeatherCallback);
+            mMediaManager.removeCallback(mMediaCallback);
         }
     }
 
@@ -2226,7 +2299,10 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
             Provider<SceneInteractor> sceneInteractor,
             Provider<CommunalSceneInteractor> communalSceneInteractor,
             Provider<KeyguardServiceShowLockscreenInteractor>
-                    keyguardServiceShowLockscreenInteractor) {
+                    keyguardServiceShowLockscreenInteractor,
+            MediaManager mediaManager,
+            WeatherManager weatherManager,
+            CalendarManager calendarManager) {
         mContext = context;
         mSubscriptionManager = subscriptionManager;
         mUserTracker = userTracker;
@@ -2277,6 +2353,9 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
         mSceneInteractor = sceneInteractor;
         mCommunalSceneInteractor = communalSceneInteractor;
         mKeyguardServiceShowLockscreenInteractor = keyguardServiceShowLockscreenInteractor;
+        mCalendarManager = calendarManager;
+        mMediaManager = mediaManager;
+        mWeatherManager = weatherManager;
 
         mHandler = new Handler(mainLooper) {
             @Override

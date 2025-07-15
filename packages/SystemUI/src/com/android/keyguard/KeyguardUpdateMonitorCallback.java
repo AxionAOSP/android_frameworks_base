@@ -23,7 +23,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.settingslib.fuelgauge.BatteryStatus;
-import com.android.systemui.plugins.clocks.WeatherData;
+import com.android.systemui.plugins.clocks.*;
 import com.android.systemui.statusbar.KeyguardIndicationController;
 import com.android.systemui.util.annotations.WeaklyReferencedCallback;
 
@@ -339,4 +339,20 @@ public class KeyguardUpdateMonitorCallback {
      * On force is dismissible state changed.
      */
     public void onForceIsDismissibleChanged(boolean forceIsDismissible) { }
+    
+    /**
+     * Called when receive new calendar data.
+     */
+    public void onCalendarDataChanged(CalendarSimpleData data) { }
+    
+    /**
+     * Called when receive new nt weather data.
+     */
+    public void onNTWeatherDataChanged(NTWeatherData data) { }
+    
+    public void onQLPlaybackStateChanged(boolean play) { }
+    
+    public void onQLMetadataChanged(String track, String artist) { }
+
+    public void onNowPlayingUpdate(String nowPlayingText) { }
 }
