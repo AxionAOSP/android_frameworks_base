@@ -42,4 +42,12 @@ interface ClockEvents {
 
     /** Call with zen/dnd information */
     fun onZenDataChanged(data: ZenData)
+    
+    fun onUiModeChanged(isDarkTheme: Boolean) {}
+    
+    fun onDateChanged() {}
+    
+    fun onCalendarDataChanged(data: CalendarSimpleData) {}
+    
+    fun onNTWeatherDataChanged(data: NTWeatherData) {}
 }

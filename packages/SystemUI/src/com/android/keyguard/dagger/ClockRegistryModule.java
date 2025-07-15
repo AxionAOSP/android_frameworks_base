@@ -34,7 +34,7 @@ import com.android.systemui.plugins.clocks.ClockMessageBuffers;
 import com.android.systemui.res.R;
 import com.android.systemui.shade.ShadeDisplayAware;
 import com.android.systemui.shared.clocks.ClockRegistry;
-import com.android.systemui.shared.clocks.DefaultClockProvider;
+import com.android.systemui.shared.clocks.NTClockProvider;
 import com.android.systemui.util.ThreadAssert;
 
 import dagger.Module;
@@ -69,7 +69,7 @@ public abstract class ClockRegistryModule {
                 com.android.systemui.shared.Flags.lockscreenCustomClocks()
                         || featureFlags.isEnabled(Flags.LOCKSCREEN_CUSTOM_CLOCKS),
                 /* handleAllUsers= */ true,
-                new DefaultClockProvider(
+                new NTClockProvider(
                         context,
                         layoutInflater,
                         resources,

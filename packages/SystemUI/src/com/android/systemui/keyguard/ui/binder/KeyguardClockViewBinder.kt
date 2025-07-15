@@ -18,6 +18,7 @@ package com.android.systemui.keyguard.ui.binder
 
 import android.transition.TransitionManager
 import android.transition.TransitionSet
+import android.view.View.VISIBLE
 import android.view.View.INVISIBLE
 import android.view.ViewGroup
 import androidx.annotation.VisibleForTesting
@@ -220,7 +221,7 @@ object KeyguardClockViewBinder {
                 if (it.parent != null) {
                     (it.parent as ViewGroup).removeView(it)
                 }
-                rootView.addView(it).apply { it.visibility = INVISIBLE }
+                rootView.addView(it).apply { it.visibility = VISIBLE }
             }
             clock.largeClock.layout.views.forEach {
                 if (it.parent != null) {
@@ -239,10 +240,6 @@ object KeyguardClockViewBinder {
     ) {
         val constraintSet = ConstraintSet().apply { clone(rootView) }
         clockSection.applyConstraints(constraintSet)
-        if (animated) {
-            set?.let { TransitionManager.beginDelayedTransition(rootView, it) }
-                ?: run { TransitionManager.beginDelayedTransition(rootView) }
-        }
         constraintSet.applyTo(rootView)
     }
 }

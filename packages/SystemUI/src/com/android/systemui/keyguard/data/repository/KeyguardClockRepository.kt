@@ -90,27 +90,15 @@ constructor(
 ) : KeyguardClockRepository {
 
     /** Receive SMALL or LARGE clock should be displayed on keyguard. */
-    private val _clockSize: MutableStateFlow<ClockSize> = MutableStateFlow(ClockSize.LARGE)
-    override val clockSize: StateFlow<ClockSize> = _clockSize.asStateFlow()
+    private val _clockSize: MutableStateFlow<ClockSize> = MutableStateFlow(ClockSize.SMALL)
+    override val clockSize: StateFlow<ClockSize> = MutableStateFlow(ClockSize.SMALL).asStateFlow()
 
     override fun setClockSize(size: ClockSize) {
         SceneContainerFlag.assertInLegacyMode()
-        _clockSize.value = size
+        _clockSize.value = ClockSize.SMALL
     }
 
-    override val selectedClockSize: StateFlow<ClockSizeSetting> =
-        secureSettings
-            .observerFlow(
-                names = arrayOf(Settings.Secure.LOCKSCREEN_USE_DOUBLE_LINE_CLOCK),
-                userId = UserHandle.USER_ALL,
-            )
-            .onStart { emit(Unit) } // Forces an initial update.
-            .map { withContext(backgroundDispatcher) { getClockSize() } }
-            .stateIn(
-                scope = applicationScope,
-                started = SharingStarted.WhileSubscribed(),
-                initialValue = getClockSize(),
-            )
+    override val selectedClockSize: StateFlow<ClockSizeSetting> = MutableStateFlow(ClockSizeSetting.SMALL)
 
     override val currentClockId: Flow<ClockId> =
         callbackFlow {
@@ -151,18 +139,9 @@ constructor(
         }
 
     override val shouldForceSmallClock: Boolean
-        get() =
-            featureFlags.isEnabled(Flags.LOCKSCREEN_ENABLE_LANDSCAPE) &&
-                // True on small landscape screens
-                context.resources.getBoolean(R.bool.force_small_clock_on_lockscreen)
+        get() = true
 
     private fun getClockSize(): ClockSizeSetting {
-        return ClockSizeSetting.fromSettingValue(
-            secureSettings.getIntForUser(
-                Settings.Secure.LOCKSCREEN_USE_DOUBLE_LINE_CLOCK,
-                /* defaultValue= */ 1,
-                UserHandle.USER_CURRENT,
-            )
-        )
+        return ClockSizeSetting.fromSettingValue(0)
     }
 }
