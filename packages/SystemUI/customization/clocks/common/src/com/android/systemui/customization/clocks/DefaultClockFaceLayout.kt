@@ -134,8 +134,7 @@ open class DefaultClockFaceLayout(val view: View) : ClockFaceLayout {
                 START,
                 PARENT_ID,
                 START,
-                res.getDimensionPixelSize(clocksR.dimen.clock_padding_start) +
-                    clockPreviewConfig.statusViewMarginHorizontal,
+                0,
             )
 
             val smallClockTopMargin = clockPreviewConfig.getSmallClockTopPadding()

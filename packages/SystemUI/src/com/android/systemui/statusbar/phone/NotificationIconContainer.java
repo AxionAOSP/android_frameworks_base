@@ -21,11 +21,15 @@ import static com.android.systemui.statusbar.phone.HeadsUpAppearanceController.C
 
 import android.content.Context;
 import android.content.res.Configuration;
+import android.database.ContentObserver;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.drawable.Icon;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.Settings;
 import android.util.AttributeSet;
 import android.util.Property;
 import android.view.ContextThemeWrapper;
@@ -50,6 +54,8 @@ import com.android.systemui.statusbar.notification.stack.ViewState;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.function.Consumer;
+
+import org.json.JSONObject;
 
 /**
  * A container for notification icons. It handles overflowing icons properly and positions them
@@ -174,11 +180,20 @@ public class NotificationIconContainer extends ViewGroup {
     private int mThemedTextColorPrimaryInverse;
     @Nullable private Runnable mIsolatedIconAnimationEndRunnable;
     private boolean mUseIncreasedIconScale;
+    private boolean mShouldCenterIcons = false;
+    private final ContentObserver mClockSettingsObserver;
 
     public NotificationIconContainer(Context context, AttributeSet attrs) {
         super(context, attrs);
         initResources();
         setWillNotDraw(!(DEBUG || DEBUG_OVERFLOW));
+
+        mClockSettingsObserver = new ContentObserver(new Handler(Looper.getMainLooper())) {
+            @Override
+            public void onChange(boolean selfChange) {
+                updateShouldCenterIcons();
+            }
+        };
     }
 
     private void initResources() {
@@ -594,7 +609,20 @@ public class NotificationIconContainer extends ViewGroup {
      * @return The left boundary (not the RTL compatible start) of the area that icons can be added.
      */
     protected float getLeftBound() {
-        return getActualPaddingStart();
+        float basePadding = getActualPaddingStart();
+        
+        if (mShouldCenterIcons && getChildCount() > 0) {
+            float iconsWidth = 0;
+            for (int i = 0; i < getChildCount(); i++) {
+                View child = getChildAt(i);
+                iconsWidth += child.getWidth() * getDrawingScale(child);
+            }
+            
+            float centeredPadding = Math.max(0, (getWidth() - iconsWidth) / 2);
+            return centeredPadding;
+        }
+        
+        return basePadding;
     }
 
     protected float getActualPaddingEnd() {
@@ -886,6 +914,50 @@ public class NotificationIconContainer extends ViewGroup {
             if (view instanceof StatusBarIconView) {
                 iconColor = ((StatusBarIconView) view).getStaticDrawableColor();
             }
+        }
+    }
+    
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        
+        getContext().getContentResolver().registerContentObserver(
+            Settings.Secure.getUriFor("lock_screen_custom_clock_face"),
+            false,
+            mClockSettingsObserver
+        );
+        
+        updateShouldCenterIcons();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        getContext().getContentResolver().unregisterContentObserver(mClockSettingsObserver);
+    }
+    
+    private void updateShouldCenterIcons() {
+        String clockFace = Settings.Secure.getString(
+            getContext().getContentResolver(),
+            "lock_screen_custom_clock_face"
+        );
+        
+        boolean needsCenter = true;
+        if (clockFace != null) {
+            try {
+                JSONObject json = new JSONObject(clockFace);
+                String clockId = json.optString("clockId", "");
+                needsCenter = !(clockId.equalsIgnoreCase("GENERAL") || 
+                                  clockId.equalsIgnoreCase("OLD_QUICKLOOK"));
+            } catch (Exception e) {
+            }
+        }
+        
+        final boolean shouldCenter = needsCenter;
+        
+        if (mShouldCenterIcons != shouldCenter) {
+            mShouldCenterIcons = shouldCenter;
+            requestLayout();
         }
     }
 }

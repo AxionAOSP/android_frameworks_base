@@ -273,7 +273,7 @@ object KeyguardClockViewBinder {
         clockSection.applyConstraints(constraintSet)
         if (animated) {
             set?.let { TransitionManager.beginDelayedTransition(rootView, it) }
-                ?: run { TransitionManager.beginDelayedTransition(rootView, defaultTransition) }
+                ?: run { TransitionManager.beginDelayedTransition(rootView) }
         }
         constraintSet.applyTo(rootView)
     }

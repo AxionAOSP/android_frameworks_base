@@ -53,17 +53,20 @@ import com.android.systemui.keyguard.shared.model.TransitionState
 import com.android.systemui.lifecycle.repeatWhenAttached
 import com.android.systemui.log.core.Logger
 import com.android.systemui.plugins.clocks.AlarmData
+import com.android.systemui.plugins.clocks.CalendarSimpleData
 import com.android.systemui.plugins.clocks.ClockController
 import com.android.systemui.plugins.clocks.ClockEventListener
 import com.android.systemui.plugins.clocks.ClockFaceController
 import com.android.systemui.plugins.clocks.ClockFaceController.Companion.updateTheme
 import com.android.systemui.plugins.clocks.ClockMessageBuffers
 import com.android.systemui.plugins.clocks.ClockTickRate
+import com.android.systemui.plugins.clocks.NTWeatherData
 import com.android.systemui.plugins.clocks.TimeFormatKind
 import com.android.systemui.plugins.clocks.VRectF
 import com.android.systemui.plugins.clocks.WeatherData
 import com.android.systemui.plugins.clocks.ZenData
 import com.android.systemui.plugins.clocks.ZenData.ZenMode
+import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.res.R as SysuiR
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.settings.UserTracker
@@ -101,6 +104,7 @@ constructor(
     private val keyguardUpdateMonitor: KeyguardUpdateMonitor,
     // TODO b/362719719 - We should use the configuration controller associated with the display.
     private val configurationController: ConfigurationController,
+    private val statusBarStateController: StatusBarStateController,
     @DisplaySpecific private val resources: Resources,
     @DisplaySpecific val context: Context,
     @Main private val mainExecutor: DelayableExecutor,
@@ -260,6 +264,10 @@ constructor(
         context.theme.resolveAttribute(android.R.attr.isLightTheme, isLightTheme, true)
         return isLightTheme.data == 0
     }
+    
+    private fun onClockUiModeChanged() {
+        clock?.run { events.onUiModeChanged(isDarkTheme()) }
+    }
 
     private fun updateColors() {
         val isDarkTheme = isDarkTheme()
@@ -279,6 +287,11 @@ constructor(
             Log.i(TAG, "isThemeDark: $isDarkTheme")
             smallClock.updateTheme { it.copy(isDarkTheme = isDarkTheme) }
             largeClock.updateTheme { it.copy(isDarkTheme = isDarkTheme) }
+        }
+        
+        clock?.run {
+            smallClock.events.onRegionDarknessChanged(isDarkTheme)
+            largeClock.events.onRegionDarknessChanged(isDarkTheme)
         }
     }
 
@@ -334,6 +347,10 @@ constructor(
             override fun onDensityOrFontScaleChanged() {
                 updateFontSizes()
             }
+            
+            override fun onUiModeChanged() {
+                onClockUiModeChanged()
+            }
         }
 
     private val batteryCallback =
@@ -352,7 +369,14 @@ constructor(
     private val localeBroadcastReceiver =
         object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
-                clock?.run { events.onLocaleChanged(Locale.getDefault()) }
+                when (intent.action) {
+                    Intent.ACTION_LOCALE_CHANGED -> {
+                        clock?.run { events.onLocaleChanged(Locale.getDefault()) }
+                    }
+                    Intent.ACTION_DATE_CHANGED -> {
+                        clock?.run { events.onDateChanged() }
+                    }
+                }
             }
         }
 
@@ -385,6 +409,40 @@ constructor(
             override fun onWeatherDataChanged(data: WeatherData) {
                 weatherData = data
                 clock?.run { events.onWeatherDataChanged(data) }
+            }
+            
+            override fun onCalendarDataChanged(data: CalendarSimpleData) {
+                clock?.run { events.onCalendarDataChanged(data) }
+            }
+            
+            override fun onNTWeatherDataChanged(data: NTWeatherData) {
+                clock?.run { events.onNTWeatherDataChanged(data) }
+            }
+
+            override fun onQLPlaybackStateChanged(play: Boolean) {
+                clock?.run { events.onPlaybackStateChanged(play) }
+            }
+            
+            override fun onQLMetadataChanged(track: String, artist: String) {
+                clock?.run {
+                    events.onMetadataChanged(track, artist)
+                }
+            }
+            
+            override fun onNowPlayingUpdate(nowPlayingText: String) {
+                clock?.run {
+                    events.onNowPlayingUpdate(nowPlayingText)
+                }
+            }
+
+            override fun onStartedWakingUp() {
+                clock?.smallClock?.events?.onStartedWakingUp()
+                clock?.largeClock?.events?.onStartedWakingUp()
+            }
+
+            override fun onStartedGoingToSleep(why: Int) {
+                clock?.smallClock?.events?.onScreenOff(true)
+                clock?.largeClock?.events?.onScreenOff(true)
             }
 
             override fun onTimeChanged() {
@@ -430,6 +488,24 @@ constructor(
             }
         }
 
+    private val dozeCallback =
+            object : StatusBarStateController.StateListener {
+                override fun onDozingChanged(isDozing: Boolean) {
+                    clock?.smallClock?.events?.onDozeChanged(isDozing)
+                    clock?.largeClock?.events?.onDozeChanged(isDozing)
+                }
+                
+                override fun onDozeAmountChanged(linear: Float, eased: Float) {
+                    clock?.smallClock?.events?.onDozeAmountChanged(linear, eased)
+                    clock?.largeClock?.events?.onDozeAmountChanged(linear, eased)
+                }
+                
+                override fun onPulsingChanged(pulsing: Boolean) {
+                    clock?.smallClock?.events?.onPulsingChanged(pulsing)
+                    clock?.largeClock?.events?.onPulsingChanged(pulsing)
+                }
+            }
+
     private fun handleZenMode(zen: Int) {
         val mode = ZenMode.fromInt(zen)
         if (mode == null) {
@@ -453,10 +529,15 @@ constructor(
             return
         }
         isRegistered = true
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_LOCALE_CHANGED)
+            addAction(Intent.ACTION_DATE_CHANGED)
+        }
         broadcastDispatcher.registerReceiver(
             localeBroadcastReceiver,
-            IntentFilter(Intent.ACTION_LOCALE_CHANGED),
+            filter,
         )
+        statusBarStateController.addCallback(dozeCallback)
         configurationController.addCallback(configListener)
         batteryController.addCallback(batteryCallback)
         keyguardUpdateMonitor.registerCallback(keyguardUpdateMonitorCallback)
@@ -497,6 +578,7 @@ constructor(
 
         disposableHandle?.dispose()
         broadcastDispatcher.unregisterReceiver(localeBroadcastReceiver)
+        statusBarStateController.removeCallback(dozeCallback)
         configurationController.removeCallback(configListener)
         batteryController.removeCallback(batteryCallback)
         keyguardUpdateMonitor.removeCallback(keyguardUpdateMonitorCallback)
