@@ -16,18 +16,19 @@ package com.android.systemui.shared.clocks.view
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.*
-import android.os.Handler
-import android.os.Looper
 import android.text.format.DateFormat
 import android.util.AttributeSet
 import android.util.Log
 import android.view.ViewGroup
 import androidx.constraintlayout.core.motion.utils.TypedValues
 import com.android.systemui.customization.R
-import com.android.systemui.log.core.*
+import com.android.systemui.log.core.MessageBuffer
 import com.android.systemui.plugins.clocks.*
+import com.android.systemui.shared.clocks.ClockConfigs
+import kotlinx.coroutines.*
 import java.io.PrintWriter
 import java.text.SimpleDateFormat
+import java.util.concurrent.TimeUnit
 import java.util.*
 
 abstract class NTClockView @JvmOverloads constructor(
@@ -42,23 +43,85 @@ abstract class NTClockView @JvmOverloads constructor(
 
     val antiAliasFilter = PaintFlagsDrawFilter(0, 3)
     val calendar: Calendar = Calendar.getInstance()
-    val clockHandler = Handler(Looper.getMainLooper())
+    val alarmVisibilityHours = 12
+
+    private var uiScope: CoroutineScope? = null
 
     var format: String? = null
-
     var timeStr: String = ""
         internal set
-
     var locale: Locale = Locale.getDefault()
 
     var isDoze: Boolean = false
     var isScreenOff: Boolean = false
     var isRegionDark: Boolean = false
+    var isPlaying: Boolean = false
+    var trackTitle: String = ""
+    var artistName: String = ""
+    var nowPlayingText: String = ""
+    var nextAlarm: String = ""
+    
+    var nowPlayingAvailable = false
+        get() = nowPlayingText.isNotBlank()
 
-    val scaleRatio: Float = (TypedValues.CycleType.TYPE_EASING / resources.displayMetrics.densityDpi).toFloat()
+    var isNowPlaying = false
+        get() = isPlaying && isDoze
+        
+    var clockColor = Color.WHITE
+        get() = if (isDoze || isScreenOff || isRegionDark) Color.WHITE else Color.BLACK
+
+    val clockHeight: Int
+        get() {
+            val className = this::class.simpleName ?: return resources.getDimension(R.dimen.clock_height).toInt()
+            val config = ClockConfigs.clockConfigMap[className]
+            return config?.customHeightRes?.let { resources.getDimension(it).toInt() }
+                ?: (resources.getDimension(R.dimen.clock_height) + dateHeight).toInt()
+        }
+
+    val dateHeight: Int
+        get() {
+            val className = this::class.simpleName ?: return 0
+            val config = ClockConfigs.clockConfigMap[className] ?: return 0
+            if (!config.visible) return 0
+
+            val textSize = resources.getDimension(R.dimen.clock_date_text_size)
+            val marginTop = config.customDateMarginTop?.let {
+                resources.getDimension(it)
+            } ?: resources.getDimension(R.dimen.clock_date_margin_top)
+            val paddingTop = resources.getDimension(R.dimen.clock_padding_top)
+
+            return when (config.position) {
+                ClockConfigs.Position.ABOVE -> ((textSize + marginTop + paddingTop) * scaleRatio).toInt()
+                ClockConfigs.Position.BELOW -> (textSize * scaleRatio).toInt()
+            }
+        }
+
+    val talkBackContent: String
+        get() {
+            val pattern =
+                if (DateFormat.is24HourFormat(context)) CLOCK_PATTERN_24_STANDARD else "hh:mm"
+            return SimpleDateFormat(pattern, Locale.ENGLISH).format(calendar.time)
+        }
+
+    val scaleRatio: Float
+        get() = (TypedValues.CycleType.TYPE_EASING / resources.displayMetrics.densityDpi).toFloat()
+
+    private var dateTextX: Float = 0f
+    private var dateTextY: Float = 0f
+    private var dateVisible: Boolean = false
+
+    private val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = resources.getDimension(R.dimen.clock_date_text_size) * scaleRatio
+        val resId = resources.getIdentifier("config_bodyFontFamily", "string", "android")
+        val fontFamilyName =
+            if (resId != 0) resources.getString(resId) else "sans-serif"
+        val bodyTypeface = Typeface.create(fontFamilyName, Typeface.NORMAL)
+        typeface = Typeface.create(bodyTypeface, 500, false)
+    }
 
     init {
         setWillNotDraw(false)
+        initDatePaintAndPosition()
     }
 
     abstract fun drawClock(canvas: Canvas)
@@ -68,18 +131,30 @@ abstract class NTClockView @JvmOverloads constructor(
     open fun onCalendarDataChanged(data: CalendarSimpleData) {}
     open fun onDateChanged() {}
     open fun onNTWeatherDataChanged(data: NTWeatherData) {}
+
     open fun onThemeChanged(isDarkTheme: Boolean) {
+        refreshColor()
         invalidate()
     }
+
+    open fun onPlaybackStateChanged(playing: Boolean) {
+        if (isPlaying != playing) {
+            isPlaying = playing
+        }
+    }
+
+    open fun onMetadataChanged(track: String, artist: String) {
+        trackTitle = track
+        artistName = artist
+    }
     
-    open fun getClockColor(): Int {
-        return if (isDoze || isScreenOff || isRegionDark) Color.WHITE else Color.BLACK
+    open fun onNowPlayingUpdate(npText: String) {
+        nowPlayingText = npText
     }
 
-    fun setMessageBuffer(buffer: MessageBuffer) {
-    }
+    fun setMessageBuffer(buffer: MessageBuffer) {}
 
-    fun onDozeChanged(doze: Boolean) {
+    open fun onDozeChanged(doze: Boolean) {
         if (isDoze != doze) {
             isDoze = doze
             refreshColor()
@@ -90,6 +165,11 @@ abstract class NTClockView @JvmOverloads constructor(
         isDoze = false
         isScreenOff = false
         refreshColor()
+        uiScope?.launch {
+            delay(1250)
+            refreshTime()
+            postInvalidateOnAnimation()
+        }
     }
 
     fun onScreenOff(screenOff: Boolean) {
@@ -126,19 +206,16 @@ abstract class NTClockView @JvmOverloads constructor(
 
     open fun refreshTime() {
         format ?: return
-
         calendar.timeInMillis = System.currentTimeMillis()
         val newTime = SimpleDateFormat(format, Locale.ENGLISH).format(calendar.time)
-
         refreshDate()
-
         if (timeStr != newTime) {
             timeStr = newTime
-            contentDescription = getTalkBackContent()
+            contentDescription = talkBackContent
             invalidate()
         }
     }
-    
+
     fun refreshDate() {
         val dateFormat = SimpleDateFormat("EEE, dd MMM", locale)
         dateStr = dateFormat.format(calendar.time)
@@ -152,143 +229,89 @@ abstract class NTClockView @JvmOverloads constructor(
         pw.println("    formattedTime=$timeStr")
         pw.println("    locale=$locale")
     }
-    
-    fun getClockHeight(): Int {
-        val className = this::class.simpleName ?: return resources.getDimension(R.dimen.clock_height).toInt()
-        val config = clockConfigMap[className]
-
-        return config?.customHeightRes?.let { resources.getDimension(it).toInt() }
-            ?: (resources.getDimension(R.dimen.clock_height) + getDateHeight()).toInt()
-    }
-    
-    fun getDateHeight(): Int {
-        val className = this::class.simpleName ?: return 0
-        val config = clockConfigMap[className] ?: return 0
-
-        if (!config.visible) return 0
-
-        val textSize = resources.getDimension(R.dimen.clock_date_text_size)
-
-        return when (config.position) {
-            Position.ABOVE -> {
-                val marginTop = resources.getDimension(R.dimen.clock_date_margin_top)
-                val paddingTop = resources.getDimension(R.dimen.clock_padding_top)
-                ((textSize + marginTop + paddingTop) * scaleRatio).toInt()
-            }
-            Position.BELOW -> {
-                (textSize * scaleRatio).toInt()
-            }
-        }
-    }
-
-    fun getTalkBackContent(): String {
-        val pattern = if (DateFormat.is24HourFormat(context)) CLOCK_PATTERN_24_STANDARD else "hh:mm"
-        return SimpleDateFormat(pattern, Locale.ENGLISH).format(calendar.time)
-    }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         canvas.drawFilter = antiAliasFilter
-        drawDateText(canvas)
+        if (dateVisible && dateStr.isNotEmpty()) {
+            canvas.drawText(dateStr, dateTextX, dateTextY, datePaint)
+        }
         Log.d(tag, " onDraw: $isRegionDark")
         drawClock(canvas)
     }
 
-    private val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = resources.getDimension(R.dimen.clock_date_text_size) * scaleRatio
-        color = Color.BLACK
-        textAlign = Paint.Align.CENTER
+    private fun initDatePaintAndPosition() {
+        val className = this::class.simpleName ?: return
+        val config = ClockConfigs.clockConfigMap[className] ?: return
+        dateVisible = config.visible
+        datePaint.textAlign = when (config.align) {
+            ClockConfigs.Align.LEFT -> Paint.Align.LEFT
+            ClockConfigs.Align.CENTER -> Paint.Align.CENTER
+        }
+        dateTextX = when (config.align) {
+            ClockConfigs.Align.LEFT -> resources.getDimension(R.dimen.clock_padding_start)
+            ClockConfigs.Align.CENTER -> width / 2f
+        }
+        val topMargin = config.customDateMarginTop?.let {
+            resources.getDimension(it)
+        } ?: resources.getDimension(R.dimen.clock_date_margin_top)
+        dateTextY = when (config.position) {
+            ClockConfigs.Position.ABOVE -> (topMargin * scaleRatio) + datePaint.textSize
+            ClockConfigs.Position.BELOW -> height -
+                (resources.getDimension(R.dimen.clock_date_margin_top) * scaleRatio) -
+                datePaint.textSize
+        }
     }
 
-    private fun drawDateText(canvas: Canvas) {
-        val className = this::class.simpleName ?: return
-        val config = clockConfigMap[className] ?: return
-        if (!config.visible || dateStr.isEmpty()) return
-        val x = when (config.align) {
-            Align.LEFT -> resources.getDimension(R.dimen.clock_padding_start)
-            Align.CENTER -> width / 2f
-        }
-        val y = when (config.position) {
-            Position.ABOVE -> {
-                resources.getDimension(R.dimen.clock_date_margin_top) * scaleRatio +
-                datePaint.textSize
-            }
-            Position.BELOW -> {
-                height - resources.getDimension(R.dimen.clock_date_margin_top) * scaleRatio -
-                datePaint.textSize
-            }
-        }
-        datePaint.color = getClockColor()
-        datePaint.textAlign = when (config.align) {
-            Align.LEFT -> Paint.Align.LEFT
-            Align.CENTER -> Paint.Align.CENTER
-        }
-        canvas.drawText(dateStr, x, y, datePaint)
+    fun withinNHoursLocked(data: AlarmData, hours: Int): Boolean {
+        val nextAlarmMillis = data.nextAlarmMillis ?: return false
+        val jCurrentTimeMillis = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(hours.toLong())
+        return nextAlarmMillis.toLong() <= jCurrentTimeMillis
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = ViewGroup.getDefaultSize(suggestedMinimumWidth, widthMeasureSpec)
-        val height = getClockHeight()
-        setMeasuredDimension(width, height)
+        setMeasuredDimension(width, clockHeight)
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        initDatePaintAndPosition()
     }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         Log.d(tag, " onAttachedToWindow:")
+        uiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         Log.d(tag, " onDetachedFromWindow")
+        uiScope?.cancel()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         val newLocale = newConfig.locale
-
         if (newLocale != locale) {
             locale = newLocale
-            clockHandler.post {
+            uiScope?.launch {
                 refreshFormat(DateFormat.is24HourFormat(context), newLocale)
             }
         }
-    }
-
-    override fun invalidate() {
-        super.invalidate()
+        initDatePaintAndPosition()
     }
 
     protected open fun refreshColor() {
+        datePaint.color = clockColor
         invalidate()
     }
-    
+
     companion object {
         private const val CLOCK_PATTERN_12 = "hmm"
         private const val CLOCK_PATTERN_12_STANDARD = "h:mm"
         private const val CLOCK_PATTERN_24 = "HHmm"
         private const val CLOCK_PATTERN_24_STANDARD = "HH:mm"
         private const val CLOCK_PATTERN_ALL = "hmmss"
-        
-        data class ClockStyleConfig(
-            val position: Position,
-            val align: Align,
-            val visible: Boolean = true,
-            val customHeightRes: Int? = null
-        )
-
-        enum class Position { ABOVE, BELOW }
-        enum class Align { LEFT, CENTER }
-
-        private val clockConfigMap = mapOf(
-            "GeneralClockView" to ClockStyleConfig(Position.BELOW, Align.LEFT),
-            "GraphicClockView" to ClockStyleConfig(Position.ABOVE, Align.CENTER, visible = false),
-            "LondonUGClockView" to ClockStyleConfig(Position.ABOVE, Align.CENTER, customHeightRes = R.dimen.center_clock_height),
-            "NDotClockView" to ClockStyleConfig(Position.ABOVE, Align.CENTER, customHeightRes = R.dimen.center_clock_height),
-            "NTypeClockView" to ClockStyleConfig(Position.ABOVE, Align.CENTER, customHeightRes = R.dimen.center_clock_height),
-            "OldQuickLookClockView" to ClockStyleConfig(Position.ABOVE, Align.CENTER, visible = false, customHeightRes = R.dimen.old_clock_height)
-        )
     }
 }

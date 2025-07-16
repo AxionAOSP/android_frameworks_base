@@ -14,12 +14,18 @@
 package com.android.systemui.plugins.clocks
 
 data class NTWeatherData(
-    var lastUpdateTime: Long = 0L,
-    var phrase: String? = null,
-    var iconType: Int = 0,
-    var lowTemp: Int = 0,
-    var highTemp: Int = 0,
-    var temp: Int = Int.MIN_VALUE,
-    var locationKey: String? = null,
-    var locationType: Int = 0
-)
+    val city: String? = null,
+    val conditionCode: Int = 0,
+    val temp: String? = null,
+    val tempUnits: String? = null,
+    val condition: String? = null,
+    val windSpeed: String? = null,
+    val windUnits: String? = null,
+    val pinWheel: String? = null,
+    val humidity: String? = null,
+    val timeStamp: Long = 0L
+) {
+    companion object {
+        val EMPTY = NTWeatherData()
+    }
+}

@@ -19,35 +19,13 @@ import android.util.Log
 import java.util.Objects
 import java.util.concurrent.TimeUnit
 
-class CalendarSimpleData {
-
-    val id: Long
-    val title: String?
-    val startTime: Long
-    val endTime: Long
-    val location: String?
-
-    constructor() {
-        this.id = 0L
-        this.title = null
-        this.startTime = 0L
-        this.endTime = 0L
-        this.location = null
-    }
-
-    constructor(
-        id: Long,
-        title: String?,
-        startTime: Long,
-        endTime: Long,
-        location: String?
-    ) {
-        this.id = id
-        this.title = title
-        this.startTime = startTime
-        this.endTime = endTime
-        this.location = location
-    }
+class CalendarSimpleData(
+    val id: Long = 0L,
+    val title: String? = null,
+    val startTime: Long = 0L,
+    val endTime: Long = 0L,
+    val location: String? = null
+) {
 
     fun getToBeginTime(): Long {
         val currentTime = System.currentTimeMillis()
@@ -92,10 +70,7 @@ class CalendarSimpleData {
         const val EVENT_STATUS_NOW = 2
         const val EVENT_STATUS_END = 3
 
-        fun buildDataFromCursor(cursor: Cursor?): CalendarSimpleData? {
-            Log.d(TAG, "cursor $cursor")
-            if (cursor == null || cursor.count <= 0) return null
-
+        fun buildDataFromCursor(cursor: Cursor): CalendarSimpleData {
             val id = cursor.getLong(cursor.getColumnIndexOrThrow("event_id"))
             val title = cursor.getString(cursor.getColumnIndexOrThrow("title"))
             val location = cursor.getString(cursor.getColumnIndexOrThrow("eventLocation"))
@@ -106,5 +81,7 @@ class CalendarSimpleData {
 
             return CalendarSimpleData(id, title, begin, end, location)
         }
+        
+        val EMPTY = CalendarSimpleData()
     }
 }

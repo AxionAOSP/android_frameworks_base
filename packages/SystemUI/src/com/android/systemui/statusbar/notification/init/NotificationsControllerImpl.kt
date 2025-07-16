@@ -108,6 +108,7 @@ constructor(
             }
         }
         peopleSpaceWidgetManager.attach(notificationListener)
+        com.android.systemui.media.MediaManager.get().addHandler(notificationListener)
     }
 
     // TODO: Convert all functions below this line into listeners instead of public methods

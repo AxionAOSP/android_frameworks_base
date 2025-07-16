@@ -349,4 +349,10 @@ public class KeyguardUpdateMonitorCallback {
      * Called when receive new nt weather data.
      */
     public void onNTWeatherDataChanged(NTWeatherData data) { }
+    
+    public void onQLPlaybackStateChanged(boolean play) { }
+    
+    public void onQLMetadataChanged(String track, String artist) { }
+
+    public void onNowPlayingUpdate(String nowPlayingText) { }
 }

@@ -263,7 +263,7 @@ constructor(
         return isLightTheme.data == 0
     }
     
-    private fun onUiModeChanged() {
+    private fun onClockUiModeChanged() {
         clock?.run { events.onUiModeChanged(isDarkTheme()) }
     }
 
@@ -345,7 +345,7 @@ constructor(
             }
             
             override fun onUiModeChanged() {
-                onUiModeChanged()
+                onClockUiModeChanged()
             }
         }
 
@@ -413,6 +413,22 @@ constructor(
             
             override fun onNTWeatherDataChanged(data: NTWeatherData) {
                 clock?.run { events.onNTWeatherDataChanged(data) }
+            }
+
+            override fun onQLPlaybackStateChanged(play: Boolean) {
+                clock?.run { events.onPlaybackStateChanged(play) }
+            }
+            
+            override fun onQLMetadataChanged(track: String, artist: String) {
+                clock?.run {
+                    events.onMetadataChanged(track, artist)
+                }
+            }
+            
+            override fun onNowPlayingUpdate(nowPlayingText: String) {
+                clock?.run {
+                    events.onNowPlayingUpdate(nowPlayingText)
+                }
             }
 
             override fun onStartedWakingUp() {

@@ -84,7 +84,7 @@ class NTypeClockView @JvmOverloads constructor(
         val availableWidth = min(totalWidth, maxWidth)
         val startX = (width - availableWidth) / 2
 
-        val color = getClockColor()
+        val color = clockColor
         paint.colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN)
 
         var currentX = startX

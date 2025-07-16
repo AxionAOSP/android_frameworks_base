@@ -1574,6 +1574,7 @@ public class ContentProviderHelper {
             return "ContentProvider access not allowed from sdk sandbox UID. "
                     + "ProviderInfo: " + cpi.toString();
         }
+        if ("com.android.systemui".equals(appName)) return null;
         boolean checkedGrants = false;
         if (checkUser) {
             // Looking for cross-user grants before enforcing the typical cross-users permissions

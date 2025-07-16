@@ -68,7 +68,7 @@ class GraphicClockView @JvmOverloads constructor(
         if (timeStr.isNullOrBlank() || !TextUtils.isDigitsOnly(timeStr)) return
 
         val dotSize = resources.getDimension(R.dimen.dot_size) * scaleRatio
-        val dotColor = getClockColor()
+        val dotColor = clockColor
 
         drawClockTicks(canvas)
         drawClockDot(canvas, dotSize * 1.5f, dotColor)
@@ -99,7 +99,7 @@ class GraphicClockView @JvmOverloads constructor(
             val hours = time.dropLast(4).toInt()
 
             val baseLength = resources.getDimension(R.dimen.clock_hand_size) * scaleRatio
-            val baseColor = getClockColor()
+            val baseColor = clockColor
             val highlightColor = ContextCompat.getColor(context, R.color.clock_dot_color)
 
             val hourAngle = (hours + minutes / 60f) * 5
@@ -141,7 +141,7 @@ class GraphicClockView @JvmOverloads constructor(
         val tick = this.tick ?: return
         val tickLight = this.tickLight ?: return
 
-        val color = getClockColor()
+        val color = clockColor
 
         tickPaint.colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN)
 
@@ -176,7 +176,7 @@ class GraphicClockView @JvmOverloads constructor(
         checkNotNull(str)
         if (str.isNotEmpty()) {
             timeStr = str
-            setContentDescription(getTalkBackContent())
+            setContentDescription(talkBackContent)
             invalidate()
         }
     }

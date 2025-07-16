@@ -16,6 +16,7 @@ package com.android.systemui.shared.clocks.view
 import android.content.Context
 import android.content.res.Resources
 import android.graphics.*
+import android.graphics.drawable.AnimatedVectorDrawable
 import android.icu.text.DateFormat
 import android.icu.text.DisplayContext
 import android.os.Handler
@@ -31,7 +32,6 @@ import android.widget.TextView
 import com.android.systemui.customization.R
 import com.android.systemui.plugins.clocks.*
 import com.android.systemui.shared.clocks.*
-import java.util.concurrent.TimeUnit
 import java.util.*
 
 class OldQuickLookClockView @JvmOverloads constructor(
@@ -46,12 +46,9 @@ class OldQuickLookClockView @JvmOverloads constructor(
     private val datePattern = context.getString(R.string.system_ui_aod_date_pattern)
 
     private var lastText: String? = null
-    private var nextAlarm: String? = null
     private var calendarData: CalendarSimpleData? = null
     private var weatherData: NTWeatherData? = null
     private var isDarkTheme: Boolean? = null
-
-    private val alarmVisibilityHours = 12
 
     override fun getTag(): String = "OLDQuickLookClockView"
 
@@ -65,6 +62,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
 
     private val alarmIconView get() = findViewById<ImageView>(R.id.alarm_icon_view)
     private val weatherIconView get() = findViewById<ImageView>(R.id.weather_icon_view)
+    private val npIconView get() = findViewById<ImageView>(R.id.now_playing_icon)
 
     private val dateContainerView get() = findViewById<LinearLayout>(R.id.date_container_view)
     private val weatherContainerView get() = findViewById<View>(R.id.weather_container_view)
@@ -82,7 +80,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
     }
 
     override fun refreshColor() {
-        val color = getClockColor()
+        val color = clockColor
 
         listOf(
             clockTextView, dateTextView, placeholderTextView,
@@ -171,6 +169,15 @@ class OldQuickLookClockView @JvmOverloads constructor(
             }
         }
 
+        npIconView?.apply {
+            (layoutParams as? LinearLayout.LayoutParams)?.apply {
+                width = iconSize
+                height = iconSize
+                marginEnd = weatherPadding
+            }
+            setBottomMargin(infoPadding)
+        }
+
         calendarTitleTextView?.apply {
             setTextSize(0, secondaryTextSize)
             setBottomMargin(infoPadding)
@@ -206,10 +213,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
             val locale = Locale.getDefault()
             val instanceForSkeleton = DateFormat.getInstanceForSkeleton(this.datePattern, locale)
             instanceForSkeleton.setContext(DisplayContext.CAPITALIZATION_FOR_BEGINNING_OF_SENTENCE)
-            val date = this.currentTime
-            if (date != null) {
-                date.setTime(System.currentTimeMillis())
-            }
+            currentTime.setTime(System.currentTimeMillis())
             if (instanceForSkeleton != null) {
                 return instanceForSkeleton.format(this.currentTime)
             }
@@ -218,53 +222,69 @@ class OldQuickLookClockView @JvmOverloads constructor(
 
     private fun refreshInfo(calendar: CalendarSimpleData?, weather: NTWeatherData?) {
         val isJpLang = Locale.getDefault().language == "ja"
-        val fontFamily = if (isJpLang) "NDot77JPExtended" else "NDot55"
+        val fontFamily = if (isJpLang) "NDot77JPExtended" else "nothingdot"
         val textTypeface = Typeface.create(fontFamily, Typeface.NORMAL)
 
-        val temp = weather?.temp ?: Int.MIN_VALUE
-        val phrase = weather?.phrase ?: ""
-        val weatherIcon = WeatherUtils.getWeatherIcon(weather?.iconType ?: 0)
+        val temperature = weather?.temp ?: ""
+        val weatherCondition = weather?.condition ?: ""
+        val conditionCode = weather?.conditionCode ?: 0
+        val weatherIcon = WeatherUtils.getWeatherIcon(context, conditionCode)
 
-        val hasWeather = weather != null
-        val hasWeatherDetails = temp != Int.MIN_VALUE && phrase.isNotEmpty() && weatherIcon != 0
-        val hasCalendar = calendar?.isEventVisible() == true
+        val hasCalendarData = calendar != null && calendar != CalendarSimpleData.EMPTY
+        val showWeather = weather != null && weather != NTWeatherData.EMPTY 
+            && temperature.isNotEmpty() 
+            && weatherCondition.isNotEmpty() && conditionCode != 0
+        val showCalendar = hasCalendarData && calendar?.isEventVisible() == true
 
-        Log.d(getTag(), "refreshInfo hasCalendar:$hasCalendar hasWeather:$hasWeather")
+        if (!isPlaying && !nowPlayingAvailable) {
+            NowPlayingIconBinder.get().stop()
+            npIconView.setImageDrawable(null)
+            npIconView.visibility = View.GONE
+        }
 
-        if (hasCalendar) {
-            calendarTitleTextView?.text = calendar.title ?: ""
-
-            val location = calendar.location ?: ""
-            var calenderWidgetTime = CalendarUtils.getCalendarWidgetTime(context, calendar)
-            if (location.isNotBlank()) {
-                calenderWidgetTime += " $location"
-            }
-            calendarInfoTextView?.text = calenderWidgetTime
-
+        if (nowPlayingAvailable) {
+            npIconView.visibility = View.VISIBLE
+            NowPlayingIconBinder.get().bindAndStart(npIconView)
+            calendarTitleTextView?.text = "$nowPlayingText"
+            calendarInfoTextView?.text = ""
             calendarContainerView?.visibility = View.VISIBLE
             weatherContainerView?.visibility = View.GONE
             placeholderTextView?.visibility = View.GONE
             dateContainerView?.visibility = View.GONE
-        } else if (hasWeather) {
-            if (hasWeatherDetails) {
-                val weatherText = "$temp° $phrase"
-                weatherIconView?.setImageResource(weatherIcon)
-                weatherTextView?.text = weatherText
-
-                weatherContainerView?.visibility = View.VISIBLE
-                placeholderTextView?.visibility = View.GONE
-            } else {
-                weatherContainerView?.visibility = View.GONE
-                placeholderTextView?.visibility = View.VISIBLE
+        } else if (isNowPlaying) {
+            npIconView.visibility = View.VISIBLE
+            NowPlayingIconBinder.get().bindAndStart(npIconView)
+            calendarTitleTextView?.text = "$trackTitle"
+            calendarInfoTextView?.text = "$artistName"
+            calendarContainerView?.visibility = View.VISIBLE
+            weatherContainerView?.visibility = View.GONE
+            placeholderTextView?.visibility = View.GONE
+            dateContainerView?.visibility = View.GONE
+        } else if (showCalendar) {
+            calendarTitleTextView?.text = calendar.title ?: ""
+            val location = calendar.location.orEmpty()
+            var calTime = CalendarUtils.getCalendarWidgetTime(context, calendar)
+            if (location.isNotBlank()) {
+                calTime += " $location"
             }
-
-            dateContainerView?.visibility = View.VISIBLE
+            calendarInfoTextView?.text = calTime
+            calendarContainerView?.visibility = View.VISIBLE
+            weatherContainerView?.visibility = View.GONE
+            placeholderTextView?.visibility = View.GONE
+            dateContainerView?.visibility = View.GONE
+        } else if (showWeather) {
+            val weatherText = "$temperature° $weatherCondition"
+            weatherIconView?.setImageDrawable(weatherIcon)
+            weatherTextView?.text = weatherText
             calendarContainerView?.visibility = View.GONE
-        } else {
+            weatherContainerView?.visibility = View.VISIBLE
             placeholderTextView?.visibility = View.GONE
             dateContainerView?.visibility = View.VISIBLE
+        } else {
             calendarContainerView?.visibility = View.GONE
             weatherContainerView?.visibility = View.GONE
+            placeholderTextView?.visibility = View.VISIBLE
+            dateContainerView?.visibility = View.VISIBLE
         }
 
         calendarTitleTextView?.includeFontPadding = false
@@ -274,7 +294,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
         dateTextView?.includeFontPadding = true
         alarmInfoTextView?.includeFontPadding = true
 
-        clockTextView?.typeface = Typeface.create("NDot57", Typeface.NORMAL)
+        clockTextView?.typeface = Typeface.create("nothingdot57", Typeface.NORMAL)
 
         val infoTextViews = listOf(
             calendarTitleTextView,
@@ -291,8 +311,27 @@ class OldQuickLookClockView @JvmOverloads constructor(
         refreshUI()
     }
 
+    override fun onPlaybackStateChanged(playing: Boolean) {
+        super.onPlaybackStateChanged(playing)
+        refreshInfo(calendarData, weatherData)
+    }
+
+    override fun onMetadataChanged(track: String, artist: String) {
+        super.onMetadataChanged(track, artist)
+        refreshInfo(calendarData, weatherData)
+    }
+
+    override fun onDozeChanged(doze: Boolean) {
+        super.onDozeChanged(doze)
+        refreshInfo(calendarData, weatherData)
+    }
+
+    override fun onNowPlayingUpdate(npText: String) {
+        super.onNowPlayingUpdate(npText)
+        refreshInfo(calendarData, weatherData)
+    }
+
     override fun onAlarmDataChanged(data: AlarmData) {
-        if (data == null) return
         super.onAlarmDataChanged(data)
         val withinHours = withinNHoursLocked(data, alarmVisibilityHours)
         val nextAlarmMillis = data.nextAlarmMillis ?: 0L
@@ -301,7 +340,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
             android.text.format.DateFormat.format(format, nextAlarmMillis).toString()
         } else ""
 
-        val visible = nextAlarm?.isNotBlank() == true
+        val visible = nextAlarm.isNotBlank() == true
         alarmIconView?.visibility = if (visible) View.VISIBLE else View.GONE
         alarmInfoTextView?.apply {
             visibility = if (visible) View.VISIBLE else View.GONE
@@ -312,21 +351,13 @@ class OldQuickLookClockView @JvmOverloads constructor(
     }
 
     override fun onNTWeatherDataChanged(data: NTWeatherData) {
-        if (data == weatherData) return
         weatherData = data
         refreshInfo(calendarData, weatherData)
     }
 
     override fun onCalendarDataChanged(data: CalendarSimpleData) {
-        if (data == calendarData) return
         calendarData = data
         refreshInfo(calendarData, weatherData)
-    }
-
-    fun withinNHoursLocked(data: AlarmData, hours: Int): Boolean {
-        val nextAlarmMillis = data.nextAlarmMillis ?: return false
-        val jCurrentTimeMillis = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(hours.toLong())
-        return nextAlarmMillis.toLong() <= jCurrentTimeMillis
     }
 
     override fun refreshFormat(use24HourFormat: Boolean, newLocale: Locale) {

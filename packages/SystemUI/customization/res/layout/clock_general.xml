@@ -17,7 +17,7 @@
             android:layout_alignParentBottom="true"
             android:lineSpacingExtra="0dp"
             android:lineSpacingMultiplier="1"
-            android:fontFamily="ndot"
+            android:fontFamily="nothingdot"
             android:layoutDirection="ltr"
             android:layout_alignParentStart="true"
             android:textFontWeight="400"/>
@@ -54,7 +54,7 @@
                 android:lineSpacingMultiplier="1"
                 android:textFontWeight="500"/>
             <ImageView
-                android:id="@+id/weather_icon_view"
+                android:id="@+id/quick_look_icon_view"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"/>
             <TextView
