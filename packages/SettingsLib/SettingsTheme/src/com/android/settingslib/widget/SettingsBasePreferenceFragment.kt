@@ -28,6 +28,16 @@ import androidx.recyclerview.widget.RecyclerView
 /** Base class for Settings to use PreferenceFragmentCompat */
 abstract class SettingsBasePreferenceFragment : PreferenceFragmentCompat() {
 
+    companion object {
+        private val excludedFromTheming = setOf(
+            "com.android.settings.applications.RunningServices"
+        )
+
+        fun shouldSkipTheming(fragment: PreferenceFragmentCompat): Boolean {
+            return excludedFromTheming.contains(fragment::class.qualifiedName)
+        }
+    }
+
     @CallSuper
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -40,6 +50,9 @@ abstract class SettingsBasePreferenceFragment : PreferenceFragmentCompat() {
     @CallSuper
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        
+        if (shouldSkipTheming(this)) return
+
         if (SettingsThemeHelper.isExpressiveTheme(requireContext())) {
             // Don't allow any divider in between the preferences in expressive design.
             setDivider(null)
@@ -47,6 +60,9 @@ abstract class SettingsBasePreferenceFragment : PreferenceFragmentCompat() {
     }
 
     override fun onCreateAdapter(preferenceScreen: PreferenceScreen): RecyclerView.Adapter<*> {
+        if (shouldSkipTheming(this)) {
+            return super.onCreateAdapter(preferenceScreen)
+        }
         if (SettingsThemeHelper.isExpressiveTheme(requireContext()))
             return SettingsPreferenceGroupAdapter(preferenceScreen)
         return super.onCreateAdapter(preferenceScreen)
