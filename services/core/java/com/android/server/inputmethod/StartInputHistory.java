@@ -52,11 +52,7 @@ final class StartInputHistory {
     private static final int ENTRY_SIZE_FOR_LOW_RAM_DEVICE = 5;
 
     private static int getEntrySize() {
-        if (ActivityManager.isLowRamDeviceStatic()) {
-            return ENTRY_SIZE_FOR_LOW_RAM_DEVICE;
-        } else {
-            return ENTRY_SIZE_FOR_HIGH_RAM_DEVICE;
-        }
+        return ENTRY_SIZE_FOR_LOW_RAM_DEVICE;
     }
 
     /**
