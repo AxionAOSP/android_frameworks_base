@@ -77,4 +77,7 @@
     <dimen name="kg_widgets_icon_padding">24dp</dimen>
     <dimen name="kg_widget_margin_vertical">16dp</dimen>
     <dimen name="kg_widget_margin_bottom">6dp</dimen>
+
+    <!-- Pulse -->
+    <dimen name="visualizer_pulse_height">300dp</dimen>
 </resources>
