@@ -102,11 +102,7 @@ constructor(
     private val iconSize: Int
         get() =
             sysuiContext.resources.getDimensionPixelSize(
-                if (ActivityManager.isLowRamDeviceStatic()) {
-                    R.dimen.notification_small_icon_size_low_ram
-                } else {
-                    R.dimen.notification_small_icon_size
-                }
+                R.dimen.notification_small_icon_size_low_ram
             )
 
     private val densityDpi: Int
