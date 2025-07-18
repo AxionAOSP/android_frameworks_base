@@ -19,6 +19,7 @@ package com.android.systemui.dagger
 import com.android.systemui.CoreStartable
 import com.android.systemui.edgelight.EdgeLightViewController
 import com.android.systemui.media.MediaViewController
+import com.android.systemui.pulse.PulseViewController
 import dagger.Binds
 import dagger.Module
 import dagger.multibindings.ClassKey
@@ -37,4 +38,10 @@ abstract class AxionStartableModule {
     @IntoMap
     @ClassKey(MediaViewController::class)
     abstract fun bindMediaViewController(impl: MediaViewController): CoreStartable
+
+    /** Inject into PulseViewController. */
+    @Binds
+    @IntoMap
+    @ClassKey(PulseViewController::class)
+    abstract fun bindPulseViewController(impl: PulseViewController): CoreStartable
 }
