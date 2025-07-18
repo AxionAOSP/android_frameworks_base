@@ -620,7 +620,7 @@ public final class SystemServiceManager implements Dumpable {
             case USER_STARTING:
                 // Don't allow lifecycle parallelization for user start on low ram devices and
                 // the system user.
-                return !ActivityManager.isLowRamDeviceStatic() && userId != UserHandle.USER_SYSTEM;
+                return false;
             case USER_COMPLETED_EVENT:
                 return true;
             default:
