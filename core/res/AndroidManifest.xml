@@ -853,6 +853,7 @@
     <protected-broadcast android:name="android.service.ondeviceintelligence.MODEL_LOADED" />
     <protected-broadcast android:name="android.service.ondeviceintelligence.MODEL_UNLOADED" />
     <protected-broadcast android:name="android.telephony.satellite.action.SATELLITE_START_NON_EMERGENCY_SESSION" />
+    <protected-broadcast android:name="com.android.systemui.doze.pulse" />
 
 
     <!-- LineageOS additions -->
