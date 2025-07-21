@@ -17,6 +17,7 @@
 package com.android.systemui.dagger
 
 import com.android.systemui.CoreStartable
+import com.android.systemui.edgelight.EdgeLightViewController
 import dagger.Binds
 import dagger.Module
 import dagger.multibindings.ClassKey
@@ -24,4 +25,9 @@ import dagger.multibindings.IntoMap
 
 @Module
 abstract class AxionStartableModule {
+    /** Inject into EdgeLightViewController. */
+    @Binds
+    @IntoMap
+    @ClassKey(EdgeLightViewController::class)
+    abstract fun bindEdgeLightViewController(impl: EdgeLightViewController): CoreStartable
 }
