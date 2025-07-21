@@ -138,6 +138,7 @@ import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.dagger.qualifiers.UiBackground;
 import com.android.systemui.demomode.DemoMode;
 import com.android.systemui.demomode.DemoModeController;
+import com.android.systemui.edgelight.EdgeLightViewController;
 import com.android.systemui.emergency.EmergencyGesture;
 import com.android.systemui.emergency.EmergencyGestureModule.EmergencyGestureIntentFactory;
 import com.android.systemui.flags.FeatureFlags;
@@ -1547,6 +1548,9 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
         mRemoteInputManager.addControllerCallback(mNotificationShadeWindowController);
         mGutsManager.setNotificationActivityStarter(mNotificationActivityStarterLazy.get());
         mShadeController.setNotificationPresenter(mPresenterLazy.get());
+        getNotifContainerParentView().addView(
+            EdgeLightViewController.get(mContext).getEdgeLightView(), 2
+        );
         mNotificationsController.initialize(
                 mPresenterLazy.get(),
                 mNotifListContainer,
