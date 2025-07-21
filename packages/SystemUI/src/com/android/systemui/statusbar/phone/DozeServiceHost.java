@@ -310,6 +310,7 @@ public final class DozeServiceHost implements DozeHost {
                 mCentralSurfaces.updateScrimController();
                 mPulseExpansionHandler.setPulsing(pulsing);
                 mNotificationWakeUpCoordinator.setPulsing(pulsing);
+                com.android.systemui.edgelight.EdgeLightViewController.Companion.get().setPulsing(pulsing);
             }
         }, reason);
         // DozeScrimController is in pulse state, now let's ask ScrimController to start
