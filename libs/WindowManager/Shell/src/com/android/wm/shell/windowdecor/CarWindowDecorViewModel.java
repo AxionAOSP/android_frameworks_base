@@ -267,9 +267,6 @@ public abstract class CarWindowDecorViewModel
                 WindowContainerTransaction wct = new WindowContainerTransaction();
                 wct.removeTask(mTaskToken);
                 mSyncQueue.queue(wct);
-            } else if (id == R.id.back_button) {
-                sendBackEvent(KeyEvent.ACTION_DOWN, mDisplayId);
-                sendBackEvent(KeyEvent.ACTION_UP, mDisplayId);
             }
         }
 

@@ -52,4 +52,5 @@
     <item type="id" name="action_snap_left"/>
     <item type="id" name="action_snap_right"/>
     <item type="id" name="action_maximize_restore"/>
+    <item type="id" name="back_button"/>
 </resources>

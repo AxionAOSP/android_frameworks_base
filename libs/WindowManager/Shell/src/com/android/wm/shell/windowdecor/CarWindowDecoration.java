@@ -166,9 +166,5 @@ public class CarWindowDecoration extends WindowDecoration<WindowDecorLinearLayou
         if (close != null) {
             close.setOnClickListener(onClickListener);
         }
-        final View back = caption.findViewById(R.id.back_button);
-        if (back != null) {
-            back.setOnClickListener(onClickListener);
-        }
     }
 }

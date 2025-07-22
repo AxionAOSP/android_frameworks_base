@@ -851,7 +851,7 @@ public abstract class WindowDecoration<T extends View & TaskFocusStateConsumer>
         final Region mDisplayExclusionRegion = Region.obtain();
 
         @Deprecated
-        int mShadowRadius = INVALID_SHADOW_RADIUS;
+        int mShadowRadius = 0;
         @Deprecated
         int mCornerRadius = INVALID_CORNER_RADIUS;
 
@@ -884,7 +884,7 @@ public abstract class WindowDecoration<T extends View & TaskFocusStateConsumer>
                 mShadowRadiusId = Resources.ID_NULL;
                 mCornerRadiusId = Resources.ID_NULL;
             } else {
-                mShadowRadius = INVALID_SHADOW_RADIUS;
+                mShadowRadius = 0;
                 mCornerRadius = INVALID_SHADOW_RADIUS;
             }
 

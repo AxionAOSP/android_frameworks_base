@@ -162,6 +162,9 @@ abstract class AbsAppSnapshotController<TYPE extends WindowContainer,
     @VisibleForTesting
     SnapshotSupplier captureSnapshot(TYPE source, boolean allowAppTheme) {
         final SnapshotSupplier supplier = new SnapshotSupplier();
+        if (source.getWindowConfiguration().tasksAreFloating()) {
+            return supplier;
+        }
         switch (getSnapshotMode(source)) {
             case SNAPSHOT_MODE_APP_THEME:
                 Trace.traceBegin(Trace.TRACE_TAG_WINDOW_MANAGER, "drawAppThemeSnapshot");

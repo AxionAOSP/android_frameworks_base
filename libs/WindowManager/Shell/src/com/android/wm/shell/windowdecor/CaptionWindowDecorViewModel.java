@@ -37,6 +37,8 @@ import android.hardware.input.InputManager;
 import android.os.Handler;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.provider.Settings;
 import android.util.Log;
 import android.util.SparseArray;
@@ -61,6 +63,7 @@ import com.android.wm.shell.common.DisplayController;
 import com.android.wm.shell.common.ShellExecutor;
 import com.android.wm.shell.common.SyncTransactionQueue;
 import com.android.wm.shell.freeform.FreeformTaskTransitionStarter;
+import com.android.wm.shell.freeform.IFreeformTaskInterceptor;
 import com.android.wm.shell.shared.FocusTransitionListener;
 import com.android.wm.shell.shared.annotations.ShellBackgroundThread;
 import com.android.wm.shell.shared.annotations.ShellMainThread;
@@ -71,6 +74,7 @@ import com.android.wm.shell.transition.Transitions;
 import com.android.wm.shell.windowdecor.common.viewhost.WindowDecorViewHost;
 import com.android.wm.shell.windowdecor.common.viewhost.WindowDecorViewHostSupplier;
 import com.android.wm.shell.windowdecor.extension.TaskInfoKt;
+import com.android.internal.jank.InteractionJankMonitor;
 
 /**
  * View model for the window decoration with a caption and shadows. Works with
@@ -95,6 +99,9 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
     private final WindowDecorViewHostSupplier<WindowDecorViewHost> mWindowDecorViewHostSupplier;
     private TaskOperations mTaskOperations;
     private FocusTransitionObserver mFocusTransitionObserver;
+    private final InteractionJankMonitor mInteractionJankMonitor;
+    private final VeiledResizer mVeiledResizer;
+    private IFreeformTaskInterceptor mFreeformTaskInterceptor;
 
     /**
      * Whether to pilfer the next motion event to send cancellations to the windows below.
@@ -134,7 +141,9 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
             SyncTransactionQueue syncQueue,
             Transitions transitions,
             FocusTransitionObserver focusTransitionObserver,
-            WindowDecorViewHostSupplier<WindowDecorViewHost> windowDecorViewHostSupplier) {
+            WindowDecorViewHostSupplier<WindowDecorViewHost> windowDecorViewHostSupplier,
+            InteractionJankMonitor interactionJankMonitor,
+            VeiledResizer veiledResizer) {
         mContext = context;
         mMainExecutor = shellExecutor;
         mMainHandler = mainHandler;
@@ -148,6 +157,8 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
         mTransitions = transitions;
         mFocusTransitionObserver = focusTransitionObserver;
         mWindowDecorViewHostSupplier = windowDecorViewHostSupplier;
+        mInteractionJankMonitor = interactionJankMonitor;
+        mVeiledResizer = veiledResizer;
         if (!Transitions.ENABLE_SHELL_TRANSITIONS) {
             mTaskOperations = new TaskOperations(null, mContext, mSyncQueue);
         }
@@ -178,6 +189,11 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
     @Override
     public void setFreeformTaskTransitionStarter(FreeformTaskTransitionStarter transitionStarter) {
         mTaskOperations = new TaskOperations(transitionStarter, mContext, mSyncQueue);
+    }
+
+    @Override
+    public void setFreeformTaskInterceptor(IFreeformTaskInterceptor freeformTaskInterceptor) {
+        mFreeformTaskInterceptor = freeformTaskInterceptor;
     }
 
     @Override
@@ -343,20 +359,38 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
                         mBgExecutor,
                         mMainChoreographer,
                         mSyncQueue,
-                        mWindowDecorViewHostSupplier);
+                        mWindowDecorViewHostSupplier,
+                        mVeiledResizer);
         mWindowDecorByTaskId.put(taskInfo.taskId, windowDecoration);
 
-        final FluidResizeTaskPositioner taskPositioner =
-                new FluidResizeTaskPositioner(mTaskOrganizer, mTransitions, windowDecoration,
-                        mDisplayController);
+        final DragPositioningCallback taskPositioner = createDragPositioningCallback(
+                windowDecoration);
         final CaptionTouchEventListener touchEventListener =
                 new CaptionTouchEventListener(taskInfo, taskPositioner);
         windowDecoration.setCaptionListeners(touchEventListener, touchEventListener);
         windowDecoration.setDragPositioningCallback(taskPositioner);
-        windowDecoration.setTaskDragResizer(taskPositioner);
+        windowDecoration.setTaskDragResizer((VeiledResizeTaskPositioner) taskPositioner);
         windowDecoration.relayout(taskInfo, startT, finishT,
                 false /* applyStartTransactionOnDraw */, false /* setTaskCropAndPosition */,
                 mFocusTransitionObserver.hasGlobalFocus(taskInfo), mExclusionRegion);
+    }
+
+    private DragPositioningCallback createDragPositioningCallback(
+            CaptionWindowDecoration windowDecoration) {
+            windowDecoration.createResizeVeil();
+        return new VeiledResizeTaskPositioner(
+                mTaskOrganizer,
+                windowDecoration,
+                mDisplayController,
+                new DragPositioningCallbackUtility.DragEventListener() {
+                    @Override
+                    public void onDragStart(int taskId) {}
+                    @Override
+                    public void onDragMove(int taskId) {}
+                },
+                mTransitions,
+                mInteractionJankMonitor,
+                mMainHandler);
     }
 
     private class CaptionTouchEventListener implements
@@ -371,6 +405,11 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
         private int mDragPointerId = -1;
         private boolean mIsDragging;
 
+        private static final long LONG_PRESS_TIMEOUT_MS = 500;
+        private boolean mLongPressTriggered = false;
+        private float mInitialX, mInitialY;
+        private final Runnable mLongPressRunnable;
+
         private CaptionTouchEventListener(
                 RunningTaskInfo taskInfo,
                 DragPositioningCallback dragPositioningCallback) {
@@ -380,6 +419,22 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
             mDragDetector = new DragDetector(this, 0 /* holdToDragMinDurationMs */,
                     ViewConfiguration.get(mContext).getScaledTouchSlop());
             mDisplayId = taskInfo.displayId;
+            mLongPressRunnable = () -> {
+                if (!mIsDragging) {
+                    mLongPressTriggered = true;
+                    playLongPressHaptic();
+                    final WindowContainerTransaction wct = new WindowContainerTransaction();
+                    wct.setAlwaysOnTop(mTaskToken, false);
+                    wct.setDensityDpi(mTaskToken, 0);
+                    mTaskOrganizer.applyTransaction(wct);
+                    mMainHandler.postDelayed(() -> {
+                        DisplayAreaInfo rootDisplayAreaInfo =
+                                mRootTaskDisplayAreaOrganizer.getDisplayAreaInfo(taskInfo.displayId);
+                        mTaskOperations.maximizeTask(taskInfo,
+                                rootDisplayAreaInfo.configuration.windowConfiguration.getWindowingMode());
+                    }, 300);
+                }
+            };
         }
 
         @Override
@@ -387,18 +442,12 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
             final int id = v.getId();
             if (id == R.id.close_window) {
                 mTaskOperations.closeTask(mTaskToken);
-            } else if (id == R.id.back_button) {
-                mTaskOperations.injectBackKey(mDisplayId);
             } else if (id == R.id.minimize_window) {
+                final RunningTaskInfo taskInfo = mTaskOrganizer.getRunningTaskInfo(mTaskId);
+                mFreeformTaskInterceptor.onTaskMinimized(taskInfo);
                 // This minimize button uses the same effect for any minimization. The last argument
                 // doesn't matter.
                 mTaskOperations.minimizeTask(mTaskToken, mTaskId, /* isLastTask= */ false);
-            } else if (id == R.id.maximize_window) {
-                RunningTaskInfo taskInfo = mTaskOrganizer.getRunningTaskInfo(mTaskId);
-                final DisplayAreaInfo rootDisplayAreaInfo =
-                        mRootTaskDisplayAreaOrganizer.getDisplayAreaInfo(taskInfo.displayId);
-                mTaskOperations.maximizeTask(taskInfo,
-                        rootDisplayAreaInfo.configuration.windowConfiguration.getWindowingMode());
             }
         }
 
@@ -471,44 +520,62 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
             if (taskInfo.getWindowingMode() == WINDOWING_MODE_FULLSCREEN) {
                 return false;
             }
+
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN: {
                     mDragPointerId = e.getPointerId(0);
-                    mDragPositioningCallback.onDragPositioningStart(
-                            0 /* ctrlType */, e.getDisplayId(), e.getRawX(0), e.getRawY(0));
+                    mInitialX = e.getRawX();
+                    mInitialY = e.getRawY();
                     mIsDragging = false;
+                    mLongPressTriggered = false;
+
+                    mMainHandler.postDelayed(mLongPressRunnable, LONG_PRESS_TIMEOUT_MS);
+
+                    mDragPositioningCallback.onDragPositioningStart(
+                            0 /* ctrlType */, e.getDisplayId(), mInitialX, mInitialY);
                     return false;
                 }
+
                 case MotionEvent.ACTION_MOVE: {
-                    if (e.findPointerIndex(mDragPointerId) == -1) {
-                        mDragPointerId = e.getPointerId(0);
+                    final int index = e.findPointerIndex(mDragPointerId);
+                    if (index == -1) break;
+
+                    float dx = Math.abs(e.getRawX(index) - mInitialX);
+                    float dy = Math.abs(e.getRawY(index) - mInitialY);
+                    if ((dx > 20 || dy > 20) && !mIsDragging) {
+                        mMainHandler.removeCallbacks(mLongPressRunnable);
                     }
+
                     final CaptionWindowDecoration decoration = mWindowDecorByTaskId.get(mTaskId);
-                    // If a decor's resize drag zone is active, don't also try to reposition it.
                     if (decoration.isHandlingDragResize()) break;
-                    final int dragPointerIdx = e.findPointerIndex(mDragPointerId);
+
                     mDragPositioningCallback.onDragPositioningMove(
-                            e.getDisplayId(),
-                            e.getRawX(dragPointerIdx), e.getRawY(dragPointerIdx));
+                            e.getDisplayId(), e.getRawX(index), e.getRawY(index));
                     mIsDragging = true;
+
                     return true;
                 }
+
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL: {
-                    if (e.findPointerIndex(mDragPointerId) == -1) {
-                        mDragPointerId = e.getPointerId(0);
-                    }
-                    final int dragPointerIdx = e.findPointerIndex(mDragPointerId);
+                    mMainHandler.removeCallbacks(mLongPressRunnable);
+
+                    final int index = e.findPointerIndex(mDragPointerId);
+                    if (index == -1) break;
+
                     final Rect newTaskBounds = mDragPositioningCallback.onDragPositioningEnd(
-                            e.getDisplayId(),
-                            e.getRawX(dragPointerIdx), e.getRawY(dragPointerIdx));
+                            e.getDisplayId(), e.getRawX(index), e.getRawY(index));
+
                     DragPositioningCallbackUtility.snapTaskBoundsIfNecessary(newTaskBounds,
                             mWindowDecorByTaskId.get(mTaskId).calculateValidDragArea());
-                    if (newTaskBounds != taskInfo.configuration.windowConfiguration.getBounds()) {
+
+                    if (!mLongPressTriggered &&
+                            !newTaskBounds.equals(taskInfo.configuration.windowConfiguration.getBounds())) {
                         final WindowContainerTransaction wct = new WindowContainerTransaction();
                         wct.setBounds(taskInfo.token, newTaskBounds);
                         mTransitions.startTransition(TRANSIT_CHANGE, wct, null);
                     }
+
                     final boolean wasDragging = mIsDragging;
                     mIsDragging = false;
                     return wasDragging;
@@ -516,6 +583,15 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
             }
             return true;
         }
+    }
+
+    private void playLongPressHaptic() {
+        Vibrator vibrator = (Vibrator) mContext.getSystemService(Context.VIBRATOR_SERVICE);
+        if (vibrator == null || !vibrator.hasAmplitudeControl()) return;
+        long[] timings = { 0, 20, 40, 25, 30 };
+        int[] amplitudes = { 0, 180, 0, 150, 80 };
+        VibrationEffect effect = VibrationEffect.createWaveform(timings, amplitudes, -1);
+        vibrator.vibrate(effect);
     }
 
     /**
@@ -529,5 +605,21 @@ public class CaptionWindowDecorViewModel implements WindowDecorViewModel, FocusT
         final ContentResolver resolver = mContext.getContentResolver();
         return Settings.Global.getInt(resolver,
                 DEVELOPMENT_FORCE_DESKTOP_MODE_ON_EXTERNAL_DISPLAYS, 0) != 0;
+    }
+    
+    @Override
+    public void showResizeVeil(int taskId, Rect bounds) {
+        final CaptionWindowDecoration decor = (CaptionWindowDecoration) mWindowDecorByTaskId.get(taskId);
+        if (decor != null) {
+            decor.showResizeVeil(bounds);
+        }
+    }
+    
+    @Override
+    public void hideResizeVeil(int taskId) {
+        final CaptionWindowDecoration decor = (CaptionWindowDecoration) mWindowDecorByTaskId.get(taskId);
+        if (decor != null) {
+            decor.hideResizeVeil();
+        }
     }
 }

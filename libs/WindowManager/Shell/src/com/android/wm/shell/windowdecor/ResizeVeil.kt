@@ -20,6 +20,7 @@ import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.app.ActivityManager.RunningTaskInfo
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.PointF
@@ -76,6 +77,9 @@ public class ResizeVeil @JvmOverloads constructor(
     private val decorThemeUtil = DecorThemeUtil(context)
     private val lightColors = dynamicLightColorScheme(context)
     private val darkColors = dynamicDarkColorScheme(context)
+    
+    val isNightMode: Boolean
+        get() = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
     @VisibleForTesting
     lateinit var iconView: ImageView
@@ -292,9 +296,10 @@ public class ResizeVeil @JvmOverloads constructor(
             t.reparent(veil, parent)
             parentSurface = parent
         }
-        val backgroundColor = when (decorThemeUtil.getAppTheme(taskInfo)) {
-            Theme.LIGHT -> lightColors.surfaceContainer
-            Theme.DARK -> darkColors.surfaceContainer
+        val backgroundColor = if (isNightMode) {
+            darkColors.surfaceContainer
+        } else {
+            lightColors.surfaceContainer
         }
         t.show(veil)
             .setLayer(veil, VEIL_CONTAINER_LAYER)
