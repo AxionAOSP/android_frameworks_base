@@ -17,9 +17,11 @@
 package com.android.wm.shell.windowdecor;
 
 import android.app.ActivityManager;
+import android.graphics.Rect;
 import android.view.SurfaceControl;
 
 import com.android.wm.shell.freeform.FreeformTaskTransitionStarter;
+import com.android.wm.shell.freeform.IFreeformTaskInterceptor;
 import com.android.wm.shell.splitscreen.SplitScreenController;
 
 /**
@@ -109,4 +111,9 @@ public interface WindowDecorViewModel {
      * @param taskInfo the info of the task
      */
     void destroyWindowDecoration(ActivityManager.RunningTaskInfo taskInfo);
+    
+    default void showResizeVeil(int taskId, Rect bounds) {}
+    default void hideResizeVeil(int taskId) {}
+    
+    default void setFreeformTaskInterceptor(IFreeformTaskInterceptor freeformTaskInterceptor) {}
 }

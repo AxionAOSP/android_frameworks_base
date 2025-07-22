@@ -17,6 +17,7 @@
 package com.android.server.wm;
 
 import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
+import static android.content.res.Configuration.ORIENTATION_LANDSCAPE;
 import static android.view.Display.TYPE_INTERNAL;
 import static android.view.InsetsFrameProvider.SOURCE_ARBITRARY_RECTANGLE;
 import static android.view.InsetsFrameProvider.SOURCE_CONTAINER_BOUNDS;
@@ -206,6 +207,8 @@ public class DisplayPolicy {
     private long mPanicTime;
     private final long mPanicThresholdMs;
     private StatusBarManagerInternal mStatusBarManagerInternal;
+    
+    private int mOrientation;
 
     @Px
     private int mLeftGestureInset;
@@ -1872,6 +1875,7 @@ public class DisplayPolicy {
         if (mShouldAttachNavBarToAppDuringTransition != shouldAttach) {
             mShouldAttachNavBarToAppDuringTransition = shouldAttach;
         }
+        mOrientation = res.getConfiguration().orientation;
     }
 
     void updateConfigurationAndScreenSizeDependentBehaviors() {
@@ -2663,8 +2667,20 @@ public class DisplayPolicy {
                         != null;
         final Task topFreeformTask = defaultTaskDisplayArea
                 .getTopRootTaskInWindowingMode(WINDOWING_MODE_FREEFORM);
+
+        final boolean topAppHidesStatusBar = topAppHidesSystemBar(Type.statusBars());
+
+        // If the top app is not fullscreen, only the default rotation animation is allowed.
+        mTopIsFullscreen = topAppHidesStatusBar
+                && (mNotificationShade == null || !mNotificationShade.isVisible());
+
+        // stop status bar force show policy for freeform only when using fullscreen
+        // any situation where both status bar and freeform are visible will lead
+        // too status bar flickering
         final boolean freeformRootTaskVisible = topFreeformTask != null
-                && topFreeformTask.isVisible();
+                && topFreeformTask.isVisible() 
+                && mOrientation != ORIENTATION_LANDSCAPE && !mTopIsFullscreen;
+
         final boolean inNonFullscreenFreeformMode = freeformRootTaskVisible
                 && !topFreeformTask.getBounds().equals(mDisplayContent.getBounds());
 
@@ -2672,17 +2688,12 @@ public class DisplayPolicy {
                 DesktopModeFlags.ENABLE_FULLY_IMMERSIVE_IN_DESKTOP.isTrue()
                         ? inNonFullscreenFreeformMode : freeformRootTaskVisible);
 
-        final boolean topAppHidesStatusBar = topAppHidesSystemBar(Type.statusBars());
         if (getStatusBar() != null) {
             final StatusBarManagerInternal statusBar = getStatusBarManagerInternal();
             if (statusBar != null) {
                 statusBar.setTopAppHidesStatusBar(getDisplayId(), topAppHidesStatusBar);
             }
         }
-
-        // If the top app is not fullscreen, only the default rotation animation is allowed.
-        mTopIsFullscreen = topAppHidesStatusBar
-                && (mNotificationShade == null || !mNotificationShade.isVisible());
 
         int appearance = APPEARANCE_OPAQUE_NAVIGATION_BARS | APPEARANCE_OPAQUE_STATUS_BARS;
         appearance = configureStatusBarOpacity(appearance);

@@ -50,6 +50,7 @@ public final class SyncTransactionQueue {
 
     private SyncCallback mInFlight = null;
     private final ArrayList<TransactionRunnable> mRunnables = new ArrayList<>();
+    private final ArrayList<Runnable> mPostSyncRunnables = new ArrayList<>();
 
     private final Runnable mOnReplyTimeout = () -> {
         synchronized (mQueue) {
@@ -126,6 +127,16 @@ public final class SyncTransactionQueue {
         mTransactionPool.release(t);
     }
 
+    public void runAfterSync(Runnable runnable) {
+        synchronized (mQueue) {
+            if (mInFlight != null) {
+                mPostSyncRunnables.add(runnable);
+            } else {
+                mMainExecutor.execute(runnable);
+            }
+        }
+    }
+
     // Synchronized on mQueue
     private void onTransactionReceived(@NonNull SurfaceControl.Transaction t) {
         if (DEBUG) Slog.d(TAG, "  Running " + mRunnables.size() + " sync runnables");
@@ -197,6 +208,11 @@ public final class SyncTransactionQueue {
                             "SyncTransactionQueue.onTransactionReady(): syncId=%d apply", id);
                     t.apply();
                     t.close();
+                    final int size = mPostSyncRunnables.size();
+                    for (int i = 0; i < size; ++i) {
+                        mMainExecutor.executeDelayed(mPostSyncRunnables.get(i), 300);
+                    }
+                    mPostSyncRunnables.clear();
                     if (!mQueue.isEmpty()) {
                         mQueue.get(0).send();
                     }

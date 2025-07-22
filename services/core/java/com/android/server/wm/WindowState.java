@@ -1869,7 +1869,7 @@ class WindowState extends WindowContainer<WindowState> implements WindowManagerP
      *         case when the surface is on screen but not exiting.
      */
     boolean canAffectSystemUiFlags() {
-        if (isFullyTransparent()) {
+        if (isFullyTransparent() || getWindowConfiguration().tasksAreFloating()) {
             return false;
         }
         if (mActivityRecord == null) {

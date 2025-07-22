@@ -70,4 +70,9 @@
     <color name="desktop_mode_caption_button">#00000000</color>
     <color name="tiling_handle_background_light">#000000</color>
     <color name="tiling_handle_background_dark">#FFFFFF</color>
+    
+    <!-- Caption decor -->
+    <color name="decor_chip_light">@*android:color/system_neutral1_100</color>
+    <color name="decor_chip_dark">@*android:color/system_neutral1_800</color>
+    <color name="decor_bg_dark">@*android:color/system_neutral1_900</color>
 </resources>

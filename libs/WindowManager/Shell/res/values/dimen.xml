@@ -442,7 +442,7 @@
     <dimen name="freeform_decor_shadow_unfocused_thickness">5dp</dimen>
 
     <!-- Height of button (32dp)  + 2 * margin (5dp each). -->
-    <dimen name="freeform_decor_caption_height">42dp</dimen>
+    <dimen name="freeform_decor_caption_height">63dp</dimen>
 
     <!-- Height of desktop mode caption for fullscreen tasks. -->
     <dimen name="desktop_mode_fullscreen_decor_caption_height">36dp</dimen>
@@ -693,4 +693,16 @@
     <dimen name="desktop_windowing_education_promo_height">352dp</dimen>
     <!-- The corner radius of the desktop windowing education promo. -->
     <dimen name="desktop_windowing_education_promo_corner_radius">28dp</dimen>
+    
+    <dimen name="freeform_decor_shadow_thickness">0dp</dimen>
+    <dimen name="freeform_decor_radius">12dp</dimen>
+    <dimen name="floating_icon_size">48dp</dimen>
+    <dimen name="floating_icon_margin">10dp</dimen>
+    <dimen name="floating_icon_padding">6dp</dimen>
+    <dimen name="floating_icon_fallback_y">100dp</dimen>
+    <dimen name="floating_icon_drag_threshold">10dp</dimen>
+    <dimen name="floating_icon_remove_zone_size">80dp</dimen>
+    <dimen name="floating_icon_remove_zone_margin">20dp</dimen>
+    <dimen name="floating_icon_border_width">2dp</dimen>
+    <dimen name="floating_icon_dismiss_fade_height">110dp</dimen>
 </resources>

@@ -132,6 +132,7 @@ import com.android.wm.shell.desktopmode.persistence.DesktopRepositoryInitializer
 import com.android.wm.shell.draganddrop.DragAndDropController;
 import com.android.wm.shell.draganddrop.GlobalDragListener;
 import com.android.wm.shell.freeform.FreeformComponents;
+import com.android.wm.shell.freeform.FreeformTaskInterceptor;
 import com.android.wm.shell.freeform.FreeformTaskListener;
 import com.android.wm.shell.freeform.FreeformTaskTransitionHandler;
 import com.android.wm.shell.freeform.FreeformTaskTransitionObserver;
@@ -173,6 +174,7 @@ import com.android.wm.shell.unfold.qualifier.UnfoldTransition;
 import com.android.wm.shell.windowdecor.CaptionWindowDecorViewModel;
 import com.android.wm.shell.windowdecor.DesktopModeWindowDecorViewModel;
 import com.android.wm.shell.windowdecor.WindowDecorViewModel;
+import com.android.wm.shell.windowdecor.VeiledResizer;
 import com.android.wm.shell.windowdecor.additionalviewcontainer.AdditionalSystemViewContainer;
 import com.android.wm.shell.windowdecor.common.AppHandleAndHeaderVisibilityHelper;
 import com.android.wm.shell.windowdecor.common.WindowDecorTaskResourceLoader;
@@ -340,7 +342,9 @@ public abstract class WMShellModule {
             RootTaskDisplayAreaOrganizer rootTaskDisplayAreaOrganizer,
             FocusTransitionObserver focusTransitionObserver,
             WindowDecorViewHostSupplier<WindowDecorViewHost> windowDecorViewHostSupplier,
-            Optional<DesktopModeWindowDecorViewModel> desktopModeWindowDecorViewModel) {
+            Optional<DesktopModeWindowDecorViewModel> desktopModeWindowDecorViewModel,
+            InteractionJankMonitor interactionJankMonitor,
+            VeiledResizer veiledResizer) {
         if (desktopModeWindowDecorViewModel.isPresent()) {
             return desktopModeWindowDecorViewModel.get();
         }
@@ -358,7 +362,9 @@ public abstract class WMShellModule {
                 syncQueue,
                 transitions,
                 focusTransitionObserver,
-                windowDecorViewHostSupplier);
+                windowDecorViewHostSupplier,
+                interactionJankMonitor,
+                veiledResizer);
     }
 
     @WMSingleton
@@ -426,7 +432,8 @@ public abstract class WMShellModule {
             DesktopModeLoggerTransitionObserver desktopModeLoggerTransitionObserver,
             LaunchAdjacentController launchAdjacentController,
             WindowDecorViewModel windowDecorViewModel,
-            Optional<TaskChangeListener> taskChangeListener) {
+            Optional<TaskChangeListener> taskChangeListener,
+            FreeformTaskInterceptor freeformTaskInterceptor) {
         // TODO(b/238217847): Temporarily add this check here until we can remove the dynamic
         //                    override for this controller from the base module
         ShellInit init = FreeformComponents.requiresFreeformComponents(context) ? shellInit : null;
@@ -439,7 +446,8 @@ public abstract class WMShellModule {
                 desktopModeLoggerTransitionObserver,
                 launchAdjacentController,
                 windowDecorViewModel,
-                taskChangeListener);
+                taskChangeListener,
+                freeformTaskInterceptor);
     }
 
     @WMSingleton
@@ -1649,4 +1657,42 @@ public abstract class WMShellModule {
         return new HomeIntentProvider(context);
     }
 
+    @WMSingleton
+    @Provides
+    static VeiledResizer provideVeiledResizer(
+            Context context,
+            DisplayController displayController,
+            WindowDecorTaskResourceLoader taskResourceLoader,
+            @ShellMainThread MainCoroutineDispatcher mainDispatcher,
+            @ShellBackgroundThread CoroutineScope bgScope) {
+        return new VeiledResizer(
+            context,
+            displayController,
+            taskResourceLoader,
+            mainDispatcher,
+            bgScope);
+    }
+
+    @Provides
+    @WMSingleton
+    static FreeformTaskInterceptor provideFreeformTaskInterceptor(
+            ShellInit shellInit,
+            Context context,
+            ShellTaskOrganizer shellTaskOrganizer,
+            SyncTransactionQueue syncQueue,
+            @ShellMainThread Handler mainHandler,
+            WindowDecorViewModel windowDecorViewModel,
+            ShellController shellController
+    ) {
+        FreeformTaskInterceptor interceptor = new FreeformTaskInterceptor(
+                shellInit,
+                context,
+                shellTaskOrganizer,
+                syncQueue,
+                mainHandler,
+                windowDecorViewModel,
+                shellController
+        );
+        return interceptor;
+    }
 }

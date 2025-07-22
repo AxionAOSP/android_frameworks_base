@@ -131,7 +131,7 @@ import java.util.function.Supplier;
  *
  * The shadow's thickness is 20dp when the window is in focus and 5dp when the window isn't.
  */
-public class DesktopModeWindowDecoration extends WindowDecoration<WindowDecorLinearLayout> {
+public class DesktopModeWindowDecoration extends WindowDecoration<WindowDecorLinearLayout> implements VeilWindowDecoration {
     private static final String TAG = "DesktopModeWindowDecoration";
 
     @VisibleForTesting
@@ -1265,6 +1265,7 @@ public class DesktopModeWindowDecoration extends WindowDecoration<WindowDecorLin
     /**
      * Show the resize veil.
      */
+    @Override
     public void showResizeVeil(Rect taskBounds) {
         createResizeVeilIfNeeded();
         mResizeVeil.showVeil(mTaskSurface, taskBounds, mTaskInfo);
@@ -1281,6 +1282,7 @@ public class DesktopModeWindowDecoration extends WindowDecoration<WindowDecorLin
     /**
      * Set new bounds for the resize veil
      */
+    @Override
     public void updateResizeVeil(Rect newBounds) {
         mResizeVeil.updateResizeVeil(newBounds);
     }
@@ -1295,6 +1297,7 @@ public class DesktopModeWindowDecoration extends WindowDecoration<WindowDecorLin
     /**
      * Fade the resize veil out.
      */
+    @Override
     public void hideResizeVeil() {
         mResizeVeil.hideVeil();
     }

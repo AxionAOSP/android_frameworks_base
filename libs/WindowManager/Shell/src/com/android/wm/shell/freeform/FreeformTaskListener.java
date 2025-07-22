@@ -38,6 +38,7 @@ import com.android.wm.shell.protolog.ShellProtoLogGroup;
 import com.android.wm.shell.shared.desktopmode.DesktopModeStatus;
 import com.android.wm.shell.sysui.ShellInit;
 import com.android.wm.shell.windowdecor.WindowDecorViewModel;
+import android.window.WindowContainerTransaction;
 
 import java.io.PrintWriter;
 import java.util.Optional;
@@ -58,6 +59,7 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
     private final WindowDecorViewModel mWindowDecorationViewModel;
     private final LaunchAdjacentController mLaunchAdjacentController;
     private final Optional<TaskChangeListener> mTaskChangeListener;
+    private final FreeformTaskInterceptor mFreeformTaskInterceptor;
 
     private final SparseArray<State> mTasks = new SparseArray<>();
 
@@ -70,7 +72,8 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
             DesktopModeLoggerTransitionObserver desktopModeLoggerTransitionObserver,
             LaunchAdjacentController launchAdjacentController,
             WindowDecorViewModel windowDecorationViewModel,
-            Optional<TaskChangeListener> taskChangeListener) {
+            Optional<TaskChangeListener> taskChangeListener,
+            FreeformTaskInterceptor freeformTaskInterceptor) {
         mContext = context;
         mShellTaskOrganizer = shellTaskOrganizer;
         mWindowDecorationViewModel = windowDecorationViewModel;
@@ -79,6 +82,7 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
         mDesktopModeLoggerTransitionObserver = desktopModeLoggerTransitionObserver;
         mLaunchAdjacentController = launchAdjacentController;
         mTaskChangeListener = taskChangeListener;
+        mFreeformTaskInterceptor = freeformTaskInterceptor;
         if (shellInit != null) {
             shellInit.addInitCallback(this::onInit, this);
         }
@@ -101,6 +105,7 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
         final State state = new State();
         state.mTaskInfo = taskInfo;
         state.mLeash = leash;
+        mFreeformTaskInterceptor.onTaskAppeared(taskInfo);
         mTasks.put(taskInfo.taskId, state);
 
         if (!DesktopModeFlags.ENABLE_WINDOWING_TRANSITION_HANDLERS_OBSERVERS.isTrue() &&
@@ -117,6 +122,7 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
     public void onTaskVanished(RunningTaskInfo taskInfo) {
         ProtoLog.v(ShellProtoLogGroup.WM_SHELL_TASK_ORG, "Freeform Task Vanished: #%d",
                 taskInfo.taskId);
+        mFreeformTaskInterceptor.onTaskVanished(taskInfo);
         mTasks.remove(taskInfo.taskId);
 
         if (!DesktopModeFlags.ENABLE_WINDOWING_TRANSITION_HANDLERS_OBSERVERS.isTrue() &&
@@ -150,6 +156,7 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
                 taskInfo.taskId);
         mDesktopTasksController.ifPresent(c -> c.onTaskInfoChanged(taskInfo));
         mWindowDecorationViewModel.onTaskInfoChanged(taskInfo);
+        mFreeformTaskInterceptor.onTaskInfoChanged(taskInfo);
         state.mTaskInfo = taskInfo;
         if (DesktopModeStatus.canEnterDesktopMode(mContext)) {
             if (DesktopModeFlags.ENABLE_WINDOWING_TRANSITION_HANDLERS_OBSERVERS.isTrue()) {
@@ -184,6 +191,7 @@ public class FreeformTaskListener implements ShellTaskOrganizer.TaskListener,
 
     @Override
     public void onFocusTaskChanged(RunningTaskInfo taskInfo) {
+        mFreeformTaskInterceptor.onFocusTaskChanged(taskInfo);
         if (taskInfo.getWindowingMode() != WINDOWING_MODE_FREEFORM
                 || DesktopModeFlags.ENABLE_WINDOWING_TRANSITION_HANDLERS_OBSERVERS.isTrue()) {
             return;
