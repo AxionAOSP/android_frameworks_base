@@ -218,13 +218,16 @@ public class Sensor {
                         info.softwareVersion));
             }
         }
+        final boolean deviceHandlesDisplayTouches =
+             android.os.SystemProperties.getBoolean("persist.sys.device.handles_display_touch", false);
         return new FingerprintSensorPropertiesInternal(prop.commonProps.sensorId,
                 prop.commonProps.sensorStrength,
                 prop.commonProps.maxEnrollmentsPerUser,
                 componentInfo,
                 prop.sensorType,
                 prop.halControlsIllumination,
-                prop.halHandlesDisplayTouches,
+                prop.halHandlesDisplayTouches 
+                    && deviceHandlesDisplayTouches,
                 resetLockoutRequiresHardwareAuthToken,
                 !workaroundLocations.isEmpty() ? workaroundLocations :
                         Arrays.stream(prop.sensorLocations).map(location ->

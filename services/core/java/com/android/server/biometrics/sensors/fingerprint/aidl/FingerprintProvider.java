@@ -136,6 +136,9 @@ public class FingerprintProvider implements IBinder.DeathRecipient, ServiceProvi
     @Nullable private AuthenticationStatsCollector mAuthenticationStatsCollector;
     @Nullable private IVirtualHal mVhal;
     @Nullable private String mHalInstanceNameCurrent;
+    
+    private boolean deviceHandlesDisplayTouches =
+         android.os.SystemProperties.getBoolean("persist.sys.device.handles_display_touch", false);
 
     private boolean mCleanup;
 
@@ -758,7 +761,7 @@ public class FingerprintProvider implements IBinder.DeathRecipient, ServiceProvi
 
     @Override
     public void onPointerDown(long requestId, int sensorId, PointerContext pc) {
-        if (mFingerprintSensors.get(sensorId).getSensorProperties().halHandlesDisplayTouches) {
+        if (mFingerprintSensors.get(sensorId).getSensorProperties().halHandlesDisplayTouches && deviceHandlesDisplayTouches) {
             return;
         }
         mFingerprintSensors.get(sensorId).getScheduler().getCurrentClientIfMatches(
@@ -773,7 +776,7 @@ public class FingerprintProvider implements IBinder.DeathRecipient, ServiceProvi
 
     @Override
     public void onPointerUp(long requestId, int sensorId, PointerContext pc) {
-        if (mFingerprintSensors.get(sensorId).getSensorProperties().halHandlesDisplayTouches) {
+        if (mFingerprintSensors.get(sensorId).getSensorProperties().halHandlesDisplayTouches && deviceHandlesDisplayTouches) {
             return;
         }
         mFingerprintSensors.get(sensorId).getScheduler().getCurrentClientIfMatches(
