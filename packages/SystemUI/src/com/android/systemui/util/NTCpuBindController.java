@@ -53,6 +53,11 @@ public class NTCpuBindController {
 
     public static int REQUEST_ANIMATION_BOOST_TYPE_BASE = 1;
     public static int REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_EXPANSION_ANIMATION = 1 << 1;
+    public static int REQUEST_ANIMATION_BOOST_TYPE_FLING_NOTIFICATION_PANEL_VIEW = 1 << 2;
+    public static int REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_SB_ANIMATION = 1 << 3;
+    public static int REQUEST_ANIMATION_BOOST_TYPE_TRACKING_NOTIFICATION_STACK_SCROLL_LAYOUT = 1 << 4;
+    public static int REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_NOTIFICATION_PANEL_VIEW_EXPAND = 1 << 5;
+    public static int REQUEST_ANIMATION_BOOST_TYPE_TRACKING_NOTIFICATION_PANEL_VIEW = 1 << 6;
 
     private static final int STATUS_BIND_BIG_CORE = 0;
     private static final int STATUS_BIND_SMALL_CORE = 1;
@@ -120,7 +125,7 @@ public class NTCpuBindController {
         }
     }
 
-    private void animationBoostOn(int type) {
+    public void animationBoostOn(int type) {
         mAnimationBoostType |= type;
         if (mAnimationBoost != ANIMATION_BOOST_ON) {
             BoostHelper.setPerformanceMode(true, "sysui");
@@ -130,7 +135,7 @@ public class NTCpuBindController {
         }
     }
 
-    private void animationBoostOff(int type) {
+    public void animationBoostOff(int type) {
         mAnimationBoostType &= ~type;
         if (mAnimationBoostType <= 0 && mAnimationBoost != ANIMATION_BOOST_OFF) {
             unbind();
