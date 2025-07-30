@@ -1285,7 +1285,9 @@ public class KeyguardViewMediatorTest extends SysuiTestCase {
         IRemoteAnimationFinishedCallback callback = mock(IRemoteAnimationFinishedCallback.class);
 
         when(mKeyguardStateController.isKeyguardGoingAway()).thenReturn(true);
-        mViewMediator.mKeyguardGoingAwayRunnable.run();
+        mViewMediator.hideLocked();
+        processAllMessagesAndBgExecutorMessages();
+
         mViewMediator.startKeyguardExitAnimation(TRANSIT_OLD_KEYGUARD_GOING_AWAY, apps, wallpapers,
                 null, callback);
         processAllMessagesAndBgExecutorMessages();
@@ -1500,6 +1502,26 @@ public class KeyguardViewMediatorTest extends SysuiTestCase {
         mViewMediator.getViewMediatorCallback().onBouncerSwipeDown();
         verify(mStatusBarKeyguardViewManager).reset(true);
     }
+
+    @Test
+    @TestableLooper.RunWithLooper(setAsMainLooper = true)
+    public void testKeyguardExitAnimationCanceledIfShowIsRequested() {
+        // Mock a secure user
+        setCurrentUser(55, true);
+
+        // Setup keyguard
+        mViewMediator.onSystemReady();
+        processAllMessagesAndBgExecutorMessages();
+        mViewMediator.setShowingLocked(true, "");
+
+        // This will create a SHOW message, followed by a request to start the exit animation
+        mViewMediator.showDismissibleKeyguard();
+        startMockKeyguardExitAnimation();
+
+        assertTrue(mViewMediator.isShowingAndNotOccluded());
+        verify(mStatusBarKeyguardViewManager, never()).hide(anyLong(), anyLong());
+    }
+
     private void createAndStartViewMediator() {
         createAndStartViewMediator(false);
     }
