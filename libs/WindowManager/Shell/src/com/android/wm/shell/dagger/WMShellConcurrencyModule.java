@@ -17,7 +17,7 @@
 package com.android.wm.shell.dagger;
 
 import static android.os.Process.THREAD_PRIORITY_BACKGROUND;
-import static android.os.Process.THREAD_PRIORITY_DISPLAY;
+import static android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY;
 import static android.os.Process.THREAD_PRIORITY_FOREGROUND;
 import static android.os.Process.THREAD_PRIORITY_TOP_APP_BOOST;
 
@@ -98,7 +98,7 @@ public abstract class WMShellConcurrencyModule {
      * See {@link com.android.systemui.SystemUIFactory#init(Context, boolean)}.
      */
     public static HandlerThread createShellMainThread() {
-        HandlerThread mainThread = new HandlerThread("wmshell.main", THREAD_PRIORITY_DISPLAY);
+        HandlerThread mainThread = new HandlerThread("wmshell.main", THREAD_PRIORITY_URGENT_DISPLAY);
         return mainThread;
     }
 
@@ -167,7 +167,7 @@ public abstract class WMShellConcurrencyModule {
     @Provides
     @ShellAnimationThread
     public static Handler provideShellAnimationHandler() {
-        HandlerThread animThread = new HandlerThread("wmshell.anim", THREAD_PRIORITY_DISPLAY);
+        HandlerThread animThread = new HandlerThread("wmshell.anim", THREAD_PRIORITY_URGENT_DISPLAY);
         animThread.start();
         int threadId = animThread.getThreadId();
         if (threadId > 0) BoostHelper.boostThread(threadId);
