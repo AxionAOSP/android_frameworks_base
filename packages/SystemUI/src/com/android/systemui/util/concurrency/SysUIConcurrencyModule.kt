@@ -128,7 +128,7 @@ object SysUIConcurrencyModule {
     ): UiThreadContext {
         return if (Flags.edgeBackGestureHandlerThread()) {
             val thread =
-                HandlerThread("BackPanelUiThread", Process.THREAD_PRIORITY_DISPLAY).apply {
+                HandlerThread("BackPanelUiThread", Process.THREAD_PRIORITY_URGENT_DISPLAY).apply {
                     start()
                     looper.setSlowLogThresholdMs(
                         LONG_SLOW_DISPATCH_THRESHOLD,
