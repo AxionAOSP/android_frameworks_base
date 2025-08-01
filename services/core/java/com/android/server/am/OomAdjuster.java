@@ -66,7 +66,7 @@ import static android.os.Process.THREAD_GROUP_DEFAULT;
 import static android.os.Process.THREAD_GROUP_FOREGROUND_WINDOW;
 import static android.os.Process.THREAD_GROUP_RESTRICTED;
 import static android.os.Process.THREAD_GROUP_TOP_APP;
-import static android.os.Process.THREAD_PRIORITY_DISPLAY;
+import static android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY;
 import static android.os.Process.THREAD_PRIORITY_TOP_APP_BOOST;
 
 import static com.android.server.am.ActivityManagerDebugConfig.DEBUG_ALL;
@@ -2076,7 +2076,7 @@ public abstract class OomAdjuster {
                     }
 
                     if (renderThreadTid != 0) {
-                        mInjector.setThreadPriority(renderThreadTid, THREAD_PRIORITY_DISPLAY);
+                        mInjector.setThreadPriority(renderThreadTid, THREAD_PRIORITY_URGENT_DISPLAY);
                     }
                 }
             } catch (Exception e) {
