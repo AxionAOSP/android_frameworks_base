@@ -709,6 +709,9 @@ public final class DisplayManagerService extends SystemService {
                 Process.THREAD_GROUP_TOP_APP);
         Process.setThreadGroupAndCpuset(SurfaceAnimationThread.get().getThreadId(),
                 Process.THREAD_GROUP_TOP_APP);
+        Process.setThreadAffinity(DisplayThread.get().getThreadId(), 0);
+        Process.setThreadAffinity(AnimationThread.get().getThreadId(), 0);
+        Process.setThreadAffinity(SurfaceAnimationThread.get().getThreadId(), 0);
     }
 
     @Override
