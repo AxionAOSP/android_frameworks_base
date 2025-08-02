@@ -157,6 +157,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.content.ReferrerIntent;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.ArrayUtils;
+import com.android.internal.util.BoostHelper;
 import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.server.LocalServices;
 import com.android.server.am.ActivityManagerService;
@@ -1135,7 +1136,7 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         boolean knownToBeDead = false;
         if (wpc != null && wpc.hasThread()) {
             try {
-                com.android.internal.util.BoostHelper.boostHint("First Launch", 5000);
+                BoostHelper.boostHint("First Launch", 5000);
                 realStartActivityLocked(r, wpc, andResume, checkConfig);
                 return;
             } catch (RemoteException e) {
@@ -1165,7 +1166,7 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
             ProcessFreezerManager freezer = ProcessFreezerManager.getInstance();
             if (freezer != null && freezer.useFreezerManager()) {
                 freezer.startFreeze(r.processName, ProcessFreezerManager.COLD_LAUNCH_FREEZE);
-                com.android.internal.util.BoostHelper.boostHint("Cold Launch", 5000);
+                BoostHelper.boostHint("Cold Launch", 5000);
             }
         }
         mService.startProcessAsync(r, knownToBeDead, isTop,
@@ -2145,6 +2146,25 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         if (mService.mShuttingDown) {
             mService.mGlobalLock.notifyAll();
         }
+    }
+
+    boolean reportResumedActivityLocked(ActivityRecord r) {
+        this.mStoppingActivities.remove(r);
+        BoostHelper.adjustCpusetCpus("bg", 500L);
+        BoostHelper.adjustCpusetCpus("sys-bg", 500L);
+        if (!r.packageName.toLowerCase().contains("camera") && 
+            !r.packageName.equals("com.google.android.apps.photos")) {
+            BoostHelper.adjustCpusetCpus("cam", 500L);
+        }
+        BoostHelper.adjustCpusetCpus("fg", 500L);
+        BoostHelper.boostHint("Resume Activity", 500);
+        Task rootTask = r.getRootTask();
+        if (rootTask.getDisplayArea().allResumedActivitiesComplete()) {
+            this.mRootWindowContainer.ensureActivitiesVisible();
+            this.mRootWindowContainer.executeAppTransitionForAllDisplay();
+            return true;
+        }
+        return false;
     }
 
     // Called when WindowManager has finished animating the launchingBehind activity to the back.
