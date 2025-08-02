@@ -704,4 +704,5 @@
     <dimen name="floating_icon_remove_zone_size">80dp</dimen>
     <dimen name="floating_icon_remove_zone_margin">20dp</dimen>
     <dimen name="floating_icon_border_width">2dp</dimen>
+    <dimen name="floating_icon_dismiss_fade_height">110dp</dimen>
 </resources>

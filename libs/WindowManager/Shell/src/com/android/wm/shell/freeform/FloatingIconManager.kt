@@ -22,7 +22,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.util.Log
 import android.view.*
-import android.view.animation.OvershootInterpolator
+import android.view.animation.*
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
@@ -49,6 +49,7 @@ class FloatingIconManager(
     private val animationManager = FloatingIconAnimationManager(context, windowManager)
 
     private var dismissAreaView: View? = null
+    private var dimBackgroundView: View? = null
     private var isDragging = false
     private var hoveringOverDismissArea = false
 
@@ -162,13 +163,30 @@ class FloatingIconManager(
     }
 
     private fun showDismissArea() {
+        if (dimBackgroundView == null) createDimBackgroundView()
         if (dismissAreaView == null) createdismissAreaView()
+        dimBackgroundView?.apply {
+            visibility = View.VISIBLE
+            animate()
+                .alpha(1f)
+                .setDuration(200)
+                .setInterpolator(AccelerateDecelerateInterpolator())
+                .start()
+        }
         dismissAreaView?.let { animationManager.animateDismissAreaShow(it) }
     }
 
     private fun hideDismissArea() {
         isDragging = false
         dismissAreaView?.let { animationManager.animateDismissAreaHide(it) }
+        dimBackgroundView?.animate()
+            ?.alpha(0f)
+            ?.setDuration(200)
+            ?.setInterpolator(AccelerateDecelerateInterpolator())
+            ?.withEndAction {
+                dimBackgroundView?.visibility = View.GONE
+            }
+            ?.start()
     }
 
     private fun onDismissArea(icon: View): Boolean {
@@ -246,6 +264,28 @@ class FloatingIconManager(
         dismissAreaView = textView
         windowManager.addView(textView, layoutParams)
         textView.visibility = View.GONE
+    }
+
+    private fun createDimBackgroundView() {
+        val fadeHeight = context.resources.getDimensionPixelSize(R.dimen.floating_icon_dismiss_fade_height)
+        dimBackgroundView = View(context).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.TRANSPARENT, Color.parseColor("#80000000"))
+            )
+            alpha = 0f
+            visibility = View.GONE
+        }
+        val layoutParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            fadeHeight,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM
+        }
+        windowManager.addView(dimBackgroundView, layoutParams)
     }
 
     private fun removeIconView(taskId: Int, view: View) {
