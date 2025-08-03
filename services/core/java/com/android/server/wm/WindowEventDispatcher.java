@@ -22,6 +22,8 @@ public class WindowEventDispatcher {
     private static WindowEventDispatcher sInstance;
 
     private final CopyOnWriteArrayList<IWindowEventListener> mListeners = new CopyOnWriteArrayList<>();
+    
+    private String mFocusedPackageName;
 
     private WindowEventDispatcher() {}
 
@@ -45,6 +47,7 @@ public class WindowEventDispatcher {
     }
 
     public void notifyAppFocusChanged(ActivityRecord r, Task task) {
+        mFocusedPackageName = (r != null && r.packageName != null) ? r.packageName : null;
         for (IWindowEventListener listener : mListeners) {
             listener.onAppFocusChanged(r, task);
         }
@@ -66,5 +69,9 @@ public class WindowEventDispatcher {
         for (IWindowEventListener listener : mListeners) {
             listener.removeTask(task, reason);
         }
+    }
+    
+    public String getFocusedPackageName() {
+        return mFocusedPackageName;
     }
 }

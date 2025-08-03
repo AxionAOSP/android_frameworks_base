@@ -487,6 +487,7 @@ import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.ActivityTaskManagerService;
 import com.android.server.wm.AppLockManagerService;
 import com.android.server.wm.GameSpaceService;
+import com.android.server.wm.WindowEventDispatcher;
 import com.android.server.wm.WindowManagerInternal;
 import com.android.server.wm.WindowManagerService;
 import com.android.server.wm.WindowProcessController;
@@ -19680,16 +19681,7 @@ public class ActivityManagerService extends IActivityManager.Stub
     }
 
     private String getTopAppPackageName() {
-        String currentPackage;
-        try {
-            RunningTaskInfo rti = mActivityTaskManager.getTasks(
-                1, false /* filterVisibleRecents */, false /*keepIntentExtra */,
-                INVALID_DISPLAY).get(0);
-            currentPackage = rti.topActivity.getPackageName();
-        } catch (Exception e) {
-            currentPackage = null;
-        }
-        return currentPackage;
+        return WindowEventDispatcher.get().getFocusedPackageName();
     }
 
     private boolean isTopAppGame(String packageName) {
