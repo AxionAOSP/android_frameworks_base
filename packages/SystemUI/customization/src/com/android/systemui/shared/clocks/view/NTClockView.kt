@@ -104,7 +104,12 @@ abstract class NTClockView @JvmOverloads constructor(
         }
 
     val scaleRatio: Float
-        get() = (TypedValues.CycleType.TYPE_EASING / resources.displayMetrics.densityDpi).toFloat()
+        get() {
+            val densityDpi = resources.displayMetrics.densityDpi
+            val ratio = 420f / densityDpi
+            if (DEBUG) Log.d("ScaleRatio", "densityDpi = $densityDpi, ratio = $ratio")
+            return ratio
+        }
 
     private var dateTextX: Float = 0f
     private var dateTextY: Float = 0f
@@ -308,6 +313,7 @@ abstract class NTClockView @JvmOverloads constructor(
     }
 
     companion object {
+        const val DEBUG = false
         private const val CLOCK_PATTERN_12 = "hmm"
         private const val CLOCK_PATTERN_12_STANDARD = "h:mm"
         private const val CLOCK_PATTERN_24 = "HHmm"
