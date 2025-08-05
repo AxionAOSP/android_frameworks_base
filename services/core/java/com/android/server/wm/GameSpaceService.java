@@ -30,6 +30,8 @@ import com.android.internal.app.IGameSpaceCallback;
 import com.android.internal.app.IGameSpaceService;
 
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.List;
 
 public class GameSpaceService extends IGameSpaceService.Stub implements IWindowEventListener {
@@ -45,6 +47,7 @@ public class GameSpaceService extends IGameSpaceService.Stub implements IWindowE
     private final GameStateDispatcher mGameStateDispatcher;
     private final PackageHandler mPackageHandler;
     private final ActivityManagerService mActivityManager;
+    private final ExecutorService mBackgroundExecutor = Executors.newSingleThreadExecutor();
 
     private String mCurrentGame;
     private final Object mLock = new Object();
@@ -83,13 +86,17 @@ public class GameSpaceService extends IGameSpaceService.Stub implements IWindowE
     }
     
     private void startOverlay() {
-        if (!isServiceActive()) {
-            if (DEBUG) Slog.d(TAG, "service is dead, re-starting! isServiceActive: " + isServiceActive());
-            mGameStateDispatcher.startService(mCurrentGame);
-        }
-        mGameStateDispatcher.dispatchGameState(true, mCurrentGame);
+        final String currentGame = mCurrentGame;
+        mBackgroundExecutor.execute(() -> {
+            boolean serviceActive = isServiceActive();
+            if (!serviceActive) {
+                if (DEBUG) Slog.d(TAG, "service is dead, re-starting! isServiceActive: " + serviceActive);
+                mGameStateDispatcher.startService(currentGame);
+            }
+            mGameStateDispatcher.dispatchGameState(true, currentGame);
+        });
     }
-    
+
     @Override
     public void onWindowingModeChanged(Task task, int mode) {
         // todo: handle freeform here?    
@@ -97,27 +104,42 @@ public class GameSpaceService extends IGameSpaceService.Stub implements IWindowE
 
     @Override
     public void onAppFocusChanged(ActivityRecord record, Task task) {
-        if (record == null || record.packageName == null 
-            || task != null && task.getWindowingMode() == WINDOWING_MODE_FREEFORM 
-                && mCurrentGame != null) {
-            // ignore freeform tasks during app focus changed, if the user switches to another app, 
-            // the next focused task will be either launcher or a new fullscreen app
+        if (record == null || record.packageName == null) return;
+
+        String packageName = record.packageName;
+
+        boolean gameActive = mCurrentGame != null 
+                    ? mActivityManager.isPackageTopApp(mCurrentGame) 
+                    : false;
+
+        if (task != null && task.getWindowingMode() == WINDOWING_MODE_FREEFORM && gameActive) {
+            if (DEBUG) Slog.d(TAG, "Freeform focused but game still TOP_APP, ignoring.");
             return;
         }
 
-        String packageName = record.packageName;
         boolean isGame = mGameListManager.isGame(packageName);
 
         if (DEBUG) Slog.d(TAG, "onFocusAppChanged: " + packageName + " isGame=" + isGame);
 
+        boolean shouldStartOverlay = false;
         synchronized (mLock) {
-            if (isGame && !packageName.equals(mCurrentGame)) {
-                mCurrentGame = packageName;
-                startOverlay();
-            } else if (!isGame && mCurrentGame != null) {
-                mCurrentGame = null;
-                mGameStateDispatcher.dispatchGameState(false, null);
+            if (isGame) {
+                if (!packageName.equals(mCurrentGame)) {
+                    if (mCurrentGame != null) {
+                        mGameStateDispatcher.dispatchGameState(false, null);
+                    }
+                    mCurrentGame = packageName;
+                    shouldStartOverlay = true;
+                }
+            } else {
+                if (mCurrentGame != null) {
+                    mCurrentGame = null;
+                    mGameStateDispatcher.dispatchGameState(false, null);
+                }
             }
+        }
+        if (shouldStartOverlay) {
+            startOverlay();
         }
     }
 

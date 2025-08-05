@@ -19577,6 +19577,14 @@ public class ActivityManagerService extends IActivityManager.Stub
         }
         return processRecordLocked;
     }
+    
+    public boolean isPackageTopApp(String str) {
+        ProcessRecord gameProc = getProcessRecord(str);
+        return gameProc != null
+            && gameProc.getThread() != null
+            && gameProc.mState != null
+            && gameProc.mState.getCurrentSchedulingGroup() == ProcessList.SCHED_GROUP_TOP_APP;
+    }
 
     @Override
     public void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera) {
