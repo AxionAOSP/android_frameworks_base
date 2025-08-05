@@ -15,18 +15,15 @@ package com.android.systemui.shared.clocks.view
 
 import android.content.Context
 import android.graphics.*
-import android.graphics.drawable.Drawable
 import android.text.TextUtils
 import android.util.AttributeSet
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.toBitmap
 import com.android.systemui.customization.R
-import kotlin.LazyThreadSafetyMode
-import kotlin.math.cos
-import kotlin.math.roundToInt
-import kotlin.math.sin
+import com.android.systemui.shared.clocks.extensions.*
 import java.text.SimpleDateFormat
 import java.util.Locale
+import kotlin.math.cos
+import kotlin.math.sin
 
 class GraphicClockView @JvmOverloads constructor(
     context: Context,
@@ -35,9 +32,7 @@ class GraphicClockView @JvmOverloads constructor(
     defStyleRes: Int = 0
 ) : NTClockView(context, attrs, defStyleAttr, defStyleRes) {
 
-    private val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-    }
+    private val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
     private val faceInnerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
@@ -50,31 +45,27 @@ class GraphicClockView @JvmOverloads constructor(
         strokeCap = Paint.Cap.ROUND
     }
 
-    private val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-    }
+    private val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
-    private val tick: Bitmap? by lazy(LazyThreadSafetyMode.NONE) {
-        ContextCompat.getDrawable(context, R.drawable.graphic_tick)?.toBitmap()
-    }
+    private val dotSize get() = context.scaledDimen(R.dimen.dot_size)
+    private val handSize get() = context.scaledDimen(R.dimen.clock_hand_size)
 
-    private val tickLight: Bitmap? by lazy(LazyThreadSafetyMode.NONE) {
-        ContextCompat.getDrawable(context, R.drawable.graphic_tick_light)?.toBitmap()
-    }
+    private val bitmaps: List<Bitmap?> get() = createBitmaps(context, intArrayOf(
+        R.drawable.graphic_tick,
+        R.drawable.graphic_tick_light
+    ))
+
+    private val tick get() = bitmaps[0]
+    private val tickLight get() = bitmaps[1]
 
     override fun getTag(): String = "GraphicClockView"
 
     override fun drawClock(canvas: Canvas) {
         if (timeStr.isNullOrBlank() || !TextUtils.isDigitsOnly(timeStr)) return
-
-        val dotSize = resources.getDimension(R.dimen.dot_size) * scaleRatio
         val dotColor = clockColor
-
         drawClockTicks(canvas)
         drawClockDot(canvas, dotSize * 1.5f, dotColor)
-
         drawClockHands(canvas, timeStr)
-
         if (!isDoze && !isScreenOff) {
             drawClockDot(canvas, dotSize, ContextCompat.getColor(context, R.color.clock_dot_color))
         } else {
@@ -85,7 +76,6 @@ class GraphicClockView @JvmOverloads constructor(
     private fun drawClockDot(canvas: Canvas, size: Float, color: Int, mode: Xfermode? = null) {
         dotPaint.color = color
         dotPaint.xfermode = mode
-
         val cx = width / 2f
         val cy = height / 2f
         val radius = size / 2f
@@ -97,18 +87,14 @@ class GraphicClockView @JvmOverloads constructor(
             val seconds = time.takeLast(2).toInt()
             val minutes = time.dropLast(2).takeLast(2).toInt()
             val hours = time.dropLast(4).toInt()
-
-            val baseLength = resources.getDimension(R.dimen.clock_hand_size) * scaleRatio
             val baseColor = clockColor
             val highlightColor = ContextCompat.getColor(context, R.color.clock_dot_color)
-
             val hourAngle = (hours + minutes / 60f) * 5
             val minuteAngle = minutes + seconds / 60f
-
-            drawHand(canvas, hourAngle, baseLength * 2, 0.22f to 0.38f, baseColor)
-            drawHand(canvas, minuteAngle, baseLength, 0.22f to 0.42f, baseColor)
-            drawHand(canvas, seconds.toFloat(), baseLength / 2, 0.19f to 0.42f, highlightColor)
-        } catch (e: NumberFormatException) {
+            drawHand(canvas, hourAngle, handSize * 2, 0.22f to 0.38f, baseColor)
+            drawHand(canvas, minuteAngle, handSize, 0.22f to 0.42f, baseColor)
+            drawHand(canvas, seconds.toFloat(), handSize / 2, 0.19f to 0.42f, highlightColor)
+        } catch (_: NumberFormatException) {
         }
     }
 
@@ -121,68 +107,53 @@ class GraphicClockView @JvmOverloads constructor(
     ) {
         val centerX = width / 2f
         val centerY = height / 2f
-
         val angleRad = Math.toRadians((position * 6 - 90).toDouble())
         val startLength = multipliers.first * height
         val endLength = multipliers.second * height
-
         val startX = centerX - cos(angleRad) * startLength
         val startY = centerY - sin(angleRad) * startLength
         val endX = centerX + cos(angleRad) * endLength
         val endY = centerY + sin(angleRad) * endLength
-
         handPaint.color = color
         handPaint.strokeWidth = thickness
-
         canvas.drawLine(startX.toFloat(), startY.toFloat(), endX.toFloat(), endY.toFloat(), handPaint)
     }
 
     private fun drawClockTicks(canvas: Canvas) {
         val tick = this.tick ?: return
         val tickLight = this.tickLight ?: return
-
         val color = clockColor
-
         tickPaint.colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN)
-
         val tickWidth = tick.width * scaleRatio
         val tickHeight = tick.height * scaleRatio
-        val width = (getWidth() - tickWidth) / 2f
-        val height = (getHeight() - tickHeight) / 2f
-
+        val left = (width - tickWidth) / 2f
+        val top = (height - tickHeight) / 2f
         val matrix = Matrix().apply {
             postScale(scaleRatio, scaleRatio)
-            postTranslate(width, height)
+            postTranslate(left, top)
         }
-
         if (!isDoze && !isScreenOff) {
             canvas.drawBitmap(tickLight, matrix, tickPaint)
         }
-
         canvas.drawBitmap(tick, matrix, tickPaint)
     }
-    
+
     override fun refreshTime() {
-        if (format == null) {
-            return
-        }
-        val jCurrentTimeMillis = System.currentTimeMillis() - calendar.getTimeInMillis()
-        if (0 <= jCurrentTimeMillis && jCurrentTimeMillis < 901) {
-            return
-        }
-        calendar.setTimeInMillis(System.currentTimeMillis())
-        val str = SimpleDateFormat(format, Locale.ENGLISH).format(calendar.getTime())
-        if (timeStr == str) return
-        checkNotNull(str)
-        if (str.isNotEmpty()) {
+        if (format == null) return
+        val now = System.currentTimeMillis()
+        if (now - calendar.timeInMillis in 0..900) return
+        calendar.timeInMillis = now
+        val str = SimpleDateFormat(format, Locale.ENGLISH).format(calendar.time)
+        if (timeStr != str && str.isNotEmpty()) {
             timeStr = str
-            setContentDescription(talkBackContent)
+            contentDescription = talkBackContent
             invalidate()
         }
     }
-        
+
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        bitmaps
         refreshTime()
         postInvalidateOnAnimation()
     }

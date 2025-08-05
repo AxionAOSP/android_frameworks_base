@@ -15,13 +15,13 @@ package com.android.systemui.shared.clocks.view
 
 import android.content.Context
 import android.graphics.*
-import android.graphics.drawable.Drawable
 import android.text.TextUtils
 import android.util.AttributeSet
 import android.view.View
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import com.android.systemui.customization.R
+import com.android.systemui.shared.clocks.extensions.*
 import kotlin.math.roundToInt
 
 class LondonUGClockView @JvmOverloads constructor(
@@ -31,51 +31,56 @@ class LondonUGClockView @JvmOverloads constructor(
     defStyleRes: Int = 0
 ) : NTClockView(context, attrs, defStyleAttr, defStyleRes) {
 
-    private val digitBitmaps: Map<Char, Lazy<Bitmap?>> = mapOf(
-        '0' to lazy { loadBitmap(R.drawable.london_ug_0) },
-        '1' to lazy { loadBitmap(R.drawable.london_ug_1) },
-        '2' to lazy { loadBitmap(R.drawable.london_ug_2) },
-        '3' to lazy { loadBitmap(R.drawable.london_ug_3) },
-        '4' to lazy { loadBitmap(R.drawable.london_ug_4) },
-        '5' to lazy { loadBitmap(R.drawable.london_ug_5) },
-        '6' to lazy { loadBitmap(R.drawable.london_ug_6) },
-        '7' to lazy { loadBitmap(R.drawable.london_ug_7) },
-        '8' to lazy { loadBitmap(R.drawable.london_ug_8) },
-        '9' to lazy { loadBitmap(R.drawable.london_ug_9) },
-    )
+    private val padding: Float
+        get() = context.scaledDimen(R.dimen.clock_padding)
+
+    private val scale: Float
+        get() = (context.scaleRatio * 56f) / 32f
+
+    private val topMargin: Float
+        get() = context.scaledDimen(R.dimen.clock_center_date_margin_top)
+
+    private var digitBitmaps: Map<Char, Bitmap?> = createDigitBitmaps()
 
     private val paint = Paint()
     private val tagName = "LondonUGClockView"
 
     override fun getTag(): String = tagName
 
-    private fun loadBitmap(resId: Int): Bitmap? {
-        val drawable: Drawable? = ContextCompat.getDrawable(context, resId)
-        return drawable?.toBitmap()
+    private fun createDigitBitmaps(): Map<Char, Bitmap?> {
+        val digitResIds = intArrayOf(
+            R.drawable.london_ug_0,
+            R.drawable.london_ug_1,
+            R.drawable.london_ug_2,
+            R.drawable.london_ug_3,
+            R.drawable.london_ug_4,
+            R.drawable.london_ug_5,
+            R.drawable.london_ug_6,
+            R.drawable.london_ug_7,
+            R.drawable.london_ug_8,
+            R.drawable.london_ug_9,
+        )
+        val bitmaps = createBitmaps(context, digitResIds)
+        return ('0'..'9').zip(bitmaps).toMap()
     }
 
     override fun drawClock(canvas: Canvas) {
         val time = timeStr
-
         if (time.isEmpty() || !TextUtils.isDigitsOnly(time)) return
-
-        val padding = resources.getDimension(R.dimen.clock_padding) * scaleRatio
-        val scale = (scaleRatio * 56f) / 32f
 
         var totalWidth = 0f
         time.forEachIndexed { index, char ->
-            val bitmap = digitBitmaps[char]?.value
+            val bitmap = digitBitmaps[char]
             if (bitmap != null) {
                 totalWidth += bitmap.width * scale
                 if (index < time.lastIndex) totalWidth += padding
             }
         }
-
         if (totalWidth <= 0f) return
+
         val availableWidth = width.toFloat()
         val finalWidth = minOf(totalWidth, availableWidth)
         val startX = (availableWidth - finalWidth) / 2f
-        val topMargin = resources.getDimension(R.dimen.clock_center_date_margin_top) * scaleRatio
         val centerY = (height / 2f) + topMargin
 
         val color = if (isRegionDark || isDoze || isScreenOff) {
@@ -87,7 +92,7 @@ class LondonUGClockView @JvmOverloads constructor(
 
         var x = startX
         time.forEachIndexed { index, char ->
-            val bitmap = digitBitmaps[char]?.value
+            val bitmap = digitBitmaps[char]
             if (bitmap != null) {
                 val matrix = Matrix().apply {
                     postScale(scale, scale)
@@ -98,5 +103,10 @@ class LondonUGClockView @JvmOverloads constructor(
                 if (index < time.lastIndex) x += padding
             }
         }
+    }
+
+    override fun onFontSettingChanged() {
+        digitBitmaps = createDigitBitmaps()
+        invalidate()
     }
 }

@@ -20,16 +20,15 @@ import android.text.format.DateFormat
 import android.util.AttributeSet
 import android.util.Log
 import android.view.ViewGroup
-import androidx.constraintlayout.core.motion.utils.TypedValues
 import com.android.systemui.customization.R
 import com.android.systemui.log.core.MessageBuffer
 import com.android.systemui.plugins.clocks.*
 import com.android.systemui.shared.clocks.ClockConfigs
+import com.android.systemui.shared.clocks.extensions.*
 import kotlinx.coroutines.*
-import java.io.PrintWriter
 import java.text.SimpleDateFormat
-import java.util.concurrent.TimeUnit
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 abstract class NTClockView @JvmOverloads constructor(
     context: Context,
@@ -60,69 +59,85 @@ abstract class NTClockView @JvmOverloads constructor(
     var artistName: String = ""
     var nowPlayingText: String = ""
     var nextAlarm: String = ""
-    
-    var nowPlayingAvailable = false
-        get() = nowPlayingText.isNotBlank()
 
-    var isNowPlaying = false
-        get() = isPlaying && isDoze
-        
-    var clockColor = Color.WHITE
-        get() = if (isDoze || isScreenOff || isRegionDark) Color.WHITE else Color.BLACK
+    val nowPlayingAvailable get() = nowPlayingText.isNotBlank()
+    val isNowPlaying get() = isPlaying
+    val clockColor get() = if (isDoze || isScreenOff || isRegionDark) Color.WHITE else Color.BLACK
+
+    val clockHeightBase get() = context.scaledDimenInt(R.dimen.clock_height)
+    val clockPaddingTop get() = context.scaledDimen(R.dimen.clock_padding_top)
+    val clockPaddingStart get() = context.scaledDimen(R.dimen.clock_padding_start)
+    val clockDateTextSize get() = context.scaledDimen(R.dimen.clock_date_text_size)
+    val clockDateMarginTop get() = context.scaledDimen(R.dimen.clock_date_margin_top)
+    val scaleRatio get() = context.scaleRatio
+
+    protected val config: ClockConfigs.ClockStyleConfig?
+        get() {
+            val className = this::class.simpleName ?: return null
+            return ClockConfigs.clockConfigMap[className]
+        }
 
     val clockHeight: Int
         get() {
-            val className = this::class.simpleName ?: return resources.getDimension(R.dimen.clock_height).toInt()
-            val config = ClockConfigs.clockConfigMap[className]
-            return config?.customHeightRes?.let { resources.getDimension(it).toInt() }
-                ?: (resources.getDimension(R.dimen.clock_height) + dateHeight).toInt()
+            val resHeight = config?.customHeightRes?.let { context.scaledDimenInt(it) } ?: clockHeightBase
+            return resHeight + dateHeight
+        }
+
+    val dateMarginTop: Int
+        get() {
+            val cfg = config ?: return 0
+            if (!cfg.visible) return 0
+            val marginTop = cfg.customDateMarginTop?.let { context.scaledDimen(it) } ?: clockDateMarginTop
+            return marginTop.toInt()
         }
 
     val dateHeight: Int
         get() {
-            val className = this::class.simpleName ?: return 0
-            val config = ClockConfigs.clockConfigMap[className] ?: return 0
-            if (!config.visible) return 0
-
-            val textSize = resources.getDimension(R.dimen.clock_date_text_size)
-            val marginTop = config.customDateMarginTop?.let {
-                resources.getDimension(it)
-            } ?: resources.getDimension(R.dimen.clock_date_margin_top)
-            val paddingTop = resources.getDimension(R.dimen.clock_padding_top)
-
-            return when (config.position) {
-                ClockConfigs.Position.ABOVE -> ((textSize + marginTop + paddingTop) * scaleRatio).toInt()
-                ClockConfigs.Position.BELOW -> (textSize * scaleRatio).toInt()
+            val cfg = config ?: return 0
+            if (!cfg.visible) return 0
+            val textSize = clockDateTextSize
+            return when (cfg.position) {
+                ClockConfigs.Position.ABOVE -> (textSize + dateMarginTop + clockPaddingTop).toInt()
+                ClockConfigs.Position.BELOW -> textSize.toInt()
+                else -> 0
             }
         }
 
     val talkBackContent: String
         get() {
-            val pattern =
-                if (DateFormat.is24HourFormat(context)) CLOCK_PATTERN_24_STANDARD else "hh:mm"
+            val pattern = if (DateFormat.is24HourFormat(context)) CLOCK_PATTERN_24_STANDARD else "hh:mm"
             return SimpleDateFormat(pattern, Locale.ENGLISH).format(calendar.time)
         }
 
-    val scaleRatio: Float
-        get() {
-            val densityDpi = resources.displayMetrics.densityDpi
-            val ratio = 420f / densityDpi
-            if (DEBUG) Log.d("ScaleRatio", "densityDpi = $densityDpi, ratio = $ratio")
-            return ratio
+    val dateTextX: Float
+        get() = when (config?.align) {
+            ClockConfigs.Align.LEFT -> clockPaddingStart
+            else -> width / 2f
         }
 
-    private var dateTextX: Float = 0f
-    private var dateTextY: Float = 0f
-    private var dateVisible: Boolean = false
+    val dateTextY: Float
+        get() = when (config?.position) {
+            ClockConfigs.Position.ABOVE -> clockDateMarginTop + datePaint.textSize
+            else -> height - clockDateMarginTop - datePaint.textSize
+        }
 
-    private val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = resources.getDimension(R.dimen.clock_date_text_size) * scaleRatio
-        val resId = resources.getIdentifier("config_bodyFontFamily", "string", "android")
-        val fontFamilyName =
-            if (resId != 0) resources.getString(resId) else "sans-serif"
-        val bodyTypeface = Typeface.create(fontFamilyName, Typeface.NORMAL)
-        typeface = Typeface.create(bodyTypeface, 500, false)
-    }
+    var dateVisible: Boolean = false
+
+    val datePaint: Paint
+        get() {
+            return Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                textSize = clockDateTextSize
+                color = clockColor
+                val resId = resources.getIdentifier("config_bodyFontFamily", "string", "android")
+                val fontFamilyName = if (resId != 0) resources.getString(resId) else "sans-serif"
+                val bodyTypeface = Typeface.create(fontFamilyName, Typeface.NORMAL)
+                typeface = Typeface.create(bodyTypeface, 500, false)
+                textAlign = when (config?.align) {
+                    ClockConfigs.Align.CENTER -> Paint.Align.CENTER
+                    else -> Paint.Align.LEFT
+                }
+            }
+        }
 
     init {
         setWillNotDraw(false)
@@ -152,7 +167,7 @@ abstract class NTClockView @JvmOverloads constructor(
         trackTitle = track
         artistName = artist
     }
-    
+
     open fun onNowPlayingUpdate(npText: String) {
         nowPlayingText = npText
     }
@@ -190,6 +205,9 @@ abstract class NTClockView @JvmOverloads constructor(
             refreshColor()
         }
     }
+    
+    open fun onFontSettingChanged() {
+    }
 
     open fun onTimeZoneChanged(timeZone: TimeZone) {
         calendar.timeZone = timeZone
@@ -226,15 +244,6 @@ abstract class NTClockView @JvmOverloads constructor(
         dateStr = dateFormat.format(calendar.time)
     }
 
-    fun dump(pw: PrintWriter) {
-        pw.println("view=$tag")
-        pw.println("    measuredWidth=$measuredWidth")
-        pw.println("    measuredHeight=$measuredHeight")
-        pw.println("    time=${calendar.timeInMillis}")
-        pw.println("    formattedTime=$timeStr")
-        pw.println("    locale=$locale")
-    }
-
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         canvas.drawFilter = antiAliasFilter
@@ -246,25 +255,11 @@ abstract class NTClockView @JvmOverloads constructor(
     }
 
     private fun initDatePaintAndPosition() {
-        val className = this::class.simpleName ?: return
-        val config = ClockConfigs.clockConfigMap[className] ?: return
-        dateVisible = config.visible
-        datePaint.textAlign = when (config.align) {
+        val cfg = config
+        dateVisible = cfg?.visible ?: false
+        datePaint.textAlign = when (cfg?.align) {
             ClockConfigs.Align.LEFT -> Paint.Align.LEFT
-            ClockConfigs.Align.CENTER -> Paint.Align.CENTER
-        }
-        dateTextX = when (config.align) {
-            ClockConfigs.Align.LEFT -> resources.getDimension(R.dimen.clock_padding_start)
-            ClockConfigs.Align.CENTER -> width / 2f
-        }
-        val topMargin = config.customDateMarginTop?.let {
-            resources.getDimension(it)
-        } ?: resources.getDimension(R.dimen.clock_date_margin_top)
-        dateTextY = when (config.position) {
-            ClockConfigs.Position.ABOVE -> (topMargin * scaleRatio) + datePaint.textSize
-            ClockConfigs.Position.BELOW -> height -
-                (resources.getDimension(R.dimen.clock_date_margin_top) * scaleRatio) -
-                datePaint.textSize
+            else -> Paint.Align.CENTER
         }
     }
 

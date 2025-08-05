@@ -15,13 +15,10 @@ package com.android.systemui.shared.clocks.view
 
 import android.content.Context
 import android.graphics.*
-import android.graphics.drawable.Drawable
 import android.text.TextUtils
 import android.util.AttributeSet
-import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.toBitmap
 import com.android.systemui.customization.R
-import kotlin.Lazy
+import com.android.systemui.shared.clocks.extensions.*
 import kotlin.LazyThreadSafetyMode
 import kotlin.math.min
 
@@ -33,7 +30,7 @@ class NDotClockView @JvmOverloads constructor(
 ) : NTClockView(context, attrs, defStyleAttr, defStyleRes) {
 
     private val tagName = "NDotClockView"
-    override fun getTag(): String = tagName
+    override fun getTag() = tagName
 
     private val paint = Paint()
 
@@ -50,17 +47,19 @@ class NDotClockView @JvmOverloads constructor(
         '9' to (R.drawable.ndot_9 to R.drawable.ndot_9_light)
     )
 
-    private val digitBitmaps: Map<Char, Pair<Lazy<Bitmap?>, Lazy<Bitmap?>>> =
-        digitResIds.mapValues { (digit, resPair) ->
-            LazyThreadSafetyMode.NONE.let {
-                lazy(it) { loadBitmap(resPair.first) } to
-                lazy(it) { loadBitmap(resPair.second) }
-            }
-        }
+    private var digitBitmaps: Map<Char, Pair<Lazy<Bitmap?>, Lazy<Bitmap?>>> = createDigitBitmaps()
 
-    private fun loadBitmap(resId: Int): Bitmap? {
-        val drawable: Drawable? = ContextCompat.getDrawable(context, resId)
-        return drawable?.toBitmap()
+    private val clockPadding get() = context.scaledDimen(R.dimen.clock_padding)
+    private val overlapPadding get() = context.scaledDimen(R.dimen.overlap_padding)
+    private val topMargin get() = context.scaledDimen(R.dimen.clock_center_date_margin_top)
+    private val yOffset get() = context.scaledDimen(R.dimen.ndot_clock_offset)
+
+    private fun createDigitBitmaps(): Map<Char, Pair<Lazy<Bitmap?>, Lazy<Bitmap?>>> {
+        val mode = LazyThreadSafetyMode.NONE
+        return digitResIds.mapValues { (_, resPair) ->
+            val (normalBmp, lightBmp) = createBitmaps(context, intArrayOf(resPair.first, resPair.second))
+            lazy(mode) { normalBmp } to lazy(mode) { lightBmp }
+        }
     }
 
     private fun getDigitBitmap(char: Char, isDoze: Boolean, isLight: Boolean): Bitmap? {
@@ -81,26 +80,19 @@ class NDotClockView @JvmOverloads constructor(
             else -> return
         }
 
-        val clockPadding = resources.getDimension(R.dimen.clock_padding) * scaleRatio
-        val overlapPadding = resources.getDimension(R.dimen.overlap_padding) * scaleRatio
-
         val spacing = calculateSpacing(timeStr, clockPadding, overlapPadding)
 
         var totalWidth = 0f
         for (i in timeStr.indices) {
             val bmp = getDigitBitmap(timeStr[i], isDozeOrOff, drawMask[i]) ?: continue
-            totalWidth += bmp.width * scaleRatio
-            if (i < spacing.size) {
-                totalWidth += spacing[i]
-            }
+            totalWidth += bmp.width * context.scaleRatio
+            if (i < spacing.size) totalWidth += spacing[i]
         }
 
         if (totalWidth <= 0f) return
 
         val availableWidth = min(width.toFloat(), totalWidth)
         val startX = (width - availableWidth) / 2f
-        val topMargin = resources.getDimension(R.dimen.clock_center_date_margin_top) * scaleRatio
-        val yOffset = resources.getDimension(R.dimen.ndot_clock_offset) * scaleRatio
 
         paint.colorFilter = PorterDuffColorFilter(
             if (isDarkRegion || isDozeOrOff) Color.WHITE else Color.BLACK,
@@ -110,7 +102,7 @@ class NDotClockView @JvmOverloads constructor(
         var x = startX
         for (i in timeStr.indices) {
             val bmp = getDigitBitmap(timeStr[i], isDozeOrOff, drawMask[i]) ?: continue
-            val scale = scaleRatio
+            val scale = context.scaleRatio
             val y = (height - bmp.height * scale) / 2f - yOffset + topMargin
             val matrix = Matrix().apply {
                 postScale(scale, scale)
@@ -138,5 +130,11 @@ class NDotClockView @JvmOverloads constructor(
             }
             else -> floatArrayOf()
         }
+    }
+
+    override fun onFontSettingChanged() {
+        super.onFontSettingChanged()
+        digitBitmaps = createDigitBitmaps()
+        invalidate()
     }
 }

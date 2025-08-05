@@ -53,10 +53,11 @@
     <dimen name="clock_center_date_margin_top">28dp</dimen>
     <dimen name="clock_date_text_size">18sp</dimen>
     <dimen name="clock_face_stroke">24dp</dimen>
-    <dimen name="clock_general_height">196dp</dimen>
+    <dimen name="clock_general_height">188dp</dimen>
     <dimen name="clock_general_date_top_margin">22dp</dimen>
-    <dimen name="clock_general_padding_top">60dp</dimen>
-    <dimen name="clock_general_container_top_margin">60dp</dimen>
+    <dimen name="clock_general_padding_top">20dp</dimen>
+    <dimen name="clock_general_container_padding_top">4dp</dimen>
+    <dimen name="clock_general_container_padding_bottom">4dp</dimen>
     <dimen name="clock_hand_size">4dp</dimen>
     <dimen name="clock_height">166dp</dimen>
     <dimen name="clock_icon_primary_size">44dp</dimen>

@@ -14,24 +14,19 @@
 package com.android.systemui.shared.clocks.view
 
 import android.content.Context
-import android.content.res.Resources
 import android.graphics.*
-import android.graphics.drawable.AnimatedVectorDrawable
-import android.icu.text.DateFormat
-import android.icu.text.DisplayContext
 import android.os.Handler
 import android.os.Looper
 import android.text.TextUtils
 import android.util.AttributeSet
-import android.util.Log
 import android.view.View
-import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.android.systemui.customization.R
 import com.android.systemui.plugins.clocks.*
 import com.android.systemui.shared.clocks.*
+import com.android.systemui.shared.clocks.extensions.*
 import java.util.*
 
 class OldQuickLookClockView @JvmOverloads constructor(
@@ -50,8 +45,6 @@ class OldQuickLookClockView @JvmOverloads constructor(
     private var weatherData: NTWeatherData? = null
     private var isDarkTheme: Boolean? = null
 
-    override fun getTag(): String = "OLDQuickLookClockView"
-
     private val clockTextView get() = findViewById<TextView>(R.id.clock_text_view)
     private val placeholderTextView get() = findViewById<TextView>(R.id.placeholder_text_view)
     private val dateTextView get() = findViewById<TextView>(R.id.date_text_view)
@@ -69,7 +62,21 @@ class OldQuickLookClockView @JvmOverloads constructor(
     private val calendarContainerView get() = findViewById<View>(R.id.calendar_info_container_view)
     private val containerLayout get() = findViewById<LinearLayout>(R.id.container_layout)
 
-    override fun drawClock(canvas: Canvas) {}
+    private val paddingHorizontal get() = context.scaledDimen(R.dimen.clock_padding_horizontal)
+    private val oldClockHeight get() = context.scaledDimenInt(R.dimen.old_clock_height)
+    private val topMarginWithWeather get() = context.scaledDimenInt(R.dimen.old_clock_text_margin_top)
+    private val topMarginNoWeather get() = context.scaledDimenInt(R.dimen.old_one_line_info_clock_text_margin_top)
+    private val bottomMarginValue get() = context.scaledDimenInt(R.dimen.old_clock_text_margin_bottom)
+    private val infoPadding get() = context.scaledDimenInt(R.dimen.old_clock_info_text_padding)
+    private val weatherPadding get() = context.scaledDimenInt(R.dimen.old_clock_weather_info_text_padding)
+    private val iconSize get() = context.scaledDimenInt(R.dimen.old_clock_icon_primary_size)
+    private val alarmIconSize get() = context.scaledDimenInt(R.dimen.old_clock_alarm_icon_primary_size)
+    private val primaryTextSize get() = context.scaledDimen(R.dimen.old_clock_primary_text_size)
+    private val secondaryTextSize get() = context.scaledDimen(R.dimen.old_clock_secondary_text_size)
+
+    override fun getTag(): String = "OLDQuickLookClockView"
+
+    override fun drawClock(canvas: android.graphics.Canvas) {}
 
     override fun refreshTime() {
         super.refreshTime()
@@ -91,34 +98,21 @@ class OldQuickLookClockView @JvmOverloads constructor(
             it?.colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN)
         }
 
-        val paddingHorizontal = resources.getDimension(R.dimen.clock_padding_horizontal) * scaleRatio
         val displayMetrics = resources.displayMetrics
         var w = displayMetrics.heightPixels
         if (displayMetrics.widthPixels < displayMetrics.heightPixels) {
             w = displayMetrics.widthPixels
         }
-        val h = (resources.getDimension(R.dimen.old_clock_height) * scaleRatio).toInt()
 
         containerLayout?.layoutParams?.apply {
-            this.width = (w - (2 * paddingHorizontal)).toInt()
-            this.height = h
+            width = (w - (2 * paddingHorizontal)).toInt()
+            height = oldClockHeight
         }
+
         super.refreshColor()
     }
 
     fun refreshUI() {
-        val resources = context.resources
-
-        val topMarginWithWeather = (resources.getDimension(R.dimen.old_clock_text_margin_top) * scaleRatio).toInt()
-        val topMarginNoWeather = (resources.getDimension(R.dimen.old_one_line_info_clock_text_margin_top) * scaleRatio).toInt()
-        val bottomMarginValue = (resources.getDimension(R.dimen.old_clock_text_margin_bottom) * scaleRatio).toInt()
-        val infoPadding = (resources.getDimension(R.dimen.old_clock_info_text_padding) * scaleRatio).toInt()
-        val weatherPadding = (resources.getDimension(R.dimen.old_clock_weather_info_text_padding) * scaleRatio).toInt()
-        val iconSize = (resources.getDimension(R.dimen.old_clock_icon_primary_size) * scaleRatio).toInt()
-        val alarmIconSize = (resources.getDimension(R.dimen.old_clock_alarm_icon_primary_size) * scaleRatio).toInt()
-        val primaryTextSize = resources.getDimension(R.dimen.old_clock_primary_text_size) * scaleRatio
-        val secondaryTextSize = resources.getDimension(R.dimen.old_clock_secondary_text_size) * scaleRatio
-
         clockTextView?.apply {
             setTextSize(0, primaryTextSize)
             (layoutParams as? LinearLayout.LayoutParams)?.apply {
@@ -134,20 +128,14 @@ class OldQuickLookClockView @JvmOverloads constructor(
             setBottomMargin(infoPadding)
         }
 
-        dateContainerView?.apply {
-            setBottomMargin(infoPadding)
-        }
+        dateContainerView?.setBottomMargin(infoPadding)
 
         dateTextView?.apply {
             setTextSize(0, secondaryTextSize)
-            (layoutParams as? LinearLayout.LayoutParams)?.apply {
-                marginEnd = infoPadding
-            }
+            (layoutParams as? LinearLayout.LayoutParams)?.marginEnd = infoPadding
         }
 
-        alarmInfoTextView?.apply {
-            setTextSize(0, secondaryTextSize)
-        }
+        alarmInfoTextView?.setTextSize(0, secondaryTextSize)
 
         alarmIconView?.apply {
             (layoutParams as? LinearLayout.LayoutParams)?.apply {
@@ -157,9 +145,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
             }
         }
 
-        weatherTextView?.apply {
-            setTextSize(0, secondaryTextSize)
-        }
+        weatherTextView?.setTextSize(0, secondaryTextSize)
 
         weatherIconView?.apply {
             (layoutParams as? LinearLayout.LayoutParams)?.apply {
@@ -183,9 +169,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
             setBottomMargin(infoPadding)
         }
 
-        calendarInfoTextView?.apply {
-            setTextSize(0, secondaryTextSize)
-        }
+        calendarInfoTextView?.setTextSize(0, secondaryTextSize)
     }
 
     private fun View.setBottomMargin(margin: Int) {
@@ -211,13 +195,10 @@ class OldQuickLookClockView @JvmOverloads constructor(
     private val formattedDate: String
         get() {
             val locale = Locale.getDefault()
-            val instanceForSkeleton = DateFormat.getInstanceForSkeleton(this.datePattern, locale)
-            instanceForSkeleton.setContext(DisplayContext.CAPITALIZATION_FOR_BEGINNING_OF_SENTENCE)
-            currentTime.setTime(System.currentTimeMillis())
-            if (instanceForSkeleton != null) {
-                return instanceForSkeleton.format(this.currentTime)
-            }
-            return ""
+            val instanceForSkeleton = android.icu.text.DateFormat.getInstanceForSkeleton(this.datePattern, locale)
+            instanceForSkeleton.setContext(android.icu.text.DisplayContext.CAPITALIZATION_FOR_BEGINNING_OF_SENTENCE)
+            currentTime.time = System.currentTimeMillis()
+            return instanceForSkeleton.format(this.currentTime) ?: ""
         }
 
     private fun refreshInfo(calendar: CalendarSimpleData?, weather: NTWeatherData?) {
@@ -231,9 +212,9 @@ class OldQuickLookClockView @JvmOverloads constructor(
         val weatherIcon = WeatherUtils.getWeatherIcon(context, conditionCode)
 
         val hasCalendarData = calendar != null && calendar != CalendarSimpleData.EMPTY
-        val showWeather = weather != null && weather != NTWeatherData.EMPTY 
-            && temperature.isNotEmpty() 
-            && weatherCondition.isNotEmpty() && conditionCode != 0
+        val showWeather = weather != null && weather != NTWeatherData.EMPTY
+                && temperature.isNotEmpty()
+                && weatherCondition.isNotEmpty() && conditionCode != 0
         val showCalendar = hasCalendarData && calendar?.isEventVisible() == true
 
         if (!isPlaying && !nowPlayingAvailable) {
@@ -242,49 +223,55 @@ class OldQuickLookClockView @JvmOverloads constructor(
             npIconView.visibility = View.GONE
         }
 
-        if (nowPlayingAvailable) {
-            npIconView.visibility = View.VISIBLE
-            NowPlayingIconBinder.get().bindAndStart(npIconView)
-            calendarTitleTextView?.text = "$nowPlayingText"
-            calendarInfoTextView?.text = ""
-            calendarContainerView?.visibility = View.VISIBLE
-            weatherContainerView?.visibility = View.GONE
-            placeholderTextView?.visibility = View.GONE
-            dateContainerView?.visibility = View.GONE
-        } else if (isNowPlaying) {
-            npIconView.visibility = View.VISIBLE
-            NowPlayingIconBinder.get().bindAndStart(npIconView)
-            calendarTitleTextView?.text = "$trackTitle"
-            calendarInfoTextView?.text = "$artistName"
-            calendarContainerView?.visibility = View.VISIBLE
-            weatherContainerView?.visibility = View.GONE
-            placeholderTextView?.visibility = View.GONE
-            dateContainerView?.visibility = View.GONE
-        } else if (showCalendar) {
-            calendarTitleTextView?.text = calendar.title ?: ""
-            val location = calendar.location.orEmpty()
-            var calTime = CalendarUtils.getCalendarWidgetTime(context, calendar)
-            if (location.isNotBlank()) {
-                calTime += " $location"
+        when {
+            nowPlayingAvailable -> {
+                npIconView.visibility = View.VISIBLE
+                NowPlayingIconBinder.get().bindAndStart(npIconView)
+                calendarTitleTextView?.text = "$nowPlayingText"
+                calendarInfoTextView?.text = ""
+                calendarContainerView?.visibility = View.VISIBLE
+                weatherContainerView?.visibility = View.GONE
+                placeholderTextView?.visibility = View.GONE
+                dateContainerView?.visibility = View.GONE
             }
-            calendarInfoTextView?.text = calTime
-            calendarContainerView?.visibility = View.VISIBLE
-            weatherContainerView?.visibility = View.GONE
-            placeholderTextView?.visibility = View.GONE
-            dateContainerView?.visibility = View.GONE
-        } else if (showWeather) {
-            val weatherText = "$temperature° $weatherCondition"
-            weatherIconView?.setImageDrawable(weatherIcon)
-            weatherTextView?.text = weatherText
-            calendarContainerView?.visibility = View.GONE
-            weatherContainerView?.visibility = View.VISIBLE
-            placeholderTextView?.visibility = View.GONE
-            dateContainerView?.visibility = View.VISIBLE
-        } else {
-            calendarContainerView?.visibility = View.GONE
-            weatherContainerView?.visibility = View.GONE
-            placeholderTextView?.visibility = View.VISIBLE
-            dateContainerView?.visibility = View.VISIBLE
+            isNowPlaying -> {
+                npIconView.visibility = View.VISIBLE
+                NowPlayingIconBinder.get().bindAndStart(npIconView)
+                calendarTitleTextView?.text = "$trackTitle"
+                calendarInfoTextView?.text = "$artistName"
+                calendarContainerView?.visibility = View.VISIBLE
+                weatherContainerView?.visibility = View.GONE
+                placeholderTextView?.visibility = View.GONE
+                dateContainerView?.visibility = View.GONE
+            }
+            showCalendar -> {
+                calendarTitleTextView?.text = calendar.title ?: ""
+                val location = calendar.location.orEmpty()
+                var calTime = CalendarUtils.getCalendarWidgetTime(context, calendar)
+                if (location.isNotBlank()) {
+                    calTime += " $location"
+                }
+                calendarInfoTextView?.text = calTime
+                calendarContainerView?.visibility = View.VISIBLE
+                weatherContainerView?.visibility = View.GONE
+                placeholderTextView?.visibility = View.GONE
+                dateContainerView?.visibility = View.GONE
+            }
+            showWeather -> {
+                val weatherText = "$temperature° $weatherCondition"
+                weatherIconView?.setImageDrawable(weatherIcon)
+                weatherTextView?.text = weatherText
+                calendarContainerView?.visibility = View.GONE
+                weatherContainerView?.visibility = View.VISIBLE
+                placeholderTextView?.visibility = View.GONE
+                dateContainerView?.visibility = View.VISIBLE
+            }
+            else -> {
+                calendarContainerView?.visibility = View.GONE
+                weatherContainerView?.visibility = View.GONE
+                placeholderTextView?.visibility = View.VISIBLE
+                dateContainerView?.visibility = View.VISIBLE
+            }
         }
 
         calendarTitleTextView?.includeFontPadding = false
@@ -296,16 +283,14 @@ class OldQuickLookClockView @JvmOverloads constructor(
 
         clockTextView?.typeface = Typeface.create("nothingdot57", Typeface.NORMAL)
 
-        val infoTextViews = listOf(
+        listOf(
             calendarTitleTextView,
             calendarInfoTextView,
             weatherTextView,
             placeholderTextView,
             dateTextView,
             alarmInfoTextView
-        )
-
-        infoTextViews.forEach { it?.typeface = textTypeface }
+        ).forEach { it?.typeface = textTypeface }
 
         refreshColor()
         refreshUI()
@@ -340,7 +325,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
             android.text.format.DateFormat.format(format, nextAlarmMillis).toString()
         } else ""
 
-        val visible = nextAlarm.isNotBlank() == true
+        val visible = nextAlarm.isNotBlank()
         alarmIconView?.visibility = if (visible) View.VISIBLE else View.GONE
         alarmInfoTextView?.apply {
             visibility = if (visible) View.VISIBLE else View.GONE

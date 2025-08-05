@@ -15,19 +15,15 @@ package com.android.systemui.shared.clocks.view
 
 import android.content.Context
 import android.graphics.*
-import android.graphics.drawable.Drawable
 import android.util.AttributeSet
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.toBitmap
 import com.android.systemui.customization.R
 import com.android.systemui.plugins.clocks.*
 import com.android.systemui.shared.clocks.*
-import kotlin.Lazy
-import kotlin.LazyThreadSafetyMode
-import kotlin.math.max
+import com.android.systemui.shared.clocks.extensions.*
 
 class GeneralClockView @JvmOverloads constructor(
     context: Context,
@@ -44,28 +40,52 @@ class GeneralClockView @JvmOverloads constructor(
     var alarmText: String = ""
     var alarmActive: Boolean = false
 
-    private val digitResIds = intArrayOf(
+    val digitResIds = intArrayOf(
         R.drawable.intervar_0, R.drawable.intervar_1, R.drawable.intervar_2,
         R.drawable.intervar_3, R.drawable.intervar_4, R.drawable.intervar_5,
         R.drawable.intervar_6, R.drawable.intervar_7, R.drawable.intervar_8,
         R.drawable.intervar_9
     )
 
-    private val digitLightResIds = intArrayOf(
+    val digitLightResIds = intArrayOf(
         R.drawable.intervar_0_light, R.drawable.intervar_1_light, R.drawable.intervar_2_light,
         R.drawable.intervar_3_light, R.drawable.intervar_4_light, R.drawable.intervar_5_light,
         R.drawable.intervar_6_light, R.drawable.intervar_7_light, R.drawable.intervar_8_light,
         R.drawable.intervar_9_light
     )
 
-    val num by lazyBitmaps(context, digitResIds)
-    val numLight by lazyBitmaps(context, digitLightResIds)
+    val contentMargin get() = context.scaledDimenInt(R.dimen.clock_content_margin)
+    val clockGeneralHeight get() = context.scaledDimenInt(R.dimen.clock_general_height)
+    val clockPaddingHorizontal get() = context.scaledDimen(R.dimen.clock_padding_horizontal)
+    val clockPaddingVertical get() = context.scaledDimen(R.dimen.clock_padding)
+    val clockTopPadding get() = context.scaledDimen(R.dimen.clock_general_padding_top)
+    val containerTopPadding get() = context.scaledDimenInt(R.dimen.clock_general_container_padding_top)
+    val containerBottomPadding get() = context.scaledDimenInt(R.dimen.clock_general_container_padding_bottom)
+    val dotSize get() = context.scaledDimen(R.dimen.dot_small_size)
+    val dotMargin get() = context.scaledDimen(R.dimen.dot_margin)
+    val iconSize get() = context.scaledDimenInt(R.dimen.clock_icon_secondary_size)
+    val contentSecondaryPadding get() = context.scaledDimenInt(R.dimen.clock_content_secondary_padding)
+    val contentPrimaryPadding get() = context.scaledDimenInt(R.dimen.clock_content_primary_padding)
+    val textPrimarySize get() = context.scaledDimen(R.dimen.clock_text_primary_size)
+    val textSecondarySize get() = context.scaledDimen(R.dimen.clock_text_secondary_size)
+    val textMajorSize get() = context.scaledDimen(R.dimen.clock_text_major_size)
 
-    private fun lazyBitmaps(context: Context, resIds: IntArray): Lazy<List<Bitmap?>> = lazy {
-        resIds.map { resId ->
-            ContextCompat.getDrawable(context, resId)?.toBitmap()
-        }
-    }
+    val containerLayout: RelativeLayout get() = bindView(R.id.container_layout)
+    val quickLookIcon: ImageView get() = bindView(R.id.quick_look_icon_view)
+    val infoTopTextView: TextView get() = bindView(R.id.info_top_text_view)
+    val infoFrontTextView: TextView get() = bindView(R.id.info_front_text_view)
+    val infoRearTextView: TextView get() = bindView(R.id.info_rear_text_view)
+    val infoPlaceholderTextView: TextView get() = bindView(R.id.info_placeholder_text_view)
+    val infoBottomContainer: ViewGroup get() = bindView(R.id.info_bottom_container_layout)
+
+    private var _num: List<Bitmap?> = createBitmaps(context, digitResIds)
+    private var _numLight: List<Bitmap?> = createBitmaps(context, digitLightResIds)
+
+    val num: List<Bitmap?> get() = _num
+    val numLight: List<Bitmap?> get() = _numLight
+
+    val scale get() = scaleRatio
+    val dateTopOffset get() = dateTextY + clockTopPadding
 
     override fun drawClock(canvas: Canvas) {
         val timeStr = timeStr
@@ -75,13 +95,6 @@ class GeneralClockView @JvmOverloads constructor(
         val hasTitle = !calendarData?.title.isNullOrEmpty()
         val showCalendar = isEventVisible && hasTitle
 
-        val scale = scaleRatio
-        val topPadding = resources.getDimension(R.dimen.clock_general_padding_top) * scale
-        val horizontalPadding = resources.getDimension(R.dimen.clock_padding_horizontal) * scale
-        val digitPadding = resources.getDimension(R.dimen.clock_padding) * scale
-        val dotSize = resources.getDimension(R.dimen.dot_small_size) * scale
-        val dotMargin = resources.getDimension(R.dimen.dot_margin) * scale
-
         paint.colorFilter = PorterDuffColorFilter(clockColor, PorterDuff.Mode.SRC_IN)
 
         var calculatedWidth = 0f
@@ -89,7 +102,7 @@ class GeneralClockView @JvmOverloads constructor(
             getNumBitmap(char, showCalendar)?.let {
                 calculatedWidth += it.width * scale
                 if (timeStr.length - i == 3) {
-                    calculatedWidth += 2 * digitPadding
+                    calculatedWidth += 2 * clockPaddingVertical
                 }
             }
         }
@@ -98,10 +111,11 @@ class GeneralClockView @JvmOverloads constructor(
         if (calculatedWidth > width) {
             calculatedWidth = this.width.toFloat()
         }
+
         var xOffset = if (resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL) {
-            this.width.toFloat() - horizontalPadding - calculatedWidth
+            this.width.toFloat() - clockPaddingHorizontal - calculatedWidth
         } else {
-            horizontalPadding
+            clockPaddingHorizontal
         }
 
         for ((i, char) in timeStr.withIndex()) {
@@ -109,21 +123,21 @@ class GeneralClockView @JvmOverloads constructor(
 
             val matrix = Matrix().apply {
                 postScale(scale, scale)
-                postTranslate(xOffset, topPadding)
+                postTranslate(xOffset, dateTopOffset)
             }
 
             canvas.drawBitmap(bmp, matrix, paint)
             xOffset += bmp.width * scale
 
             if (timeStr.length - i == 3) {
-                val centerX = xOffset + digitPadding
-                val centerY = topPadding + (bmp.height * scale / 2)
+                val centerX = xOffset + clockPaddingVertical
+                val centerY = dateTopOffset + (bmp.height * scale / 2)
                 val dotRadius = dotSize / 2
                 val topDotY = centerY - (dotMargin / 2 + dotRadius)
                 val bottomDotY = centerY + (dotMargin / 2 + dotRadius)
                 canvas.drawOval(centerX - dotRadius, topDotY - dotRadius, centerX + dotRadius, topDotY + dotRadius, paint)
                 canvas.drawOval(centerX - dotRadius, bottomDotY - dotRadius, centerX + dotRadius, bottomDotY + dotRadius, paint)
-                xOffset += 2 * digitPadding
+                xOffset += 2 * clockPaddingVertical
             }
         }
     }
@@ -148,56 +162,28 @@ class GeneralClockView @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         measureChildren(widthMeasureSpec, heightMeasureSpec)
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        val w = ViewGroup.getDefaultSize(suggestedMinimumWidth, widthMeasureSpec)
+        setMeasuredDimension(w, clockGeneralHeight)
 
-        val scale = scaleRatio
-        val dimension = resources.getDimension(R.dimen.clock_padding_horizontal) * scale
-        val dimension2 = (resources.getDimension(R.dimen.clock_content_secondary_padding) * scale).toInt()
-        val dimension3 = (resources.getDimension(R.dimen.clock_icon_secondary_size) * scale).toInt()
-        val dimension4 = resources.getDimension(R.dimen.clock_text_primary_size) * scale
-        val dimension5 = resources.getDimension(R.dimen.clock_text_secondary_size) * scale
         val screenWidth = resources.displayMetrics.widthPixels
-        val availableWidth = (screenWidth - (dimension * 2)).toInt()
-        val desiredHeight = (resources.getDimension(R.dimen.clock_general_height) * scale).toInt()
+        val availableWidth = screenWidth - 2 * clockPaddingHorizontal.toInt()
 
-        val containerLayout = findViewById<RelativeLayout>(R.id.container_layout)
-        containerLayout?.let {
-            it.setPadding(0, 0, 0, 0)
-            val lp = it.layoutParams as? ViewGroup.MarginLayoutParams
-            lp?.let { params ->
-                val topMargin = resources.getDimension(R.dimen.clock_general_container_top_margin)
-                params.topMargin = (topMargin * scaleRatio).toInt()
-                it.layoutParams = params
-            }
-            it.layoutParams = it.layoutParams.apply {
-                width = availableWidth
-                height = desiredHeight
-            }
+        containerLayout.setPadding(0, containerTopPadding, 0, containerBottomPadding)
+        containerLayout.layoutParams = containerLayout.layoutParams.apply {
+            width = availableWidth
+            height = clockGeneralHeight
         }
 
-        val quickLookIconView = findViewById<ImageView>(R.id.quick_look_icon_view)
-        quickLookIconView?.let {
-            val lp = it.layoutParams as? LinearLayout.LayoutParams
-            lp?.apply {
-                width = dimension3
-                height = dimension3
-                marginStart = dimension2
-                marginEnd = dimension2
-            }
-            it.layoutParams = lp
+        quickLookIcon.layoutParams = (quickLookIcon.layoutParams as? LinearLayout.LayoutParams)?.apply {
+            width = iconSize
+            height = iconSize
+            marginEnd = contentSecondaryPadding
         }
 
-        val topTextView = findViewById<TextView>(R.id.info_top_text_view)
-        topTextView?.let {
-            it.setTextSize(0, dimension5)
-            val marginBottom = (it.resources.getDimension(R.dimen.clock_content_margin) * scale).toInt()
-            val lp = it.layoutParams as? RelativeLayout.LayoutParams
-            lp?.setMargins(0, 0, 0, marginBottom)
-            it.layoutParams = lp
-        }
+        infoTopTextView.setTextSize(0, textSecondarySize)
+        (infoTopTextView.layoutParams as? RelativeLayout.LayoutParams)?.setMargins(0, 0, 0, contentMargin)
 
-        val placeholderTextView = findViewById<TextView>(R.id.info_placeholder_text_view)
-        placeholderTextView?.setTextSize(0, dimension4)
+        infoPlaceholderTextView.setTextSize(0, textPrimarySize)
     }
 
     override fun onNTWeatherDataChanged(data: NTWeatherData) {
@@ -213,7 +199,7 @@ class GeneralClockView @JvmOverloads constructor(
             val format = if (android.text.format.DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm"
             android.text.format.DateFormat.format(format, nextAlarmMillis).toString()
         } else ""
-        val visible = nextAlarm.isNotBlank() == true
+        val visible = nextAlarm.isNotBlank()
         alarmText = if (visible) nextAlarm else ""
         alarmActive = visible
         refreshInfo(calendarData, weatherData)
@@ -221,19 +207,16 @@ class GeneralClockView @JvmOverloads constructor(
 
     override fun refreshColor() {
         super.refreshColor()
-
         val color = clockColor
 
         listOf(
-            R.id.info_front_text_view,
-            R.id.info_rear_text_view,
-            R.id.info_top_text_view,
-            R.id.info_placeholder_text_view
-        ).forEach { id ->
-            findViewById<TextView>(id)?.setTextColor(color)
-        }
+            infoFrontTextView,
+            infoRearTextView,
+            infoTopTextView,
+            infoPlaceholderTextView
+        ).forEach { it.setTextColor(color) }
 
-        findViewById<ImageView>(R.id.quick_look_icon_view)?.setColorFilter(
+        quickLookIcon.setColorFilter(
             PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN)
         )
     }
@@ -258,6 +241,19 @@ class GeneralClockView @JvmOverloads constructor(
         refreshInfo(calendarData, weatherData)
     }
 
+    override fun refreshTime() {
+        super.refreshTime()
+        refreshInfo(calendarData, weatherData)
+    }
+
+    override fun onFontSettingChanged() {
+        super.onFontSettingChanged()
+        _num = createBitmaps(context, digitResIds)
+        _numLight = createBitmaps(context, digitLightResIds)
+        requestLayout()
+        invalidate()
+    }
+
     private fun refreshInfo(calendar: CalendarSimpleData?, weather: NTWeatherData?) {
         val temp = weather?.temp ?: ""
         val conditionCode = weather?.conditionCode ?: 0
@@ -266,92 +262,67 @@ class GeneralClockView @JvmOverloads constructor(
         val title = calendar?.title ?: ""
 
         val hasCalendarData = calendar != null && calendar != CalendarSimpleData.EMPTY
-        val showCalendar = hasCalendarData && isEventVisible && title != ""
+        val showCalendar = hasCalendarData && isEventVisible && title.isNotEmpty()
 
-        val hasValidWeatherData = temp != "" && conditionCode != 0
+        val hasValidWeatherData = temp.isNotEmpty() && conditionCode != 0
         val hasWeatherData = weather != null && weather != NTWeatherData.EMPTY && hasValidWeatherData
 
         val showWeather = !showCalendar && hasWeatherData
-
         val showPlaceholder = !showCalendar && !showWeather && !isNowPlaying
+        
+        val showSecondaryInfo = alarmActive || nowPlayingAvailable || isNowPlaying
 
-        if (!isPlaying) {
-            NowPlayingIconBinder.get().stop()
-        }
+        if (!isPlaying) NowPlayingIconBinder.get().stop()
 
-        val infoText: String = when {
-            nowPlayingAvailable -> ""
-            alarmActive -> ""
-            isNowPlaying -> ""
+        val infoText = when {
             showCalendar -> CalendarUtils.getCalendarDescription(context, calendar!!)
+            showSecondaryInfo -> ""
             showWeather -> "$temp°"
             else -> ""
         }
 
-        val secondaryText: String = when {
-            nowPlayingAvailable -> nowPlayingText
-            alarmActive -> alarmText
-            isNowPlaying -> "$trackTitle - $artistName"
+        val secondaryText = when {
             showCalendar -> calendar?.location ?: ""
+            alarmActive -> alarmText
+            nowPlayingAvailable -> nowPlayingText
+            isNowPlaying -> "$trackTitle - $artistName"
             else -> weather?.condition ?: ""
         }
 
-        val majorSize = resources.getDimension(R.dimen.clock_text_major_size) * scaleRatio
-        val secondarySize = resources.getDimension(R.dimen.clock_text_secondary_size) * scaleRatio
-        val primaryPadding = (resources.getDimension(R.dimen.clock_content_primary_padding) * scaleRatio).toInt()
+        infoBottomContainer.visibility = if (showPlaceholder) View.GONE else View.VISIBLE
+        infoPlaceholderTextView.visibility = if (showPlaceholder) View.VISIBLE else View.GONE
+        quickLookIcon.visibility = View.GONE
 
-        findViewById<ViewGroup>(R.id.info_bottom_container_layout)?.visibility =
-            if (showPlaceholder) View.GONE else View.VISIBLE
-
-        findViewById<TextView>(R.id.info_placeholder_text_view)?.apply {
-            visibility = if (showPlaceholder) View.VISIBLE else View.GONE
-        }
-
-        findViewById<ImageView>(R.id.quick_look_icon_view)?.let { quickLookIconView ->
-            with(quickLookIconView) {
-                when {
-                    nowPlayingAvailable -> {
-                        NowPlayingIconBinder.get().bindAndStart(this)
-                        visibility = View.VISIBLE
+        if (!showCalendar) {
+            when {
+                alarmActive || nowPlayingAvailable || isNowPlaying || showWeather -> {
+                    if (alarmActive) {
+                        quickLookIcon.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.old_quick_look_alarm_icon))
+                    } else if (nowPlayingAvailable || isNowPlaying) {
+                        NowPlayingIconBinder.get().bindAndStart(quickLookIcon)
+                    } else if (showWeather) {
+                        quickLookIcon.setImageDrawable(WeatherUtils.getWeatherIcon(context, conditionCode))
                     }
-                    alarmActive -> {
-                        setImageDrawable(resources.getDrawable(R.drawable.old_quick_look_alarm_icon))
-                        visibility = View.VISIBLE
-                    }
-                    isNowPlaying -> {
-                        NowPlayingIconBinder.get().bindAndStart(this)
-                        visibility = View.VISIBLE
-                    }
-                    showWeather -> {
-                        setImageDrawable(WeatherUtils.getWeatherIcon(context, conditionCode))
-                        visibility = View.VISIBLE
-                    }
-                    else -> {
-                        setImageDrawable(null)
-                        visibility = View.GONE
-                    }
+                    quickLookIcon.visibility = View.VISIBLE
                 }
+                else -> {
+                    quickLookIcon.setImageDrawable(null)
+                }
+            }
+            quickLookIcon.layoutParams = (quickLookIcon.layoutParams as? LinearLayout.LayoutParams)?.apply {
+                marginStart = if (showSecondaryInfo) 0 else contentSecondaryPadding
             }
         }
 
-        findViewById<TextView>(R.id.info_front_text_view)?.apply {
-            text = infoText
-            setTextSize(0, if (title == "") majorSize else secondarySize)
-        }
+        infoFrontTextView.text = infoText
+        infoFrontTextView.setTextSize(0, if (title.isEmpty()) textMajorSize else textSecondarySize)
 
-        findViewById<TextView>(R.id.info_rear_text_view)?.apply {
-            text = secondaryText
-            setTextSize(0, if (title == "") secondarySize else majorSize)
-            val lp = layoutParams as? LinearLayout.LayoutParams
-            lp?.setMarginStart(if (showCalendar) primaryPadding else 0)
-            layoutParams = lp
-        }
+        infoRearTextView.text = secondaryText
+        infoRearTextView.setTextSize(0, if (title.isEmpty()) textSecondarySize else textMajorSize)
+        (infoRearTextView.layoutParams as? LinearLayout.LayoutParams)?.setMarginStart(
+            if (showCalendar) contentPrimaryPadding else 0
+        )
 
-        findViewById<TextView>(R.id.info_top_text_view)?.text = title
-    }
-
-    override fun refreshTime() {
-        super.refreshTime()
-        refreshInfo(calendarData, weatherData)
+        infoTopTextView.text = title
     }
 }

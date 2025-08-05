@@ -47,6 +47,7 @@ class NTClockFaceController(
             }
 
             override fun onFontSettingChanged(fontSizePx: Float) {
+                view.onFontSettingChanged()
             }
 
             override fun onSecondaryDisplayChanged(onSecondaryDisplay: Boolean) {}

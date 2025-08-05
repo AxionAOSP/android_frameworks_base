@@ -60,11 +60,18 @@ class WeatherManager private constructor() : OmniJawsClient.OmniJawsObserver {
     }
 
     override fun weatherUpdated() {
-        if (!quicklookEnabled) return
+        if (!quicklookEnabled || !OmniJawsClient.get().isOmniJawsEnabled(appContext)) {
+            return
+        }
         updateWeatherInfo()
     }
 
     fun updateWeatherInfo() {
+        if (!quicklookEnabled || !OmniJawsClient.get().isOmniJawsEnabled(appContext)) {
+            dispatch(NTWeatherData.EMPTY)
+            return
+        }
+
         OmniJawsClient.get().queryWeather(appContext)
         val info = OmniJawsClient.get().weatherInfo
 
@@ -155,6 +162,7 @@ class WeatherManager private constructor() : OmniJawsClient.OmniJawsObserver {
             updateWeatherInfo()
         } else {
             unregisterWeatherObserver()
+            dispatch(NTWeatherData.EMPTY)
         }
     }
 
