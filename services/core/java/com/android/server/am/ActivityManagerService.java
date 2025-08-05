@@ -19717,7 +19717,8 @@ public class ActivityManagerService extends IActivityManager.Stub
             }
 
             ProcessRecord topAppProc = getProcessRecord(topApp);
-            if (topAppProc == null) {
+            if (topAppProc == null || topAppProc.getThread() == null) {
+                Slog.w(TAG, "Invalid top app process, is null or not attached to a thread: " + topAppProc);
                 return;
             }
 
