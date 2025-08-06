@@ -16,13 +16,17 @@
 package com.android.server.wm;
 
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class WindowEventDispatcher {
 
     private static WindowEventDispatcher sInstance;
 
     private final CopyOnWriteArrayList<IWindowEventListener> mListeners = new CopyOnWriteArrayList<>();
-    
+
+    private final ExecutorService mNotifierExecutor = Executors.newSingleThreadExecutor();
+
     private String mFocusedPackageName;
 
     private WindowEventDispatcher() {}
@@ -46,31 +50,31 @@ public class WindowEventDispatcher {
         }
     }
 
-    public void notifyAppFocusChanged(ActivityRecord r, Task task) {
+    public void notifyAppFocusChanged(final ActivityRecord r, final Task task) {
         mFocusedPackageName = (r != null && r.packageName != null) ? r.packageName : null;
-        for (IWindowEventListener listener : mListeners) {
-            listener.onAppFocusChanged(r, task);
+        for (final IWindowEventListener listener : mListeners) {
+            mNotifierExecutor.execute(() -> listener.onAppFocusChanged(r, task));
         }
     }
 
-    public void notifyWindowingModeChanged(Task task, int mode) {
-        for (IWindowEventListener listener : mListeners) {
-            listener.onWindowingModeChanged(task, mode);
+    public void notifyWindowingModeChanged(final Task task, final int mode) {
+        for (final IWindowEventListener listener : mListeners) {
+            mNotifierExecutor.execute(() -> listener.onWindowingModeChanged(task, mode));
         }
     }
 
-    public void notifyKeyguardDoneLocked(boolean showing) {
-        for (IWindowEventListener listener : mListeners) {
-            listener.setKeyguardDoneLocked(showing);
+    public void notifyKeyguardDoneLocked(final boolean showing) {
+        for (final IWindowEventListener listener : mListeners) {
+            mNotifierExecutor.execute(() -> listener.setKeyguardDoneLocked(showing));
         }
     }
-    
-    public void notifyTaskRemoved(Task task, String reason) {
-        for (IWindowEventListener listener : mListeners) {
-            listener.removeTask(task, reason);
+
+    public void notifyTaskRemoved(final Task task, final String reason) {
+        for (final IWindowEventListener listener : mListeners) {
+            mNotifierExecutor.execute(() -> listener.removeTask(task, reason));
         }
     }
-    
+
     public String getFocusedPackageName() {
         return mFocusedPackageName;
     }
