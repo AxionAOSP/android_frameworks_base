@@ -195,6 +195,8 @@ public class KeyguardStatusBarView extends RelativeLayout {
         updateCarrierLabelMargin();
 
         updateKeyguardStatusBarHeight();
+        
+        updateGravityForConstraint();
     }
 
     public void setUserSwitcherEnabled(boolean enabled) {
@@ -317,6 +319,7 @@ public class KeyguardStatusBarView extends RelativeLayout {
         mDisplayCutout = displayCutout;
         updateKeyguardStatusBarHeight();
         updatePadding(insetsProvider);
+        updateGravityForConstraint();
         if (mDisplayCutout == null || insetsProvider.currentRotationHasCornerCutout()) {
             return updateLayoutParamsNoCutout();
         } else {
@@ -335,13 +338,7 @@ public class KeyguardStatusBarView extends RelativeLayout {
         final int minRight = (!isLayoutRtl() && mIsPrivacyDotEnabled)
                 ? Math.max(mMinDotWidth, mPadding.right) : mPadding.right;
 
-        final int statusBarHeaderHeight = mContext.getResources()
-                .getDimensionPixelSize(R.dimen.status_bar_height);
-
         int top = waterfallTop + mPadding.top;
-        if (top > statusBarHeaderHeight) {
-            top = statusBarHeaderHeight;
-        }
         setPadding(minLeft, top, minRight, 0);
     }
 
@@ -561,10 +558,65 @@ public class KeyguardStatusBarView extends RelativeLayout {
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         Trace.beginSection("KeyguardStatusBarView#onMeasure");
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+        if (needsConstraint()) {
+            int statusBarHeight = getResources().getDimensionPixelSize(R.dimen.status_bar_height);
+            int measuredHeight = getMeasuredHeight();
+            if (measuredHeight != statusBarHeight) {
+                setMeasuredDimension(getMeasuredWidth(), statusBarHeight);
+            }
+        }
         Trace.endSection();
+    }
+
+    @Override
+    public void setPadding(int left, int top, int right, int bottom) {
+        final int topPadding = mContext.getResources()
+                .getDimensionPixelSize(R.dimen.status_bar_padding_top);
+        super.setPadding(left, needsConstraint() ? topPadding : top, right, bottom);
     }
 
     public StateFlow<DarkChange> darkChangeFlow() {
         return FlowKt.asStateFlow(mDarkChange);
+    }
+    
+    boolean needsConstraint() {
+        int waterfallHeight = getStatusBarHeaderHeightKeyguard(mContext);
+        int statusBarHeight = getResources().getDimensionPixelSize(R.dimen.status_bar_height);
+        return waterfallHeight > statusBarHeight;
+    }
+    
+    private void updateGravityForConstraint() {
+        if (needsConstraint()) {
+            RelativeLayout.LayoutParams statusIconParams = 
+                (RelativeLayout.LayoutParams) mStatusIconArea.getLayoutParams();
+            statusIconParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+            statusIconParams.removeRule(RelativeLayout.CENTER_VERTICAL);
+            mStatusIconArea.setLayoutParams(statusIconParams);
+            if (mStatusIconArea instanceof LinearLayout) {
+                ((LinearLayout) mStatusIconArea).setGravity(Gravity.BOTTOM | Gravity.END);
+            }
+            RelativeLayout.LayoutParams carrierParams = 
+                (RelativeLayout.LayoutParams) mCarrierLabel.getLayoutParams();
+            carrierParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+            carrierParams.removeRule(RelativeLayout.CENTER_VERTICAL);
+            mCarrierLabel.setLayoutParams(carrierParams);
+            mCarrierLabel.setGravity(Gravity.BOTTOM);
+        } else {
+            RelativeLayout.LayoutParams statusIconParams = 
+                (RelativeLayout.LayoutParams) mStatusIconArea.getLayoutParams();
+            statusIconParams.removeRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+            statusIconParams.addRule(RelativeLayout.CENTER_VERTICAL);
+            mStatusIconArea.setLayoutParams(statusIconParams);
+            if (mStatusIconArea instanceof LinearLayout) {
+                ((LinearLayout) mStatusIconArea).setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+            }
+            RelativeLayout.LayoutParams carrierParams = 
+                (RelativeLayout.LayoutParams) mCarrierLabel.getLayoutParams();
+            carrierParams.removeRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+            carrierParams.addRule(RelativeLayout.CENTER_VERTICAL);
+            mCarrierLabel.setLayoutParams(carrierParams);
+            
+            mCarrierLabel.setGravity(Gravity.CENTER_VERTICAL);
+        }
     }
 }
