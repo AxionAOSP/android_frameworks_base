@@ -21,6 +21,7 @@ import android.content.res.Resources
 import androidx.constraintlayout.helper.widget.Layer
 import com.android.keyguard.ClockEventController
 import com.android.systemui.common.ui.domain.interactor.ConfigurationInteractor
+import com.android.systemui.res.R
 import com.android.systemui.customization.R as customR
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
@@ -66,7 +67,7 @@ constructor(
             .stateIn(
                 scope = applicationScope,
                 started = SharingStarted.Eagerly,
-                initialValue = true,
+                initialValue = false,
             )
 
     val clockEventController: ClockEventController = keyguardClockInteractor.clockEventController
@@ -74,23 +75,19 @@ constructor(
 
     val hasCustomWeatherDataDisplay =
         combine(isLargeClockVisible, currentClock) { isLargeClock, currentClock ->
-                currentClock?.let { clock ->
-                    val face = if (isLargeClock) clock.largeClock else clock.smallClock
-                    face.config.hasCustomWeatherDataDisplay
-                } ?: false
+                false
             }
             .stateIn(
                 scope = applicationScope,
                 started = SharingStarted.WhileSubscribed(),
-                initialValue =
-                    currentClock.value?.largeClock?.config?.hasCustomWeatherDataDisplay ?: false,
+                initialValue = false,
             )
 
     val clockShouldBeCentered: StateFlow<Boolean> =
         keyguardClockInteractor.clockShouldBeCentered.stateIn(
             scope = applicationScope,
             started = SharingStarted.WhileSubscribed(),
-            initialValue = true,
+            initialValue = false,
         )
 
     // To translate elements below smartspace in weather clock to avoid overlapping between date
@@ -113,21 +110,12 @@ constructor(
             ) { isLargeClockVisible, clockShouldBeCentered, isShadeLayoutWide, currentClock ->
                 if (currentClock?.config?.useCustomClockScene == true) {
                     when {
-                        isShadeLayoutWide && clockShouldBeCentered ->
-                            ClockLayout.WEATHER_LARGE_CLOCK
-                        isShadeLayoutWide && isLargeClockVisible ->
-                            ClockLayout.SPLIT_SHADE_WEATHER_LARGE_CLOCK
                         isShadeLayoutWide -> ClockLayout.SPLIT_SHADE_SMALL_CLOCK
-                        isLargeClockVisible -> ClockLayout.WEATHER_LARGE_CLOCK
                         else -> ClockLayout.SMALL_CLOCK
                     }
                 } else {
                     when {
-                        isShadeLayoutWide && clockShouldBeCentered -> ClockLayout.LARGE_CLOCK
-                        isShadeLayoutWide && isLargeClockVisible ->
-                            ClockLayout.SPLIT_SHADE_LARGE_CLOCK
                         isShadeLayoutWide -> ClockLayout.SPLIT_SHADE_SMALL_CLOCK
-                        isLargeClockVisible -> ClockLayout.LARGE_CLOCK
                         else -> ClockLayout.SMALL_CLOCK
                     }
                 }
@@ -156,7 +144,7 @@ constructor(
                 shadeModeInteractor.isShadeLayoutWide.value,
                 SceneContainerFlag.isEnabled,
             )
-            .getSmallClockTopPadding(systemBarUtils.getStatusBarHeaderHeightKeyguard())
+            .getSmallClockTopPadding(sbHeight)
     }
 
     val smallClockTopMargin =
@@ -180,8 +168,10 @@ constructor(
     val largeClockTextSize: Flow<Int> =
         configurationInteractor.dimensionPixelSize(customR.dimen.large_clock_text_size)
 
-    fun dateWeatherBelowSmallClock() =
-        KeyguardSmartspaceViewModel.dateWeatherBelowSmallClock(context.resources.configuration)
+    val sbHeight: Int =
+        resources.getDimensionPixelSize(R.dimen.status_bar_height)
+
+    fun dateWeatherBelowSmallClock() = false
 
     enum class ClockLayout {
         LARGE_CLOCK,

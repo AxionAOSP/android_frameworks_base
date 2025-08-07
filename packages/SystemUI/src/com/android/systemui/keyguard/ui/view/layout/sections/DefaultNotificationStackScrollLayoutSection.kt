@@ -56,21 +56,12 @@ constructor(
         constraintSet.apply {
             val bottomMargin =
                 context.resources.getDimensionPixelSize(R.dimen.keyguard_status_view_bottom_margin)
-            val useLargeScreenHeader =
-                context.resources.getBoolean(R.bool.config_use_large_screen_shade_header)
-            val marginTopLargeScreen =
-                largeScreenHeaderHelperLazy.get().getLargeScreenHeaderHeight()
             connect(
                 R.id.nssl_placeholder,
                 TOP,
                 R.id.smart_space_barrier_bottom,
                 BOTTOM,
-                bottomMargin +
-                    if (useLargeScreenHeader) {
-                        marginTopLargeScreen
-                    } else {
-                        0
-                    },
+                bottomMargin
             )
             connect(R.id.nssl_placeholder, START, PARENT_ID, START)
             connect(R.id.nssl_placeholder, END, PARENT_ID, END)
