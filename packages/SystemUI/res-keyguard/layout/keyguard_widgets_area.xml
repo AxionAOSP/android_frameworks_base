@@ -31,7 +31,6 @@
         app:flexDirection="row"
         app:justifyContent="flex_start"
         app:alignItems="center"
-        app:flexWrap="wrap"
-        android:layout_marginTop="@dimen/kg_widget_margin_vertical" />
+        app:flexWrap="wrap" />
 
 </LinearLayout>
