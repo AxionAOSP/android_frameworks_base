@@ -72,6 +72,7 @@ interface KeyguardClockRepository {
     val clockEventController: ClockEventController
 
     val shouldForceSmallClock: Boolean
+        get() = true
 
     fun setClockSize(size: ClockSize)
 }
@@ -140,8 +141,4 @@ constructor(
 
     override val shouldForceSmallClock: Boolean
         get() = true
-
-    private fun getClockSize(): ClockSizeSetting {
-        return ClockSizeSetting.fromSettingValue(0)
-    }
 }

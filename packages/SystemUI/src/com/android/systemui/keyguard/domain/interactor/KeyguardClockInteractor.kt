@@ -108,40 +108,15 @@ constructor(
             activeNotificationsInteractor.areAnyNotificationsPresent
         }
 
-    private val dynamicClockSize: Flow<ClockSize> =
-        if (SceneContainerFlag.isEnabled) {
-            combine(
-                shadeModeInteractor.isShadeLayoutWide,
-                areAnyNotificationsPresent,
-                mediaCarouselInteractor.hasActiveMediaOrRecommendation,
-                keyguardInteractor.isDozing,
-                isOnAod,
-            ) { isShadeLayoutWide, hasNotifs, hasMedia, isDozing, isOnAod ->
-                when {
-                    keyguardClockRepository.shouldForceSmallClock && !isOnAod -> ClockSize.SMALL
-                    !isShadeLayoutWide && (hasNotifs || hasMedia) -> ClockSize.SMALL
-                    !isShadeLayoutWide -> ClockSize.LARGE
-                    hasMedia && !isDozing -> ClockSize.SMALL
-                    else -> ClockSize.LARGE
-                }
-            }
-        } else {
-            keyguardClockRepository.clockSize
-        }
-
     val clockSize: StateFlow<ClockSize> =
         selectedClockSize
             .flatMapLatestConflated { selectedSize ->
-                if (selectedSize == ClockSizeSetting.SMALL) {
-                    flowOf(ClockSize.SMALL)
-                } else {
-                    dynamicClockSize
-                }
+                flowOf(ClockSize.SMALL)
             }
             .stateIn(
                 scope = applicationScope,
                 started = SharingStarted.Eagerly,
-                initialValue = ClockSize.LARGE,
+                initialValue = ClockSize.SMALL,
             )
 
     val clockShouldBeCentered: Flow<Boolean> =
