@@ -1889,14 +1889,6 @@ public class Vpn {
                 }
             }
         }
-        
-        int targetId = UserHandle.USER_SYSTEM;
-        if (ClonedAppsUtils.isClonedUser(userId) || userId == UserHandle.USER_SYSTEM) {
-            if (userId == UserHandle.USER_SYSTEM) {
-                targetId = ClonedAppsUtils.getClonedAppsUserId();
-            }
-            addUserToRanges(ranges, targetId, allowedApplications, disallowedApplications);
-        }
 
         return ranges;
     }

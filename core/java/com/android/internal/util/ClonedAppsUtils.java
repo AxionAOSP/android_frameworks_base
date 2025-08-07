@@ -25,7 +25,7 @@ public class ClonedAppsUtils {
     }
 
     public static boolean isClonedUser(UserHandle user) {
-        return user.getIdentifier() == getClonedAppsUserId();
+        return user.getIdentifier() == getClonedAppsUserId() && getClonedAppsUserId() != -1; // UserHandle.USER_ALL is -1
     }
 
     public static boolean isClonedUser(int userId) {
