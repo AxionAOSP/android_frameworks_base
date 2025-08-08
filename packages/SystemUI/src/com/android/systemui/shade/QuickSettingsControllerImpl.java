@@ -40,6 +40,7 @@ import android.graphics.Rect;
 import android.graphics.Region;
 import android.os.Handler;
 import android.os.UserHandle;
+import android.provider.Settings;
 import android.service.notification.StatusBarNotification;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
@@ -242,6 +243,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     private int mPanelTopMargin;
     private int mExpandedMediaHeight;
     private int mQQsMinHeight;
+    private int mQQSBrightnessSliderHeight;
     /**
      * Determines if QS should be already expanded when expanding shade.
      * Used for split shade, two finger gesture as well as accessibility shortcut to QS.
@@ -297,6 +299,8 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
 
     private int mOneFingerQuickSettingsIntercept;
     private final ContentObserver mOneFingerQuickSettingsInterceptObserver;
+    
+    private boolean mQQSBrightnessEnabled = true;
 
     private final Region mInterceptRegion = new Region();
     /** The end bounds of a clipping animation. */
@@ -417,6 +421,10 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                         mPanelView.getContext().getContentResolver(),
                         LineageSettings.System.STATUS_BAR_QUICK_QS_PULLDOWN, 0,
                         selectedUserInteractor.getSelectedUserId());
+                mQQSBrightnessEnabled = Settings.Secure.getIntForUser(
+                        mPanelView.getContext().getContentResolver(),
+                        "qs_brightness_slider_enabled", 2,
+                        selectedUserInteractor.getSelectedUserId()) == 2;
             }
         };
 
@@ -489,6 +497,10 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         mQQsMinHeight =
                 mResources.getDimensionPixelSize(
                         R.dimen.qqs_min_height);
+
+        mQQSBrightnessSliderHeight =
+                mResources.getDimensionPixelSize(
+                        R.dimen.qs_brightness_slider_height);
 
         mEnableClipping = mResources.getBoolean(R.bool.qs_enable_clipping);
         updateGestureInsetsCache();
@@ -2263,11 +2275,12 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                     if (QSComposeFragment.isEnabled() && mPreviouslyVisibleMedia && !visible) {
                         updateHeightsOnShadeLayoutChange();
                         mPanelViewControllerLazy.get().positionClockAndNotifications();
+                        int minQQSHeight = mQQsMinHeight - (mQQSBrightnessEnabled ? 0 : mQQSBrightnessSliderHeight);
                         // the current calculation is not reliable at all, there were times 
                         // that it is still including the media height which causes the stack scroller to not react
                         // to the top padding changes
                         int calculatedTopPadding = mPanelTopMargin + getHeaderHeight() - mExpandedMediaHeight;
-                        int topPadding = Math.max(calculatedTopPadding, mQQsMinHeight);
+                        int topPadding = Math.max(calculatedTopPadding, minQQSHeight);
                         // update notif shade intractor
                         mPanelViewControllerLazy.get().requestScrollerTopPaddingUpdate();
                         // do not wait for pending top padding changes. force update the notif stack srolllayout
@@ -2296,6 +2309,11 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             mPanelView.getContext().getContentResolver().registerContentObserver(
                     LineageSettings.System.getUriFor(
                             LineageSettings.System.STATUS_BAR_QUICK_QS_PULLDOWN),
+                    false, mOneFingerQuickSettingsInterceptObserver,
+                    UserHandle.USER_ALL);
+            mPanelView.getContext().getContentResolver().registerContentObserver(
+                    Settings.Secure.getUriFor(
+                            "qs_brightness_slider_enabled"),
                     false, mOneFingerQuickSettingsInterceptObserver,
                     UserHandle.USER_ALL);
             mOneFingerQuickSettingsInterceptObserver.onChange(true);
