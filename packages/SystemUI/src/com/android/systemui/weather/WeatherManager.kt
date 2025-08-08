@@ -14,7 +14,6 @@
 package com.android.systemui.weather
 
 import android.content.Context
-import android.database.ContentObserver
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -29,46 +28,80 @@ class WeatherManager private constructor() : OmniJawsClient.OmniJawsObserver {
         fun onWeatherUpdated(data: NTWeatherData)
     }
 
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val listeners = WeakListenerManager<Callback>()
+    companion object {
+        @Volatile
+        private var INSTANCE: WeatherManager? = null
+        private lateinit var appContext: Context
 
+        fun init(context: Context) {
+            appContext = context.applicationContext
+            get()
+        }
+
+        fun get(): WeatherManager =
+            INSTANCE ?: synchronized(this) {
+                INSTANCE ?: WeatherManager().also { INSTANCE = it }
+            }
+    }
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var isObservingWeather = false
+    private var isActive = false
     private var quicklookEnabled = false
-    private var settingsObserver: ContentObserver? = null
-    private var isRegistered = false
 
-    init {
-        listeners.setLifecycleCallbacks(
+    private val callbacks = WeakListenerManager<Callback>().apply {
+        setLifecycleCallbacks(
             onActive = {
-                quicklookEnabled = readQuicklookEnabled()
-                registerSettingsObservers()
-                maybeRegisterWeatherObserver()
-                if (quicklookEnabled) updateWeatherInfo()
+                quicklookEnabled = isQuicklookEnabled()
+                if (quicklookEnabled) {
+                    startWeatherListening()
+                    queryWeather()
+                } else {
+                    notifyCallbacks(NTWeatherData.EMPTY)
+                }
+                isActive = true
             },
             onInactive = {
-                unregisterWeatherObserver()
-                unregisterSettingsObservers()
+                stopWeatherListening()
+                isActive = false
             }
         )
     }
 
     fun addCallback(callback: Callback) {
-        listeners.addListener(callback)
+        callbacks.addListener(callback)
+        quicklookEnabled = isQuicklookEnabled()
+        if (quicklookEnabled) {
+            queryWeather()
+        } else {
+            callback.onWeatherUpdated(NTWeatherData.EMPTY)
+        }
     }
 
     fun removeCallback(callback: Callback) {
-        listeners.removeListener(callback)
-    }
-
-    override fun weatherUpdated() {
-        if (!quicklookEnabled || !OmniJawsClient.get().isOmniJawsEnabled(appContext)) {
-            return
+        callbacks.removeListener(callback)
+        if (callbacks.isEmpty()) {
+            stopWeatherListening()
         }
-        updateWeatherInfo()
     }
 
-    fun updateWeatherInfo() {
-        if (!quicklookEnabled || !OmniJawsClient.get().isOmniJawsEnabled(appContext)) {
-            dispatch(NTWeatherData.EMPTY)
+    private fun startWeatherListening() {
+        if (isObservingWeather) return
+        if (!OmniJawsClient.get().isOmniJawsEnabled(appContext)) return
+
+        OmniJawsClient.get().addObserver(appContext, this)
+        isObservingWeather = true
+    }
+
+    private fun stopWeatherListening() {
+        if (!isObservingWeather) return
+        OmniJawsClient.get().removeObserver(appContext, this)
+        isObservingWeather = false
+    }
+
+    private fun queryWeather() {
+        if (!isQuicklookEnabled() || !OmniJawsClient.get().isOmniJawsEnabled(appContext)) {
+            notifyCallbacks(NTWeatherData.EMPTY)
             return
         }
 
@@ -81,7 +114,7 @@ class WeatherManager private constructor() : OmniJawsClient.OmniJawsObserver {
                 conditionCode = conditionCode,
                 temp = temp,
                 tempUnits = tempUnits,
-                condition  = condition,
+                condition = condition,
                 windSpeed = windSpeed,
                 windUnits = windUnits,
                 pinWheel = pinWheel,
@@ -90,95 +123,26 @@ class WeatherManager private constructor() : OmniJawsClient.OmniJawsObserver {
             )
         } ?: NTWeatherData.EMPTY
 
-        dispatch(data)
+        notifyCallbacks(data)
     }
 
-    override fun weatherError(errorReason: Int) {}
-
-    private fun dispatch(data: NTWeatherData) = mainHandler.post {
-        listeners.notify { it.onWeatherUpdated(data) }
+    private fun notifyCallbacks(data: NTWeatherData) {
+        callbacks.notify { it.onWeatherUpdated(data) }
     }
 
-    private fun readQuicklookEnabled(): Boolean =
-        Settings.Secure.getInt(
+    private fun isQuicklookEnabled(): Boolean {
+        return Settings.Secure.getInt(
             appContext.contentResolver,
             "nt_quicklook_weather",
             1
         ) == 1
-
-    private val CLOCK_URI:     Uri = Settings.Secure.getUriFor(Settings.Secure.LOCK_SCREEN_CUSTOM_CLOCK_FACE)
-    private val QUICKLOOK_URI: Uri = Settings.Secure.getUriFor("nt_quicklook_weather")
-
-    private fun registerSettingsObservers() {
-        if (settingsObserver == null) {
-            settingsObserver = object : ContentObserver(mainHandler) {
-                override fun onChange(selfChange: Boolean, uri: Uri?) {
-                    when (uri) {
-                        CLOCK_URI -> {
-                            if (quicklookEnabled) {
-                                updateWeatherInfo()
-                            }
-                        }
-                        QUICKLOOK_URI -> {
-                            val enabled = readQuicklookEnabled()
-                            if (enabled != quicklookEnabled) {
-                                quicklookEnabled = enabled
-                                handleQuicklookToggle()
-                            }
-                        }
-                    }
-                }
-            }.also { observer ->
-                appContext.contentResolver.registerContentObserver(CLOCK_URI, false, observer)
-                appContext.contentResolver.registerContentObserver(QUICKLOOK_URI, false, observer)
-            }
-        }
     }
 
-    private fun unregisterSettingsObservers() {
-        settingsObserver?.let {
-            appContext.contentResolver.unregisterContentObserver(it)
-            settingsObserver = null
-        }
+    override fun weatherUpdated() {
+        if (!isQuicklookEnabled() || !OmniJawsClient.get().isOmniJawsEnabled(appContext)) return
+        queryWeather()
     }
 
-    private fun maybeRegisterWeatherObserver() {
-        if (!isRegistered && quicklookEnabled && OmniJawsClient.get().isOmniJawsEnabled(appContext)) {
-            OmniJawsClient.get().addObserver(appContext, this)
-            isRegistered = true
-        }
-    }
-
-    private fun unregisterWeatherObserver() {
-        if (isRegistered) {
-            OmniJawsClient.get().removeObserver(appContext, this)
-            isRegistered = false
-        }
-    }
-
-    private fun handleQuicklookToggle() {
-        if (quicklookEnabled) {
-            maybeRegisterWeatherObserver()
-            updateWeatherInfo()
-        } else {
-            unregisterWeatherObserver()
-            dispatch(NTWeatherData.EMPTY)
-        }
-    }
-
-    companion object {
-        @Volatile private var INSTANCE: WeatherManager? = null
-        private lateinit var appContext: Context
-
-        fun init(context: Context) {
-            appContext = context.applicationContext
-            get()
-        }
-
-        fun get(): WeatherManager {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: WeatherManager().also { INSTANCE = it }
-            }
-        }
+    override fun weatherError(errorReason: Int) {
     }
 }
