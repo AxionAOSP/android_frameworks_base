@@ -613,6 +613,7 @@ constructor(
     private fun ContentScope.QuickQuickSettingsElement(modifier: Modifier = Modifier) {
         val qqsPadding = viewModel.qqsHeaderHeight
         val bottomPadding = viewModel.qqsBottomPadding
+        val isQQSBrightnessEnabled = viewModel.isQQSBrightnessSliderEnabled
         DisposableEffect(Unit) {
             qqsVisible.value = true
 
@@ -655,11 +656,13 @@ constructor(
                 val enabled = layoutState.transitionState is TransitionState.Idle &&
                              viewModel.isNotTransitioning
                 val BrightnessSlider: @Composable () -> Unit = {
-                    BrightnessLayout(
-                        location = "QQS",
-                        enable = enabled,
-                        vm = viewModel
-                    )
+                    if (isQQSBrightnessEnabled) {
+                        BrightnessLayout(
+                                location = "QQS",
+                                enable = enabled,
+                                vm = viewModel
+                            )
+                    }
                 }
                 val Tiles =
                     @Composable {
@@ -727,6 +730,7 @@ constructor(
     private fun ContentScope.QuickSettingsElement(modifier: Modifier = Modifier) {
         val qqsPadding = viewModel.qqsHeaderHeight
         val qsExtraPaddingTop = viewModel.qsExtraPaddingTop
+        val isQSBrightnessEnabled = viewModel.isQsBrightnessSliderEnabled
         Column(
             modifier =
                 modifier.collapseExpandSemanticAction(
@@ -774,11 +778,13 @@ constructor(
                         val enabled = layoutState.transitionState is TransitionState.Idle &&
                                      viewModel.isNotTransitioning
                         val BrightnessSlider: @Composable () -> Unit = {
-                            BrightnessLayout(
-                                location = "QS",
-                                enable = enabled,
-                                vm = viewModel
-                            )
+                            if (isQSBrightnessEnabled) {
+                                BrightnessLayout(
+                                    location = "QS",
+                                    enable = enabled,
+                                    vm = viewModel
+                                )
+                            }
                         }
                         val TileGrid =
                             @Composable {
