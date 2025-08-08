@@ -15,17 +15,23 @@
  */
 package com.android.systemui.util
 
+import android.os.Handler
+import android.os.Looper
 import java.lang.ref.WeakReference
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executor
+import java.util.concurrent.Executors
 import java.util.function.Consumer
 
 class WeakListenerManager<T> {
 
     private val listeners = ConcurrentLinkedQueue<WeakReference<T>>()
-
     private var onActive: (() -> Unit)? = null
     private var onInactive: (() -> Unit)? = null
     private var isActive = false
+
+    private val bgExecutor: Executor = Executors.newSingleThreadExecutor()
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     fun addListener(listener: T) {
         if (listeners.any { it.get() === listener }) return
@@ -40,7 +46,6 @@ class WeakListenerManager<T> {
     fun removeListener(listener: T) {
         listeners.removeIf { it.get() == null || it.get() === listener }
         cleanup()
-
         if (isActive && listeners.isEmpty()) {
             isActive = false
             onInactive?.invoke()
@@ -48,17 +53,18 @@ class WeakListenerManager<T> {
     }
 
     fun notify(action: (T) -> Unit) {
-        val iterator = listeners.iterator()
-        while (iterator.hasNext()) {
-            val ref = iterator.next()
-            val l = ref.get()
-            if (l != null) {
-                action(l)
-            } else {
-                iterator.remove()
+        if (listeners.isEmpty()) return
+        bgExecutor.execute {
+            val snapshot = listeners
+                .mapNotNull { it.get() }
+                .toMutableList()
+            cleanup()
+            if (snapshot.isNotEmpty()) {
+                for (listener in snapshot) {
+                    mainHandler.post { action(listener) }
+                }
             }
         }
-        cleanup()
     }
 
     fun notifyConsumer(action: Consumer<T>) {
