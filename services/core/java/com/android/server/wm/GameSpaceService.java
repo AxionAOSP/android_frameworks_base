@@ -24,8 +24,8 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Slog;
-import com.android.server.am.ActivityManagerService;
 
+import com.android.server.am.ActivityManagerService;
 import com.android.internal.app.IGameSpaceCallback;
 import com.android.internal.app.IGameSpaceService;
 
@@ -74,7 +74,7 @@ public class GameSpaceService extends IGameSpaceService.Stub implements IWindowE
     public static GameSpaceService get() {
         return sInstance;
     }
-    
+
     private boolean isServiceActive() {
         List<RunningServiceInfo> services = mActivityManager.getServices(Integer.MAX_VALUE, 0);
         for (RunningServiceInfo info : services) {
@@ -84,22 +84,32 @@ public class GameSpaceService extends IGameSpaceService.Stub implements IWindowE
         }
         return false;
     }
-    
+
     private void startOverlay() {
         final String currentGame = mCurrentGame;
+        if (currentGame == null) return;
+
         mBackgroundExecutor.execute(() -> {
             boolean serviceActive = isServiceActive();
             if (!serviceActive) {
-                if (DEBUG) Slog.d(TAG, "service is dead, re-starting! isServiceActive: " + serviceActive);
+                if (DEBUG) Slog.d(TAG, "Service is dead, restarting!");
                 mGameStateDispatcher.startService(currentGame);
+            }
+            if (mGameListManager.isGameInPerfMode(currentGame)) {
+                mGameStateDispatcher.boostGame(true);
             }
             mGameStateDispatcher.dispatchGameState(true, currentGame);
         });
     }
 
+    private void stopOverlay() {
+        mGameStateDispatcher.dispatchGameState(false, null);
+        mGameStateDispatcher.boostGame(false);
+    }
+
     @Override
     public void onWindowingModeChanged(Task task, int mode) {
-        // todo: handle freeform here?    
+        // todo: handle freeform here?
     }
 
     @Override
@@ -107,10 +117,7 @@ public class GameSpaceService extends IGameSpaceService.Stub implements IWindowE
         if (record == null || record.packageName == null) return;
 
         String packageName = record.packageName;
-
-        boolean gameActive = mCurrentGame != null 
-                    ? mActivityManager.isPackageTopApp(mCurrentGame) 
-                    : false;
+        boolean gameActive = mCurrentGame != null && mActivityManager.isPackageTopApp(mCurrentGame);
 
         if (task != null && task.getWindowingMode() == WINDOWING_MODE_FREEFORM && gameActive) {
             if (DEBUG) Slog.d(TAG, "Freeform focused but game still TOP_APP, ignoring.");
@@ -118,58 +125,68 @@ public class GameSpaceService extends IGameSpaceService.Stub implements IWindowE
         }
 
         boolean isGame = mGameListManager.isGame(packageName);
-
-        if (DEBUG) Slog.d(TAG, "onFocusAppChanged: " + packageName + " isGame=" + isGame);
-
         boolean shouldStartOverlay = false;
+        boolean shouldStopOverlay = false;
+
         synchronized (mLock) {
             if (isGame) {
                 if (!packageName.equals(mCurrentGame)) {
                     if (mCurrentGame != null) {
-                        mGameStateDispatcher.dispatchGameState(false, null);
+                        shouldStopOverlay = true;
                     }
                     mCurrentGame = packageName;
                     shouldStartOverlay = true;
                 }
-            } else {
-                if (mCurrentGame != null) {
-                    mCurrentGame = null;
-                    mGameStateDispatcher.dispatchGameState(false, null);
-                }
+            } else if (mCurrentGame != null) {
+                mCurrentGame = null;
+                shouldStopOverlay = true;
             }
         }
-        if (shouldStartOverlay) {
-            startOverlay();
-        }
+
+        if (shouldStopOverlay) stopOverlay();
+        if (shouldStartOverlay) startOverlay();
     }
 
     @Override
     public void removeTask(Task task, String reason) {
         if (task == null) return;
+
         ActivityRecord top = task.getTopMostActivity();
+        boolean shouldStopOverlay = false;
+
         synchronized (mLock) {
-            if (mCurrentGame == null) return;
-            if (top != null && mCurrentGame.equals(top.packageName)) {
+            if (mCurrentGame != null && top != null && mCurrentGame.equals(top.packageName)) {
                 if (DEBUG) Slog.d(TAG, "removeTask: clearing active game " + mCurrentGame);
                 mCurrentGame = null;
-                mGameStateDispatcher.dispatchGameState(false, null);
+                shouldStopOverlay = true;
             }
         }
+
+        if (shouldStopOverlay) stopOverlay();
     }
 
     @Override
     public void setKeyguardDoneLocked(boolean showing) {
-        if (DEBUG) Slog.d(TAG, "setKeyguardShowing: " + showing);
-        if (showing && mCurrentGame != null) {
-            mGameStateDispatcher.dispatchGameState(false, null);
-        } else if (mCurrentGame != null && !showing) {
-            startOverlay();
+        boolean shouldStartOverlay = false;
+        boolean shouldStopOverlay = false;
+
+        synchronized (mLock) {
+            if (showing && mCurrentGame != null) {
+                shouldStopOverlay = true;
+            } else if (!showing && mCurrentGame != null) {
+                shouldStartOverlay = true;
+            }
         }
+
+        if (shouldStopOverlay) stopOverlay();
+        if (shouldStartOverlay) startOverlay();
     }
 
     @Override
     public void registerCallback(IGameSpaceCallback callback) {
-        if (callback != null && !mCallbacks.contains(callback)) mCallbacks.add(callback);
+        if (callback != null && !mCallbacks.contains(callback)) {
+            mCallbacks.add(callback);
+        }
     }
 
     @Override

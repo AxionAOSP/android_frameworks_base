@@ -29,7 +29,7 @@ class GameListManager {
     private static final String GAME_LIST_KEY = "gamespace_game_list";
 
     private final Context mContext;
-    private final Set<String> mGameList = Collections.synchronizedSet(new HashSet<>());
+    private final Map<String, String> mGameList = Collections.synchronizedMap(new HashMap<>());
 
     GameListManager(Context context) {
         this.mContext = context;
@@ -37,17 +37,24 @@ class GameListManager {
     }
 
     void loadGameList() {
-        String raw = Settings.System.getStringForUser(mContext.getContentResolver(), GAME_LIST_KEY, UserHandle.USER_CURRENT);
+        String raw = Settings.System.getStringForUser(mContext.getContentResolver(),
+                GAME_LIST_KEY, UserHandle.USER_CURRENT);
         Map<String, String> parsed = parseGameList(raw);
         synchronized (mGameList) {
             mGameList.clear();
-            mGameList.addAll(parsed.keySet());
+            mGameList.putAll(parsed);
         }
     }
 
     boolean isGame(String packageName) {
         synchronized (mGameList) {
-            return mGameList.contains(packageName);
+            return mGameList.containsKey(packageName);
+        }
+    }
+
+    boolean isGameInPerfMode(String packageName) {
+        synchronized (mGameList) {
+            return "2".equals(mGameList.get(packageName));
         }
     }
 
@@ -64,12 +71,25 @@ class GameListManager {
         String raw = Settings.System.getStringForUser(cr, GAME_LIST_KEY, UserHandle.USER_CURRENT);
         Map<String, String> gameMap = parseGameList(raw);
 
-        boolean modified = add ? gameMap.putIfAbsent(packageName, "2") == null : gameMap.remove(packageName) != null;
+        boolean modified = false;
+        if (add) {
+            if (!"2".equals(gameMap.get(packageName))) {
+                gameMap.put(packageName, "2");
+                modified = true;
+            }
+        } else {
+            if (gameMap.remove(packageName) != null) {
+                modified = true;
+            }
+        }
+
         if (modified) {
             String updated = serializeGameMap(gameMap);
             Settings.System.putStringForUser(cr, GAME_LIST_KEY, updated, UserHandle.USER_CURRENT);
-            if (add) mGameList.add(packageName);
-            else mGameList.remove(packageName);
+            synchronized (mGameList) {
+                if (add) mGameList.put(packageName, "2");
+                else mGameList.remove(packageName);
+            }
         }
     }
 
@@ -94,7 +114,9 @@ class GameListManager {
 
         for (String entry : raw.split(";")) {
             String[] parts = entry.split("=");
-            if (parts.length == 2 && parts[0].matches("[a-zA-Z0-9_.]+") && parts[1].matches("\\d+")) {
+            if (parts.length == 2 &&
+                parts[0].matches("[a-zA-Z0-9_.]+") &&
+                parts[1].matches("\\d+")) {
                 map.put(parts[0].trim(), parts[1].trim());
             }
         }

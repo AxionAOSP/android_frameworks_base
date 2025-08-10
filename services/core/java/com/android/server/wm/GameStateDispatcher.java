@@ -18,6 +18,7 @@ package com.android.server.wm;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Slog;
@@ -34,6 +35,9 @@ class GameStateDispatcher {
     private static final String TAG = "GameStateDispatcher";
     private static final String SERVICE_COMPONENT =
             "io.chaldeaprjkt.gamespace/.gamebar.GameSpaceService";
+            
+    private static final String PROPERTY_PERSIST_PERFORMANCE_MODE = 
+            "persist.sys.power_mode_perf";
 
     GameStateDispatcher(Context context, List<IGameSpaceCallback> callbacks) {
         this.mContext = context;
@@ -89,5 +93,16 @@ class GameStateDispatcher {
         } catch (Exception e) {
             Slog.e(TAG, "Failed to start SessionService", e);
         }
+    }
+
+    public void boostGame(boolean enable) {
+        final boolean perfModeEnabledByUser = Settings.System.getIntForUser(
+            mContext.getContentResolver(), "power_mode_perf_by_user", 0,
+            UserHandle.USER_CURRENT) == 1;
+        if (perfModeEnabledByUser) return;
+        Settings.System.putIntForUser(mContext.getContentResolver(),
+            PROPERTY_PERSIST_PERFORMANCE_MODE, enable ? 1 : 0,
+            UserHandle.USER_CURRENT);
+        SystemProperties.set(PROPERTY_PERSIST_PERFORMANCE_MODE, enable ? "1" : "0");
     }
 }
