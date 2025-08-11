@@ -195,8 +195,6 @@ public class KeyguardStatusBarView extends RelativeLayout {
         updateCarrierLabelMargin();
 
         updateKeyguardStatusBarHeight();
-        
-        updateGravityForConstraint();
     }
 
     public void setUserSwitcherEnabled(boolean enabled) {
@@ -319,7 +317,6 @@ public class KeyguardStatusBarView extends RelativeLayout {
         mDisplayCutout = displayCutout;
         updateKeyguardStatusBarHeight();
         updatePadding(insetsProvider);
-        updateGravityForConstraint();
         if (mDisplayCutout == null || insetsProvider.currentRotationHasCornerCutout()) {
             return updateLayoutParamsNoCutout();
         } else {
@@ -583,40 +580,5 @@ public class KeyguardStatusBarView extends RelativeLayout {
         int waterfallHeight = getStatusBarHeaderHeightKeyguard(mContext);
         int statusBarHeight = getResources().getDimensionPixelSize(R.dimen.status_bar_height);
         return waterfallHeight > statusBarHeight;
-    }
-    
-    private void updateGravityForConstraint() {
-        if (needsConstraint()) {
-            RelativeLayout.LayoutParams statusIconParams = 
-                (RelativeLayout.LayoutParams) mStatusIconArea.getLayoutParams();
-            statusIconParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-            statusIconParams.removeRule(RelativeLayout.CENTER_VERTICAL);
-            mStatusIconArea.setLayoutParams(statusIconParams);
-            if (mStatusIconArea instanceof LinearLayout) {
-                ((LinearLayout) mStatusIconArea).setGravity(Gravity.BOTTOM | Gravity.END);
-            }
-            RelativeLayout.LayoutParams carrierParams = 
-                (RelativeLayout.LayoutParams) mCarrierLabel.getLayoutParams();
-            carrierParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-            carrierParams.removeRule(RelativeLayout.CENTER_VERTICAL);
-            mCarrierLabel.setLayoutParams(carrierParams);
-            mCarrierLabel.setGravity(Gravity.BOTTOM);
-        } else {
-            RelativeLayout.LayoutParams statusIconParams = 
-                (RelativeLayout.LayoutParams) mStatusIconArea.getLayoutParams();
-            statusIconParams.removeRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-            statusIconParams.addRule(RelativeLayout.CENTER_VERTICAL);
-            mStatusIconArea.setLayoutParams(statusIconParams);
-            if (mStatusIconArea instanceof LinearLayout) {
-                ((LinearLayout) mStatusIconArea).setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
-            }
-            RelativeLayout.LayoutParams carrierParams = 
-                (RelativeLayout.LayoutParams) mCarrierLabel.getLayoutParams();
-            carrierParams.removeRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-            carrierParams.addRule(RelativeLayout.CENTER_VERTICAL);
-            mCarrierLabel.setLayoutParams(carrierParams);
-            
-            mCarrierLabel.setGravity(Gravity.CENTER_VERTICAL);
-        }
     }
 }
