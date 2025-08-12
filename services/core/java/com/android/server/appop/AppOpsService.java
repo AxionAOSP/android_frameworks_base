@@ -110,6 +110,7 @@ import android.content.IntentFilter;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManagerInternal;
+import android.content.pm.ParceledListSlice;
 import android.content.pm.PermissionInfo;
 import android.content.pm.UserInfo;
 import android.database.ContentObserver;
@@ -204,6 +205,7 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.Instant;
@@ -1825,11 +1827,13 @@ public class AppOpsService extends IAppOpsService.Stub {
 
     @Override
     public List<AppOpsManager.PackageOps> getPackagesForOps(int[] ops) {
-        return getPackagesForOpsForDevice(ops, PERSISTENT_DEVICE_ID_DEFAULT);
+        ParceledListSlice<AppOpsManager.PackageOps> packageOps = getPackagesForOpsForDevice(ops,
+                PERSISTENT_DEVICE_ID_DEFAULT);
+        return packageOps == null ? null : packageOps.getList();
     }
 
     @Override
-    public List<AppOpsManager.PackageOps> getPackagesForOpsForDevice(int[] ops,
+    public ParceledListSlice<AppOpsManager.PackageOps> getPackagesForOpsForDevice(int[] ops,
             @NonNull String persistentDeviceId) {
         final int callingUid = Binder.getCallingUid();
         final boolean hasAllPackageAccess = mContext.checkPermission(
@@ -1866,7 +1870,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                 }
             }
         }
-        return res;
+        return res == null ? null : new ParceledListSlice<>(res);
     }
 
     @Override
