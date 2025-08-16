@@ -8617,6 +8617,10 @@ public class NotificationManagerService extends SystemService {
             final Notification notification, @CanBeALL @CanBeCURRENT @UserIdInt int incomingUserId,
             boolean postSilently, PostNotificationTracker tracker, boolean byForegroundService,
             boolean isAppProvided) {
+        if ("com.android.axion.widgets".equals(pkg)) {
+            Slog.d(TAG, pkg + ": skipping posting notifications for axion widgets");
+            return false;
+        }
         if (DBG) {
             Slog.v(TAG, "enqueueNotificationInternal: pkg=" + pkg + " id=" + id
                     + " notification=" + notification);
