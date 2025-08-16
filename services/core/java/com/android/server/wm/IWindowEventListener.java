@@ -16,8 +16,8 @@
 package com.android.server.wm;
 
 public interface IWindowEventListener {
-    void onAppFocusChanged(ActivityRecord r, Task task);
-    void onWindowingModeChanged(Task task, int mode);
-    void setKeyguardDoneLocked(boolean showing);
-    void removeTask(Task task, String reason);
+    default void onAppFocusChanged(ActivityRecord r, Task task) {}
+    default void onWindowingModeChanged(Task task, int mode) {}
+    default void setKeyguardDoneLocked(boolean showing) {}
+    default void removeTask(Task task, String reason) {}
 }
