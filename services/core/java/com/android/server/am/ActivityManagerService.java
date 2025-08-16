@@ -19689,22 +19689,6 @@ public class ActivityManagerService extends IActivityManager.Stub
         return WindowEventDispatcher.get().getFocusedPackageName();
     }
 
-    private boolean isTopAppGame(String packageName) {
-        if (packageName == null) return false;
-        boolean isGame = false;
-        try {
-            ApplicationInfo ai = mContext.getPackageManager().getApplicationInfo(packageName, 0);
-            if(ai != null) {
-                isGame = (ai.category == ApplicationInfo.CATEGORY_GAME) ||
-                        ((ai.flags & ApplicationInfo.FLAG_IS_GAME) ==
-                            ApplicationInfo.FLAG_IS_GAME);
-            }
-        } catch (Exception e) {
-            return false;
-        }
-        return isGame;
-    }
-
     @Override
     public void animationBoost(int pid, boolean enabled) {
         ProcessRecord curProc;
@@ -19785,8 +19769,7 @@ public class ActivityManagerService extends IActivityManager.Stub
     @Override
     public void setPerformanceMode(boolean enabled, String reason) {
         final boolean sysuiBoosting = !enabled && !reason.equals("sysui") && currentReason.equals("sysui");
-        final boolean topAppGame = enabled && isTopAppGame(getTopAppPackageName());
-        if (mLocalPowerManager == null || sysuiBoosting || topAppGame) return;
+        if (mLocalPowerManager == null || sysuiBoosting) return;
         if (enabled) {
             // Always reset to retrigger LAUNCH powerhint
             mLocalPowerManager.setPowerMode(Mode.LAUNCH, false);
