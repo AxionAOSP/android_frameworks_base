@@ -168,6 +168,7 @@ final class UiModeManagerService extends SystemService implements IWindowEventLi
     private final LocalTime DEFAULT_CUSTOM_NIGHT_END_TIME = LocalTime.of(6, 0);
     private LocalTime mCustomAutoNightModeStartMilliseconds = DEFAULT_CUSTOM_NIGHT_START_TIME;
     private LocalTime mCustomAutoNightModeEndMilliseconds = DEFAULT_CUSTOM_NIGHT_END_TIME;
+    private LocalTime mLastKeyguardDoneLocked = null;
 
     private Map<Integer, String> mCarModePackagePriority = new HashMap<>();
     private boolean mCarModeEnabled = false;
@@ -2254,20 +2255,23 @@ final class UiModeManagerService extends SystemService implements IWindowEventLi
     
     @Override
     public void setKeyguardDoneLocked(boolean showing) {
-        if (!showing) return;
+        int customNightMode = Secure.getIntForUser(
+                getContext().getContentResolver(),
+                "mode_night_custom_type_by_user",
+                MODE_NIGHT_CUSTOM_TYPE_UNKNOWN,
+                UserHandle.USER_CURRENT
+        );
+        if (customNightMode != 0 || mPowerSave) return;
         try {
-            int customNightMode = Secure.getIntForUser(
-                    getContext().getContentResolver(),
-                    "mode_night_custom_type_by_user",
-                    MODE_NIGHT_CUSTOM_TYPE_UNKNOWN,
-                    UserHandle.USER_CURRENT
-            );
-            if (customNightMode == 0) {
-                int nightMode = computeCustomNightMode() ? UiModeManager.MODE_NIGHT_YES
-                                            : UiModeManager.MODE_NIGHT_NO;
-                if (mService.getNightMode() != nightMode) {
-                    mService.setNightMode(nightMode);
-                }
+            boolean allowed = showing || 
+                    (!showing && mLastKeyguardDoneLocked != null &&
+                     mLastKeyguardDoneLocked.isBefore(mCustomAutoNightModeEndMilliseconds));
+            if (!allowed) return;
+            mLastKeyguardDoneLocked = LocalTime.now();
+            int nightMode = computeCustomNightMode() ? UiModeManager.MODE_NIGHT_YES
+                                                     : UiModeManager.MODE_NIGHT_NO;
+            if (mService.getNightMode() != nightMode) {
+                mService.setNightMode(nightMode);
             }
         } catch (Exception e) {
             Slog.w(TAG, "Failed to set night mode", e);
