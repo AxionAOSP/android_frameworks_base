@@ -541,6 +541,11 @@ public class DisplayPolicy {
                 }
 
                 @Override
+                public void onTap() {
+                    BoostHelper.boostHint("tap", 64);
+                }
+
+                @Override
                 public void onDebug() {
                     // no-op
                 }

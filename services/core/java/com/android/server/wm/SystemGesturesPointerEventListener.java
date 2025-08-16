@@ -185,6 +185,12 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
             case MotionEvent.ACTION_DOWN:
                 mSwipeFireable = true;
                 mDebugFireable = true;
+                if (mCallbacks != null) {
+                    mCallbacks.onTap();
+                }
+                if (mScrollFired) {
+                    mCallbacks.onScroll(false);
+                }
                 mScrollFired = false;
                 mDownPointers = 0;
                 captureDown(event, 0);
@@ -208,6 +214,9 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
                 break;
             case MotionEvent.ACTION_POINTER_DOWN:
                 captureDown(event, event.getActionIndex());
+                if (mCallbacks != null) {
+                    mCallbacks.onTap();
+                }
                 if (mDebugFireable) {
                     mDebugFireable = event.getPointerCount() < 5;
                     if (!mDebugFireable) {
@@ -484,5 +493,6 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
         void onMouseLeaveFromRight();
         void onMouseLeaveFromBottom();
         void onDebug();
+        void onTap();
     }
 }
