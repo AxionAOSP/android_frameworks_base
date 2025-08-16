@@ -110,6 +110,8 @@ import com.android.server.twilight.TwilightListener;
 import com.android.server.twilight.TwilightManager;
 import com.android.server.twilight.TwilightState;
 import com.android.server.wm.ActivityTaskManagerInternal;
+import com.android.server.wm.IWindowEventListener;
+import com.android.server.wm.WindowEventDispatcher;
 import com.android.server.wm.WindowManagerInternal;
 
 import java.io.FileDescriptor;
@@ -126,7 +128,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-final class UiModeManagerService extends SystemService {
+final class UiModeManagerService extends SystemService implements IWindowEventListener {
     private static final String TAG = UiModeManager.class.getSimpleName();
     private static final boolean LOG = false;
 
@@ -166,6 +168,7 @@ final class UiModeManagerService extends SystemService {
     private final LocalTime DEFAULT_CUSTOM_NIGHT_END_TIME = LocalTime.of(6, 0);
     private LocalTime mCustomAutoNightModeStartMilliseconds = DEFAULT_CUSTOM_NIGHT_START_TIME;
     private LocalTime mCustomAutoNightModeEndMilliseconds = DEFAULT_CUSTOM_NIGHT_END_TIME;
+    private LocalTime mLastKeyguardDoneLocked = null;
 
     private Map<Integer, String> mCarModePackagePriority = new HashMap<>();
     private boolean mCarModeEnabled = false;
@@ -277,6 +280,7 @@ final class UiModeManagerService extends SystemService {
         mSetupWizardComplete = setupWizardComplete;
         mTwilightManager = tm;
         mInjector = injector;
+        WindowEventDispatcher.get().registerListener(this);
     }
 
     private static Intent buildHomeIntent(String category) {
@@ -2246,6 +2250,31 @@ final class UiModeManagerService extends SystemService {
             }
         } catch (RemoteException e) {
             Slog.e(TAG, "Failed to register VR mode state listener: " + e);
+        }
+    }
+    
+    @Override
+    public void setKeyguardDoneLocked(boolean showing) {
+        int customNightMode = Secure.getIntForUser(
+                getContext().getContentResolver(),
+                "mode_night_custom_type_by_user",
+                MODE_NIGHT_CUSTOM_TYPE_UNKNOWN,
+                UserHandle.USER_CURRENT
+        );
+        if (customNightMode != 0 || mPowerSave) return;
+        try {
+            boolean allowed = showing || 
+                    (!showing && mLastKeyguardDoneLocked != null &&
+                     mLastKeyguardDoneLocked.isBefore(mCustomAutoNightModeEndMilliseconds));
+            if (!allowed) return;
+            mLastKeyguardDoneLocked = LocalTime.now();
+            int nightMode = computeCustomNightMode() ? UiModeManager.MODE_NIGHT_YES
+                                                     : UiModeManager.MODE_NIGHT_NO;
+            if (mService.getNightMode() != nightMode) {
+                mService.setNightMode(nightMode);
+            }
+        } catch (Exception e) {
+            Slog.w(TAG, "Failed to set night mode", e);
         }
     }
 
