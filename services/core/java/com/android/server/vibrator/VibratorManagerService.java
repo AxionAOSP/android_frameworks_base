@@ -194,6 +194,9 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
     @Nullable private VibratorInfo mCombinedVibratorInfo;
     @GuardedBy("mLock")
     @Nullable private HapticFeedbackVibrationProvider mHapticFeedbackVibrationProvider;
+    
+    private static long previous = 0;
+    private static String preOpPkg;
 
     @VisibleForTesting
     BroadcastReceiver mIntentReceiver = new BroadcastReceiver() {
@@ -611,6 +614,14 @@ public class VibratorManagerService extends IVibratorManagerService.Stub {
     private HalVibration vibrateInternal(int uid, int deviceId, String opPkg,
             @NonNull CombinedVibration effect, @NonNull VibrationAttributes attrs,
             String reason, IBinder token) {
+        if (opPkg != null && !opPkg.equals("") && (opPkg.equals("com.android.launcher3") || opPkg.equals("com.google.android.dialer") || opPkg.equals("com.google.android.inputmethod.latin") || ((opPkg.equals("com.google.android.deskclock") && attrs.getUsage() == 18) || opPkg.equals("com.google.android.calculator") || opPkg.equals("com.google.android.apps.photos")))) {
+            long current = System.currentTimeMillis();
+            if (previous + 50 > current && current > previous && preOpPkg.equals(opPkg) && !opPkg.equals("android.os.cts")) {
+                return null;
+            }
+            previous = current;
+            preOpPkg = opPkg;
+        }
         CallerInfo callerInfo = new CallerInfo(attrs, uid, deviceId, opPkg, reason);
         if (token == null) {
             Slog.e(TAG, "token must not be null");
