@@ -684,6 +684,8 @@ final class ActivityRecord extends WindowToken {
      * @see WindowContainer#providesOrientation()
      */
     final boolean mStyleFillsParent;
+    
+    private int mSyncTimeoutCounter = 0;
 
     // The input dispatching timeout for this application token in milliseconds.
     long mInputDispatchingTimeoutMillis = DEFAULT_DISPATCHING_TIMEOUT_MILLIS;
@@ -9313,6 +9315,25 @@ final class ActivityRecord extends WindowToken {
     void setShouldDockBigOverlays(boolean shouldDockBigOverlays) {
         this.shouldDockBigOverlays = shouldDockBigOverlays;
         getTask().getRootTask().onShouldDockBigOverlaysChanged();
+    }
+
+    void checkSyncTimeout(BLASTSyncEngine.SyncGroup group) {
+        if (attachedToProcess() && "com.android.launcher3".equals(packageName)) {
+            mAtmService.mH.post(() -> {
+                synchronized (mAtmService.mGlobalLock) {
+                    if (!hasProcess()) {
+                        return;
+                    }
+                    WindowProcessController wpc = app;
+                    mSyncTimeoutCounter++;
+                    if (mSyncTimeoutCounter < 3) {
+                        return;
+                    }
+                    Slog.d(TAG, "Sync timeout, try kill process");
+                    mAtmService.mAmInternal.killProcess(wpc.mName, wpc.mUid, "syncTimeout");
+                }
+            });
+        }
     }
 
     @Override
