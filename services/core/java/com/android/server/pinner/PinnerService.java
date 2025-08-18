@@ -173,6 +173,11 @@ public final class PinnerService extends SystemService {
     private static final long DEFAULT_ANON_SIZE =
             SystemProperties.getLong("pinner.pin_shared_anon_size", 0);
     private static final long MAX_ANON_SIZE = 2L * (1L << 30); // 2GB
+
+    private static final int MAX_ASSISTANT_PIN_SIZE = 31457280;
+    private static final int MAX_CAMERA_PIN_SIZE = 83886080;
+    private static final int MAX_HOME_PIN_SIZE = 20971520;
+
     private long mPinAnonSize;
     private long mPinAnonAddress;
     private long mCurrentlyPinnedAnonSize;
@@ -873,11 +878,11 @@ public final class PinnerService extends SystemService {
     private int getSizeLimitForKey(@AppKey int key) {
         switch (key) {
             case KEY_CAMERA:
-                return mConfiguredCameraPinBytes;
+                return MAX_CAMERA_PIN_SIZE;
             case KEY_HOME:
-                return mConfiguredHomePinBytes;
+                return SystemProperties.getInt("persist.sys.nmm.pinner_max_home_pin_size", MAX_HOME_PIN_SIZE);
             case KEY_ASSISTANT:
-                return mConfiguredAssistantPinBytes;
+                return SystemProperties.getInt("persist.sys.nmm.pinner_max_assistant_pin_size", MAX_ASSISTANT_PIN_SIZE);
             default:
                 return 0;
         }
