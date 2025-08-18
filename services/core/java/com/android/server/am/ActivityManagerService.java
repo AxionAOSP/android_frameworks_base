@@ -5280,6 +5280,7 @@ public class ActivityManagerService extends IActivityManager.Stub
             // Start PSI monitoring in LMKD if it was skipped earlier.
             ProcessList.startPsiMonitoringAfterBoot();
             initTaskProfiles();
+            updateExtraFree();
 
             mUserController.onBootComplete(
                     new IIntentReceiver.Stub() {
@@ -19879,5 +19880,15 @@ public class ActivityManagerService extends IActivityManager.Stub
     @Override
     public boolean shouldForceLongScreen(String packageName) {
         return mActivityTaskManager.shouldForceLongScreen(packageName);
+    }
+    
+    private void updateExtraFree() {
+        if (mWindowManager != null) {
+            android.graphics.Point displaySize = new android.graphics.Point();
+            mWindowManager.getBaseDisplaySize(0, displaySize);
+            int extraFreeFactor = 6; // calculated from n2a with 61279 efk = factor ≈ 61279 / (((1080*2412)*4)/1024) ≈ 6.02
+            int extraFreeKb = (((displaySize.x * displaySize.y) * 4) * extraFreeFactor) / 1024;
+            SystemProperties.set("sys.sysctl.extra_free_kbytes", Integer.toString(extraFreeKb));
+        }
     }
 }
