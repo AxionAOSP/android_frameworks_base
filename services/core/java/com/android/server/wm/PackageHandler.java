@@ -19,18 +19,25 @@ import android.content.*;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.UserHandle;
 import android.widget.Toast;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 class PackageHandler {
     private final Context mContext;
     private final PackageManager mPackageManager;
     private final GameListManager mGameListManager;
+    private final ExecutorService mExecutor;
+    private final Handler mMainHandler;
 
     PackageHandler(Context context, GameListManager manager) {
         this.mContext = context;
         this.mPackageManager = context.getPackageManager();
         this.mGameListManager = manager;
+        this.mExecutor = Executors.newSingleThreadExecutor();
+        this.mMainHandler = new Handler(Looper.getMainLooper());
     }
 
     void registerPackageReceiver() {
@@ -42,49 +49,54 @@ class PackageHandler {
         mContext.registerReceiver(new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                String pkg = intent.getData() != null ? intent.getData().getSchemeSpecificPart() : null;
+                final String pkg = intent.getData() != null ? intent.getData().getSchemeSpecificPart() : null;
                 if (pkg == null) return;
-
-                if (Intent.ACTION_PACKAGE_ADDED.equals(intent.getAction())) {
-                    handlePackageAdded(pkg);
-                } else if (Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(intent.getAction())) {
-                    handlePackageRemoved(pkg);
-                }
+                mExecutor.execute(() -> {
+                    if (Intent.ACTION_PACKAGE_ADDED.equals(intent.getAction())) {
+                        boolean isGame = isGame(pkg);
+                        if (isGame) {
+                            String label = getAppLabel(pkg);
+                            mMainHandler.post(() -> {
+                                mGameListManager.addGame(pkg);
+                                showGameAddedNotification(label);
+                            });
+                        }
+                    } else if (Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(intent.getAction())) {
+                        mMainHandler.post(() -> {
+                            mGameListManager.removeGame(pkg);
+                        });
+                    }
+                });
             }
         }, filter);
     }
 
-    private void handlePackageAdded(String pkg) {
-        if (isGame(pkg)) {
-            mGameListManager.addGame(pkg);
-            showGameAddedNotification(pkg);
-        }
-    }
-
-    private void handlePackageRemoved(String pkg) {
-        mGameListManager.removeGame(pkg);
-    }
-
     private boolean isGame(String pkg) {
         try {
-            ApplicationInfo info = mPackageManager.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA));
+            ApplicationInfo info = mPackageManager.getApplicationInfo(
+                pkg,
+                PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA)
+            );
             return info.category == ApplicationInfo.CATEGORY_GAME;
         } catch (PackageManager.NameNotFoundException e) {
             return false;
         }
     }
 
-    private void showGameAddedNotification(String pkg) {
-        String label;
+    private String getAppLabel(String pkg) {
         try {
-            label = mPackageManager.getApplicationLabel(mPackageManager.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0))).toString();
+            return mPackageManager
+                .getApplicationLabel(
+                    mPackageManager.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0))
+                )
+                .toString();
         } catch (PackageManager.NameNotFoundException e) {
-            label = pkg;
+            return pkg;
         }
+    }
 
-        final String msg = "Added" + label + "to GameSpace";
-        new Handler(mContext.getMainLooper()).post(() ->
-            Toast.makeText(mContext, msg, Toast.LENGTH_LONG).show()
-        );
+    private void showGameAddedNotification(String appLabel) {
+        String msg = "Added " + appLabel + " to GameSpace";
+        Toast.makeText(mContext, msg, Toast.LENGTH_LONG).show();
     }
 }
