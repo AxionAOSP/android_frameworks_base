@@ -64,6 +64,12 @@ class PackageHandler {
                     } else if (Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(intent.getAction())) {
                         mMainHandler.post(() -> {
                             mGameListManager.removeGame(pkg);
+                            if (AppLockManagerService.get().isAppLocked(pkg)) {
+                                AppLockManagerService.get().removeLockedApp(pkg);
+                            }
+                            if (AppLockManagerService.get().isPackageHidden(pkg)) {
+                                AppLockManagerService.get().setPackageHidden(pkg, false);
+                            }
                         });
                     }
                 });
