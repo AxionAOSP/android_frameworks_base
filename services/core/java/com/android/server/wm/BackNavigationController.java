@@ -409,7 +409,6 @@ class BackNavigationController {
                                     || backType == BackNavigationInfo.TYPE_CROSS_TASK
                                     || backType == BackNavigationInfo.TYPE_CROSS_ACTIVITY
                                     || backType == BackNavigationInfo.TYPE_DIALOG_CLOSE)
-                                    && currentTask.getWindowConfiguration().tasksAreFloating()
                             && (adapter != null && adapter.isAnimatable(backType));
 
             if (prepareAnimation) {

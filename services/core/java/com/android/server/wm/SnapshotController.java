@@ -210,8 +210,7 @@ class SnapshotController {
         for (int i = changeInfos.size() - 1; i >= 0; --i) {
             final WindowContainer wc = changeInfos.get(i).mContainer;
             final Task task = wc.asTask();
-            if ((task == null || !task.getWindowConfiguration().tasksAreFloating()) && 
-                    task != null && wc.isVisibleRequested() && !task.inPinnedWindowingMode()) {
+            if (task != null && wc.isVisibleRequested() && !task.inPinnedWindowingMode()) {
                 final TaskSnapshot snapshot = mTaskSnapshotController.getSnapshot(task.mTaskId,
                         false /* isLowResolution */);
                 if (snapshot != null) {

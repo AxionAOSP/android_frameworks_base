@@ -2889,7 +2889,7 @@ class Task extends TaskFragment {
                 && getActivityType() == ACTIVITY_TYPE_STANDARD;
         if (forceResizable) return true;
         if (mForceNonResizeOverride) return false;
-        return mForceResizeOverride || ActivityInfo.isResizeableMode(mResizeMode) || getWindowConfiguration().tasksAreFloating()
+        return mForceResizeOverride || ActivityInfo.isResizeableMode(mResizeMode)
                 || (mSupportsPictureInPicture && checkPictureInPictureSupport);
     }
 

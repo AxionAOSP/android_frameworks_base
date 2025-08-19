@@ -152,8 +152,7 @@ class RunningTasks implements Consumer<Task> {
         if (mFilterOnlyVisibleRecents
                 && task.getActivityType() != ACTIVITY_TYPE_HOME
                 && task.getActivityType() != ACTIVITY_TYPE_RECENTS
-                && (!mRecentTasks.isVisibleRecentTask(task)
-                || task.getWindowConfiguration().tasksAreFloating())) {
+                && !mRecentTasks.isVisibleRecentTask(task)) {
             // Skip if this task wouldn't be visibile (ever) from recents, with an exception for the
             // home & recent tasks
             return;
