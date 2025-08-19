@@ -32,6 +32,9 @@ import com.android.internal.app.IGameSpaceService;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.List;
 
 public class GameSpaceService extends IGameSpaceService.Stub implements IWindowEventListener {
@@ -48,9 +51,11 @@ public class GameSpaceService extends IGameSpaceService.Stub implements IWindowE
     private final PackageHandler mPackageHandler;
     private final ActivityManagerService mActivityManager;
     private final ExecutorService mBackgroundExecutor = Executors.newSingleThreadExecutor();
+    private final ScheduledExecutorService mScheduler = Executors.newSingleThreadScheduledExecutor();
 
     private String mCurrentGame;
     private final Object mLock = new Object();
+    private ScheduledFuture<?> mPendingBoost;
 
     private GameSpaceService(Context context, ActivityManagerService am) {
         this.mContext = context;
@@ -95,14 +100,23 @@ public class GameSpaceService extends IGameSpaceService.Stub implements IWindowE
                 if (DEBUG) Slog.d(TAG, "Service is dead, restarting!");
                 mGameStateDispatcher.startService(currentGame);
             }
+            if (mPendingBoost != null && !mPendingBoost.isDone()) {
+                mPendingBoost.cancel(false);
+            }
             if (mGameListManager.isGameInPerfMode(currentGame)) {
-                mGameStateDispatcher.boostGame(true);
+                mPendingBoost = mScheduler.schedule(
+                        () -> mGameStateDispatcher.boostGame(true),
+                        500, TimeUnit.MILLISECONDS
+                );
             }
             mGameStateDispatcher.dispatchGameState(true, currentGame);
         });
     }
 
     private void stopOverlay() {
+        if (mPendingBoost != null && !mPendingBoost.isDone()) {
+            mPendingBoost.cancel(false);
+        }
         mGameStateDispatcher.dispatchGameState(false, null);
         mGameStateDispatcher.boostGame(false);
     }
