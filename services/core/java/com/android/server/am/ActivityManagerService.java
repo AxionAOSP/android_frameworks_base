@@ -19635,58 +19635,44 @@ public class ActivityManagerService extends IActivityManager.Stub
 
     @Override
     public void adjustCpusetCpus(String cgroup, long durationMillis) {
-        String path = null;
-        String cpuset = null;
-        String bgCpuset = SystemProperties.get("persist.sys.axion_cpu_limit_bg", "0-1");
-        String fgCpuSet = SystemProperties.get("persist.sys.axion_cpu_limit_ui", "0-4");
-
-        switch (cgroup) {
-            case "bg":
-                path = "/dev/cpuset/background/cpus";
-                cpuset = bgCpuset;
-                break;
-            case "restricted":
-                path = "/dev/cpuset/restricted/cpus";
-                cpuset = bgCpuset;
-                break;
-            case "fg":
-                path = "/dev/cpuset/foreground/cpus";
-                cpuset = fgCpuSet;
-                break;
-            case "sys-bg":
-                path = "/dev/cpuset/system-background/cpus";
-                cpuset = bgCpuset;
-                break;
-            case "cam":
-                path = "/dev/cpuset/camera-daemon/cpus";
-                cpuset = bgCpuset;
-                break;
-            default:
-                Log.w("adjustCpusetCpus", "Unknown cgroup: " + cgroup);
-                return;
-        }
-
-        adjustCpusetCpus(path, cpuset, durationMillis);
+        adjustCpuset(cgroup, true);
+        mHandler.postDelayed(() -> adjustCpuset(cgroup, false), durationMillis);
     }
 
-    public void adjustCpusetCpus(String path, String cpuset, long durationMillis) {
-        File file = new File(path);
-        if (!file.exists()) {
+    private void adjustCpuset(String cgroup, boolean limit) {
+        String path = resolvePath(cgroup);
+        if (path == null) {
+            Log.w("adjustCpusetCpus", "Unknown cgroup: " + cgroup);
             return;
         }
-        String originalCpuset = null;
 
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            originalCpuset = reader.readLine();
-        } catch (IOException e) {
-            Log.e("adjustCpusetCpus", "Failed to read original cpuset from " + path + ": " + e.getMessage());
-            return;
+        String cpuset;
+        if (limit) {
+            String limitBgCpuset = SystemProperties.get("persist.sys.axion_cpu_limit_bg", "0-1");
+            String limitFgCpuset = SystemProperties.get("persist.sys.axion_cpu_limit_ui", "0-4");
+            cpuset = "fg".equals(cgroup) ? limitFgCpuset : limitBgCpuset;
+        } else {
+            String bgCpuset = SystemProperties.get("persist.sys.axion_cpu_bg", "0-2");
+            String fgCpuSet = SystemProperties.get("persist.sys.axion_cpu_unlimit_ui", "0-7");
+            cpuset = "fg".equals(cgroup) ? fgCpuSet : bgCpuset;
         }
 
         executeAdjustCpusetCpus(path, cpuset);
+    }
 
-        String restoreCpuset = originalCpuset;
-        mHandler.postDelayed(() -> executeAdjustCpusetCpus(path, restoreCpuset), durationMillis);
+    private String resolvePath(String cgroup) {
+        switch (cgroup) {
+            case "bg":
+                return "/dev/cpuset/background/cpus";
+            case "fg":
+                return "/dev/cpuset/foreground/cpus";
+            case "sys-bg":
+                return "/dev/cpuset/system-background/cpus";
+            case "cam":
+                return "/dev/cpuset/camera-daemon/cpus";
+            default:
+                return null;
+        }
     }
 
     private String getTopAppPackageName() {
@@ -19800,14 +19786,8 @@ public class ActivityManagerService extends IActivityManager.Stub
     public void boostHint(String reason, long duration) {
         setPerformanceMode(true, reason);
 
-        if (reason != null && reason.toLowerCase().contains("launch")) {
-            String fgboost = SystemProperties.get("persist.sys.axion_cpu_unlimit_ui", "0-7");
-            adjustCpusetCpus("/dev/cpuset/foreground/cpus", fgboost, duration);
-        }
-
         adjustCpusetCpus("bg", duration);
         adjustCpusetCpus("sys-bg", duration);
-        adjustCpusetCpus("restricted", duration);
 
         mHandler.postDelayed(() -> setPerformanceMode(false, reason), duration);
     }
