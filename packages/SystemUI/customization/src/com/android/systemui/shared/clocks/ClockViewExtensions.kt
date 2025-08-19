@@ -25,7 +25,7 @@ import com.android.systemui.customization.R
 private val viewCacheKey = Any() 
 
 val Context.scaleRatio: Float
-    get() = 420f / resources.displayMetrics.densityDpi.toFloat()
+    get() = resources.displayMetrics.densityDpi.toFloat() / 420f
 
 fun Context.scaledDimen(resId: Int): Float {
     return resources.getDimension(resId) * scaleRatio
