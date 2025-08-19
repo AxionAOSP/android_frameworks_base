@@ -144,36 +144,6 @@ public class NTCpuBindController {
             BoostHelper.setPerformanceMode(false, "sysui");
         }
     }
-    
-    public void setLimitCpusForIdle(boolean limit) {
-        if (limit) {
-            // ui groups
-            BoostHelper.executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_LIMIT);
-            BoostHelper.executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_UI_LIMIT);
-            BoostHelper.executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_UI_LIMIT);
-            
-            // bg groups
-            BoostHelper.executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_BG_LIMIT);
-            BoostHelper.executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_LIMIT);
-            BoostHelper.executeAdjustCpusetCpus(RESTRICTED_GROUP, CPUS_PARAMS_BG_LIMIT);
-            BoostHelper.executeAdjustCpusetCpus(SYS_BG_GROUP, CPUS_PARAMS_BG_LIMIT);
-            BoostHelper.executeAdjustCpusetCpus(BG_GROUP, CPUS_PARAMS_BG_LIMIT);
-        } else {
-            // ui groups
-            BoostHelper.executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT);
-            BoostHelper.executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_UI_UNLIMIT);
-            
-            // fg groups
-            BoostHelper.executeAdjustCpusetCpus(FG_WINDOWN_GROUP, CPUS_PARAMS_FG_UNLIMIT);
-            BoostHelper.executeAdjustCpusetCpus(FG_GROUP, CPUS_PARAMS_FG_UNLIMIT);
-            
-            // bg groups
-            BoostHelper.executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_UNLIMIT);
-            BoostHelper.executeAdjustCpusetCpus(RESTRICTED_GROUP, CPUS_PARAMS_BG_UNLIMIT);
-            BoostHelper.executeAdjustCpusetCpus(SYS_BG_GROUP, CPUS_PARAMS_BG_UNLIMIT);
-            BoostHelper.executeAdjustCpusetCpus(BG_GROUP, CPUS_PARAMS_BG_UNLIMIT);
-        }
-    }
 
     public void setLimitForegroundAppCpu(boolean limitForegroundAppCpu) {
         if (limitForegroundAppCpu != mLimitForegroundAppCpu) {
