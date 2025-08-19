@@ -189,6 +189,7 @@ import android.os.Message;
 import android.os.PowerManager;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
+import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -584,6 +585,8 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
      * new task the user wants to interact with.
      */
     ActivityRecord mFocusedApp = null;
+    
+    boolean mBoostingCamera = false;
 
     /**
      * We only respect the orientation request from apps below this {@link TaskDisplayArea}.
@@ -4044,6 +4047,22 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
                 newFocus, getDisplayId(), Debug.getCallers(4));
         final Task oldTask = mFocusedApp != null ? mFocusedApp.getTask() : null;
         final Task newTask = newFocus != null ? newFocus.getTask() : null;
+        
+        boolean isCamera = newFocus != null
+                && newFocus.packageName != null
+                && (newFocus.packageName.toLowerCase().contains("camera")
+                    || newFocus.packageName.equals("com.google.android.apps.photos"));
+
+        boolean isBoosted = "1".equals(SystemProperties.get("persist.sys.power_mode_perf"));
+
+        if (isCamera && !mBoostingCamera && !isBoosted) {
+            SystemProperties.set("persist.sys.power_mode_perf", "1");
+            mBoostingCamera = true;
+        } else if (!isCamera && mBoostingCamera) {
+            SystemProperties.set("persist.sys.power_mode_perf", "0");
+            mBoostingCamera = false;
+        }
+
         mFocusedApp = newFocus;
         if (oldTask != newTask) {
             if (oldTask != null) oldTask.onAppFocusChanged(false);
