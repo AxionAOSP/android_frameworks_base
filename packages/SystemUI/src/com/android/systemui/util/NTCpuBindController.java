@@ -43,9 +43,9 @@ public class NTCpuBindController {
     private static final String CPUS_PARAMS_UI_UNLIMIT = SystemProperties.get("persist.sys.axion_cpu_unlimit_ui", "0-7");
     private static final String CPUS_PARAMS_FG_UNLIMIT = SystemProperties.get("persist.sys.axion_cpu_fg", "0-5");
     private static final String CPUS_PARAMS_BG_UNLIMIT = SystemProperties.get("persist.sys.axion_cpu_bg", "0-2");
-    private static final String CPUS_PARAMS_BIG_CORES = SystemProperties.get("persist.sys.axion_cpu_big", "4,5,6,7");
+    private static final String CPUS_PARAMS_SMALL_CORES = SystemProperties.get("persist.sys.axion_cpu_small", "0,1,2,3");
 
-    private static final String CPUS_PARAMS_BIG_LIMIT;
+    private static final String CPUS_PARAMS_SMALL_LIMIT;
 
     public static int REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_NOTIFICATION_EXPAND = 16;
     public static int REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_PLAY_SCREEN_OFF_ANIMATION = 256;
@@ -77,7 +77,7 @@ public class NTCpuBindController {
     private static NTCpuBindController instance = null;
 
     static {
-        CPUS_PARAMS_BIG_LIMIT = getCpuRange(CPUS_PARAMS_BIG_CORES);
+        CPUS_PARAMS_SMALL_LIMIT = getCpuRange(CPUS_PARAMS_SMALL_CORES);
     }
 
     private NTCpuBindController() {}
@@ -148,7 +148,7 @@ public class NTCpuBindController {
     public void setLimitForegroundAppCpu(boolean limitForegroundAppCpu) {
         if (limitForegroundAppCpu != mLimitForegroundAppCpu) {
             if (limitForegroundAppCpu) {
-                BoostHelper.executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_BIG_LIMIT);
+                BoostHelper.executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_SMALL_LIMIT);
             } else {
                 BoostHelper.executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT);
             }
