@@ -19744,6 +19744,7 @@ public class ActivityManagerService extends IActivityManager.Stub
         private static final String DISPLAY_UCLAMP_MAX = "/dev/cpuctl/display/cpu.uclamp.max";
         private static final String DISPLAY_UCLAMP_MIN = "/dev/cpuctl/display/cpu.uclamp.min";
         private static final String BG_CPUSET = SystemProperties.get("persist.sys.axion_cpu_bg", "0-3");
+        private static final String DISPLAY_CPUSET = SystemProperties.get("persist.sys.axion_cpu_display", "0-5");
         private static final String NT_FG_CPUSET = SystemProperties.get("persist.sys.axion_cpu_unlimit_ui", "0-7");
         private static final String BG_LIMIT = SystemProperties.get("persist.sys.axion_cpu_limit_bg", "0-1");
         private static final String FG_LIMIT = SystemProperties.get("persist.sys.axion_cpu_limit_ui", "0-2");
@@ -19860,7 +19861,7 @@ public class ActivityManagerService extends IActivityManager.Stub
                 FileUtils.stringToFile(DISPLAY_UCLAMP_MIN, enable ? SF_UCLAMP_MIN_BOOST : "0");
                 FileUtils.stringToFile(DISPLAY_UCLAMP_MAX, "293");
                 executeAdjustCpusetCpus("/dev/cpuset/restricted/cpus", enable ? BIG_CORES : ALL_CORES);
-                executeAdjustCpusetCpus("/dev/cpuset/display/cpus", enable ? BIG_CORES : ALL_CORES);
+                executeAdjustCpusetCpus("/dev/cpuset/display/cpus", enable ? BIG_CORES : DISPLAY_CPUSET);
             } catch (Exception e) {
                 Slog.w(TAG, "Failed to " + (enable ? "enable" : "disable") + " restricted boost: " + e);
             }
