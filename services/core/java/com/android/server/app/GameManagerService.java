@@ -102,6 +102,7 @@ import com.android.server.SystemService.TargetUser;
 import com.android.server.utils.LazyJniRegistrar;
 import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.CompatScaleProvider;
+import com.android.server.wm.NtRefreshRateController;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -268,6 +269,12 @@ public final class GameManagerService extends IGameManagerService.Stub {
         }
 
         mSysProps = injector.createSystemPropertiesWrapper();
+        NtRefreshRateController.get().setGameFpsCallback(new NtRefreshRateController.GameFpsCallback() {
+            @Override
+            public void setGameFps(int uid, float fps) {
+                setGameModeFrameRateOverride(uid, fps);
+            }
+        });
     }
 
     @Override
@@ -2241,6 +2248,7 @@ public final class GameManagerService extends IGameManagerService.Stub {
 
     @VisibleForTesting
     void setGameModeFrameRateOverride(int uid, float frameRate) {
+        NtRefreshRateController.get().setGameModeFrameRateOverrideToNtRefreshRate(uid, frameRate);
         nativeSetGameModeFrameRateOverride(uid, frameRate);
     }
 
