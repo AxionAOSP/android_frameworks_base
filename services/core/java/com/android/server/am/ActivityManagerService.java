@@ -7475,6 +7475,7 @@ public class ActivityManagerService extends IActivityManager.Stub
                 mProcessStateController.setWakefulness(wakefulness);
 
                 updateOomAdjLocked(OOM_ADJ_REASON_UI_VISIBILITY);
+                mBoostAdjuster.onWakefulnessChanged(isAwake);
             }
         }
     }
@@ -19868,7 +19869,7 @@ public class ActivityManagerService extends IActivityManager.Stub
                 FileUtils.stringToFile(enable ? RESTRICTED_CGROUP_PROCS : ROOT_CGROUP_PROCS, String.valueOf(pid));
                 FileUtils.stringToFile(RESTRICTED_UCLAMP_MIN, enable ? "100" : "0");
                 FileUtils.stringToFile(RESTRICTED_UCLAMP_MAX, "100");
-                FileUtils.stringToFile(DISPLAY_UCLAMP_MIN, enable ? SF_UCLAMP_MIN_BOOST : "0");
+                FileUtils.stringToFile(DISPLAY_UCLAMP_MIN, enable ? SF_UCLAMP_MIN_BOOST : "106");
                 FileUtils.stringToFile(DISPLAY_UCLAMP_MAX, "293");
                 executeAdjustCpusetCpus("/dev/cpuset/restricted/cpus", enable ? BIG_CORES : ALL_CORES);
                 executeAdjustCpusetCpus("/dev/cpuset/display/cpus", enable ? BIG_CORES : DISPLAY_CPUSET);
@@ -19934,6 +19935,14 @@ public class ActivityManagerService extends IActivityManager.Stub
         private void disableBoostHint() {
             SystemProperties.set("dalvik.vm.dex2oat-threads", "3");
             setPerformanceMode(false, currentReason);
+        }
+        
+        public void onWakefulnessChanged(boolean awake) {
+            try {
+                FileUtils.stringToFile(DISPLAY_UCLAMP_MIN, awake ? "106" : "0");
+                FileUtils.stringToFile(DISPLAY_UCLAMP_MAX, awake ? "293" : "0");
+            } catch (Exception e) {
+            }
         }
     }
 }
