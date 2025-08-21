@@ -438,6 +438,7 @@ import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.server.AlarmManagerInternal;
 import com.android.server.BootReceiver;
 import com.android.server.DeviceIdleInternal;
+import com.android.server.AnimationThread;
 import com.android.server.DisplayThread;
 import com.android.server.IoThread;
 import com.android.server.LocalManagerRegistry;
@@ -487,6 +488,7 @@ import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.ActivityTaskManagerService;
 import com.android.server.wm.AppLockManagerService;
 import com.android.server.wm.GameSpaceService;
+import com.android.server.wm.SurfaceAnimationThread;
 import com.android.server.wm.WindowEventDispatcher;
 import com.android.server.wm.WindowManagerInternal;
 import com.android.server.wm.WindowManagerService;
@@ -19851,6 +19853,14 @@ public class ActivityManagerService extends IActivityManager.Stub
             }
             setFifoPriority(curProc, enabled, 99);
             boostRestricted(pid, enabled);
+            boostDisplayThreads(enabled);
+        }
+        
+        private void boostDisplayThreads(boolean enabled) {
+            int tg = enabled ? 9 : Process.THREAD_GROUP_TOP_APP; // top-app is restricted to small cores during animation boost
+            Process.setThreadGroupAndCpuset(DisplayThread.get().getThreadId(), tg);
+            Process.setThreadGroupAndCpuset(AnimationThread.get().getThreadId(), tg);
+            Process.setThreadGroupAndCpuset(SurfaceAnimationThread.get().getThreadId(), tg);
         }
 
         private void boostRestricted(int pid, boolean enable) {
