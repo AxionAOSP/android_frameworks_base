@@ -1139,9 +1139,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
                         mNotificationShadeWindowController.setRequestTopUi(
                                 requestTopUi, componentTag))));
         getNotifContainerParentView().addView(MediaViewController.get(mContext).getMediaArtScrim(), 0);
-        
-        PulseViewController.Companion.init(mContext);
-        getNotifContainerParentView().addView(PulseViewController.Companion.get().getPulseView(), 1);
+        getNotifContainerParentView().addView(PulseViewController.get(mContext).getPulseView(), 1);
     }
 
     private ViewGroup getNotifContainerParentView() {

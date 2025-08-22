@@ -16,109 +16,98 @@
 package com.android.systemui.pulse
 
 import android.content.Context
+import com.android.systemui.SystemUIApplication
+import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.media.MediaSessionManager
 import com.android.systemui.util.ScrimUtils
-import kotlinx.coroutines.*
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class PulseViewController private constructor() :
-    PulseAudioDataProcessor.DataListener,
+@SysUISingleton
+class PulseViewController @Inject constructor(
+    private val context: Context
+) : PulseAudioDataProcessor.DataListener,
     MediaSessionManager.MediaDataListener,
     ScrimUtils.ScrimEventListener {
 
-    private var pulseView: PulseView? = null
-    private var settingsRepository: PulseSettingsRepository? = null
-    private var audioProcessor: PulseAudioDataProcessor? = null
-
     private val mainScope = MainScope()
 
-    private fun initialize(context: Context) {
-        settingsRepository = PulseSettingsRepository(context).apply {
+    private val settingsRepository: PulseSettingsRepository =
+        PulseSettingsRepository(context).apply {
             startObserving()
             setOnSettingsChangedListener { onSettingsChanged() }
         }
 
-        audioProcessor = PulseAudioDataProcessor(context).apply {
+    private val pulseView: PulseView =
+        PulseView(context).apply {
+            initialize(settingsRepository)
+            setVisibility(false)
+        }
+
+    private val audioProcessor: PulseAudioDataProcessor =
+        PulseAudioDataProcessor(context).apply {
             setDataListener(this@PulseViewController)
         }
 
-        pulseView = PulseView(context).apply {
-            initialize(settingsRepository!!)
-        }
-
+    init {
         ScrimUtils.get().addListener(this)
         MediaSessionManager.get().addListener(this)
-        
-        pulseView?.setVisibility(false)
     }
 
-    fun getPulseView(): PulseView {
-        return pulseView ?: throw IllegalStateException("PulseView not initialized")
-    }
+    fun getPulseView(): PulseView = pulseView
 
     private fun updatePulseState() {
-        if (shouldShowPulse()) {
-            if (!isRunning()) {
-                start()
-            }
+        if (shouldShowPulse) {
+            if (!isRunning) start() 
         } else {
-            if (isRunning()) {
-                stop()
-            }
+            if (isRunning) stop()
         }
     }
 
     private fun start() {
         mainScope.launch {
-            pulseView?.setVisibility(true)
-            audioProcessor?.startCapture()
+            pulseView.setVisibility(true)
+            audioProcessor.startCapture()
         }
     }
 
     private fun stop() {
         mainScope.launch {
-            pulseView?.setVisibility(false)
-            audioProcessor?.stopCapture()
+            pulseView.setVisibility(false)
+            audioProcessor.stopCapture()
         }
     }
 
     private fun onSettingsChanged() {
-        mainScope.launch {
-            updatePulseState()
-        }
+        mainScope.launch { updatePulseState() }
     }
 
-    fun isRunning(): Boolean {
-        return audioProcessor?.isCapturing() == true
-    }
+    val isRunning: Boolean
+        get() = audioProcessor.isCapturing()
 
-    fun shouldShowPulse(): Boolean {
-        return settingsRepository?.isPulseEnabled() == true &&
+    val shouldShowPulse: Boolean
+        get() = settingsRepository.isPulseEnabled() &&
             ScrimUtils.get().isKeyguardShowing() &&
             MediaSessionManager.get().isMediaPlaying
-    }
 
     override fun onDataUpdate(data: PulseData) {
-        if (settingsRepository?.isPulseEnabled() == true) {
-            mainScope.launch {
-                pulseView?.updateVisualizerData(data)
-            }
+        if (settingsRepository.isPulseEnabled()) {
+            mainScope.launch { pulseView.updateVisualizerData(data) }
         }
     }
 
     override fun onPlaybackStateChanged(state: Int) {
-        mainScope.launch {
-            updatePulseState()
-        }
+        mainScope.launch { updatePulseState() }
     }
 
     override fun onMediaColorsChanged(color: Int) {
-        pulseView?.onMediaColorsChanged(color)
+        pulseView.onMediaColorsChanged(color)
     }
 
     override fun onKeyguardShowingChanged(showing: Boolean) {
-        mainScope.launch {
-            updatePulseState()
-        }
+        mainScope.launch { updatePulseState() }
     }
 
     override fun onKeyguardFadingAwayChanged(fadingAway: Boolean) {
@@ -128,15 +117,13 @@ class PulseViewController private constructor() :
     override fun onKeyguardGoingAwayChanged(goingAway: Boolean) {
         stop()
     }
-    
+
     override fun onScreenTurnedOff() {
         stop()
     }
-    
+
     override fun onStartedWakingUp() {
-        mainScope.launch {
-            updatePulseState()
-        }
+        mainScope.launch { updatePulseState() }
     }
 
     fun destroy() {
@@ -145,24 +132,11 @@ class PulseViewController private constructor() :
 
     companion object {
         private const val TAG = "PulseViewController"
-        private lateinit var instance: PulseViewController
-        private var isInitialized = false
 
         @JvmStatic
-        fun init(context: Context) {
-            if (!isInitialized) {
-                instance = PulseViewController()
-                instance.initialize(context)
-                isInitialized = true
-            }
-        }
-
-        @JvmStatic
-        fun get(): PulseViewController {
-            if (!isInitialized) {
-                throw IllegalStateException("PulseViewController not initialized. Call init(context) first.")
-            }
-            return instance
+        fun get(context: Context): PulseViewController {
+            val app = context.applicationContext as SystemUIApplication
+            return app.sysUIComponent.pulseViewController()
         }
     }
 }
