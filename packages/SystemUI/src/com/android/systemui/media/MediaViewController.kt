@@ -34,19 +34,23 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import com.android.internal.graphics.ColorUtils
+import com.android.systemui.SystemUIApplication
+import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.media.MediaScrimState.STATE_SCRIM_HIDDEN
 import com.android.systemui.media.MediaScrimState.STATE_SCRIM_VISIBLE
 import com.android.systemui.util.ScrimUtils
 import kotlinx.coroutines.*
 import kotlin.math.*
+import javax.inject.Inject
 
 enum class MediaScrimState {
     STATE_SCRIM_VISIBLE,
     STATE_SCRIM_HIDDEN
 }
 
-class MediaViewController private constructor(
-    private val context: Context = context.applicationContext
+@SysUISingleton
+class MediaViewController @Inject constructor(
+    private val context: Context
 ) : MediaSessionManager.MediaDataListener, ScrimUtils.ScrimEventListener {
 
     private val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
@@ -295,19 +299,10 @@ class MediaViewController private constructor(
     companion object {
         private const val LS_MEDIA_ART_ENABLED = "ls_media_art_enabled"
         private const val TAG = "MediaViewController"
-
-        @Volatile private var INSTANCE: MediaViewController? = null
-        @Volatile private var ctx: Context? = null
-
-        fun init(context: Context) {
-            ctx = context.applicationContext
-        }
-
-        fun get(): MediaViewController {
-            val context = ctx ?: throw IllegalStateException("MediaViewController not initialized")
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: MediaViewController(context).also { INSTANCE = it }
-            }
+        @JvmStatic
+        fun get(context: Context): MediaViewController {
+            val app = context.applicationContext as SystemUIApplication
+            return app.sysUIComponent.mediaViewController()
         }
     }
 }

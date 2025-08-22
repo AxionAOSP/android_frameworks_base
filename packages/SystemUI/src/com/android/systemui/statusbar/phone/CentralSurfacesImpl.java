@@ -894,7 +894,6 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
 
         mWindowManager = windowManager;
         mWindowManagerProvider = windowManagerProvider;
-        MediaViewController.Companion.init(mContext);
         
         NTForbiddenSwipeDownQSController.Companion.init(mContext);
         
@@ -1149,7 +1148,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
                 (requestTopUi, componentTag) -> mMainExecutor.execute(() ->
                         mNotificationShadeWindowController.setRequestTopUi(
                                 requestTopUi, componentTag))));
-        getNotifContainerParentView().addView(MediaViewController.Companion.get().getMediaArtScrim(), 0);
+        getNotifContainerParentView().addView(MediaViewController.get(mContext).getMediaArtScrim(), 0);
         
         PulseViewController.Companion.init(mContext);
         getNotifContainerParentView().addView(PulseViewController.Companion.get().getPulseView(), 1);
