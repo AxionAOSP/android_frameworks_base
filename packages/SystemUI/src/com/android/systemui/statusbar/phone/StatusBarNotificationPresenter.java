@@ -108,6 +108,7 @@ class StatusBarNotificationPresenter implements NotificationPresenter, CommandQu
     private final NotificationListContainer mNotifListContainer;
     private final DeviceUnlockedInteractor mDeviceUnlockedInteractor;
     private final QuickSettingsController mQsController;
+    private final NTForbiddenSwipeDownQSController mNTForbiddenSwipeDownQSController;
 
     protected boolean mVrMode;
 
@@ -139,7 +140,8 @@ class StatusBarNotificationPresenter implements NotificationPresenter, CommandQu
             NotificationRemoteInputManager remoteInputManager,
             NotificationRemoteInputManager.Callback remoteInputManagerCallback,
             NotificationListContainer notificationListContainer,
-            DeviceUnlockedInteractor deviceUnlockedInteractor) {
+            DeviceUnlockedInteractor deviceUnlockedInteractor,
+            NTForbiddenSwipeDownQSController forbiddenSwipeDownQSController) {
         mActivityStarter = activityStarter;
         mKeyguardStateController = keyguardStateController;
         mNotificationPanel = panel;
@@ -167,6 +169,7 @@ class StatusBarNotificationPresenter implements NotificationPresenter, CommandQu
                 ServiceManager.getService(Context.STATUS_BAR_SERVICE));
         mNotifListContainer = notificationListContainer;
         mDeviceUnlockedInteractor = deviceUnlockedInteractor;
+        mNTForbiddenSwipeDownQSController = forbiddenSwipeDownQSController;
 
         IVrManager vrManager = IVrManager.Stub.asInterface(ServiceManager.getService(
                 Context.VR_SERVICE));
@@ -252,7 +255,7 @@ class StatusBarNotificationPresenter implements NotificationPresenter, CommandQu
         mHeadsUpManager.setExpanded(clickedEntry, nowExpanded);
         mPowerInteractor.wakeUpIfDozing("NOTIFICATION_CLICK", PowerManager.WAKE_REASON_GESTURE);
         if (nowExpanded) {
-            if (NTForbiddenSwipeDownQSController.Companion.get().getForbiddenSwipeDownQS()) {
+            if (mNTForbiddenSwipeDownQSController.getForbiddenSwipeDownQS()) {
                 mStatusBarStateController.setLeaveOpenOnKeyguardHide(true);
                 // launch the bouncer if the device is locked
                 mActivityStarter.dismissKeyguardThenExecute(() -> false /* dismissAction */
@@ -275,7 +278,7 @@ class StatusBarNotificationPresenter implements NotificationPresenter, CommandQu
         mHeadsUpManager.setExpanded(clickedEntry.getKey(), row, nowExpanded);
         mPowerInteractor.wakeUpIfDozing("NOTIFICATION_CLICK", PowerManager.WAKE_REASON_GESTURE);
         if (nowExpanded) {
-            if (NTForbiddenSwipeDownQSController.Companion.get().getForbiddenSwipeDownQS()) {
+            if (mNTForbiddenSwipeDownQSController.getForbiddenSwipeDownQS()) {
                 mStatusBarStateController.setLeaveOpenOnKeyguardHide(true);
                 // launch the bouncer if the device is locked
                 mActivityStarter.dismissKeyguardThenExecute(() -> false /* dismissAction */

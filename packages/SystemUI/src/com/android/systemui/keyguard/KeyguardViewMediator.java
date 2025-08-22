@@ -3797,7 +3797,7 @@ public class KeyguardViewMediator implements CoreStartable,
                 flags |= StatusBarManager.DISABLE_RECENT;
             }
 
-            if (NTForbiddenSwipeDownQSController.Companion.get().getForbiddenSwipeDownQS() && this.mOccluded) {
+            if (NTForbiddenSwipeDownQSController.get(mContext).getForbiddenSwipeDownQS() && this.mOccluded) {
                 flags |= StatusBarManager.DISABLE_EXPAND;
             }
 

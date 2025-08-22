@@ -85,6 +85,7 @@ constructor(
     private val shadeLockscreenInteractorLazy: Lazy<ShadeLockscreenInteractor>,
     naturalScrollingSettingObserver: NaturalScrollingSettingObserver,
     private val lazyQSSceneAdapter: Lazy<QSSceneAdapter>,
+    private val forbiddenSwipeDownQSController: NTForbiddenSwipeDownQSController
 ) : Dumpable {
     private var pulseHeight: Float = 0f
 
@@ -171,6 +172,7 @@ constructor(
             naturalScrollingSettingObserver,
             shadeRepository,
             context,
+            forbiddenSwipeDownQSController,
         )
 
     private val splitShadeOverScroller: SplitShadeLockScreenOverScroller by lazy {
@@ -290,7 +292,7 @@ constructor(
     internal fun canDragDown(): Boolean {
         return (statusBarStateController.state == StatusBarState.KEYGUARD ||
             nsslController.isInLockedDownShade()) && (isQsFullyCollapsed || useSplitShade)
-            && !NTForbiddenSwipeDownQSController.get().getForbiddenSwipeDownQS()
+            && !forbiddenSwipeDownQSController.getForbiddenSwipeDownQS()
     }
     
     internal fun onDraggedDownWhenForbiddenSwipeDownQS(startingChild: View?) {
@@ -764,6 +766,7 @@ class DragDownHelper(
     private val naturalScrollingSettingObserver: NaturalScrollingSettingObserver,
     private val shadeRepository: ShadeRepository,
     context: Context,
+    private val forbiddenSwipeDownQSController: NTForbiddenSwipeDownQSController
 ) : Gefingerpoken {
 
     private var dragDownAmountOnStart = 0.0f
@@ -832,7 +835,7 @@ class DragDownHelper(
                     initialTouchX = x
                     val intercepted =
                         startingChild != null || dragDownCallback.isDragDownAnywhereEnabled
-                    if (!NTForbiddenSwipeDownQSController.get().getForbiddenSwipeDownQS()) {
+                    if (!forbiddenSwipeDownQSController.getForbiddenSwipeDownQS()) {
                         dragDownCallback.onDragDownStarted(startingChild)
                         dragDownAmountOnStart = dragDownCallback.dragDownAmount
                         if (intercepted) {
@@ -853,7 +856,7 @@ class DragDownHelper(
         val y = event.y
         when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> {
-                if (!NTForbiddenSwipeDownQSController.get().getForbiddenSwipeDownQS()) {
+                if (!forbiddenSwipeDownQSController.getForbiddenSwipeDownQS()) {
                     lastHeight = y - initialTouchY
                     captureStartingChild(initialTouchX, initialTouchY)
                     dragDownCallback.dragDownAmount = lastHeight + dragDownAmountOnStart
@@ -876,7 +879,7 @@ class DragDownHelper(
             }
 
             MotionEvent.ACTION_UP ->
-                if (NTForbiddenSwipeDownQSController.get().getForbiddenSwipeDownQS()
+                if (forbiddenSwipeDownQSController.getForbiddenSwipeDownQS()
                     && !falsingManager.isUnlockingDisabled) {
                     dragDownCallback.onDraggedDownWhenForbiddenSwipeDownQS(startingChild)
                     if (startingChild != null) {

@@ -566,7 +566,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     boolean isExpansionEnabled() {
         return mExpansionEnabledPolicy && mExpansionEnabledAmbient
             && !isRemoteInputActiveWithKeyboardUp()
-            && !NTForbiddenSwipeDownQSController.Companion.get().getForbiddenSwipeDownQS();
+            && !NTForbiddenSwipeDownQSController.get(mPanelView.getContext()).getForbiddenSwipeDownQS();
     }
 
     /** */
@@ -1689,7 +1689,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     /** handles touches in Qs panel area */
     boolean handleTouch(MotionEvent event, boolean isFullyCollapsed,
             boolean isShadeOrQsHeightAnimationRunning) {
-        boolean isSwipeDisabled = NTForbiddenSwipeDownQSController.Companion.get().getForbiddenSwipeDownQS();
+        boolean isSwipeDisabled = NTForbiddenSwipeDownQSController.get(mPanelView.getContext()).getForbiddenSwipeDownQS();
         if (isSplitShadeAndTouchXOutsideQs(event.getX())) {
             return false;
         }
@@ -1981,7 +1981,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
      */
     private void flingQs(float vel, int type, final Runnable onFinishRunnable,
             boolean isClick) {
-        if (type == 0 && NTForbiddenSwipeDownQSController.Companion.get().getForbiddenSwipeDownQS()) {
+        if (type == 0 && NTForbiddenSwipeDownQSController.get(mPanelView.getContext()).getForbiddenSwipeDownQS()) {
             Log.i(TAG, " can't expand qs since forbidden wipe down QS:" + isExpansionEnabled());
             traceQsJank(false, false);
             return;

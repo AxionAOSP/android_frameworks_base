@@ -21,9 +21,13 @@ import android.net.Uri
 import android.os.Handler
 import android.os.UserHandle
 import android.provider.Settings
+import com.android.systemui.SystemUIApplication
+import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.util.ScrimUtils
+import javax.inject.Inject
 
-class NTForbiddenSwipeDownQSController private constructor(
+@SysUISingleton
+class NTForbiddenSwipeDownQSController @Inject constructor(
     private val context: Context
 ) : ScrimUtils.ScrimEventListener {
 
@@ -81,24 +85,10 @@ class NTForbiddenSwipeDownQSController private constructor(
         private const val KEY_ENABLE_SWIPE_DOWN_QS = "enable_lockscreen_quick_settings"
         private const val ENABLE = 1
         private const val DISABLE = 0
-
-        @Volatile
-        private var instance: NTForbiddenSwipeDownQSController? = null
-
-        fun init(
-            context: Context
-        ) {
-            if (instance == null) {
-                synchronized(this) {
-                    if (instance == null) {
-                        instance = NTForbiddenSwipeDownQSController(context)
-                    }
-                }
-            }
-        }
-
-        fun get(): NTForbiddenSwipeDownQSController {
-            return instance ?: throw IllegalStateException("invalid call, init must be called first!!")
+        @JvmStatic
+        fun get(context: Context): NTForbiddenSwipeDownQSController {
+            val app = context.applicationContext as SystemUIApplication
+            return app.sysUIComponent.forbiddenSwipeDownQSController()
         }
     }
 }

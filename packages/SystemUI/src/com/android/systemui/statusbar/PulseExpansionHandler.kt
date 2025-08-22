@@ -72,6 +72,7 @@ constructor(
     dumpManager: DumpManager,
     private val sysuiStatusBarStateController: SysuiStatusBarStateController,
     private val activityStarter: ActivityStarter,
+    private val forbiddenSwipeDownQSController: NTForbiddenSwipeDownQSController,
 ) : Gefingerpoken, Dumpable {
     companion object {
         private val SPRING_BACK_ANIMATION_LENGTH_MS = 375
@@ -170,7 +171,7 @@ constructor(
             MotionEvent.ACTION_MOVE -> {
                 val h = y - mInitialTouchY
                 if (h > touchSlop && h > Math.abs(x - mInitialTouchX)) {
-                    if (!NTForbiddenSwipeDownQSController.get().getForbiddenSwipeDownQS()) {
+                    if (!forbiddenSwipeDownQSController.getForbiddenSwipeDownQS()) {
                         isExpanding = true
                         captureStartingChild(mInitialTouchX, mInitialTouchY)
                         mInitialTouchY = y
@@ -232,7 +233,7 @@ constructor(
                             velocityTracker!!.getYVelocity() > -1000 &&
                             statusBarStateController.state != StatusBarState.SHADE
                 if (!falsingManager.isUnlockingDisabled && !isFalseTouch && canExpand) {
-                    if (NTForbiddenSwipeDownQSController.get().getForbiddenSwipeDownQS()) {
+                    if (forbiddenSwipeDownQSController.getForbiddenSwipeDownQS()) {
                         swipeDownWhenForbidden = false
                         if (statusBarStateController.isDozing) {
                             wakeUpCoordinator.willWakeUp = true
