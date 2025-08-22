@@ -535,6 +535,10 @@ public class OomAdjuster {
     }
 
     void setProcessGroup(int pid, int group, String processName) {
+        if (pid == ActivityManagerService.MY_PID) {
+            // Skip setting the process group for system_server, keep it as default.
+            return;
+        }
         final boolean traceEnabled = Trace.isTagEnabled(Trace.TRACE_TAG_ACTIVITY_MANAGER);
         if (traceEnabled) {
             Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "setProcessGroup "
@@ -544,10 +548,7 @@ public class OomAdjuster {
             if (isNtCustomizeApp(processName)) {
                 Slog.d(TAG, "set group = " + group);
             }
-            if (pid == ActivityManagerService.MY_PID) {
-                Slog.d(TAG, "set system server cpuset: " + group);
-                Process.setProcessGroup(pid, THREAD_GROUP_RESTRICTED);
-            } else if (isCamera(processName) && (group == THREAD_GROUP_TOP_APP || group == THREAD_GROUP_RESTRICTED)) {
+            if (isCamera(processName) && (group == THREAD_GROUP_TOP_APP || group == THREAD_GROUP_RESTRICTED)) {
                 Slog.d(TAG, "set cpuset: " + group);
                 Process.setProcessGroup(pid, THREAD_GROUP_RESTRICTED);
             } else if (isSystemui(processName) || isLauncher(processName)) {
