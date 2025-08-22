@@ -302,18 +302,25 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
         }
 
         @Override
-        public void onBackEvent(@Nullable KeyEvent keyEvent) throws RemoteException {
+        public void onBackEvent(@Nullable KeyEvent keyEvent, int displayId) throws RemoteException {
             if (predictiveBackThreeButtonNav() && predictiveBackSwipeEdgeNoneApi()
                     && mBackAnimation != null && keyEvent != null) {
                 mBackAnimation.setTriggerBack(!keyEvent.isCanceled());
                 mBackAnimation.onBackMotion(/* touchX */ 0, /* touchY */ 0, keyEvent.getAction(),
                         EDGE_NONE);
             } else {
-                verifyCallerAndClearCallingIdentityPostMain("onBackPressed", () -> {
-                    sendEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK);
-                    sendEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK);
-                });
+                onKeyEvent(KeyEvent.KEYCODE_BACK, displayId);
             }
+        }
+
+        @Override
+        public void onKeyEvent(int keycode, int displayId) {
+            verifyCallerAndClearCallingIdentityPostMain(
+                    "onKeyEvent " + KeyEvent.keyCodeToString(keycode) + " displayId=" + displayId,
+                    () -> {
+                        sendEvent(KeyEvent.ACTION_DOWN, keycode, displayId);
+                        sendEvent(KeyEvent.ACTION_UP, keycode, displayId);
+                    });
         }
 
         @Override
@@ -370,14 +377,14 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
                     onTaskbarAutohideSuspend(suspend));
         }
 
-        private boolean sendEvent(int action, int code) {
+        private boolean sendEvent(int action, int code, int displayId) {
             long when = SystemClock.uptimeMillis();
             final KeyEvent ev = new KeyEvent(when, when, action, code, 0 /* repeat */,
                     0 /* metaState */, KeyCharacterMap.VIRTUAL_KEYBOARD, 0 /* scancode */,
                     KeyEvent.FLAG_FROM_SYSTEM | KeyEvent.FLAG_VIRTUAL_HARD_KEY,
                     InputDevice.SOURCE_KEYBOARD);
 
-            ev.setDisplayId(mContext.getDisplay().getDisplayId());
+            ev.setDisplayId(displayId);
             return InputManagerGlobal.getInstance()
                     .injectInputEvent(ev, InputManager.INJECT_INPUT_EVENT_MODE_ASYNC);
         }
