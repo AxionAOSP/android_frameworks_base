@@ -20,13 +20,20 @@ import android.content.Context
 import android.service.notification.NotificationListenerService.RankingMap
 import android.service.notification.StatusBarNotification
 import android.widget.FrameLayout
+import com.android.systemui.SystemUIApplication
+import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.statusbar.NotificationListener
 import com.android.systemui.util.ScrimUtils
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.*
+import javax.inject.Inject
 
-class EdgeLightViewController private constructor(
-    private val context: Context
+@SysUISingleton
+class EdgeLightViewController 
+@Inject 
+constructor(
+    private val context: Context,
+    private val listener: NotificationListener,
 ) : NotificationListener.NotificationHandler,
     ScrimUtils.ScrimEventListener {
 
@@ -42,6 +49,8 @@ class EdgeLightViewController private constructor(
 
     private val accentColor: Int
         get() = context.getColor(android.R.color.system_accent1_100)
+        
+    private var job: Job? = null
 
     private var dozing = false
 
@@ -50,14 +59,10 @@ class EdgeLightViewController private constructor(
     private var lastNotificationTime: Long = 0L
     private val deduplicationWindowMs = 5000L
 
-    fun initialize() {
+    init {
         ScrimUtils.get().addListener(this)
-        scope.launch {
-            settingsRepo.settingsFlow.collectLatest { settings ->
-                currentSettings = settings
-                updateView(settings)
-            }
-        }
+        listener.addNotificationHandler(this)
+        updateView()
     }
 
     private fun updateView(settings: EdgeLightSettings) {
@@ -76,22 +81,11 @@ class EdgeLightViewController private constructor(
 
     fun getEdgeLightView(): FrameLayout = edgeLightView
 
-    fun addHandler(listener: NotificationListener) {
-        listener.addNotificationHandler(this)
-    }
-
     private fun getColor(sbn: StatusBarNotification?): Int =
         when (currentSettings.colorMode) {
             COLOR_MODE_CUSTOM -> currentSettings.customColor
             else -> sbn?.notification?.color ?: accentColor
         }
-
-    fun setPulsing(pulsing: Boolean) {
-        if (!pulsing || !currentSettings.isEnabled || !dozing) return
-        val sbn = pendingNotification
-        val color = getColor(sbn)
-        showEdgeLights(color)
-    }
 
     private fun showEdgeLights(color: Int) {
         edgeLightView.apply {
@@ -99,6 +93,15 @@ class EdgeLightViewController private constructor(
             updateColor(color)
             setVisible(true)
             pulse()
+        }
+    }
+
+    private fun updateView() {
+        job?.cancel()
+        job = scope.launch {
+            val settings = settingsRepo.settingsFlow.first()
+            currentSettings = settings
+            updateView(settings)
         }
     }
 
@@ -132,6 +135,10 @@ class EdgeLightViewController private constructor(
     override fun onKeyguardShowingChanged(showing: Boolean) {
         if (!showing) {
             edgeLightView.cancelPulse()
+            listener.removeNotificationHandler(this)
+        } else {
+            listener.addNotificationHandler(this)
+            updateView()
         }
     }
 
@@ -147,33 +154,24 @@ class EdgeLightViewController private constructor(
         }
     }
 
+    override fun setPulsing(pulsing: Boolean) {
+        if (!pulsing || !currentSettings.isEnabled || !dozing) return
+        val sbn = pendingNotification
+        val color = getColor(sbn)
+        showEdgeLights(color)
+    }
+
     override fun onNotificationRemoved(sbn: StatusBarNotification, rankingMap: RankingMap) {}
     override fun onNotificationRemoved(sbn: StatusBarNotification, rankingMap: RankingMap, reason: Int) {}
     override fun onNotificationsInitialized() {}
     override fun onNotificationRankingUpdate(rankingMap: RankingMap) {}
 
     companion object {
-        @Volatile
-        private var instance: EdgeLightViewController? = null
-
         private const val COLOR_MODE_CUSTOM = "custom"
-
-        fun init(context: Context) {
-            if (instance == null) {
-                synchronized(this) {
-                    if (instance == null) {
-                        EdgeLightViewController(context.applicationContext).also {
-                            it.initialize()
-                            instance = it
-                        }
-                    }
-                }
-            }
-        }
-
-        fun get(): EdgeLightViewController {
-            return instance ?: error("EdgeLightViewController not initialized")
+        @JvmStatic
+        fun get(context: Context): EdgeLightViewController {
+            val app = context.applicationContext as SystemUIApplication
+            return app.sysUIComponent.edgeLightViewController()
         }
     }
 }
-

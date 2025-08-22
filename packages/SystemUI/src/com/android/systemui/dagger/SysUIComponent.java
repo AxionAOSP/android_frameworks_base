@@ -24,6 +24,7 @@ import com.android.systemui.SystemUIAppComponentFactoryBase;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.dagger.qualifiers.PerUser;
 import com.android.systemui.dump.DumpManager;
+import com.android.systemui.edgelight.EdgeLightViewController;
 import com.android.systemui.keyguard.KeyguardSliceProvider;
 import com.android.systemui.people.PeopleProvider;
 import com.android.systemui.startable.Dependencies;
@@ -178,6 +179,9 @@ public interface SysUIComponent {
      * Returns {@link CoreStartable} dependencies if there are any.
      */
     @Dependencies Map<Class<?>, Set<Class<? extends CoreStartable>>> getStartableDependencies();
+
+    @SysUISingleton
+    EdgeLightViewController edgeLightViewController();
 
     /**
      * Member injection into the supplied argument.

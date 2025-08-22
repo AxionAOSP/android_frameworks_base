@@ -1562,9 +1562,8 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
         mRemoteInputManager.addControllerCallback(mNotificationShadeWindowController);
         mGutsManager.setNotificationActivityStarter(mNotificationActivityStarterLazy.get());
         mShadeController.setNotificationPresenter(mPresenterLazy.get());
-        EdgeLightViewController.Companion.init(mContext);
         getNotifContainerParentView().addView(
-            EdgeLightViewController.Companion.get().getEdgeLightView(), 2
+            EdgeLightViewController.get(mContext).getEdgeLightView(), 2
         );
         mNotificationsController.initialize(
                 mPresenterLazy.get(),
