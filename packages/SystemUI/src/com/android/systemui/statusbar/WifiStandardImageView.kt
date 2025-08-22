@@ -21,19 +21,24 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import com.android.systemui.res.R
+import com.android.systemui.SystemUIApplication
 
 class WifiStandardImageView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
 ) : ImageView(context, attrs) {
 
+    private var controller: WifiStandardViewController? = null
+
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        WifiStandardViewModel.INSTANCE().attachView(this)
+        val app = context.applicationContext as SystemUIApplication
+        val factory = app.sysUIComponent.wifiStandardViewControllerFactory()
+        controller = factory.create(this).apply { init() }
     }
 
     override fun onDetachedFromWindow() {
-        WifiStandardViewModel.INSTANCE().detachView(this)
+        controller?.destroy()
         super.onDetachedFromWindow()
     }
 

@@ -32,6 +32,8 @@ import com.android.systemui.statusbar.NotificationInsetsModule;
 import com.android.systemui.statusbar.QsFrameTranslateModule;
 import com.android.systemui.statusbar.phone.ConfigurationForwarder;
 import com.android.systemui.statusbar.policy.ConfigurationController;
+import com.android.systemui.statusbar.WifiStandardRepository;
+import com.android.systemui.statusbar.WifiStandardViewController;
 import com.android.wm.shell.appzoomout.AppZoomOut;
 import com.android.wm.shell.back.BackAnimation;
 import com.android.wm.shell.bubbles.Bubbles;
@@ -182,6 +184,12 @@ public interface SysUIComponent {
 
     @SysUISingleton
     EdgeLightViewController edgeLightViewController();
+    
+    @SysUISingleton
+    WifiStandardRepository wifiStandardRepository();
+
+    @SysUISingleton
+    WifiStandardViewController.Factory wifiStandardViewControllerFactory();
 
     /**
      * Member injection into the supplied argument.
