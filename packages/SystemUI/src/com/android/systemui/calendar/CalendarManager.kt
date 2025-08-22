@@ -21,29 +21,18 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.CalendarContract
 import android.provider.Settings
+import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.plugins.clocks.CalendarSimpleData
 import com.android.systemui.util.WeakListenerManager
+import javax.inject.Inject
 
-class CalendarManager private constructor() {
+@SysUISingleton
+class CalendarManager @Inject constructor(
+    private val context: Context
+) {
 
     interface Callback {
         fun onCalendarDataChanged(data: CalendarSimpleData?)
-    }
-
-    companion object {
-        @Volatile
-        private var INSTANCE: CalendarManager? = null
-        private lateinit var appContext: Context
-
-        fun init(context: Context) {
-            appContext = context.applicationContext
-            get()
-        }
-
-        fun get(): CalendarManager =
-            INSTANCE ?: synchronized(this) {
-                INSTANCE ?: CalendarManager().also { INSTANCE = it }
-            }
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -94,7 +83,7 @@ class CalendarManager private constructor() {
                 }
             }
         }.also { observer ->
-            val resolver = appContext.contentResolver
+            val resolver = context.contentResolver
             val uris = listOf(
                 CalendarContract.Instances.CONTENT_URI,
                 CalendarContract.Events.CONTENT_URI,
@@ -110,7 +99,7 @@ class CalendarManager private constructor() {
 
     private fun stopCalendarListening() {
         calendarObserver?.let {
-            appContext.contentResolver.unregisterContentObserver(it)
+            context.contentResolver.unregisterContentObserver(it)
             calendarObserver = null
         }
         isCalendarListening = false
@@ -127,7 +116,7 @@ class CalendarManager private constructor() {
             ContentUris.appendId(this, end)
         }.build()
 
-        val visibleEvent = appContext.contentResolver.query(
+        val visibleEvent = context.contentResolver.query(
             uri,
             arrayOf("event_id", "title", "begin", "end", "eventLocation"),
             "visible = 1 AND allDay = 0",
@@ -147,7 +136,7 @@ class CalendarManager private constructor() {
     }
 
     private fun isEventValid(event: CalendarSimpleData): Boolean {
-        return appContext.contentResolver.query(
+        return context.contentResolver.query(
             CalendarContract.Events.CONTENT_URI,
             arrayOf("_id", "deleted"),
             "_id = ?",
@@ -169,7 +158,7 @@ class CalendarManager private constructor() {
 
     private fun isQuicklookEnabled(): Boolean {
         return Settings.Secure.getInt(
-            appContext.contentResolver,
+            context.contentResolver,
             "nt_quicklook_events",
             1
         ) == 1

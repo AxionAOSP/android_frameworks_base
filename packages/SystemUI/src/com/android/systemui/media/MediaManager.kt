@@ -23,9 +23,17 @@ import android.service.notification.StatusBarNotification
 import com.android.systemui.statusbar.NotificationListener
 import com.android.systemui.util.WeakListenerManager
 import com.android.systemui.util.wakelock.*
+import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.util.ScrimUtils
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 
-class MediaManager private constructor() : NotificationListener.NotificationHandler {
+@SysUISingleton
+class MediaManager @Inject constructor(
+    private val context: Context,
+    private val listener: NotificationListener
+) : NotificationListener.NotificationHandler,
+    MediaSessionManager.MediaDataListener {
 
     interface Callback {
         fun onQLPlaybackStateChanged(play: Boolean) {}
@@ -33,36 +41,25 @@ class MediaManager private constructor() : NotificationListener.NotificationHand
         fun onNowPlayingUpdate(nowPlayingText: String) {}
     }
 
-    companion object {
-        private const val TAG = "MediaManager"
-
-        @Volatile
-        private var INSTANCE: MediaManager? = null
-        private lateinit var appContext: Context
-
-        fun init(context: Context) {
-            appContext = context.applicationContext
-            get()
-        }
-
-        fun get(): MediaManager =
-            INSTANCE ?: synchronized(this) {
-                INSTANCE ?: MediaManager().also { INSTANCE = it }
-            }
-    }
+    private val handler = Handler(Looper.getMainLooper())
+    private var isActive = false
 
     val mediaSessionManager: MediaSessionManager
         get() = MediaSessionManager.get()
 
-    private val handler = Handler(Looper.getMainLooper())
-    private var isActive = false
-    private var listener: NotificationListener? = null
+    private val isPixelDevice: Boolean
+        get() = Build.MANUFACTURER.equals("Google", ignoreCase = true)
 
-    private val isPixelDevice: Boolean get() = Build.MANUFACTURER.equals("Google", ignoreCase = true)
+    private val isDozing: Boolean
+        get() = ScrimUtils.get().isDozing()
 
     private val isQuicklookNPEnabled: Boolean
-        get() = Settings.Secure.getIntForUser(appContext.contentResolver, 
-            "nt_quicklook_np", 1, UserHandle.USER_CURRENT) == 1
+        get() = Settings.Secure.getIntForUser(
+            context.contentResolver,
+            "nt_quicklook_np",
+            1,
+            UserHandle.USER_CURRENT
+        ) == 1
 
     private val callbacks = WeakListenerManager<Callback>().apply {
         setLifecycleCallbacks(
@@ -79,10 +76,11 @@ class MediaManager private constructor() : NotificationListener.NotificationHand
         )
     }
 
-    private var mediaListener: MediaSessionManager.MediaDataListener? = null
     private var isMediaListening = false
-    private var mediaWakeLock: SettableWakeLock? = null
-
+    private val mediaWakeLock = SettableWakeLock(
+        WakeLock.createPartial(context, null, "mm"),
+        "mm"
+    )
     private var lastNowPlayingText: String = ""
     private var lastDetectedNowPlayingText: String = ""
     private val nowPlayingCache = mutableListOf<String>()
@@ -91,24 +89,22 @@ class MediaManager private constructor() : NotificationListener.NotificationHand
         clearNowPlayingData()
     }
 
-    fun addHandler(listener: NotificationListener) {
-        if (!isPixelDevice) return
-        this.listener = listener
+    init {
+        if (isPixelDevice) {
+            listener.addNotificationHandler(this)
+        }
     }
 
     fun addCallback(callback: Callback) {
         callbacks.addListener(callback)
-
         if (!isQuicklookNPEnabled) return
-
         handler.removeCallbacks(nowPlayingTimeoutRunnable)
         callback.onQLPlaybackStateChanged(mediaSessionManager.isMediaPlaying)
         callback.onQLMetadataChanged(mediaSessionManager.trackTitle, mediaSessionManager.artist)
         callback.onNowPlayingUpdate("")
-
         if (callbacks.size() == 1) {
             if (isPixelDevice) {
-                listener?.let { it.addNotificationHandler(this) }
+                listener.addNotificationHandler(this)
             }
             if (!isMediaListening) {
                 startMediaListening()
@@ -125,39 +121,34 @@ class MediaManager private constructor() : NotificationListener.NotificationHand
 
     private fun startMediaListening() {
         if (isMediaListening) return
-
-        mediaWakeLock = SettableWakeLock(
-            WakeLock.createPartial(appContext, null, "nowplaying"), "nowplaying"
-        )
-
-        mediaListener = object : MediaSessionManager.MediaDataListener {
-            override fun onPlaybackStateChanged(state: Int) {
-                notifyPlaybackState(mediaSessionManager.isMediaPlaying)
-            }
-
-            override fun onMetadataChanged(track: String, artist: String) {
-                notifyMetadata(track, artist)
-            }
-        }
-
-        mediaSessionManager.addListener(mediaListener!!)
+        mediaSessionManager.addListener(this)
         isMediaListening = true
     }
 
     private fun stopMediaListening() {
         if (!isMediaListening) return
-        mediaListener?.let { mediaSessionManager.removeListener(it) }
         if (isPixelDevice) {
-            listener?.let { it.removeNotificationHandler(this) }
+            listener.removeNotificationHandler(this)
         }
-        mediaListener = null
+        mediaSessionManager.removeListener(this)
         isMediaListening = false
-        mediaWakeLock?.setAcquired(false)
+        mediaWakeLock.setAcquired(false)
     }
 
-    private fun pushCurrentMediaState() {
-        notifyPlaybackState(mediaSessionManager.isMediaPlaying)
-        notifyMetadata(mediaSessionManager.trackTitle, mediaSessionManager.artist)
+    private fun maybeRunWithWakeLock(
+        delayMs: Long = 2000L,
+        block: () -> Unit
+    ) {
+        if (isDozing) {
+            mediaWakeLock.setAcquired(true)
+            handler.postDelayed({
+                block()
+                sendDozePulse()
+                mediaWakeLock.setAcquired(false)
+            }, delayMs)
+        } else {
+            block()
+        }
     }
 
     private fun notifyPlaybackState(play: Boolean) {
@@ -174,13 +165,10 @@ class MediaManager private constructor() : NotificationListener.NotificationHand
 
         callbacks.notify { cb ->
             if (nowPlayingText.isNotEmpty()) {
-                mediaWakeLock?.setAcquired(true)
-                handler.postDelayed({
-                    mediaWakeLock?.setAcquired(false)
-                }, 2000L)
+                maybeRunWithWakeLock {
+                    cb.onNowPlayingUpdate(nowPlayingText)
+                }
             }
-            cb.onNowPlayingUpdate(nowPlayingText)
-            sendDozePulse()
         }
 
         handler.removeCallbacks(nowPlayingTimeoutRunnable)
@@ -205,8 +193,10 @@ class MediaManager private constructor() : NotificationListener.NotificationHand
         if (!isPixelDevice || !isQuicklookNPEnabled || !isActive || mediaSessionManager.isMediaPlaying) return
         if (sbn.packageName != "com.google.android.as") return
 
-        val extras = sbn.notification?.extras ?: return
-        val text = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: return
+        val text = sbn.notification?.extras
+            ?.getCharSequence(Notification.EXTRA_TITLE)
+            ?.toString()
+            ?: return
 
         synchronized(nowPlayingCache) {
             if (text != lastDetectedNowPlayingText) {
@@ -219,9 +209,19 @@ class MediaManager private constructor() : NotificationListener.NotificationHand
     }
 
     private fun sendDozePulse() {
-        if (!isQuicklookNPEnabled) return
+        if (!isQuicklookNPEnabled || !isDozing) return
         val intent = Intent("com.android.systemui.doze.pulse")
-        appContext.sendBroadcastAsUser(intent, UserHandle.of(UserHandle.USER_CURRENT))
+        context.sendBroadcastAsUser(intent, UserHandle.of(UserHandle.USER_CURRENT))
+    }
+
+    override fun onPlaybackStateChanged(state: Int) {
+        notifyPlaybackState(mediaSessionManager.isMediaPlaying)
+    }
+
+    override fun onMetadataChanged(track: String, artist: String) {
+        maybeRunWithWakeLock {
+            notifyMetadata(track, artist)
+        }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification, rankingMap: RankingMap) {}

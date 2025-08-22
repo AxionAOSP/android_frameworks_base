@@ -329,6 +329,9 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
         }
     };
     private final FaceWakeUpTriggersConfig mFaceWakeUpTriggersConfig;
+    private final CalendarManager mCalendarManager;
+    private final MediaManager mMediaManager;
+    private final WeatherManager mWeatherManager;
 
     private final Object mSimDataLockObject = new Object();
     HashMap<Integer, SimData> mSimDatas = new HashMap<>();
@@ -900,13 +903,13 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
 
         if (!showingChanged) return;
         if (mKeyguardShowing) {
-            CalendarManager.Companion.get().addCallback(mCalendarCallback);
-            WeatherManager.Companion.get().addCallback(mWeatherCallback);
-            MediaManager.Companion.get().addCallback(mMediaCallback);
+            mCalendarManager.addCallback(mCalendarCallback);
+            mWeatherManager.addCallback(mWeatherCallback);
+            mMediaManager.addCallback(mMediaCallback);
         } else {
-            WeatherManager.Companion.get().removeCallback(mWeatherCallback);
-            CalendarManager.Companion.get().removeCallback(mCalendarCallback);
-            MediaManager.Companion.get().removeCallback(mMediaCallback);
+            mCalendarManager.removeCallback(mCalendarCallback);
+            mWeatherManager.removeCallback(mWeatherCallback);
+            mMediaManager.removeCallback(mMediaCallback);
         }
     }
 
@@ -2296,7 +2299,10 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
             Provider<SceneInteractor> sceneInteractor,
             Provider<CommunalSceneInteractor> communalSceneInteractor,
             Provider<KeyguardServiceShowLockscreenInteractor>
-                    keyguardServiceShowLockscreenInteractor) {
+                    keyguardServiceShowLockscreenInteractor,
+            MediaManager mediaManager,
+            WeatherManager weatherManager,
+            CalendarManager calendarManager) {
         mContext = context;
         mSubscriptionManager = subscriptionManager;
         mUserTracker = userTracker;
@@ -2347,10 +2353,9 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
         mSceneInteractor = sceneInteractor;
         mCommunalSceneInteractor = communalSceneInteractor;
         mKeyguardServiceShowLockscreenInteractor = keyguardServiceShowLockscreenInteractor;
-        
-        CalendarManager.Companion.init(context);
-        WeatherManager.Companion.init(context);
-        MediaManager.Companion.init(context);
+        mCalendarManager = calendarManager;
+        mMediaManager = mediaManager;
+        mWeatherManager = weatherManager;
 
         mHandler = new Handler(mainLooper) {
             @Override

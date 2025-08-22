@@ -33,7 +33,6 @@ import android.media.session.PlaybackState;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Trace;
-import android.os.UserHandle;
 import android.provider.Settings;
 import android.service.notification.ZenModeConfig;
 import android.text.TextUtils;
@@ -518,7 +517,6 @@ public class KeyguardSliceProvider extends SliceProvider implements
         mMediaArtist = artist;
         mMediaIsVisible = nextVisible;
         notifyChange();
-        sendDozePulse();
     }
 
     protected void notifyChange() {
@@ -561,16 +559,5 @@ public class KeyguardSliceProvider extends SliceProvider implements
     public void setContextAvailableCallback(
             SystemUIAppComponentFactoryBase.ContextAvailableCallback callback) {
         mContextAvailableCallback = callback;
-    }
-    
-    private void sendDozePulse() {
-        if (!isNowPlayingEnabled()) return;
-        getContext().sendBroadcastAsUser(new Intent("com.android.systemui.doze.pulse"),
-                new UserHandle(UserHandle.USER_CURRENT));
-    }
-    
-    private boolean isNowPlayingEnabled() {
-        return Settings.Secure.getIntForUser(getContext().getContentResolver(), 
-                    "nt_quicklook_np", 0, UserHandle.USER_CURRENT) != 0;
     }
 }
