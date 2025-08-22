@@ -56,11 +56,18 @@ class MediaManager private constructor() : NotificationListener.NotificationHand
 
     private val handler = Handler(Looper.getMainLooper())
     private var isActive = false
+    private var listener: NotificationListener? = null
+
+    private val isPixelDevice: Boolean get() = Build.MANUFACTURER.equals("Google", ignoreCase = true)
+
+    private val isQuicklookNPEnabled: Boolean
+        get() = Settings.Secure.getIntForUser(appContext.contentResolver, 
+            "nt_quicklook_np", 1, UserHandle.USER_CURRENT) == 1
 
     private val callbacks = WeakListenerManager<Callback>().apply {
         setLifecycleCallbacks(
             onActive = {
-                if (isQuicklookNPEnabled()) {
+                if (isQuicklookNPEnabled) {
                     startMediaListening()
                 }
                 isActive = true
@@ -85,18 +92,23 @@ class MediaManager private constructor() : NotificationListener.NotificationHand
     }
 
     fun addHandler(listener: NotificationListener) {
-        if (!isPixelDevice()) return
-        listener.addNotificationHandler(this)
+        if (!isPixelDevice) return
+        this.listener = listener
     }
 
     fun addCallback(callback: Callback) {
         callbacks.addListener(callback)
-        if (isQuicklookNPEnabled()) {
-            handler.removeCallbacks(nowPlayingTimeoutRunnable)
-            callback.onQLPlaybackStateChanged(mediaSessionManager.isMediaPlaying)
-            callback.onQLMetadataChanged(mediaSessionManager.trackTitle, mediaSessionManager.artist)
-            if (isPixelDevice()) {
-                callback.onNowPlayingUpdate("")
+
+        if (!isQuicklookNPEnabled) return
+
+        handler.removeCallbacks(nowPlayingTimeoutRunnable)
+        callback.onQLPlaybackStateChanged(mediaSessionManager.isMediaPlaying)
+        callback.onQLMetadataChanged(mediaSessionManager.trackTitle, mediaSessionManager.artist)
+        callback.onNowPlayingUpdate("")
+
+        if (callbacks.size() == 1) {
+            if (isPixelDevice) {
+                listener?.let { it.addNotificationHandler(this) }
             }
             if (!isMediaListening) {
                 startMediaListening()
@@ -134,8 +146,9 @@ class MediaManager private constructor() : NotificationListener.NotificationHand
 
     private fun stopMediaListening() {
         if (!isMediaListening) return
-        mediaListener?.let {
-            mediaSessionManager.removeListener(it)
+        mediaListener?.let { mediaSessionManager.removeListener(it) }
+        if (isPixelDevice) {
+            listener?.let { it.removeNotificationHandler(this) }
         }
         mediaListener = null
         isMediaListening = false
@@ -188,17 +201,8 @@ class MediaManager private constructor() : NotificationListener.NotificationHand
         notifyMetadata("", "")
     }
 
-    private fun isQuicklookNPEnabled(): Boolean {
-        return Settings.Secure.getIntForUser(
-            appContext.contentResolver,
-            "nt_quicklook_np",
-            1,
-            UserHandle.USER_CURRENT
-        ) == 1
-    }
-
     override fun onNotificationPosted(sbn: StatusBarNotification, rankingMap: RankingMap) {
-        if (!isPixelDevice() || !isQuicklookNPEnabled() || !isActive || mediaSessionManager.isMediaPlaying) return
+        if (!isPixelDevice || !isQuicklookNPEnabled || !isActive || mediaSessionManager.isMediaPlaying) return
         if (sbn.packageName != "com.google.android.as") return
 
         val extras = sbn.notification?.extras ?: return
@@ -215,13 +219,9 @@ class MediaManager private constructor() : NotificationListener.NotificationHand
     }
 
     private fun sendDozePulse() {
-        if (!isQuicklookNPEnabled()) return
+        if (!isQuicklookNPEnabled) return
         val intent = Intent("com.android.systemui.doze.pulse")
         appContext.sendBroadcastAsUser(intent, UserHandle.of(UserHandle.USER_CURRENT))
-    }
-
-    private fun isPixelDevice(): Boolean {
-        return Build.MANUFACTURER.equals("Google", ignoreCase = true)
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification, rankingMap: RankingMap) {}
