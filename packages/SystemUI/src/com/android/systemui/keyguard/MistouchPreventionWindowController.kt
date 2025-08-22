@@ -28,12 +28,15 @@ import android.provider.Settings
 import android.view.*
 import com.android.keyguard.KeyguardUpdateMonitor
 import com.android.keyguard.KeyguardUpdateMonitorCallback
-import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.SystemUIApplication
+import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.phone.BiometricUnlockController
 import com.android.systemui.statusbar.policy.KeyguardStateController
+import javax.inject.Inject
 
-class MistouchPreventionWindowController constructor(
+@SysUISingleton
+class MistouchPreventionWindowController @Inject constructor(
     private val context: Context,
     private val keyguardStateController: KeyguardStateController,
     private val keyguardUpdateMonitor: KeyguardUpdateMonitor,
@@ -147,7 +150,7 @@ class MistouchPreventionWindowController constructor(
         }
     }
 
-    fun init() {
+    init {
         preventionView.setVisibility(View.INVISIBLE)
         preventionView.addCallback(volumeKeyCallback)
         registerListeners()
