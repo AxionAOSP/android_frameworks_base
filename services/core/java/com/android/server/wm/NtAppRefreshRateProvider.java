@@ -17,21 +17,26 @@ package com.android.server.wm;
 
 import android.util.ArrayMap;
 import android.util.SparseIntArray;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class NtAppRefreshRateProvider {
 
-    public static final ArrayMap<String, AppRefreshRateConfig> DEFAULT_APP_CONFIGS;
+    public static final ArrayMap<String, AppRefreshRateConfig> DEFAULT_APP_CONFIGS = new ArrayMap<>();
 
-    public static final List<String> GAMING_APPS;
+    public static final Set<String> GAMING_APPS = Set.of(
+            "com.tencent.ig", "com.rekoo.pubgm", "com.vng.pubgmobile",
+            "com.pubg.krmobile", "com.tencent.igce", "com.pubg.imobile"
+    );
+
+    public static final Set<String> SYS_WINDOW_TYPES = Set.of(
+            "StatusBar", "NavigationBar", "wallpapers"
+    );
 
     static {
-        DEFAULT_APP_CONFIGS = new ArrayMap<>();
-
         addConfig(DEFAULT_APP_CONFIGS, new String[]{
             "com.google.android.projection.gearhead.phonescreen","com.waze","com.google.android.apps.mapslite",
             "ru.yandex.yandexmaps","maps.pro","com.baidu.BaiduMap","com.mapquest.android.ace","com.autonavi.minimap",
@@ -65,11 +70,6 @@ public class NtAppRefreshRateProvider {
             "com.twitter.android","com.nothing.weather","com.android.vending","com.android.settings",
             "com.google.android.googlequicksearchbox","com.android.setupwizard.overlay","com.nothing.applocker"
         }, "120,120,60", false, false);
-
-        GAMING_APPS = new ArrayList<>(Arrays.asList(
-            "com.tencent.ig", "com.rekoo.pubgm", "com.vng.pubgmobile",
-            "com.pubg.krmobile", "com.tencent.igce", "com.pubg.imobile"
-        ));
     }
 
     private static void addConfig(ArrayMap<String, AppRefreshRateConfig> map, String[] packages,
@@ -90,30 +90,26 @@ public class NtAppRefreshRateProvider {
     }
 
     public static class AppRefreshRateConfig {
-        private final SparseIntArray refreshRates;
-        private final boolean disableSurfaceView;
-        private final boolean disableIdleFps;
-        private final String packageName;
+        public final SparseIntArray refreshRates;
+        public final boolean disableSV;
+        public final boolean disableIdle;
+        public final String packageName;
 
         public AppRefreshRateConfig(String packageName, SparseIntArray refreshRates,
-                                    boolean disableSurfaceView, boolean disableIdleFps) {
+                                    boolean disableSV, boolean disableIdle) {
             this.packageName = packageName;
             this.refreshRates = refreshRates;
-            this.disableSurfaceView = disableSurfaceView;
-            this.disableIdleFps = disableIdleFps;
+            this.disableSV = disableSV;
+            this.disableIdle = disableIdle;
         }
-
-        public boolean shouldDisableIdleFps() { return disableIdleFps; }
-        public boolean shouldDisableSurfaceView() { return disableSurfaceView; }
-        public SparseIntArray getRefreshRates() { return refreshRates; }
-        public String getPackageName() { return packageName; }
     }
 
     public static class AppVoteInfo {
-        private int preferredModeId;
-        private float minRefreshRate, maxRefreshRate;
-        private String appName;
-        private boolean hasVote;
+        public int preferredModeId;
+        public float minRefreshRate;
+        public float maxRefreshRate;
+        public String appName;
+        public boolean hasVote;
 
         public AppVoteInfo(String appName, int modeId, float minRate, float maxRate, boolean hasVote) {
             this.appName = appName;
@@ -130,11 +126,6 @@ public class NtAppRefreshRateProvider {
             this.maxRefreshRate = maxRate;
             this.hasVote = true;
         }
-
-        public float getMaxRefreshRate() { return maxRefreshRate; }
-        public float getMinRefreshRate() { return minRefreshRate; }
-        public boolean hasVote() { return hasVote; }
-        public int getPreferredModeId() { return preferredModeId; }
 
         public void copyFrom(AppVoteInfo other) {
             this.appName = other.appName;
@@ -174,10 +165,9 @@ public class NtAppRefreshRateProvider {
                 MAP.put(mode.value, mode);
             }
         }
-
         RefreshRateMode(int value) { this.value = value; }
-        public static RefreshRateMode fromInt(int value, boolean fallbackToHigh) {
-            return MAP.getOrDefault(value, fallbackToHigh ? HIGH : VARIABLE);
+        public static RefreshRateMode fromInt(int value, boolean vrr) {
+            return MAP.getOrDefault(value, !vrr ? HIGH : VARIABLE);
         }
     }
 
@@ -192,7 +182,6 @@ public class NtAppRefreshRateProvider {
                 MAP.put(rate.hz, rate);
             }
         }
-
         RefreshRate(int hz) { this.hz = hz; }
         public static RefreshRate fromHz(float refreshRate) {
             for (RefreshRate rate : values()) {
