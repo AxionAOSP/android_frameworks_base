@@ -37,6 +37,7 @@ import com.android.systemui.statusbar.phone.ConfigurationForwarder;
 import com.android.systemui.statusbar.policy.ConfigurationController;
 import com.android.systemui.statusbar.WifiStandardRepository;
 import com.android.systemui.statusbar.WifiStandardViewController;
+import com.android.systemui.pulse.PulseViewController;
 import com.android.wm.shell.appzoomout.AppZoomOut;
 import com.android.wm.shell.back.BackAnimation;
 import com.android.wm.shell.bubbles.Bubbles;
@@ -199,6 +200,9 @@ public interface SysUIComponent {
 
     @SysUISingleton
     NTForbiddenSwipeDownQSController forbiddenSwipeDownQSController();
+    
+    @SysUISingleton
+    PulseViewController pulseViewController();
 
     @SysUISingleton
     MistouchPreventionWindowController mistouchPreventionWindowController();
