@@ -1058,12 +1058,8 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
         mLifecycle.setCurrentState(RESUMED);
 
         mAccessibilityFloatingMenuController.init();
-        
-        MistouchPreventionWindowController mistouchController = 
-            new MistouchPreventionWindowController(mContext, 
-                mKeyguardStateController, mKeyguardUpdateMonitor, 
-                mBiometricUnlockControllerLazy.get());
-        mistouchController.init();
+
+        MistouchPreventionWindowController.get(mContext).init();
 
         // When the StatusBarConnectedDisplays flag is enabled, this logic will be done in
         // StatusBarOrchestrator

@@ -28,12 +28,15 @@ import android.provider.Settings
 import android.view.*
 import com.android.keyguard.KeyguardUpdateMonitor
 import com.android.keyguard.KeyguardUpdateMonitorCallback
-import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.SystemUIApplication
+import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.phone.BiometricUnlockController
 import com.android.systemui.statusbar.policy.KeyguardStateController
+import javax.inject.Inject
 
-class MistouchPreventionWindowController constructor(
+@SysUISingleton
+class MistouchPreventionWindowController @Inject constructor(
     private val context: Context,
     private val keyguardStateController: KeyguardStateController,
     private val keyguardUpdateMonitor: KeyguardUpdateMonitor,
@@ -51,6 +54,12 @@ class MistouchPreventionWindowController constructor(
 
         private val URI_MISTOUCH_PREVENTION: Uri = Settings.Secure.getUriFor(KEY_MISTOUCH_PREVENTION)
         private val URI_TALKBACK: Uri = Settings.Secure.getUriFor(KEY_TALKBACK)
+        
+        @JvmStatic
+        fun get(context: Context): MistouchPreventionWindowController {
+            val app = context.applicationContext as SystemUIApplication
+            return app.sysUIComponent.mistouchPreventionWindowController()
+        }
     }
 
     private val sensorManager = context.getSystemService(SensorManager::class.java)
