@@ -33,12 +33,14 @@ class ScrimUtils private constructor() {
         fun onQsVisibilityChanged(visible: Boolean) {}
         fun onStartedWakingUp() {}
         fun onScreenTurnedOff() {}
+        fun setPulsing(pulsing: Boolean) {}
     }
 
     private val listeners = WeakListenerManager<ScrimEventListener>()
 
     private val mIsDozing = AtomicBoolean(false)
     private val mQsVisible = AtomicBoolean(false)
+    private val mPulsing = AtomicBoolean(false)
 
     @Volatile private var mExpandedFraction = 0f
     @Volatile private var mBarState = -1
@@ -100,6 +102,12 @@ class ScrimUtils private constructor() {
     fun setQsVisible(visible: Boolean) {
         if (mQsVisible.getAndSet(visible) != visible) {
             notifyListeners(Consumer { it.onQsVisibilityChanged(visible) })
+        }
+    }
+    
+    fun setPulsing(pulsing: Boolean) {
+        if (mPulsing.getAndSet(pulsing) != pulsing) {
+            notifyListeners(Consumer { it.setPulsing(pulsing) })
         }
     }
 

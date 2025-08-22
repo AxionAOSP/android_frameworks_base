@@ -300,6 +300,7 @@ public final class DozeServiceHost implements DozeHost {
             }
 
             private void setPulsing(boolean pulsing) {
+                com.android.systemui.util.ScrimUtils.get().setPulsing(pulsing);
                 mStatusBarKeyguardViewManager.setPulsing(pulsing);
                 mShadeLockscreenInteractor.setPulsing(pulsing);
                 mStatusBarStateController.setPulsing(pulsing);
