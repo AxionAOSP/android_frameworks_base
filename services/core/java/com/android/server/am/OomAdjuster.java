@@ -395,6 +395,7 @@ public class OomAdjuster {
     protected final ArraySet<ProcessRecord> mTmpProcessSet = new ArraySet<>();
     protected final ArraySet<ProcessRecord> mPendingProcessSet = new ArraySet<>();
     protected final ArraySet<ProcessRecord> mProcessesInCycle = new ArraySet<>();
+    private static ArrayList<String> sAppWhiteList = new ArrayList<>();
 
     /**
      * List of processes that we want to batch for LMKD to adjust their respective
@@ -447,6 +448,12 @@ public class OomAdjuster {
             Flags.raiseBoundUiServiceThreshold() ? SERVICE_ADJ : PERCEPTIBLE_APP_ADJ;
 
     static final long PERCEPTIBLE_TASK_TIMEOUT_MILLIS = 5 * 60 * 1000;
+
+    static {
+        sAppWhiteList.add("com.google.android.providers.media.module");
+        sAppWhiteList.add("android.process.media");
+        sAppWhiteList.add("android.os.cts");
+    }
 
     @VisibleForTesting
     public static class Injector {
@@ -3685,14 +3692,24 @@ public class OomAdjuster {
                     processGroup = THREAD_GROUP_TOP_APP;
                     break;
                 case SCHED_GROUP_RESTRICTED:
-                    processGroup = THREAD_GROUP_RESTRICTED;
-                    break;
+                    if (isRestrictedNeedSelfControll(app)) {
+                        processGroup = 10;
+                        break;
+                    } else {
+                        processGroup = THREAD_GROUP_RESTRICTED;
+                        break;
+                    }
                 case SCHED_GROUP_FOREGROUND_WINDOW:
                     processGroup = THREAD_GROUP_FOREGROUND_WINDOW;
                     break;
                 default:
-                    processGroup = THREAD_GROUP_DEFAULT;
-                    break;
+                    if (isForegroundNeedSelfControll(oldSchedGroup, app)) {
+                        processGroup = 10;
+                        break;
+                    } else {
+                        processGroup = THREAD_GROUP_DEFAULT;
+                        break;
+                    }
             }
             setAppAndChildProcessGroup(app, processGroup);
             try {
@@ -3898,6 +3915,41 @@ public class OomAdjuster {
         }
 
         return success;
+    }
+
+    private boolean isForegroundNeedSelfControll(int oldScheduleGroup, ProcessRecord app) {
+        if (oldScheduleGroup == SCHED_GROUP_TOP_APP && app.hasActivities()) {
+            Slog.d(TAG, "previous schedule group is top, not need limit!");
+            return false;
+        }
+        if (app.uid % 100000 < 10000 || isNtCustomizeApp(app.processName)|| isInWhiteList(app.processName)) {
+            Slog.d(TAG, "system app not need limit!");
+            return false;
+        }
+        if (app.getHostingRecord() == null || app.getHostingRecord().isTopApp()) {
+            return false;
+        }
+        Slog.d(TAG, "process : " + app.processName + " is not top!");
+        return true;
+    }
+
+    private boolean isInWhiteList(String processName) {
+        if (processName != null) {
+            return sAppWhiteList.contains(processName);
+        }
+        return false;
+    }
+
+    private boolean isRestrictedNeedSelfControll(ProcessRecord app) {
+        if (isNtCustomizeApp(app.processName) || isInWhiteList(app.processName)) {
+            Slog.d(TAG, "system app not need limit!");
+            return false;
+        }
+        if (app.getHostingRecord() == null || app.getHostingRecord().isTopApp()) {
+            return false;
+        }
+        Slog.d(TAG, "process : " + app.processName + " is not top!");
+        return true;
     }
 
     @GuardedBy({"mService", "mProcLock"})
