@@ -19753,7 +19753,8 @@ public class ActivityManagerService extends IActivityManager.Stub
         private static final String FG_LIMIT = SystemProperties.get("persist.sys.axion_cpu_limit_ui", "0-2");
         private static final String ALL_CORES = SystemProperties.get("persist.sys.axion_cpu_unlimit_ui", "0-7");
         private static final String BIG_CORES = getCpuRange(SystemProperties.get("persist.sys.axion_cpu_big", "4,5,6,7"));
-        private static final String SF_UCLAMP_MIN_BOOST = SystemProperties.get("ro.surface_flinger.uclamp.min", "165");
+        private static final int SF_UCLAMP_MIN_BOOST =
+                                Math.round(SystemProperties.getInt("ro.surface_flinger.uclamp.min", 165) * 100f / 1024f);
 
         private int mTopAppPid = -1;
         private String currentReason = "";
@@ -19869,10 +19870,10 @@ public class ActivityManagerService extends IActivityManager.Stub
                 FileUtils.stringToFile(enable ? RESTRICTED_CGROUP_PROCS : ROOT_CGROUP_PROCS, String.valueOf(pid));
                 FileUtils.stringToFile(RESTRICTED_UCLAMP_MIN, enable ? "100" : "0");
                 FileUtils.stringToFile(RESTRICTED_UCLAMP_MAX, "100");
-                FileUtils.stringToFile(DISPLAY_UCLAMP_MIN, enable ? SF_UCLAMP_MIN_BOOST : "106");
-                FileUtils.stringToFile(DISPLAY_UCLAMP_MAX, "293");
+                FileUtils.stringToFile(DISPLAY_UCLAMP_MIN, enable ? String.valueOf(SF_UCLAMP_MIN_BOOST) : "11");
+                FileUtils.stringToFile(DISPLAY_UCLAMP_MAX, "100");
                 executeAdjustCpusetCpus("/dev/cpuset/restricted/cpus", enable ? BIG_CORES : ALL_CORES);
-                executeAdjustCpusetCpus("/dev/cpuset/display/cpus", enable ? BIG_CORES : DISPLAY_CPUSET);
+                executeAdjustCpusetCpus("/dev/cpuset/display/cpus", enable ? ALL_CORES : DISPLAY_CPUSET);
             } catch (Exception e) {
                 Slog.w(TAG, "Failed to " + (enable ? "enable" : "disable") + " restricted boost: " + e);
             }
@@ -19939,8 +19940,8 @@ public class ActivityManagerService extends IActivityManager.Stub
         
         public void onWakefulnessChanged(boolean awake) {
             try {
-                FileUtils.stringToFile(DISPLAY_UCLAMP_MIN, awake ? "106" : "0");
-                FileUtils.stringToFile(DISPLAY_UCLAMP_MAX, awake ? "293" : "0");
+                FileUtils.stringToFile(DISPLAY_UCLAMP_MIN, awake ? "11" : "0");
+                FileUtils.stringToFile(DISPLAY_UCLAMP_MAX, awake ? "100" : "0");
             } catch (Exception e) {
             }
         }
