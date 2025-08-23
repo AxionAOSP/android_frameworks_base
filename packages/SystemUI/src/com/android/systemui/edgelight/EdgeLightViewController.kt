@@ -52,7 +52,8 @@ constructor(
         
     private var job: Job? = null
 
-    private var dozing = false
+    private val dozing: Boolean
+        get() = ScrimUtils.get().isDozing()
 
     private var lastNotificationKey: String? = null
     private var lastNotificationText: CharSequence? = null
@@ -67,7 +68,7 @@ constructor(
 
     private fun updateView(settings: EdgeLightSettings) {
         if (!settings.isEnabled) {
-            edgeLightView.setVisible(false)
+            edgeLightView.visible = false
             return
         }
 
@@ -76,7 +77,7 @@ constructor(
             else -> accentColor
         }
 
-        edgeLightView.updateColor(color)
+        edgeLightView.paintColor = color
     }
 
     fun getEdgeLightView(): FrameLayout = edgeLightView
@@ -89,10 +90,9 @@ constructor(
 
     private fun showEdgeLights(color: Int) {
         edgeLightView.apply {
-            cancelPulse()
-            updateColor(color)
-            setVisible(true)
-            pulse()
+            paintColor = color
+            visible = true
+            pulseRunning = true
         }
     }
 
@@ -126,15 +126,14 @@ constructor(
     }
 
     override fun onDozingChanged() {
-        dozing = ScrimUtils.get().isDozing()
         if (!dozing) {
-            edgeLightView.cancelPulse()
+            edgeLightView.pulseRunning = false
         }
     }
 
     override fun onKeyguardShowingChanged(showing: Boolean) {
         if (!showing) {
-            edgeLightView.cancelPulse()
+            edgeLightView.pulseRunning = false
             listener.removeNotificationHandler(this)
         } else {
             listener.addNotificationHandler(this)
@@ -144,13 +143,13 @@ constructor(
 
     override fun onKeyguardFadingAwayChanged(fadingAway: Boolean) {
         if (fadingAway) {
-            edgeLightView.cancelPulse()
+            edgeLightView.pulseRunning = false
         }
     }
 
     override fun onKeyguardGoingAwayChanged(goingAway: Boolean) {
         if (goingAway) {
-            edgeLightView.cancelPulse()
+            edgeLightView.pulseRunning = false
         }
     }
 
