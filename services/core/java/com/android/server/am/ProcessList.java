@@ -2595,15 +2595,17 @@ public final class ProcessList {
                         new String[]{PROC_START_SEQ_IDENT + app.getStartSeq()});
                 // By now the process group should have been created by zygote.
                 app.mProcessGroupCreated = true;
-                if (startResult.pid > 0 && app.getHostingRecord() != null && !app.getHostingRecord().isTopApp()) {
-                    sHandler.postDelayed(() -> {
-                        try {
-                            if (app.uid % 100000 > 10000 && !app.getHostingRecord().isTopApp() && !isInWhiteList(app.processName)) {
+                if (startResult.pid > 0) {
+                    final boolean topApp = app.getHostingRecord() != null && app.getHostingRecord().isTopApp();
+                    if (!topApp && !isSystemApp(app)) {
+                        sHandler.postDelayed(() -> {
+                            try {
                                 Process.setProcessGroup(startResult.pid, 10);
+                            } catch (Exception e) {
+                                Slog.w(TAG, "Failed to set process group for " + app.processName, e);
                             }
-                        } catch (Exception e) {
-                        }
-                    }, 50L);
+                        }, 50L);
+                    }
                 }
             }
 
@@ -6039,5 +6041,15 @@ public final class ProcessList {
             return sAppWhiteList.contains(processName) || processName.toLowerCase().contains("camera");
         }
         return false;
+    }
+    
+    private boolean isSystemApp(ProcessRecord app) {
+        if (app == null || app.info == null) return false;
+        int flags = app.info.flags;
+        int privateFlags = app.info.privateFlags;
+        return ((flags & ApplicationInfo.FLAG_SYSTEM) != 0) ||
+               ((flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0) ||
+               ((privateFlags & ApplicationInfo.PRIVATE_FLAG_PRIVILEGED) != 0) ||
+               isInWhiteList(app.processName);
     }
 }

@@ -3917,19 +3917,41 @@ public class OomAdjuster {
         return success;
     }
 
+    private boolean isSystemApp(ProcessRecord app) {
+        if (app == null || app.info == null) return false;
+        int flags = app.info.flags;
+        int privateFlags = app.info.privateFlags;
+        return ((flags & ApplicationInfo.FLAG_SYSTEM) != 0) ||
+               ((flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0) ||
+               ((privateFlags & ApplicationInfo.PRIVATE_FLAG_PRIVILEGED) != 0) ||
+               isInWhiteList(app.processName);
+    }
+
     private boolean isForegroundNeedSelfControll(int oldScheduleGroup, ProcessRecord app) {
         if (oldScheduleGroup == SCHED_GROUP_TOP_APP && app.hasActivities()) {
-            Slog.d(TAG, "previous schedule group is top, not need limit!");
+            Slog.d(TAG, "Previous schedule group is top, not limiting!");
             return false;
         }
-        if (app.uid % 100000 < 10000 || isNtCustomizeApp(app.processName)|| isInWhiteList(app.processName)) {
-            Slog.d(TAG, "system app not need limit!");
+        if (isSystemApp(app)) {
+            Slog.d(TAG, "System or whitelisted app, not limiting: " + app.processName);
             return false;
         }
         if (app.getHostingRecord() == null || app.getHostingRecord().isTopApp()) {
             return false;
         }
-        Slog.d(TAG, "process : " + app.processName + " is not top!");
+        Slog.d(TAG, "Process " + app.processName + " is not top, limiting allowed");
+        return true;
+    }
+
+    private boolean isRestrictedNeedSelfControll(ProcessRecord app) {
+        if (isSystemApp(app)) {
+            Slog.d(TAG, "System or whitelisted app, not limiting: " + app.processName);
+            return false;
+        }
+        if (app.getHostingRecord() == null || app.getHostingRecord().isTopApp()) {
+            return false;
+        }
+        Slog.d(TAG, "Process " + app.processName + " is not top, restricted limit applies");
         return true;
     }
 
@@ -3938,18 +3960,6 @@ public class OomAdjuster {
             return sAppWhiteList.contains(processName);
         }
         return false;
-    }
-
-    private boolean isRestrictedNeedSelfControll(ProcessRecord app) {
-        if (isNtCustomizeApp(app.processName) || isInWhiteList(app.processName)) {
-            Slog.d(TAG, "system app not need limit!");
-            return false;
-        }
-        if (app.getHostingRecord() == null || app.getHostingRecord().isTopApp()) {
-            return false;
-        }
-        Slog.d(TAG, "process : " + app.processName + " is not top!");
-        return true;
     }
 
     @GuardedBy({"mService", "mProcLock"})
