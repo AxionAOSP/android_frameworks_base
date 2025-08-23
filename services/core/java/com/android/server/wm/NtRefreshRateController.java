@@ -39,12 +39,11 @@ import java.util.*;
 
 public class NtRefreshRateController {
 
+    public interface GameFpsCallback {
+        void setGameFps(int uid, float fps);
+    }
+
     private static final String TAG = "NtRefreshRateController";
-
-    private static final IBinder sFlinger = ServiceManager.getService("SurfaceFlinger");
-
-    private static final int TRANSACTION_SET_IDLE_FPS = 2005;
-    private static final int TRANSACTION_SET_GAME_FPS = 2010;
 
     private static final String SETTINGS_REFRESH_RATE_MODE = "display_refresh_rate_mode";
     private static final String PEAK_REFRESH_RATE = "peak_refresh_rate";
@@ -80,10 +79,16 @@ public class NtRefreshRateController {
     private boolean overrideWinPref = false;
     private boolean lastIdle = false;
     private boolean disableIdle = false;
+    
+    private GameFpsCallback mCallbacks;
 
     private NtRefreshRateController() {}
 
     public static NtRefreshRateController get() { return INSTANCE; }
+
+    public void setGameFpsCallback(GameFpsCallback callback) {
+        this.mCallbacks = callback;
+    }
 
     public void init(Context context, DisplayInfo displayInfo, WindowManagerService wm) {
         this.context = context;
@@ -99,9 +104,9 @@ public class NtRefreshRateController {
         setupDisplayModes();
 
         refreshRateMode = getRRMode();
-        updatePeakRefreshRate(refreshRateMode);
+        updatePeakRefreshRate();
 
-        modeId = getModeId(refreshRateMode);
+        modeId = getModeId();
 
         bestAppVote = new AppVoteInfo(null, 0, 0.0f, 0.0f, false);
         currentAppVote = new AppVoteInfo(null, 0, 0.0f, 0.0f, false);
@@ -122,16 +127,16 @@ public class NtRefreshRateController {
         }
     }
 
-    private int getModeId(RefreshRateMode mode) {
-        return switch (mode) {
+    private int getModeId() {
+        return switch (refreshRateMode) {
             case LOW -> modeIdMap.get(RefreshRate.LOW);
             case VARIABLE -> modeIdMap.get(RefreshRate.MID);
             case HIGH -> modeIdMap.get(RefreshRate.HIGH);
         };
     }
 
-    private void updatePeakRefreshRate(RefreshRateMode mode) {
-        float peakRate = mode == RefreshRateMode.LOW ? FPS_LOW : FPS_HIGH;
+    private void updatePeakRefreshRate() {
+        float peakRate = refreshRateMode == RefreshRateMode.LOW ? FPS_LOW : FPS_HIGH;
         Settings.System.putFloat(context.getContentResolver(), PEAK_REFRESH_RATE, peakRate);
     }
 
@@ -148,27 +153,12 @@ public class NtRefreshRateController {
             int targetFps = appConfig.refreshRates.valueAt(refreshRateMode.value);
             synchronized (gameUidToFpsMap) {
                 if (gameUidToFpsMap.get(uid, -1) != targetFps) {
-                    transactSurfaceFlinger(uid, targetFps, TRANSACTION_SET_GAME_FPS);
+                    if (mCallbacks != null) {
+                        mCallbacks.setGameFps(uid, targetFps);
+                    }
                     gameUidToFpsMap.put(uid, targetFps);
                 }
             }
-        }
-    }
-
-    private void transactSurfaceFlinger(int uid, float fps, int transaction) {
-        Parcel data = Parcel.obtain();
-        data.writeInterfaceToken("android.ui.ISurfaceComposer");
-        if (transaction == TRANSACTION_SET_IDLE_FPS) {
-            data.writeInt(fps > 0 ? 1 : 0);
-        } else {
-            data.writeInt(uid);
-            data.writeFloat(fps);
-        }
-        try {
-            sFlinger.transact(transaction, data, null, 0);
-        } catch (RemoteException ignored) {
-        } finally {
-            data.recycle();
         }
     }
 
@@ -196,7 +186,11 @@ public class NtRefreshRateController {
     }
 
     private void setIdleFpsMode(boolean disableIdle) {
-        transactSurfaceFlinger(disableIdle ? 0 : 1, 0, TRANSACTION_SET_IDLE_FPS);
+        float peakRate = refreshRateMode == RefreshRateMode.LOW ? FPS_LOW : FPS_HIGH;
+        float minRate = disableIdle ? peakRate : RefreshRate.LOW.hz;
+        Settings.System.putFloat(context.getContentResolver(),
+                Settings.System.MIN_REFRESH_RATE, minRate);
+        wm.requestTraversal();
     }
 
     public void setGameModeFrameRateOverrideToNtRefreshRate(int uid, float frameRate) {
@@ -303,8 +297,8 @@ public class NtRefreshRateController {
         public void onChange(boolean selfChange, Uri uri) {
             if (!refreshRateModeUri.equals(uri)) return;
             refreshRateMode = getRRMode();
-            updatePeakRefreshRate(refreshRateMode);
-            modeId = getModeId(refreshRateMode);
+            updatePeakRefreshRate();
+            modeId = getModeId();
             wm.requestTraversal();
         }
     }
