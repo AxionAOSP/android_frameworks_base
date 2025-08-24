@@ -19740,12 +19740,21 @@ public class ActivityManagerService extends IActivityManager.Stub
     
     public class BoostAdjuster {
         private static final String BOOSTER_TAG = "BoostAdjuster";
+
+        private static final String CPUSET_BG = "/dev/cpuset/background/cpus";
+        private static final String CPUSET_FG = "/dev/cpuset/nt_foreground/cpus";
+        private static final String CPUSET_SYS_BG = "/dev/cpuset/system-background/cpus";
+        private static final String CPUSET_CAM = "/dev/cpuset/camera-daemon/cpus";
+        private static final String CPUSET_RESTRICTED = "/dev/cpuset/restricted/cpus";
+        private static final String CPUSET_DISPLAY = "/dev/cpuset/display/cpus";
+
         private static final String RESTRICTED_CGROUP_PROCS = "/dev/cpuctl/restricted/cgroup.procs";
         private static final String ROOT_CGROUP_PROCS = "/dev/cpuctl/cgroup.procs";
         private static final String RESTRICTED_UCLAMP_MAX = "/dev/cpuctl/restricted/cpu.uclamp.max";
         private static final String RESTRICTED_UCLAMP_MIN = "/dev/cpuctl/restricted/cpu.uclamp.min";
         private static final String DISPLAY_UCLAMP_MAX = "/dev/cpuctl/display/cpu.uclamp.max";
         private static final String DISPLAY_UCLAMP_MIN = "/dev/cpuctl/display/cpu.uclamp.min";
+
         private static final String BG_CPUSET = SystemProperties.get("persist.sys.axion_cpu_bg", "0-3");
         private static final String DISPLAY_CPUSET = SystemProperties.get("persist.sys.axion_cpu_display", "0-5");
         private static final String NT_FG_CPUSET = SystemProperties.get("persist.sys.axion_cpu_unlimit_ui", "0-7");
@@ -19753,23 +19762,30 @@ public class ActivityManagerService extends IActivityManager.Stub
         private static final String FG_LIMIT = SystemProperties.get("persist.sys.axion_cpu_limit_ui", "0-2");
         private static final String ALL_CORES = SystemProperties.get("persist.sys.axion_cpu_unlimit_ui", "0-7");
         private static final String BIG_CORES = getCpuRange(SystemProperties.get("persist.sys.axion_cpu_big", "4,5,6,7"));
-        private static final int SF_UCLAMP_MIN_BOOST =
-                                Math.round(SystemProperties.getInt("ro.surface_flinger.uclamp.min", 165) * 100f / 1024f);
 
-        private int mTopAppPid = -1;
-        private String currentReason = "";
+        private static final int SF_UCLAMP_MIN_BOOST =
+                Math.round(SystemProperties.getInt("ro.surface_flinger.uclamp.min", 165) * 100f / 1024f);
+
+        private String currentReason = "others";
 
         private Handler mBoostHandler;
         private final Runnable mDisableRunnable = this::disableBoostHint;
+        private boolean mDisplayBoosted;
 
-        private BoostAdjuster() {
-        }
+        private BoostAdjuster() {}
 
         private static String getCpuRange(String cores) {
             if (cores == null || cores.isEmpty()) return "";
             String[] parts = cores.split(",");
-            if (parts.length == 1) return parts[0];
-            return parts[0] + "-" + parts[parts.length - 1];
+            return parts.length == 1 ? parts[0] : parts[0] + "-" + parts[parts.length - 1];
+        }
+
+        private void write(String path, String value) {
+            try {
+                FileUtils.stringToFile(path, value);
+            } catch (IOException e) {
+                Log.e(BOOSTER_TAG, "Failed to write to " + path + ": " + e.getMessage());
+            }
         }
 
         private void executeAdjustCpusetCpus(String path, String cpuset) {
@@ -19786,28 +19802,13 @@ public class ActivityManagerService extends IActivityManager.Stub
         }
 
         private void adjustCpuset(String cgroup, boolean limit) {
-            String path = resolvePath(cgroup);
-            if (path == null) {
-                Log.w(BOOSTER_TAG, "Unknown cgroup: " + cgroup);
-                return;
-            }
             String cpuset;
-            if (limit) {
-                cpuset = "fg".equals(cgroup) ? FG_LIMIT : BG_LIMIT;
-            } else {
-                cpuset = "fg".equals(cgroup) ? NT_FG_CPUSET : BG_CPUSET;
-            }
-            executeAdjustCpusetCpus(path, cpuset);
-        }
-
-        private String resolvePath(String cgroup) {
             switch (cgroup) {
-                case "bg": return "/dev/cpuset/background/cpus";
-                case "fg": return "/dev/cpuset/nt_foreground/cpus";
-                case "sys-bg": return "/dev/cpuset/system-background/cpus";
-                case "cam": return "/dev/cpuset/camera-daemon/cpus";
-                default: return null;
+                case "fg": cpuset = limit ? FG_LIMIT : NT_FG_CPUSET; break;
+                case "bg": cpuset = limit ? BG_LIMIT : BG_CPUSET; break;
+                default: return;
             }
+            executeAdjustCpusetCpus(cgroup.equals("fg") ? CPUSET_FG : CPUSET_BG, cpuset);
         }
 
         public void animationBoost(int pid, boolean enabled) {
@@ -19816,67 +19817,35 @@ public class ActivityManagerService extends IActivityManager.Stub
                 curProc = mPidsSelfLocked.get(pid);
             }
             if (curProc == null) return;
-
-            if (enabled) {
-                String topApp = WindowEventDispatcher.get().getFocusedPackageName();
-                if (topApp == null) return;
-                ProcessRecord topAppProc = getProcessRecord(topApp);
-                if (topAppProc == null || topAppProc.getThread() == null) {
-                    Slog.w(BOOSTER_TAG, "Invalid top app process: " + topApp);
-                    return;
-                }
-                int topAppPid = topAppProc.getPid();
-                int group = Process.THREAD_GROUP_DEFAULT;
-                int priority = Process.THREAD_PRIORITY_DEFAULT;
-                try {
-                    Process.setProcessGroup(topAppPid, group);
-                    Process.setThreadGroupAndCpuset(topAppPid, group);
-                    Process.setThreadPriority(topAppPid, priority);
-                    setThreadAffinity(topAppPid, 1);
-                    mTopAppPid = topAppPid;
-                } catch (Exception e) {
-                    Slog.w(BOOSTER_TAG, "Failed to demote top-app process: " + e);
-                    mTopAppPid = -1;
-                    return;
-                }
-            } else {
-                if (mTopAppPid != -1) {
-                    try {
-                        Process.setProcessGroup(mTopAppPid, Process.THREAD_GROUP_TOP_APP);
-                        Process.setThreadGroupAndCpuset(mTopAppPid, Process.THREAD_GROUP_TOP_APP);
-                        Process.setThreadPriority(mTopAppPid, Process.THREAD_PRIORITY_TOP_APP_BOOST);
-                        setThreadAffinity(mTopAppPid, 2);
-                    } catch (Exception e) {
-                        Slog.w(BOOSTER_TAG, "Failed to restore top-app process group: " + e);
-                    } finally {
-                        mTopAppPid = -1;
-                    }
-                }
-            }
-            setFifoPriority(curProc, enabled, 99);
-            boostRestricted(pid, enabled);
-            boostDisplayThreads(enabled);
-        }
-        
-        private void boostDisplayThreads(boolean enabled) {
-            int tg = enabled ? 9 : Process.THREAD_GROUP_TOP_APP; // top-app is restricted to small cores during animation boost
-            Process.setThreadGroupAndCpuset(DisplayThread.get().getThreadId(), tg);
-            Process.setThreadGroupAndCpuset(AnimationThread.get().getThreadId(), tg);
-            Process.setThreadGroupAndCpuset(SurfaceAnimationThread.get().getThreadId(), tg);
+            setFifoPriority(curProc, enabled, 1);
+            boostRestricted(pid, curProc.getRenderThreadTid(), enabled);
         }
 
-        private void boostRestricted(int pid, boolean enable) {
+        private void boostRestricted(int pid, int rTid, boolean enable) {
             try {
                 FileUtils.stringToFile(enable ? RESTRICTED_CGROUP_PROCS : ROOT_CGROUP_PROCS, String.valueOf(pid));
-                FileUtils.stringToFile(RESTRICTED_UCLAMP_MIN, enable ? "100" : "0");
-                FileUtils.stringToFile(RESTRICTED_UCLAMP_MAX, "100");
-                FileUtils.stringToFile(DISPLAY_UCLAMP_MIN, enable ? String.valueOf(SF_UCLAMP_MIN_BOOST) : "11");
-                FileUtils.stringToFile(DISPLAY_UCLAMP_MAX, "100");
-                executeAdjustCpusetCpus("/dev/cpuset/restricted/cpus", enable ? BIG_CORES : ALL_CORES);
-                executeAdjustCpusetCpus("/dev/cpuset/display/cpus", enable ? ALL_CORES : DISPLAY_CPUSET);
+                write(RESTRICTED_UCLAMP_MIN, enable ? "100" : "0");
+                write(RESTRICTED_UCLAMP_MAX, "100");
+                executeAdjustCpusetCpus(CPUSET_RESTRICTED, enable ? BIG_CORES : ALL_CORES);
+                if (rTid == 0) return;
+                FileUtils.stringToFile(enable ? RESTRICTED_CGROUP_PROCS : ROOT_CGROUP_PROCS, String.valueOf(rTid));
             } catch (Exception e) {
-                Slog.w(TAG, "Failed to " + (enable ? "enable" : "disable") + " restricted boost: " + e);
+                Slog.w(BOOSTER_TAG, "Failed to " + (enable ? "enable" : "disable") + " restricted boost: " + e);
             }
+        }
+
+        private void boostDisplay(boolean enable) {
+            if (mDisplayBoosted == enable) return;
+            try {
+                int tg = enable ? 9 : Process.THREAD_GROUP_TOP_APP;
+                Process.setThreadGroupAndCpuset(DisplayThread.get().getThreadId(), tg);
+                Process.setThreadGroupAndCpuset(AnimationThread.get().getThreadId(), tg);
+                Process.setThreadGroupAndCpuset(SurfaceAnimationThread.get().getThreadId(), tg);
+                write(DISPLAY_UCLAMP_MIN, enable ? String.valueOf(SF_UCLAMP_MIN_BOOST) : "11");
+                write(DISPLAY_UCLAMP_MAX, "100");
+                executeAdjustCpusetCpus(CPUSET_DISPLAY, enable ? ALL_CORES : DISPLAY_CPUSET);
+                mDisplayBoosted = enable;
+            } catch (Exception ignored) {}
         }
 
         public void setThreadAffinity(int pid, int affinity) {
@@ -19885,14 +19854,10 @@ public class ActivityManagerService extends IActivityManager.Stub
                 curProc = mPidsSelfLocked.get(pid);
             }
             if (curProc == null) return;
-            int threadGroup = (affinity == 0) ? Process.THREAD_GROUP_TOP_APP : Process.THREAD_GROUP_DEFAULT;
-            Process.setThreadGroupAndCpuset(pid, threadGroup);
             Process.setThreadAffinity(pid, affinity);
             int rTid = curProc.getRenderThreadTid();
-            if (rTid != 0) {
-                Process.setThreadGroupAndCpuset(rTid, threadGroup);
-                Process.setThreadAffinity(rTid, affinity);
-            }
+            if (rTid == 0) return;
+            Process.setThreadAffinity(rTid, affinity);
         }
 
         public void setPerformanceMode(boolean enabled, String reason) {
@@ -19903,11 +19868,13 @@ public class ActivityManagerService extends IActivityManager.Stub
                 mLocalPowerManager.setPowerMode(Mode.LAUNCH, true);
                 mLocalPowerManager.setPowerMode(PowerManagerInternal.MODE_FIXED_PERFORMANCE, true);
                 currentReason = reason;
+                boostDisplay(true);
             } else {
                 if (!reason.equals(currentReason)) return;
                 mLocalPowerManager.setPowerMode(Mode.LAUNCH, false);
                 mLocalPowerManager.setPowerMode(PowerManagerInternal.MODE_FIXED_PERFORMANCE, false);
-                currentReason = "";
+                boostDisplay(false);
+                currentReason = "others";
             }
         }
 
@@ -19926,9 +19893,7 @@ public class ActivityManagerService extends IActivityManager.Stub
         }
 
         private void disableBoostHint(Handler handler, long delay) {
-            if (mBoostHandler != null) {
-                mBoostHandler.removeCallbacks(mDisableRunnable);
-            }
+            if (mBoostHandler != null) mBoostHandler.removeCallbacks(mDisableRunnable);
             mBoostHandler = handler;
             handler.postDelayed(mDisableRunnable, delay);
         }
@@ -19937,13 +19902,12 @@ public class ActivityManagerService extends IActivityManager.Stub
             SystemProperties.set("dalvik.vm.dex2oat-threads", "3");
             setPerformanceMode(false, currentReason);
         }
-        
+
         public void onWakefulnessChanged(boolean awake) {
             try {
-                FileUtils.stringToFile(DISPLAY_UCLAMP_MIN, awake ? "11" : "0");
-                FileUtils.stringToFile(DISPLAY_UCLAMP_MAX, awake ? "100" : "0");
-            } catch (Exception e) {
-            }
+                write(DISPLAY_UCLAMP_MIN, awake ? "11" : "0");
+                write(DISPLAY_UCLAMP_MAX, awake ? "100" : "0");
+            } catch (Exception ignored) {}
         }
     }
 }
