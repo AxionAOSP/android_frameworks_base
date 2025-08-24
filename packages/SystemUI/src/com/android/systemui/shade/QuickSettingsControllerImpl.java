@@ -300,6 +300,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
 
     private int mOneFingerQuickSettingsIntercept;
     private final ContentObserver mOneFingerQuickSettingsInterceptObserver;
+    private final ContentObserver mTranslucentObserver;
     
     private boolean mQQSBrightnessEnabled = true;
 
@@ -426,6 +427,13 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                         mPanelView.getContext().getContentResolver(),
                         "qs_brightness_slider_enabled", 2,
                         selectedUserInteractor.getSelectedUserId()) == 2;
+            }
+        };
+        
+        mTranslucentObserver = new ContentObserver(null) {
+            @Override
+            public void onChange(boolean selfChange) {
+                onTransparencyUpdated();
             }
         };
 
@@ -2318,7 +2326,13 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                             "qs_brightness_slider_enabled"),
                     false, mOneFingerQuickSettingsInterceptObserver,
                     UserHandle.USER_ALL);
+            mPanelView.getContext().getContentResolver().registerContentObserver(
+                    Settings.Secure.getUriFor(
+                            "notification_row_transparency"),
+                    false, mTranslucentObserver,
+                    UserHandle.USER_ALL);
             mOneFingerQuickSettingsInterceptObserver.onChange(true);
+            mTranslucentObserver.onChange(true);
             NTAppLockerHelper.get().registerListener();
             updateExpansion();
         }
@@ -2328,6 +2342,8 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         public void onFragmentViewDestroyed(String tag, Fragment fragment) {
             mPanelView.getContext().getContentResolver().unregisterContentObserver(
                     mOneFingerQuickSettingsInterceptObserver);
+            mPanelView.getContext().getContentResolver().unregisterContentObserver(
+                    mTranslucentObserver);
             NTAppLockerHelper.get().onDestroy();
             // Manual handling of fragment lifecycle is only required because this bridges
             // non-fragment and fragment code. Once we are using a fragment for the notification
@@ -2545,6 +2561,22 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         }
     }
     
+    public final void onTransparencyUpdated() {
+        NotificationStackScrollLayoutController controller = mNotificationStackScrollLayoutController;
+        if (controller == null || controller.getView() == null) {
+            return;
+        }
+        NotificationStackScrollLayout view = controller.getView();
+        int childCount = view.getChildCount();
+        for (int i = 0; i < childCount; i++) {
+            View child = view.getChildAt(i);
+            if (child instanceof ExpandableNotificationRow) {
+                final ExpandableNotificationRow row = (ExpandableNotificationRow) child;
+                child.post(row::updateIfNeeded);
+            }
+        }
+    }
+
     public boolean isVisible() {
         return mVisible;
     }
