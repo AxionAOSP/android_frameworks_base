@@ -47,7 +47,6 @@ public class PropsHooksUtils {
     private static boolean DEBUG = SystemProperties.getBoolean("persist.sys.props_hooks_debug", false);
 
     private static final String SPOOF_PIXEL_GMS = "persist.sys.pixelprops.gms";
-    private static final String SPOOF_DISABLE_GMS_HOOK = "persist.sys.disable_gms_hook";
     public static final String SPOOF_PIXEL_GPHOTOS = "persist.sys.pixelprops.gphotos";
     public static final String SPOOF_GAMES = "persist.sys.gameprops.enable";
     
@@ -319,8 +318,7 @@ public class PropsHooksUtils {
         final boolean sIsGms = packageName.equals("com.google.android.gms") 
             && processName.toLowerCase().contains("unstable");
         final boolean sIsFinsky = packageName.equals("com.android.vending");
-        return (sIsGms || sIsFinsky) && SystemProperties.getBoolean(SPOOF_PIXEL_GMS, true) 
-                && !SystemProperties.getBoolean(SPOOF_DISABLE_GMS_HOOK, false);
+        return (sIsGms || sIsFinsky) && SystemProperties.getBoolean(SPOOF_PIXEL_GMS, true);
     }
 
     private static void spoofBuildGms(Context context) {

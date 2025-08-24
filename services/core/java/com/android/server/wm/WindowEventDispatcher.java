@@ -15,8 +15,6 @@
  */
 package com.android.server.wm;
 
-import android.content.ComponentName;
-import android.os.SystemProperties;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -29,10 +27,7 @@ public class WindowEventDispatcher {
 
     private final ExecutorService mNotifierExecutor = Executors.newSingleThreadExecutor();
 
-    private String mFocusedPackageName;
-
-    private static final ComponentName GMS_ADD_ACCOUNT_ACTIVITY = ComponentName.unflattenFromString(
-            "com.google.android.gms/.auth.uiflows.minutemaid.MinuteMaidActivity");
+    private volatile String mFocusedPackageName;
 
     private WindowEventDispatcher() {}
 
@@ -57,16 +52,6 @@ public class WindowEventDispatcher {
 
     public void notifyAppFocusChanged(final ActivityRecord r, final Task task) {
         mFocusedPackageName = (r != null && r.packageName != null) ? r.packageName : null;
-        final boolean gmsOnTop = task != null && task.getTopMostActivity() != null 
-            && GMS_ADD_ACCOUNT_ACTIVITY.equals(task.getTopMostActivity().packageName);
-        String pixelPropsGms = SystemProperties.get("persist.sys.pixelprops.gms", "true");
-        if (!"false".equals(pixelPropsGms)) {
-            String newValue = gmsOnTop ? "true" : "false";
-            String currentValue = SystemProperties.get("persist.sys.disable_gms_hook", "false");
-            if (!newValue.equals(currentValue)) {
-                SystemProperties.set("persist.sys.disable_gms_hook", newValue);
-            }
-        }
         for (final IWindowEventListener listener : mListeners) {
             mNotifierExecutor.execute(() -> listener.onAppFocusChanged(r, task));
         }
