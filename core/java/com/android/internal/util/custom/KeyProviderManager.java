@@ -127,7 +127,7 @@ public final class KeyProviderManager {
 
         @Override
         public boolean hasKeybox() {
-            return hasCertificateChain("EC") && hasCertificateChain("RSA");
+            return hasCertificateChain("EC") || hasCertificateChain("RSA");
         }
 
         private boolean hasCertificateChain(String prefix) {
