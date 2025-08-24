@@ -152,42 +152,4 @@ public class NtAppRefreshRateProvider {
                    ", hasVote=" + hasVote + "}";
         }
     }
-    
-    public enum RefreshRateMode {
-        VARIABLE(0),
-        HIGH(1),
-        LOW(2);
-
-        final int value;
-        private static final Map<Integer, RefreshRateMode> MAP = new HashMap<>();
-        static {
-            for (RefreshRateMode mode : values()) {
-                MAP.put(mode.value, mode);
-            }
-        }
-        RefreshRateMode(int value) { this.value = value; }
-        public static RefreshRateMode fromInt(int value, boolean vrr) {
-            return MAP.getOrDefault(value, !vrr ? HIGH : VARIABLE);
-        }
-    }
-
-    public enum RefreshRate {
-        LOW(60), MID(90), HIGH(120);
-
-        final int hz;
-        private static final float TOLERANCE = 1.0f;
-        private static final Map<Integer, RefreshRate> MAP = new HashMap<>();
-        static {
-            for (RefreshRate rate : values()) {
-                MAP.put(rate.hz, rate);
-            }
-        }
-        RefreshRate(int hz) { this.hz = hz; }
-        public static RefreshRate fromHz(float refreshRate) {
-            for (RefreshRate rate : values()) {
-                if (Math.abs(refreshRate - rate.hz) < TOLERANCE) return rate;
-            }
-            return null;
-        }
-    }
 }
