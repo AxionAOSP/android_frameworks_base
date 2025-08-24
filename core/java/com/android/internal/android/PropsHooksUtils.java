@@ -46,7 +46,8 @@ public class PropsHooksUtils {
     
     private static boolean DEBUG = SystemProperties.getBoolean("persist.sys.props_hooks_debug", false);
 
-    public static final String SPOOF_PIXEL_GMS = "persist.sys.pixelprops.gms";
+    private static final String SPOOF_PIXEL_GMS = "persist.sys.pixelprops.gms";
+    private static final String SPOOF_DISABLE_GMS_HOOK = "persist.sys.disable_gms_hook";
     public static final String SPOOF_PIXEL_GPHOTOS = "persist.sys.pixelprops.gphotos";
     public static final String SPOOF_GAMES = "persist.sys.gameprops.enable";
     
@@ -56,6 +57,8 @@ public class PropsHooksUtils {
     private static final Map<String, Field> fieldCache = new HashMap<>();
     private static Boolean isPixelDevice = null;
     private static Boolean isLargeScreen = null;
+    private static String pifData = null;
+    private static Map<String, String> pifMap = null;
 
     private static final Set<String> featuresPixel = new HashSet<>(Set.of(
             "PIXEL_2017_PRELOAD",
@@ -233,6 +236,10 @@ public class PropsHooksUtils {
             setPropValue("FINGERPRINT", "eng.nobody." +
                 new java.text.SimpleDateFormat("yyyyMMdd.HHmmss").format(new java.util.Date()));
         }
+
+        if (shouldSpoofGMS(packageName, processName)) {
+            spoofBuildGms(context);
+        }
     }
 
     private static void setPropValue(String key, Object newValue) {
@@ -306,6 +313,47 @@ public class PropsHooksUtils {
 
     private static boolean shouldSpoofPhotos() {
         return sIsPhotos && SystemProperties.getBoolean(SPOOF_PIXEL_GPHOTOS, true);
+    }
+
+    private static boolean shouldSpoofGMS(String packageName, String processName) {
+        final boolean sIsGms = packageName.equals("com.google.android.gms") 
+            && processName.toLowerCase().contains("unstable");
+        final boolean sIsFinsky = packageName.equals("com.android.vending");
+        return (sIsGms || sIsFinsky) && SystemProperties.getBoolean(SPOOF_PIXEL_GMS, true) 
+                && !SystemProperties.getBoolean(SPOOF_DISABLE_GMS_HOOK, false);
+    }
+
+    private static void spoofBuildGms(Context context) {
+        if (context == null) return;
+        String data = Settings.System.getString(context.getContentResolver(), "pif_props_data");
+        if (TextUtils.isEmpty(data)) return;
+        Map<String, String> props = createOrGetPifMap(data);
+        if (props == null) return;
+        for (Map.Entry<String, String> entry : props.entrySet()) {
+            setPropValue(entry.getKey(), entry.getValue());
+        }
+    }
+
+    private static synchronized Map<String, String> createOrGetPifMap(String data) {
+        if (!TextUtils.equals(pifData, data)) {
+            try {
+                JSONObject jsonObject = new JSONObject(data);
+                Map<String, String> map = new HashMap<>();
+                Iterator<String> keys = jsonObject.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    String value = jsonObject.optString(key, null);
+                    if (!TextUtils.isEmpty(value)) map.put(key, value);
+                }
+                pifData = data;
+                pifMap = map;
+            } catch (JSONException e) {
+                Log.e(TAG, "Failed to parse pif_props_data JSON", e);
+                pifData = null;
+                pifMap = null;
+            }
+        }
+        return pifMap;
     }
 
     private static boolean isPixelDevice() {
