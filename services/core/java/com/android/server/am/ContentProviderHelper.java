@@ -134,22 +134,22 @@ public class ContentProviderHelper {
     ContentProviderHolder getContentProvider(IApplicationThread caller, String callingPackage,
             String name, int userId, boolean stable) {
         // spoof bypass
-        if (!"com.android.vending".equals(callingPackage)
-            && !"com.google.android.gms".equals(callingPackage)) {
-            mService.enforceNotIsolatedCaller("getContentProvider");
-        }
-        if (caller == null) {
-            String msg = "null IApplicationThread when getting content provider " + name;
-            Slog.w(TAG, msg);
-            throw new SecurityException(msg);
-        }
-        // The incoming user check is now handled in checkContentProviderPermissionLocked() to deal
-        // with cross-user grant.
+        final boolean skip = "com.android.vending".equals(callingPackage) || "com.google.android.gms".equals(callingPackage);
         final int callingUid = Binder.getCallingUid();
-        if (callingPackage != null && mService.mAppOpsService.checkPackage(
-                callingUid, callingPackage) != AppOpsManager.MODE_ALLOWED) {
-            throw new SecurityException("Given calling package " + callingPackage
-                    + " does not match caller's uid " + callingUid);
+        if (!skip) {
+            mService.enforceNotIsolatedCaller("getContentProvider");
+            if (caller == null) {
+                String msg = "null IApplicationThread when getting content provider " + name;
+                Slog.w(TAG, msg);
+                throw new SecurityException(msg);
+            }
+            // The incoming user check is now handled in checkContentProviderPermissionLocked() to deal
+            // with cross-user grant.
+            if (callingPackage != null && mService.mAppOpsService.checkPackage(
+                    callingUid, callingPackage) != AppOpsManager.MODE_ALLOWED) {
+                throw new SecurityException("Given calling package " + callingPackage
+                        + " does not match caller's uid " + callingUid);
+            }
         }
         return getContentProviderImpl(caller, name, null, callingUid, callingPackage,
                 null, stable, userId);
