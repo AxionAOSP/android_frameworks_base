@@ -133,7 +133,11 @@ public class ContentProviderHelper {
 
     ContentProviderHolder getContentProvider(IApplicationThread caller, String callingPackage,
             String name, int userId, boolean stable) {
-        mService.enforceNotIsolatedCaller("getContentProvider");
+        // spoof bypass
+        if (!"com.android.vending".equals(callingPackage)
+            && !"com.google.android.gms".equals(callingPackage)) {
+            mService.enforceNotIsolatedCaller("getContentProvider");
+        }
         if (caller == null) {
             String msg = "null IApplicationThread when getting content provider " + name;
             Slog.w(TAG, msg);
