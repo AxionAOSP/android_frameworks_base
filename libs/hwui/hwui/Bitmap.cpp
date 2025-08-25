@@ -61,6 +61,7 @@
 #include <atomic>
 #include <format>
 #include <limits>
+#include <fstream>
 
 #ifdef __ANDROID__
 #include <com_android_graphics_hwui_flags.h>
@@ -613,6 +614,31 @@ bool Bitmap::compress(JavaCompressFormat format, int32_t quality, SkWStream* str
     return compress(skbitmap, format, quality, stream);
 }
 
+static bool isSystemUI() {
+    static bool cached = false;
+    static bool initialized = false;
+    if (!initialized) {
+        pid_t pid = getpid();
+        std::ifstream cmdline("/proc/" + std::to_string(pid) + "/cmdline");
+        std::string pkg;
+        if (cmdline.is_open()) {
+            std::getline(cmdline, pkg, '\0');
+        }
+        cached = (pkg == "com.android.systemui");
+        initialized = true;
+    }
+    return cached;
+}
+
+static bool reduceCompress(const SkBitmap& bitmap) {
+    bool systemUI = isSystemUI();
+    if (systemUI) {
+        return bitmap.width() >= 500 || bitmap.height() >= 500;
+    } else {
+        return bitmap.width() >= 780 || bitmap.height() >= 1080;
+    }
+}
+
 bool Bitmap::compress(const SkBitmap& bitmap, JavaCompressFormat format,
                       int32_t quality, SkWStream* stream) {
     if (bitmap.colorType() == kAlpha_8_SkColorType) {
@@ -629,8 +655,16 @@ bool Bitmap::compress(const SkBitmap& bitmap, JavaCompressFormat format,
             options.fQuality = quality;
             return SkJpegEncoder::Encode(stream, bitmap.pixmap(), options);
         }
-        case JavaCompressFormat::Png:
-            return SkPngEncoder::Encode(stream, bitmap.pixmap(), {});
+        case JavaCompressFormat::Png: {
+                if (reduceCompress(bitmap)) {
+                    SkPngEncoder::Options options;
+                    options.fZLibLevel = 0;
+                    options.fFilterFlags = SkPngEncoder::FilterFlag::kNone |
+                                           SkPngEncoder::FilterFlag::kAvg;
+                    return SkPngEncoder::Encode(stream, bitmap.pixmap(), options);
+                }
+                return SkPngEncoder::Encode(stream, bitmap.pixmap(), {});
+            }
         case JavaCompressFormat::Webp: {
             SkWebpEncoder::Options options;
             if (quality >= 100) {
@@ -648,6 +682,9 @@ bool Bitmap::compress(const SkBitmap& bitmap, JavaCompressFormat format,
             options.fQuality = quality;
             options.fCompression = format == JavaCompressFormat::WebpLossy ?
                     SkWebpEncoder::Compression::kLossy : SkWebpEncoder::Compression::kLossless;
+            if (reduceCompress(bitmap)) {
+                options.fCompression = SkWebpEncoder::Compression::kLossless;
+            }
             return SkWebpEncoder::Encode(stream, bitmap.pixmap(), options);
         }
     }
