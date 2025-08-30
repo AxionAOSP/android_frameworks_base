@@ -283,7 +283,7 @@ constructor(
                                         }
                                     }
                                 }
-                                .graphicsLayer { alpha = viewModel.viewAlpha }
+                                .graphicsLayer { alpha = viewModel.panelAlpha }
                                 .thenIf(!Flags.notificationShadeBlur()) {
                                     Modifier.offset {
                                         IntOffset(
