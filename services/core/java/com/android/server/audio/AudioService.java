@@ -245,6 +245,7 @@ import android.widget.Toast;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.SomeArgs;
+import com.android.internal.util.BoostHelper;
 import com.android.internal.util.DumpUtils;
 import com.android.internal.util.Preconditions;
 import com.android.modules.expresslog.Counter;
@@ -6729,7 +6730,7 @@ public class AudioService extends IAudioService.Stub
                         Log.w(TAG, "setMode link does not exist ...");
                     }
                 }
-                SystemProperties.set("dalvik.vm.dex2oat-threads", "2");
+                BoostHelper.executeAdjustCpusetCpus("/dev/cpuset/dex2oat/cpus", "0-7");
             } else {
                 if (currentModeHandler != null) {
                     currentModeHandler.setMode(mode);
@@ -6752,8 +6753,8 @@ public class AudioService extends IAudioService.Stub
                         Log.v(TAG, "setMode(" + mode + ") adding handler for pid=" + pid);
                     }
                 }
-                if (mode == 1) {
-                    SystemProperties.set("dalvik.vm.dex2oat-threads", "1");
+                if (mode == AudioSystem.MODE_RINGTONE) {
+                    BoostHelper.executeAdjustCpusetCpus("/dev/cpuset/dex2oat/cpus", "0-1");
                 }
                 if (mode == AudioSystem.MODE_IN_COMMUNICATION) {
                     // Force active state when entering/updating the stack to avoid glitches when
