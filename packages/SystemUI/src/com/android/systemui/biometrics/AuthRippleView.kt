@@ -281,7 +281,7 @@ class AuthRippleView(context: Context?, attrs: AttributeSet?) : View(context, at
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationStart(animation: Animator) {
                     drawRipple = true
-                    visibility = VISIBLE
+                    visibility = GONE
                     NTBoosterController.get().acquireRippleAnimationBoost()
                 }
 
