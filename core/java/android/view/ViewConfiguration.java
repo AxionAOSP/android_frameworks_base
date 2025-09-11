@@ -43,6 +43,7 @@ import android.view.flags.Flags;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.appturbo.AppTurboImpl;
 
 /**
  * Contains methods to standard constants used in the UI for timeouts, sizes, and distances.
@@ -823,7 +824,7 @@ public class ViewConfiguration {
      * @return Distance in pixels a touch can wander before we think the user is scrolling
      */
     public int getScaledTouchSlop() {
-        return mTouchSlop;
+        return AppTurboImpl.getScaledTouchSlop();
     }
 
     /**
@@ -1097,7 +1098,7 @@ public class ViewConfiguration {
      *         friction.
      */
     public static float getScrollFriction() {
-        return sResourceCache.getScrollFriction();
+        return AppTurboImpl.getScrollFriction(SCROLL_FRICTION);
     }
 
     /**

@@ -26,6 +26,7 @@ import android.util.Pools.SynchronizedPool;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.Map;
+import com.android.internal.appturbo.AppTurboImpl;
 
 /**
  * Helper for tracking the velocity of motion events, for implementing
@@ -437,7 +438,7 @@ public final class VelocityTracker {
      * @return The previously computed Y velocity.
      */
     public float getYVelocity(int id) {
-        return nativeGetVelocity(mPtr, MotionEvent.AXIS_Y, id);
+        return AppTurboImpl.getYVelocity(nativeGetVelocity(mPtr, MotionEvent.AXIS_Y, id));
     }
 
     /**
