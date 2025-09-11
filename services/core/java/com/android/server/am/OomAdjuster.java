@@ -545,7 +545,17 @@ public class OomAdjuster {
                     + processName + " to " + group);
         }
         try {
-            android.os.Process.setProcessGroup(pid, group);
+            if (BoostAdjuster.isInPerfList(processName)) {
+                Slog.d(TAG, "set group = " + group);
+            }
+            if (BoostAdjuster.isInPerfList(processName) && !BoostAdjuster.isCamera(processName) 
+                || BoostAdjuster.isCamera(processName) && (group == THREAD_GROUP_TOP_APP 
+                    || group == THREAD_GROUP_RESTRICTED)) {
+                Slog.d(TAG, pid + ": target set cpuset: " + group);
+                Process.setProcessGroup(pid, THREAD_GROUP_RESTRICTED);
+            } else {
+                Process.setProcessGroup(pid, group);
+            }
         } catch (Exception e) {
             if (DEBUG_ALL) {
                 Slog.w(TAG, "Failed setting process group of " + pid + " to " + group, e);
@@ -3657,13 +3667,21 @@ public class OomAdjuster {
                     processGroup = THREAD_GROUP_TOP_APP;
                     break;
                 case SCHED_GROUP_RESTRICTED:
-                    processGroup = THREAD_GROUP_RESTRICTED;
+                    if (BoostAdjuster.isRestrictedNeedSelfControll(app)) {
+                        processGroup = BoostAdjuster.THREAD_GROUP_NT_FOREGROUND;
+                    } else {
+                        processGroup = THREAD_GROUP_RESTRICTED;
+                    }
                     break;
                 case SCHED_GROUP_FOREGROUND_WINDOW:
                     processGroup = THREAD_GROUP_FOREGROUND_WINDOW;
                     break;
                 default:
-                    processGroup = THREAD_GROUP_DEFAULT;
+                    if (BoostAdjuster.isForegroundNeedSelfControll(oldSchedGroup, app)) {
+                        processGroup = BoostAdjuster.THREAD_GROUP_NT_FOREGROUND;
+                    } else {
+                        processGroup = THREAD_GROUP_DEFAULT;
+                    }
                     break;
             }
             setAppAndChildProcessGroup(app, processGroup);

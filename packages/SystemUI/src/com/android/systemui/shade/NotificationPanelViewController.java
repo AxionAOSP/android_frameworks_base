@@ -201,6 +201,7 @@ import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.statusbar.policy.SplitShadeStateController;
 import com.android.systemui.unfold.SysUIUnfoldComponent;
 import com.android.systemui.util.Compile;
+import com.android.systemui.util.NTBoosterController;
 import com.android.systemui.util.ScrimUtils;
 import com.android.systemui.util.Utils;
 import com.android.systemui.util.time.SystemClock;
@@ -1490,6 +1491,7 @@ public final class NotificationPanelViewController implements
             @Override
             public void onAnimationCancel(Animator animation) {
                 mCancelled = true;
+                NTBoosterController.get().releaseNPVFlingBoost();
             }
 
             @Override
@@ -1501,6 +1503,7 @@ public final class NotificationPanelViewController implements
                 } else {
                     onFlingEnd(mCancelled);
                 }
+                NTBoosterController.get().releaseNPVFlingBoost();
             }
         });
         if (!mScrimController.isScreenOn()) {
@@ -1511,6 +1514,7 @@ public final class NotificationPanelViewController implements
         }
         setAnimator(animator);
         animator.start();
+        NTBoosterController.get().acquireNPVFlingBoost();
     }
 
     private final boolean shouldIgnoreStartFlingAnimavor(ValueAnimator newAnimator, ValueAnimator oldAnimator, float vel, boolean expand) {
@@ -2141,6 +2145,7 @@ public final class NotificationPanelViewController implements
     }
 
     private void onTrackingStarted() {
+        NTBoosterController.get().acquireNPVTrackingBoost();
         endClosing();
         mShadeRepository.setLegacyShadeTracking(true);
         if (mTrackingStartedListener != null) {
@@ -2170,6 +2175,7 @@ public final class NotificationPanelViewController implements
         // If we unlocked from a swipe, the user's finger might still be down after the
         // unlock animation ends. We need to wait until ACTION_UP to enable blurs again.
         mDepthController.setBlursDisabledForUnlock(false);
+        NTBoosterController.get().releaseNPVTrackingBoost();
     }
 
     private void updateMaxHeadsUpTranslation() {

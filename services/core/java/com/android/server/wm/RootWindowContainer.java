@@ -142,6 +142,7 @@ import android.window.WindowContainerToken;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.ResolverActivity;
 import com.android.internal.protolog.ProtoLog;
+import com.android.internal.util.BoostHelper;
 import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.internal.util.function.pooled.PooledPredicate;
 import com.android.server.LocalServices;

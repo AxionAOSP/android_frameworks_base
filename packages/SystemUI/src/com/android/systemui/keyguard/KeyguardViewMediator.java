@@ -180,6 +180,7 @@ import com.android.systemui.statusbar.policy.UserSwitcherController;
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor;
 import com.android.systemui.util.DeviceConfigProxy;
 import com.android.systemui.util.kotlin.JavaAdapter;
+import com.android.systemui.util.NTBoosterController;
 import com.android.systemui.util.settings.SecureSettings;
 import com.android.systemui.util.settings.SystemSettings;
 import com.android.systemui.util.time.SystemClock;
@@ -892,6 +893,7 @@ public class KeyguardViewMediator implements CoreStartable,
             if (targetUserId != mSelectedUserInteractor.getSelectedUserId()) {
                 return;
             }
+            NTBoosterController.get().acquireKeyguardGoneAnimationBoost();
             Log.d(TAG, "keyguardDone");
             tryKeyguardDone();
         }
@@ -954,6 +956,7 @@ public class KeyguardViewMediator implements CoreStartable,
                 }
             }
             Trace.endSection();
+            NTBoosterController.get().releaseKeyguardGoneAnimationBoost();
         }
 
         @Override

@@ -1807,10 +1807,17 @@ public class DisplayModeDirector {
                     @Override
                     public void notifyThrottling(Temperature temp) {
                         @Temperature.ThrottlingStatus int currentStatus = temp.getStatus();
+                        Vote vote;
                         synchronized (mLock) {
                             if (mThermalStatus != currentStatus) {
                                 mThermalStatus = currentStatus;
                             }
+                            if (mThermalStatus != Temperature.THROTTLING_NONE) {
+                                vote = Vote.forRenderFrameRates(0.0f, 60.0f);
+                            } else {
+                                vote = null;
+                            }
+                            mVotesStorage.updateGlobalVote(Vote.PRIORITY_LOW_POWER_MODE_MODES, vote);
                             onBrightnessChangedLocked();
                         }
                     }

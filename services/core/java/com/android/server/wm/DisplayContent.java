@@ -253,6 +253,7 @@ import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.internal.util.function.pooled.PooledPredicate;
 import com.android.server.inputmethod.InputMethodManagerInternal;
 import com.android.server.policy.WindowManagerPolicy;
+import com.android.server.am.BoostAdjuster;
 import com.android.server.wm.utils.RegionUtils;
 import com.android.server.wm.utils.RotationCache;
 import com.android.server.wm.utils.WmDisplayCutout;
@@ -584,7 +585,9 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
      * new task the user wants to interact with.
      */
     ActivityRecord mFocusedApp = null;
-
+    
+    boolean mBoostingCamera = false;
+    
     /**
      * We only respect the orientation request from apps below this {@link TaskDisplayArea}.
      * It is the last focused {@link TaskDisplayArea} on this display that handles orientation
@@ -4044,6 +4047,19 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
                 newFocus, getDisplayId(), Debug.getCallers(4));
         final Task oldTask = mFocusedApp != null ? mFocusedApp.getTask() : null;
         final Task newTask = newFocus != null ? newFocus.getTask() : null;
+
+        boolean isCamera = newFocus != null
+                && newFocus.packageName != null
+                && BoostAdjuster.CAMERA_APPS.contains(newFocus.packageName);
+
+        if (isCamera && !mBoostingCamera && !BoostAdjuster.isBoosted()) {
+            BoostAdjuster.boostCamera(true);
+            mBoostingCamera = true;
+        } else if (!isCamera && mBoostingCamera) {
+            BoostAdjuster.boostCamera(false);
+            mBoostingCamera = false;
+        }
+
         mFocusedApp = newFocus;
         if (oldTask != newTask) {
             if (oldTask != null) oldTask.onAppFocusChanged(false);

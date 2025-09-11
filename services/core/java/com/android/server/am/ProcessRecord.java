@@ -1315,6 +1315,11 @@ class ProcessRecord implements WindowProcessListener {
                     mKillTime = SystemClock.uptimeMillis();
                 }
             }
+            if (!mService.mForceStopKill && !mErrorState.isNotResponding()
+                && !mErrorState.isCrashing()) {
+            } else {
+                mService.mForceStopKill = false;
+            }
             Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
         }
     }

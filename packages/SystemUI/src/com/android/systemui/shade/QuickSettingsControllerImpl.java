@@ -111,6 +111,7 @@ import com.android.systemui.statusbar.policy.SplitShadeStateController;
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor;
 import com.android.systemui.util.LargeScreenUtils;
 import com.android.systemui.util.NTAppLockerHelper;
+import com.android.systemui.util.NTBoosterController;
 import com.android.systemui.util.kotlin.JavaAdapter;
 import com.android.systemui.utils.windowmanager.WindowManagerProvider;
 
@@ -1101,6 +1102,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                 getHeaderTranslation(),
                 squishiness
         );
+        NTBoosterController.get().setExpansionEx(adjustedExpansionFraction);
         if (QuickStepContract.ALLOW_BACK_GESTURE_IN_SHADE
                 && mPanelViewControllerLazy.get().mAnimateBack) {
             mPanelViewControllerLazy.get().adjustBackAnimationScale(adjustedExpansionFraction);

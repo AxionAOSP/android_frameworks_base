@@ -134,6 +134,7 @@ import com.android.internal.policy.GestureNavigationSettingsObserver;
 import com.android.internal.policy.ScreenDecorationsUtils;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.statusbar.LetterboxDetails;
+import com.android.internal.util.BoostHelper;
 import com.android.internal.util.ScreenshotHelper;
 import com.android.internal.util.ScreenshotRequest;
 import com.android.internal.util.function.TriFunction;
@@ -529,25 +530,21 @@ public class DisplayPolicy {
                     excludedRegion.recycle();
                 }
 
-                private void setPerformancePowerMode(boolean enabled) {
-                    try {
-                        // systemui is boosting animation abort
-                        if (!enabled && ActivityManager.getService().isBoostingAnimation()){
-                            return;
-                        }
-                        ActivityManager.getService().setPerformanceMode(enabled);
-                    } catch (Exception e) {
-                    }
+                @Override
+                public void onVerticalFling(int duration) {
+                    BoostHelper.boostHint("scroll_fling", duration);
                 }
 
                 @Override
                 public void onFling(int duration) {
-                    setPerformancePowerMode(true);
+                    if (mService.mPowerManagerInternal != null) {
+                        mService.mPowerManagerInternal.setPowerBoost(
+                                Boost.INTERACTION, duration);
+                    }
                 }
 
                 @Override
-                public void onFlingEnd() {
-                    setPerformancePowerMode(false);
+                public void onScroll(boolean started) {
                 }
 
                 @Override

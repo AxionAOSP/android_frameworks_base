@@ -19,6 +19,8 @@ package com.android.systemui.statusbar;
 import static com.android.systemui.keyguard.shared.model.KeyguardState.GONE;
 import static com.android.systemui.util.kotlin.JavaAdapterKt.combineFlows;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.os.SystemProperties;
@@ -60,6 +62,7 @@ import com.android.systemui.statusbar.notification.stack.StackStateAnimator;
 import com.android.systemui.statusbar.policy.CallbackController;
 import com.android.systemui.util.Compile;
 import com.android.systemui.util.kotlin.JavaAdapter;
+import com.android.systemui.util.NTBoosterController;
 import com.android.systemui.util.ScrimUtils;
 
 import dagger.Lazy;
@@ -461,6 +464,20 @@ public class StatusBarStateControllerImpl implements
                 this, SET_DARK_AMOUNT_PROPERTY, mDozeAmountTarget);
         darkAnimator.setInterpolator(Interpolators.LINEAR);
         darkAnimator.setDuration(StackStateAnimator.ANIMATION_DURATION_WAKEUP);
+        darkAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationCancel(Animator animation) {
+                NTBoosterController.get().releaseDozeAnimationBoost();
+            }
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                NTBoosterController.get().releaseDozeAnimationBoost();
+            }
+            @Override
+            public void onAnimationStart(Animator animation) {
+                NTBoosterController.get().acquireDozeAnimationBoost();
+            }
+        });
         darkAnimator.start();
         return darkAnimator;
     }

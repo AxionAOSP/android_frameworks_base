@@ -438,6 +438,7 @@ import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.server.AlarmManagerInternal;
 import com.android.server.BootReceiver;
 import com.android.server.DeviceIdleInternal;
+import com.android.server.AnimationThread;
 import com.android.server.DisplayThread;
 import com.android.server.IoThread;
 import com.android.server.LocalManagerRegistry;
@@ -487,6 +488,8 @@ import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.ActivityTaskManagerService;
 import com.android.server.wm.AppLockManagerService;
 import com.android.server.wm.GameSpaceService;
+import com.android.server.wm.SurfaceAnimationThread;
+import com.android.server.wm.WindowEventDispatcher;
 import com.android.server.wm.WindowManagerInternal;
 import com.android.server.wm.WindowManagerService;
 import com.android.server.wm.WindowProcessController;
@@ -646,6 +649,8 @@ public class ActivityManagerService extends IActivityManager.Stub
     private static final DateTimeFormatter DROPBOX_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSZ");
 
+    public static boolean mForceStopKill = false;
+
     OomAdjuster mOomAdjuster;
     @GuardedBy("this")
     ProcessStateController mProcessStateController;
@@ -766,6 +771,11 @@ public class ActivityManagerService extends IActivityManager.Stub
     private final ArraySet<String> mDeliveryGroupPolicyIgnoredActions = new ArraySet();
 
     private AccessCheckDelegateHelper mAccessCheckDelegateHelper;
+    
+    private final BoostAdjuster mBoostAdjuster;
+    private final MemoryManager mMemoryManager;
+    private final TaskProfiler mTaskProfiler = new TaskProfiler();
+    private final ProcessManager mProcessManager = new ProcessManager();
 
     /**
      * Uids of apps with current active camera sessions.  Access synchronized on
@@ -1332,9 +1342,6 @@ public class ActivityManagerService extends IActivityManager.Stub
 
     @GuardedBy("this") boolean mCallFinishBooting = false;
     @GuardedBy("this") boolean mBootAnimationComplete = false;
-
-    boolean mBoostingAnimation = false;
-    int mTopAppPid = -1;
 
     final Context mContext;
 
@@ -2474,6 +2481,8 @@ public class ActivityManagerService extends IActivityManager.Stub
         mComponentAliasResolver = new ComponentAliasResolver(this);
         mApplicationSharedMemoryReadOnlyFd = null;
         sCreatorTokenCacheCleaner = new Handler(mHandlerThread.getLooper());
+        mBoostAdjuster = new BoostAdjuster(this);
+        mMemoryManager = new MemoryManager(this);
     }
 
     // Note: This method is invoked on the main thread but may need to attach various
@@ -2600,6 +2609,9 @@ public class ActivityManagerService extends IActivityManager.Stub
             Slog.e(TAG, "Failed to get read only fd for shared memory", e);
             throw new RuntimeException(e);
         }
+        
+        mBoostAdjuster = new BoostAdjuster(this);
+        mMemoryManager = new MemoryManager(this);
     }
 
     void setBroadcastQueueForTest(BroadcastQueue broadcastQueue) {
@@ -4281,6 +4293,7 @@ public class ActivityManagerService extends IActivityManager.Stub
         // A specific subset of the work done in forceStopPackageLocked(), because we are
         // intentionally not rendering the app nonfunctional; we're just halting its current
         // execution.
+        mForceStopKill = true;
         final int appId = UserHandle.getAppId(uid);
         synchronized (this) {
             synchronized (mProcLock) {
@@ -4363,6 +4376,7 @@ public class ActivityManagerService extends IActivityManager.Stub
 
             mAppErrors.resetProcessCrashTime(packageName == null, appId, userId);
         }
+        mForceStopKill = true;
 
         synchronized (mProcLock) {
             // Notify first that the package is stopped, so its process won't be restarted
@@ -5265,7 +5279,12 @@ public class ActivityManagerService extends IActivityManager.Stub
 
             // Start PSI monitoring in LMKD if it was skipped earlier.
             ProcessList.startPsiMonitoringAfterBoot();
-            initTaskProfiles();
+            mTaskProfiler.initTaskProfiles();
+            mMemoryManager.updateExtraFree();
+            
+            mHandler.postDelayed(() -> {
+                SystemProperties.set("persist.sys.axion_boot_completed", "1");
+            }, 5000);
 
             mUserController.onBootComplete(
                     new IIntentReceiver.Stub() {
@@ -7458,6 +7477,7 @@ public class ActivityManagerService extends IActivityManager.Stub
                 mProcessStateController.setWakefulness(wakefulness);
 
                 updateOomAdjLocked(OOM_ADJ_REASON_UI_VISIBILITY);
+                mBoostAdjuster.onWakefulnessChanged(isAwake);
             }
         }
     }
@@ -9231,7 +9251,8 @@ public class ActivityManagerService extends IActivityManager.Stub
             mComponentAliasResolver.onSystemReady(mConstants.mEnableComponentAlias,
                     mConstants.mComponentAliasOverrides);
             t.traceEnd(); // componentAlias
-
+            mProcessManager.systemReady(this, mContext);
+            mBoostAdjuster.systemReady(mContext);
             t.traceEnd(); // PhaseActivityManagerReady
         }
     }
@@ -19570,264 +19591,44 @@ public class ActivityManagerService extends IActivityManager.Stub
 
     @Override
     public void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera) {
-        if (minAdj == 0) return;
-
-        try {
-            ArrayList<ProcessRecord> processList = 
-                (ArrayList<ProcessRecord>) mProcessList.getLruProcessesLOSP().clone();
-
-            ArrayList<ProcessToKill> toKill = new ArrayList<>();
-
-            for (ProcessRecord record : processList) {
-                if (record != null && record.getSetAdj() >= minAdj) {
-                    boolean hasUI = record.hasActivities();
-                    if (!hasUI || includeUIProcesses) {
-                        toKill.add(new ProcessToKill(record));
-                    }
-                }
-            }
-
-            Collections.sort(toKill, new ProcessComparator());
-
-            int killedCount = 0;
-            for (ProcessToKill info : toKill) {
-                Process.killProcess(info.pid);
-                killedCount++;
-                if (killedCount >= maxKillCount) return;
-            }
-
-        } catch (Exception e) {
-        }
+        mMemoryManager.releaseMemory(minAdj, maxKillCount, includeUIProcesses, skipCamera);
     }
 
     @Override
     public void executeAdjustCpusetCpus(String path, String cpuset) {
-        File file = new File(path);
-        if (!file.exists()) {
-            return;
-        }
-        try (FileWriter writer = new FileWriter(file)) {
-            writer.write(cpuset);
-            writer.flush();
-        } catch (IOException e) {
-            Log.e("executeAdjustCpusetCpus", "Failed to write to " + path + ": " + e.getMessage());
-        }
+        mBoostAdjuster.write(path, cpuset);
     }
 
     @Override
-    public void adjustCpusetCpus(String path, String cpuset, long durationMillis) {
-        File file = new File(path);
-        if (!file.exists()) {
-            return;
-        }
-        String originalCpuset = null;
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            originalCpuset = reader.readLine();
-        } catch (IOException e) {
-            Log.e("adjustCpusetCpus", "Failed to read original cpuset from " + path + ": " + e.getMessage());
-            return;
-        }
-
-        executeAdjustCpusetCpus(path, cpuset);
-
-        String restoreCpuset = originalCpuset;
-        mHandler.postDelayed(() -> executeAdjustCpusetCpus(path, restoreCpuset), durationMillis);
-    }
-
-    private String getTopAppPackageName() {
-        String currentPackage;
-        try {
-            RunningTaskInfo rti = mActivityTaskManager.getTasks(
-                1, false /* filterVisibleRecents */, false /*keepIntentExtra */,
-                INVALID_DISPLAY).get(0);
-            currentPackage = rti.topActivity.getPackageName();
-        } catch (Exception e) {
-            currentPackage = null;
-        }
-        return currentPackage;
-    }
-
-    private boolean isTopAppGame(String packageName) {
-        if (packageName == null) return false;
-        boolean isGame = false;
-        try {
-            ApplicationInfo ai = mContext.getPackageManager().getApplicationInfo(packageName, 0);
-            if(ai != null) {
-                isGame = (ai.category == ApplicationInfo.CATEGORY_GAME) ||
-                        ((ai.flags & ApplicationInfo.FLAG_IS_GAME) ==
-                            ApplicationInfo.FLAG_IS_GAME);
-            }
-        } catch (Exception e) {
-            return false;
-        }
-        return isGame;
+    public void adjustCpusetCpus(String cgroup, long durationMillis) {
+        mBoostAdjuster.adjustCpusetCpus(cgroup, durationMillis);
     }
 
     @Override
     public void animationBoost(int pid, boolean enabled) {
-        ProcessRecord curProc;
-        synchronized (mPidsSelfLocked) {
-            curProc = mPidsSelfLocked.get(pid);
-        }
-        if (curProc == null) {
-            return;
-        }
-
-        if (enabled) {
-            String topApp = getTopAppPackageName();
-            if (topApp == null) {
-                return;
-            }
-
-            ProcessRecord topAppProc = getProcessRecord(topApp);
-            if (topAppProc == null) {
-                return;
-            }
-
-            int topAppPid = topAppProc.getPid();
-            int group = Process.THREAD_GROUP_DEFAULT;
-            int priority = Process.THREAD_PRIORITY_DEFAULT;
-            try {
-                Process.setProcessGroup(topAppPid, group);
-                Process.setThreadGroupAndCpuset(topAppPid, group);
-                Process.setThreadPriority(topAppPid, priority);
-                setThreadAffinity(topAppPid, 1);
-                mTopAppPid = topAppPid;
-            } catch (Exception e) {
-                Slog.w(TAG, "Failed to demote top-app process: " + e);
-                mTopAppPid = -1;
-                return;
-            }
-        } else {
-            if (mTopAppPid != -1) {
-                try {
-                    Process.setProcessGroup(mTopAppPid, Process.THREAD_GROUP_TOP_APP);
-                    Process.setThreadGroupAndCpuset(mTopAppPid, Process.THREAD_GROUP_TOP_APP);
-                    Process.setThreadPriority(mTopAppPid, Process.THREAD_PRIORITY_TOP_APP_BOOST);
-                    setThreadAffinity(mTopAppPid, 2);
-                } catch (Exception e) {
-                    Slog.w(TAG, "Failed to restore top-app process group: " + e);
-                } finally {
-                    mTopAppPid = -1;
-                }
-            }
-        }
-
-        setFifoPriority(curProc, enabled, 99);
-        mBoostingAnimation = enabled;
+         mBoostAdjuster.animationBoost(pid, enabled);
     }
 
     @Override
     public void setThreadAffinity(int pid, int affinity) {
-        ProcessRecord curProc;
-        synchronized (mPidsSelfLocked) {
-            curProc = mPidsSelfLocked.get(pid);
-        }
-        if (curProc == null) {
-            return;
-        }
-
-        int threadGroup = (affinity == 0)
-                ? Process.THREAD_GROUP_TOP_APP
-                : Process.THREAD_GROUP_DEFAULT;
-
-        Process.setThreadGroupAndCpuset(pid, threadGroup);
-        Process.setThreadAffinity(pid, affinity);
-        
-        int rTid = curProc.getRenderThreadTid();
-        if (rTid == 0) return;
-        Process.setThreadGroupAndCpuset(rTid, threadGroup);
-        Process.setThreadAffinity(rTid, affinity);
+        mBoostAdjuster.setThreadAffinity(pid, affinity);
     }
 
     @Override
-    public boolean isBoostingAnimation() {
-        return mBoostingAnimation;
+    public void setPerformanceMode(boolean enabled, String reason) {
+       mBoostAdjuster.setPerformanceMode(enabled, reason);
     }
 
     @Override
-    public void setPerformanceMode(boolean enabled) {
-        if (enabled && isTopAppGame(getTopAppPackageName())) return;
-        if (mLocalPowerManager != null) {
-            // alway reset to retrigger LAUNCH powerhint
-            if (enabled) {
-                mLocalPowerManager.setPowerMode(Mode.LAUNCH, false);
-            }
-            mLocalPowerManager.setPowerMode(Mode.LAUNCH, enabled);
-            mLocalPowerManager.setPowerMode(
-                PowerManagerInternal.MODE_FIXED_PERFORMANCE, enabled);
-        }
+    public void boostHint(final String reason, final long duration) {
+        mBoostAdjuster.boostHint(duration);
     }
 
-    public class ProcessComparator implements Comparator<ProcessToKill> {
-        @Override
-        public int compare(ProcessToKill p1, ProcessToKill p2) {
-            return Integer.compare(p2.adj, p1.adj);
-        }
+    @Override
+    public void inputBoost(long durationMillis) {
+        mBoostAdjuster.inputBoost(durationMillis);
     }
 
-    public static final class ProcessToKill {
-        public int adj;
-        public String name; 
-        public int pid;
-        public int uid;
-        public ProcessRecord record;
-
-        public ProcessToKill(ProcessRecord record) {
-            this.pid = record.getPid();
-            this.uid = record.uid;
-            this.adj = record.getSetAdj();
-            this.name = record.processName;
-            this.record = record;
-        }
-    }
-    
-    private void initTaskProfiles() {
-        String[] bgProfiles = { "ProcessCapacityLow" };
-        String[] bgProcs = { "kswapd", "kcompactd" };
-        setTaskProfilesForProcs(bgProcs, bgProfiles);
-    }
-    
-    public static void setTaskProfilesForProcs(String[] procGroups, String[] profiles) {
-        File procDir = new File("/proc");
-        File[] entries = procDir.listFiles(file -> file.isDirectory() && file.getName().matches("\\d+"));
-        if (entries == null) {
-            Slog.w("setTaskProfilesForProcs", "/proc not accessible or empty.");
-            return;
-        }
-
-        for (File pidDir : entries) {
-            File commFile = new File(pidDir, "comm");
-            String processName = null;
-
-            try (BufferedReader reader = new BufferedReader(new FileReader(commFile))) {
-                processName = reader.readLine();
-            } catch (IOException e) {
-                Slog.w("setTaskProfilesForProcs", "Could not read " + commFile.getPath() + ": " + e);
-                continue;
-            }
-
-            if (processName == null) continue;
-
-            for (String proc : procGroups) {
-                if (processName.contains(proc)) {
-                    try {
-                        int pid = Integer.parseInt(pidDir.getName());
-                        Process.setTaskProfiles(pid, profiles);
-                        Slog.i("setTaskProfilesForProcs", "Applied profiles " + Arrays.toString(profiles) +
-                                " to process " + processName + " (PID " + pid + ")");
-                    } catch (NumberFormatException e) {
-                        Slog.w("setTaskProfilesForProcs", "Invalid PID: " + pidDir.getName());
-                    } catch (Exception e) {
-                        Slog.w("setTaskProfilesForProcs", "Failed to set profiles for PID " + pidDir.getName() + ": " + e);
-                    }
-                    break;
-                }
-            }
-        }
-    }
-    
     @Override
     public boolean shouldForceLongScreen(String packageName) {
         return mActivityTaskManager.shouldForceLongScreen(packageName);

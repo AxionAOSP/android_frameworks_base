@@ -406,6 +406,11 @@ static void get_cpuset_cores_for_policy(SchedPolicy policy, cpu_set_t *cpu_set)
                 return;
             }
             break;
+        case SP_DISPLAY:
+            if (!CgroupGetAttributePath("DisplayCPUs", &filename)) {
+                return;
+            }
+            break;
         case SP_FOREGROUND_WINDOW:
             if (!CgroupGetAttributePath("HighCapacityWICPUs", &filename)) {
                 return;
