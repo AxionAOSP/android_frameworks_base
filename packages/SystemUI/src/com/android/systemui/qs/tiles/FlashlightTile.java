@@ -26,11 +26,15 @@ import android.widget.Switch;
 
 import androidx.annotation.Nullable;
 
+import com.android.internal.jank.InteractionJankMonitor;
 import com.android.internal.logging.MetricsLogger;
 import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
+import com.android.systemui.animation.DialogCuj;
+import com.android.systemui.animation.DialogTransitionAnimator;
 import com.android.systemui.animation.Expandable;
 import com.android.systemui.dagger.qualifiers.Background;
 import com.android.systemui.dagger.qualifiers.Main;
+import com.android.systemui.flashlight.ui.dialog.FlashlightDialogDelegate;
 import com.android.systemui.plugins.ActivityStarter;
 import com.android.systemui.plugins.FalsingManager;
 import com.android.systemui.plugins.qs.QSTile.BooleanState;
@@ -40,9 +44,11 @@ import com.android.systemui.qs.QsEventLogger;
 import com.android.systemui.qs.logging.QSLogger;
 import com.android.systemui.qs.tileimpl.QSTileImpl;
 import com.android.systemui.res.R;
+import com.android.systemui.statusbar.phone.SystemUIDialog;
 import com.android.systemui.statusbar.policy.FlashlightController;
 
 import javax.inject.Inject;
+import javax.inject.Provider;
 
 /**
  * Quick settings tile: Control flashlight
@@ -51,7 +57,14 @@ public class FlashlightTile extends QSTileImpl<BooleanState> implements
         FlashlightController.FlashlightListener {
 
     public static final String TILE_SPEC = "flashlight";
+    private static final String FLASHLIGHT_BRIGHTNESS_SETTING = "flashlight_brightness";
+    private static final String INTERACTION_JANK_TAG = "flashlight_strength";
+
     private final FlashlightController mFlashlightController;
+
+    private final Handler mHandler;
+    private final Provider<FlashlightDialogDelegate> mFlashlightDialogProvider;
+    private final DialogTransitionAnimator mDialogTransitionAnimator;
 
     @Inject
     public FlashlightTile(
@@ -64,12 +77,17 @@ public class FlashlightTile extends QSTileImpl<BooleanState> implements
             StatusBarStateController statusBarStateController,
             ActivityStarter activityStarter,
             QSLogger qsLogger,
-            FlashlightController flashlightController
+            FlashlightController flashlightController,
+            Provider<FlashlightDialogDelegate> flashlightDialogDelegateProvider,
+            DialogTransitionAnimator dialogTransitionAnimator
     ) {
         super(host, uiEventLogger, backgroundLooper, mainHandler, falsingManager, metricsLogger,
                 statusBarStateController, activityStarter, qsLogger);
+        mHandler = mainHandler;
         mFlashlightController = flashlightController;
         mFlashlightController.observe(getLifecycle(), this);
+        mFlashlightDialogProvider = flashlightDialogDelegateProvider;
+        mDialogTransitionAnimator = dialogTransitionAnimator;
     }
 
     @Override
@@ -103,6 +121,40 @@ public class FlashlightTile extends QSTileImpl<BooleanState> implements
         if (ActivityManager.isUserAMonkey()) {
             return;
         }
+
+        if (mFlashlightController.isStrengthControlSupported()) {
+            Runnable runnable = new Runnable() {
+                @Override
+                public void run() {
+                    SystemUIDialog dialog = mFlashlightDialogProvider.get().createDialog();
+                    if (expandable != null) {
+                        DialogTransitionAnimator.Controller controller =
+                                expandable.dialogTransitionController(
+                                        new DialogCuj(
+                                                InteractionJankMonitor.CUJ_SHADE_DIALOG_OPEN,
+                                                INTERACTION_JANK_TAG));
+                        if (controller != null) {
+                            mDialogTransitionAnimator.show(dialog, controller);
+                        } else {
+                            dialog.show();
+                        }
+                    } else {
+                        dialog.show();
+                    }
+                }
+            };
+
+            mHandler.post(runnable);
+        } else {
+            handleSecondaryClick(expandable);
+        }
+    }
+
+    @Override
+    protected void handleSecondaryClick(@Nullable Expandable expandable) {
+        if (ActivityManager.isUserAMonkey()) {
+            return;
+        }
         boolean newState = !mState.value;
         refreshState(newState);
         mFlashlightController.setFlashlight(newState);
@@ -123,6 +175,7 @@ public class FlashlightTile extends QSTileImpl<BooleanState> implements
         state.label = mHost.getContext().getString(R.string.quick_settings_flashlight_label);
         state.secondaryLabel = "";
         state.stateDescription = "";
+        state.handlesSecondaryClick = mFlashlightController.isStrengthControlSupported();
         if (!mFlashlightController.isAvailable()) {
             state.secondaryLabel = mContext.getString(
                     R.string.quick_settings_flashlight_camera_in_use);
@@ -130,6 +183,15 @@ public class FlashlightTile extends QSTileImpl<BooleanState> implements
             state.state = Tile.STATE_UNAVAILABLE;
             state.icon = maybeLoadResourceIcon(R.drawable.qs_flashlight_icon_off);
             return;
+        }
+        if (mFlashlightController.isStrengthControlSupported()) {
+            boolean enabled = mFlashlightController.isEnabled();
+            float percent = mFlashlightController.getCurrentPercent();
+
+            if (enabled) {
+                state.secondaryLabel = Math.round(percent * 100f) + "%";
+                state.stateDescription = state.secondaryLabel;
+            }
         }
         if (arg instanceof Boolean) {
             boolean value = (Boolean) arg;
@@ -164,6 +226,11 @@ public class FlashlightTile extends QSTileImpl<BooleanState> implements
 
     @Override
     public void onFlashlightAvailabilityChanged(boolean available) {
+        refreshState();
+    }
+
+    @Override
+    public void onFlashlightStrengthChanged(int level) {
         refreshState();
     }
 }
