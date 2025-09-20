@@ -142,8 +142,10 @@ import com.android.internal.app.HeavyWeightSwitcherActivity;
 import com.android.internal.app.IVoiceInteractor;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.FrameworkStatsLog;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.UiThread;
 import com.android.server.am.ActivityManagerService.IntentCreatorToken;
+import com.android.server.am.BoostAdjuster;
 import com.android.server.am.PendingIntentRecord;
 import com.android.server.pm.InstantAppResolver;
 import com.android.server.pm.PackageArchiver;
@@ -1099,6 +1101,11 @@ class ActivityStarter {
                     && realCallingUid != Request.DEFAULT_REAL_CALLING_UID) {
                 request.logMessage.append(" (realCallingUid=").append(realCallingUid).append(")");
             }
+        }
+
+        String pkg = intent.toShortString(true, true, true, false);
+        if (pkg != null && BoostAdjuster.CAMERA_APPS.contains(pkg)) {
+            AxExtServiceFactory.getMemoryManager().boostCamera(false);
         }
 
         ActivityRecord sourceRecord = null;

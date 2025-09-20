@@ -172,6 +172,7 @@ import com.android.internal.pm.pkg.component.ParsedPermissionGroup;
 import com.android.internal.pm.pkg.parsing.ParsingPackageUtils;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.CollectionUtils;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.EventLogTags;
 import com.android.server.SystemConfig;
 import com.android.server.criticalevents.CriticalEventLog;
@@ -2234,6 +2235,7 @@ final class InstallPackageHelper {
                 request.setRemovedInfo(removedInfo);
 
                 sysPkg = oldPackageState.isSystem();
+                AxExtServiceFactory.getAppUsageManager().setUpdatingPackage(ps.getPackageName());
                 if (sysPkg) {
                     // Set the system/privileged/oem/vendor/product flags as needed
                     final boolean privileged = oldPackageState.isPrivileged();
@@ -2296,6 +2298,7 @@ final class InstallPackageHelper {
                                         + " without first uninstalling.");
                     }
                 }
+                AxExtServiceFactory.getAppUsageManager().addNewPackages(pkgName1);
             }
             // we're passing the freezer back to be closed in a later phase of install
             shouldCloseFreezerBeforeReturn = false;

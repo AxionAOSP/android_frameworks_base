@@ -104,6 +104,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.BoostHelper;
 import com.android.internal.util.ToBooleanFunction;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.am.HostingRecord;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.window.flags.Flags;
@@ -1549,6 +1550,9 @@ class TaskFragment extends WindowContainer<WindowContainer> {
             return true;
         }
 
+        AxExtServiceFactory.getAppUsageManager().updateLaunchTime(next.packageName);
+        AxExtServiceFactory.getMemoryManager().setHighPressureScene(next.packageName);
+
         // If the most recent activity was noHistory but was only stopped rather
         // than stopped+finished because the device went to sleep, we need to make
         // sure to finish it as we're making a new activity topmost.
@@ -1865,6 +1869,10 @@ class TaskFragment extends WindowContainer<WindowContainer> {
             }
         }
         ActivityRecord prev = mResumedActivity;
+
+        if (this.mResumedActivity != null) {
+            AxExtServiceFactory.getAppUsageManager().updateDuration(this.mResumedActivity.packageName);
+        }
 
         if (prev == null) {
             if (resuming == null) {

@@ -164,6 +164,7 @@ import android.util.proto.ProtoOutputStream;
 import com.android.internal.annotations.CompositeRWLock;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.ServiceThread;
 import com.android.server.am.PlatformCompatCache.CachedCompatChangeId;
 import com.android.server.wm.ActivityServiceConnectionsHolder;
@@ -2683,6 +2684,10 @@ public class OomAdjuster {
         setIntermediateProcStateLSP(app, procState, prevProcState);
         setIntermediateSchedGroupLSP(state, schedGroup);
 
+        if (app.isForkedFromHighUsed) {
+            AxExtServiceFactory.getMemoryManager().setForkProcAdj(app);
+        }
+
         // if curAdj or curProcState improved, then this process was promoted
         return state.getCurAdj() < prevAppAdj || state.getCurProcState() < prevProcState
                 || state.getCurCapability() != prevCapability;
@@ -3627,7 +3632,12 @@ public class OomAdjuster {
             if (isBatchingOomAdj && mConstants.ENABLE_BATCHING_OOM_ADJ) {
                 mProcsToOomAdj.add(app);
             } else {
-                mInjector.setOomAdj(app.getPid(), app.uid, state.getCurAdj());
+                int targetAdj = AxExtServiceFactory.getMemoryManager().getTargetAdj(app);
+                if (state.getCurAdj() > targetAdj && targetAdj != -1) {
+                    mInjector.setOomAdj(app.getPid(), app.uid, targetAdj);
+                } else {
+                    mInjector.setOomAdj(app.getPid(), app.uid, state.getCurAdj());
+                }
             }
 
             if (DEBUG_SWITCH || DEBUG_OOM_ADJ || mService.mCurOomAdjUid == app.info.uid) {

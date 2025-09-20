@@ -141,6 +141,7 @@ import com.android.internal.app.ProcessMap;
 import com.android.internal.os.Zygote;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.MemInfoReader;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.AppStateTracker;
 import com.android.server.LocalServices;
 import com.android.server.ServiceThread;
@@ -375,6 +376,7 @@ public final class ProcessList {
     static final byte LMK_START_MONITORING = 9; // Start monitoring if delayed earlier
     static final byte LMK_BOOT_COMPLETED = 10;
     static final byte LMK_PROCS_PRIO = 11;  // Batch option for LMK_PROCPRIO
+    static final byte LMK_CHECK_KILL_OPTI_PROC = 12;
 
     // Low Memory Killer Daemon command codes.
     // These must be kept in sync with async_event_type definitions in lmkd.h
@@ -1600,7 +1602,11 @@ public final class ProcessList {
         buf.putInt(LMK_PROCS_PRIO);
         for (int i = 0; i < totalApps; i++) {
             final int pid = apps.get(i).getPid();
-            final int amt = apps.get(i).mState.getCurAdj();
+            int amt = apps.get(i).mState.getCurAdj();
+            int targetAdj = AxExtServiceFactory.getMemoryManager().getTargetAdj(apps.get(i));
+            if (amt > targetAdj && targetAdj != -1) {
+                amt = targetAdj;
+            }
             final int uid = apps.get(i).uid;
             if (pid <= 0 || amt == UNKNOWN_ADJ) continue;
             if (total_procs_in_buf >= MAX_PROCS_PRIO_PACKET_SIZE) {
@@ -1616,6 +1622,25 @@ public final class ProcessList {
             buf.putInt(0);  // Default proc type to PROC_TYPE_APP
             total_procs_in_buf++;
         }
+        writeLmkd(buf, null);
+    }
+
+    public static final Integer checkLmkdKillOptiProc(int pid) {
+        ByteBuffer buf = ByteBuffer.allocate(8);
+        ByteBuffer repl = ByteBuffer.allocate(8);
+        buf.putInt(LMK_CHECK_KILL_OPTI_PROC);
+        buf.putInt(pid);
+        repl.putInt(LMK_CHECK_KILL_OPTI_PROC);
+        repl.rewind();
+        if (writeLmkd(buf, repl) && repl.getInt() == LMK_CHECK_KILL_OPTI_PROC) {
+            return new Integer(repl.getInt());
+        }
+        return new Integer(-1);
+    }
+
+    public static final void updateLmkProps() {
+        ByteBuffer buf = ByteBuffer.allocate(4);
+        buf.putInt(LMK_UPDATE_PROPS);
         writeLmkd(buf, null);
     }
 

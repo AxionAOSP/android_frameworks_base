@@ -79,7 +79,7 @@ import java.util.function.Consumer;
  * Full information about a particular process that
  * is currently running.
  */
-class ProcessRecord implements WindowProcessListener {
+public class ProcessRecord implements WindowProcessListener {
     static final String TAG = TAG_WITH_CLASS_NAME ? "ProcessRecord" : TAG_AM;
 
     final ActivityManagerService mService; // where we came from
@@ -89,7 +89,8 @@ class ProcessRecord implements WindowProcessListener {
     // Basic info of the process, immutable or semi-immutable over
     // the lifecycle of the process
     // =========================================================
-    volatile ApplicationInfo info; // all about the first app in the process
+    public volatile ApplicationInfo info; // all about the first app in the process
+    boolean isForkedFromHighUsed = false;
     final ProcessInfo processInfo; // if non-null, process-specific manifest info
     final boolean isolated;     // true if this is a special isolated process
     public final boolean isSdkSandbox; // true if this is an SDK sandbox process
@@ -122,7 +123,7 @@ class ProcessRecord implements WindowProcessListener {
      * The process of this application; 0 if none.
      */
     @CompositeRWLock({"mService", "mProcLock"})
-    int mPid;
+    public int mPid;
 
     /**
      * The process ID which will be set when we're killing this process.

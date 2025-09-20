@@ -158,6 +158,7 @@ import com.android.internal.content.ReferrerIntent;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.function.pooled.PooledLambda;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.LocalServices;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.am.HostingRecord;
@@ -799,7 +800,7 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         }
     }
 
-    ActivityInfo resolveActivity(Intent intent, String resolvedType, int startFlags,
+    public ActivityInfo resolveActivity(Intent intent, String resolvedType, int startFlags,
             ProfilerInfo profilerInfo, int userId, int filterCallingUid, int callingPid) {
         final ResolveInfo rInfo = resolveIntent(intent, resolvedType, userId, 0,
                 filterCallingUid, callingPid);
@@ -1821,6 +1822,7 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         }
         task.mInRemoveTask = true;
         try {
+            AxExtServiceFactory.getMemoryManager().scheduleForkHighUsedApps();
             WindowEventHelper.removeTask(task, reason);
             task.removeActivities(reason, false /* excludingTaskOverlay */);
             cleanUpRemovedTask(task, killProcess, removeFromRecents);

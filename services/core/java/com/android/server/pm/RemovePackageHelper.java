@@ -50,6 +50,7 @@ import com.android.internal.pm.parsing.pkg.AndroidPackageLegacyUtils;
 import com.android.internal.pm.parsing.pkg.PackageImpl;
 import com.android.internal.pm.pkg.component.ParsedInstrumentation;
 import com.android.internal.util.ArrayUtils;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.pm.parsing.PackageCacher;
 import com.android.server.pm.permission.PermissionManagerServiceInternal;
 import com.android.server.pm.pkg.AndroidPackage;
@@ -154,6 +155,7 @@ final class RemovePackageHelper {
 
     @GuardedBy("mPm.mInstallLock")
     private void removePackageLI(String packageName, boolean chatty) {
+        AxExtServiceFactory.getAppUsageManager().removePackage(packageName);
         if (DEBUG_INSTALL) {
             if (chatty) {
                 Log.d(TAG, "Removing package " + packageName);
