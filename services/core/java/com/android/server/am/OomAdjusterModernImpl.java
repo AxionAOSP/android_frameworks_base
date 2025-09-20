@@ -112,6 +112,8 @@ public class OomAdjusterModernImpl extends OomAdjuster {
     static final int ADJ_SLOT_SERVICE_B = 15;
     static final int ADJ_SLOT_CACHED_APP = 16;
     static final int ADJ_SLOT_UNKNOWN = 17;
+    
+    static final boolean skipUnimportantConnections = true;
 
     @IntDef(prefix = { "ADJ_SLOT_" }, value = {
         ADJ_SLOT_INVALID,
@@ -1113,7 +1115,7 @@ public class OomAdjusterModernImpl extends OomAdjuster {
     private void initReachableStatesLSP(ArrayList<ProcessRecord> reachables, int targetCount,
             OomAdjusterArgs args) {
         int i = 0;
-        boolean initReachables = !Flags.skipUnimportantConnections();
+        boolean initReachables = !skipUnimportantConnections;
         for (; i < targetCount && !initReachables; i++) {
             final ProcessRecord target = reachables.get(i);
             final int prevProcState = target.mState.getCurProcState();
@@ -1301,7 +1303,7 @@ public class OomAdjusterModernImpl extends OomAdjuster {
     @GuardedBy({"mService", "mProcLock"})
     private static boolean unimportantConnectionLSP(Connection conn,
             ProcessRecord host, ProcessRecord client) {
-        if (!Flags.skipUnimportantConnections()) {
+        if (!skipUnimportantConnections) {
             // Feature not enabled, just return false so the connection is evaluated.
             return false;
         }
