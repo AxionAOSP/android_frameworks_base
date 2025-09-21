@@ -153,8 +153,9 @@ public class BoostAdjuster {
         final int prio = Process.getThreadPriority(pid);
         try {
             if (enabled) {
-                mAm.scheduleAsFifoPriority(pid, true, 1);
-                if (renderTid > 0) mAm.scheduleAsFifoPriority(renderTid, true, 10);
+                final int policy =  Process.SCHED_RR | Process.SCHED_RESET_ON_FORK;
+                Process.setThreadScheduler(pid, policy, 1);
+                if (renderTid > 0) Process.setThreadScheduler(renderTid, policy, 1);
             } else {
                 Process.setThreadScheduler(pid, 0, 0);
                 Process.setThreadPriority(prio);
