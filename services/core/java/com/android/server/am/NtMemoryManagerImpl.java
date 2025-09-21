@@ -516,7 +516,7 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
 
         synchronized (mActivityManagerService.mProcLock) {
             result = mActivityManagerService.mOomAdjuster.mCachedAppOptimizer.compactApp(
-                proc, CachedAppOptimizer.CompactProfile.FULL, 
+                proc, CachedAppOptimizer.CompactProfile.POPULATE, 
                 CachedAppOptimizer.CompactSource.SHELL, true);
         }
 
