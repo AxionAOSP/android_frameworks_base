@@ -23,7 +23,7 @@ import java.util.ArrayList;
 
 public interface INtAppUsageManager {
 
-    default void systemReady(Context context) {
+    default void systemReady() {
     }
 
     default void cleanAllData(long millis) {

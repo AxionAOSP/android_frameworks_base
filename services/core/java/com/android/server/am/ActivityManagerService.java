@@ -445,6 +445,7 @@ import com.android.server.IoThread;
 import com.android.server.LocalManagerRegistry;
 import com.android.server.LocalServices;
 import com.android.server.LockGuard;
+import com.android.server.NtServiceInjector;
 import com.android.server.PackageWatchdog;
 import com.android.server.ServiceThread;
 import com.android.server.SystemConfig;
@@ -776,9 +777,7 @@ public class ActivityManagerService extends IActivityManager.Stub
 
     private AccessCheckDelegateHelper mAccessCheckDelegateHelper;
     
-    private final BoostAdjuster mBoostAdjuster;
     private final TaskProfiler mTaskProfiler = new TaskProfiler();
-    private final ProcessManager mProcessManager = new ProcessManager();
 
     /**
      * Uids of apps with current active camera sessions.  Access synchronized on
@@ -2059,7 +2058,7 @@ public class ActivityManagerService extends IActivityManager.Stub
             mWindowManager = wm;
             mWmInternal = LocalServices.getService(WindowManagerInternal.class);
             mActivityTaskManager.setWindowManager(wm);
-            com.android.server.NtServiceInjector.get(mContext).setWindowManagerService(wm);
+            NtServiceInjector.get().setWindowManagerService(wm);
         }
     }
 
@@ -2485,7 +2484,6 @@ public class ActivityManagerService extends IActivityManager.Stub
         mComponentAliasResolver = new ComponentAliasResolver(this);
         mApplicationSharedMemoryReadOnlyFd = null;
         sCreatorTokenCacheCleaner = new Handler(mHandlerThread.getLooper());
-        mBoostAdjuster = new BoostAdjuster(this);
     }
 
     // Note: This method is invoked on the main thread but may need to attach various
@@ -2612,8 +2610,8 @@ public class ActivityManagerService extends IActivityManager.Stub
             Slog.e(TAG, "Failed to get read only fd for shared memory", e);
             throw new RuntimeException(e);
         }
-        
-        mBoostAdjuster = new BoostAdjuster(this);
+        NtServiceInjector.get().setContext(mContext);
+        NtServiceInjector.get().setActivityManagerService(this);
     }
 
     void setBroadcastQueueForTest(BroadcastQueue broadcastQueue) {
@@ -7548,7 +7546,7 @@ public class ActivityManagerService extends IActivityManager.Stub
                 mProcessStateController.setWakefulness(wakefulness);
 
                 updateOomAdjLocked(OOM_ADJ_REASON_UI_VISIBILITY);
-                mBoostAdjuster.onWakefulnessChanged(isAwake);
+                AxExtServiceFactory.getBoostAdjuster().onWakefulnessChanged(isAwake);
             }
         }
     }
@@ -9322,10 +9320,7 @@ public class ActivityManagerService extends IActivityManager.Stub
             mComponentAliasResolver.onSystemReady(mConstants.mEnableComponentAlias,
                     mConstants.mComponentAliasOverrides);
             t.traceEnd(); // componentAlias
-            mProcessManager.systemReady(this, mContext);
-            mBoostAdjuster.systemReady(mContext);
-            AxExtServiceFactory.getAppUsageManager().systemReady(this.mContext);
-            AxExtServiceFactory.getMemoryManager().systemReady(this, this.mWindowManager, this.mContext);
+            AxExtServiceFactory.systemReady();
             t.traceEnd(); // PhaseActivityManagerReady
         }
     }
@@ -19683,37 +19678,37 @@ public class ActivityManagerService extends IActivityManager.Stub
 
     @Override
     public void executeAdjustCpusetCpus(String path, String cpuset) {
-        mBoostAdjuster.write(path, cpuset);
+        AxExtServiceFactory.getBoostAdjuster().write(path, cpuset);
     }
 
     @Override
     public void adjustCpusetCpus(String cgroup, long durationMillis) {
-        mBoostAdjuster.adjustCpusetCpus(cgroup, durationMillis);
+        AxExtServiceFactory.getBoostAdjuster().adjustCpusetCpus(cgroup, durationMillis);
     }
 
     @Override
     public void animationBoost(int pid, boolean enabled) {
-         mBoostAdjuster.animationBoost(pid, enabled);
+         AxExtServiceFactory.getBoostAdjuster().animationBoost(pid, enabled);
     }
 
     @Override
     public void setThreadAffinity(int pid, int affinity) {
-        mBoostAdjuster.setThreadAffinity(pid, affinity);
+        AxExtServiceFactory.getBoostAdjuster().setThreadAffinity(pid, affinity);
     }
 
     @Override
     public void setPerformanceMode(boolean enabled, String reason) {
-       mBoostAdjuster.setPerformanceMode(enabled, reason);
+       AxExtServiceFactory.getBoostAdjuster().setPerformanceMode(enabled, reason);
     }
 
     @Override
     public void boostHint(final String reason, final long duration) {
-        mBoostAdjuster.boostHint(duration);
+        AxExtServiceFactory.getBoostAdjuster().boostHint(reason, duration);
     }
 
     @Override
     public void inputBoost(long durationMillis) {
-        mBoostAdjuster.inputBoost(durationMillis);
+        AxExtServiceFactory.getBoostAdjuster().inputBoost(durationMillis);
     }
 
     @Override

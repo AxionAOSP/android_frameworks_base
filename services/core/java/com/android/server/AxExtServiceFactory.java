@@ -15,8 +15,8 @@
  */
 package com.android.server;
 
-import com.android.server.am.INtMemoryManager;
-import com.android.server.am.NtMemoryManagerImpl;
+import com.android.server.am.*;
+import com.android.server.wm.WindowManagerService;
 import com.android.server.INtAppUsageManager;
 
 public class AxExtServiceFactory {
@@ -24,9 +24,10 @@ public class AxExtServiceFactory {
 
     private static volatile INtMemoryManager sNtMemoryManager;
     private static volatile INtAppUsageManager sNtAppUsageManager;
+    private static volatile IBoostAdjuster sBoostAdjuster;
+    private static volatile IProcessManager sProcessManager;
 
-    private AxExtServiceFactory() {
-    }
+    private AxExtServiceFactory() { }
 
     @SuppressWarnings("unchecked")
     public static <T> T getOrCreate(IAxExtServiceFactory.ExtType type) {
@@ -54,11 +55,40 @@ public class AxExtServiceFactory {
                 instance = sNtAppUsageManager;
                 break;
 
+            case BOOST_ADJUSTER:
+                if (sBoostAdjuster == null) {
+                    synchronized (sLock) {
+                        if (sBoostAdjuster == null) {
+                            sBoostAdjuster = new BoostAdjuster();
+                        }
+                    }
+                }
+                instance = sBoostAdjuster;
+                break;
+
+            case PROCESS_MANAGER:
+                if (sProcessManager == null) {
+                    synchronized (sLock) {
+                        if (sProcessManager == null) {
+                            sProcessManager = new ProcessManager();
+                        }
+                    }
+                }
+                instance = sProcessManager;
+                break;
+
             default:
                 throw new IllegalArgumentException("Unknown ExtType: " + type);
         }
 
         return (T) type.getClazz().cast(instance);
+    }
+
+    public static void systemReady() {
+        getProcessManager().systemReady();
+        getBoostAdjuster().systemReady();
+        getAppUsageManager().systemReady();
+        getMemoryManager().systemReady();
     }
 
     public static INtMemoryManager getMemoryManager() {
@@ -67,5 +97,13 @@ public class AxExtServiceFactory {
 
     public static INtAppUsageManager getAppUsageManager() {
         return getOrCreate(IAxExtServiceFactory.ExtType.NT_APP_USAGE_MANAGER);
+    }
+
+    public static IBoostAdjuster getBoostAdjuster() {
+        return getOrCreate(IAxExtServiceFactory.ExtType.BOOST_ADJUSTER);
+    }
+
+    public static IProcessManager getProcessManager() {
+        return getOrCreate(IAxExtServiceFactory.ExtType.PROCESS_MANAGER);
     }
 }

@@ -25,7 +25,9 @@ import android.os.SystemProperties;
 import android.os.Temperature;
 import android.util.Slog;
 
-public class ProcessManager {
+import com.android.server.NtServiceInjector;
+
+public class ProcessManager implements IProcessManager {
 
     private static final String TAG = "ProcessManager";
 
@@ -87,10 +89,10 @@ public class ProcessManager {
         mActivityManagerService.releaseMemory(900, 20, false, false);
     }
 
-    public void systemReady(ActivityManagerService ams, Context context) {
+    public void systemReady() {
         logger("ProcessManager enabled");
-        mActivityManagerService = ams;
-        mContext = context;
+        mActivityManagerService = NtServiceInjector.getAm();
+        mContext  = NtServiceInjector.getCtx();
         initHandlerThread();
         registerThermalCallback();
     }

@@ -23,12 +23,13 @@ import android.os.Process;
 import android.util.Slog;
 import android.provider.Settings;
 
+import com.android.server.NtServiceInjector;
 import com.android.server.UiThread;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public class BoostAdjuster {
+public class BoostAdjuster implements IBoostAdjuster {
 
     private static final String TAG = "BoostAdjuster";
 
@@ -39,7 +40,7 @@ public class BoostAdjuster {
     private final HandlerThread mHandlerThread;
     private final BoostHandler mHandler;
     private final UiHandler mUiHandler;
-    private final BoostConfig mConfig;
+    private BoostConfig mConfig;
     private ConfigObserver mConfigObserver;
 
     private final HashMap<Integer, Boolean> sBoostedPids = new HashMap<>();
@@ -47,6 +48,7 @@ public class BoostAdjuster {
     private boolean mPerfMode = false;
     private boolean mBoostingSf = false;
     private boolean mInputBoosting = false;
+    private boolean mSystemReady = false;
 
     public static final ArrayList<String> sAppWhiteList = new ArrayList<>();
     public static final ArrayList<String> sAppPerfList = new ArrayList<>();
@@ -63,17 +65,18 @@ public class BoostAdjuster {
         CAMERA_APPS.add("com.oplus.camera");
     }
 
-    public BoostAdjuster(ActivityManagerService am) {
-        mAm = am;
+    public BoostAdjuster() {
+        mAm = NtServiceInjector.getAm();
         mHandlerThread = new HandlerThread("BoostAdjusterThread");
         mHandlerThread.start();
         mHandler = new BoostHandler(mHandlerThread.getLooper(), this);
         mUiHandler = new UiHandler(UiThread.getHandler().getLooper(), this);
-        mConfig = new BoostConfig();
     }
     
-    public void systemReady(Context context) {
-        mConfigObserver = new ConfigObserver(new Handler(), context);
+    public void systemReady() {
+        mSystemReady = true;
+        mConfig = new BoostConfig();
+        mConfigObserver = new ConfigObserver(new Handler(), NtServiceInjector.getCtx());
     }
 
     public void write(String path, String value) {
@@ -105,7 +108,7 @@ public class BoostAdjuster {
         }
     }
 
-    public void boostHint(long duration) {
+    public void boostHint(String reason, long duration) {
         mHandler.sendMessage(mHandler.obtainMessage(BoostHandler.MSG_BOOST_HINT, (int) duration, 0));
     }
 
@@ -176,7 +179,8 @@ public class BoostAdjuster {
     }
 
     private void setPerformanceModeInternal(boolean enabled) {
-        if (!mConfig.getData().cpuBoost()) {
+        if (!mSystemReady) return;
+        if (!mConfig.getData().cpuBoost() && !mConfig.getData().inputBoost()) {
             if (mPerfMode) setPerfMode(false);
             return;
         }
@@ -185,18 +189,20 @@ public class BoostAdjuster {
     }
 
     private void setPerfMode(boolean enabled) {
-        int freq = enabled ? mConfig.getData().freqBoost() : 0;
-        int bigCoreFreq = (enabled && mConfig.getData().bigCoreBoost()) ? mConfig.getData().freqBoostBig() : 0;
-        mConfig.writeInternal(mConfig.getData().littleMin(), String.valueOf(freq));
-        mConfig.writeInternal(mConfig.getData().bigMin(), String.valueOf(bigCoreFreq));
-        mConfig.writeInternal(mConfig.getData().primeMin(), String.valueOf(bigCoreFreq));
-        if (mConfig.getData().boostSf()) boostSF(enabled);
+        BoostConfig.BoostData data = mConfig.getData();
+        String littleFreq = enabled ? data.freqBoost() : data.userMinLittle();
+        String bigFreq = enabled && data.bigCoreBoost() ? data.freqBoostBig() : data.userMinBig();
+        String primeFreq = enabled ? data.freqBoostPrime() : data.userMinPrime();
+        mConfig.writeInternal(data.littleMin(), littleFreq);
+        mConfig.writeInternal(data.bigMin(), bigFreq);
+        if (data.hasPrime()) {
+            mConfig.writeInternal(data.primeMin(), primeFreq);
+        }
         mPerfMode = enabled;
     }
 
     private void inputBoostInternal(boolean enabled) {
         if (mInputBoosting == enabled) return;
-        
         if (mConfig.getData().inputBoost()) {
             setPerformanceModeInternal(enabled);
         }
@@ -207,9 +213,8 @@ public class BoostAdjuster {
     }
 
     private void boostSF(boolean enable) {
-        if (!mConfig.getData().cpuBoost() || !mConfig.getData().boostSf()) enable = false;
+        if (!mConfig.getData().boostSf()) enable = false;
         if (mBoostingSf == enable) return;
-
         IBinder sfBinder = ServiceManager.getService("SurfaceFlinger");
         if (sfBinder != null) {
             Parcel data = Parcel.obtain();
@@ -227,20 +232,18 @@ public class BoostAdjuster {
         String val = enable ? String.valueOf(BoostConfig.SF_UC_MIN_BOOST) : "0";
         mConfig.writeInternal(mConfig.DISPLAY_UC_MIN, val);
         mConfig.writeInternal(mConfig.DISPLAY_UC_MAX, "100");
-
         mBoostingSf = enable;
     }
 
     private void boostPid(int pid, boolean enable) {
-        if (!mConfig.getData().cpuBoost()) enable = false;
+        BoostConfig.BoostData data = mConfig.getData();
         if (sBoostedPids.containsKey(pid) && sBoostedPids.get(pid) == enable) return;
-
+        String boostCores = data.bigCores() + (data.hasPrime() ? ("," + data.primeCores()) : "");
         String boostVal = enable ? "100" : "0";
         mConfig.writeInternal(mConfig.RESTRICTED_UC_MIN, boostVal);
         mConfig.writeInternal(mConfig.RESTRICTED_UC_MAX, "100");
-        mConfig.writeInternal(mConfig.CPU_RESTRICTED, enable ? mConfig.getData().bigCores() : mConfig.getData().allCores());
+        mConfig.writeInternal(mConfig.CPU_RESTRICTED, enable ? boostCores : data.allCores());
         mConfig.writeInternal(enable ? mConfig.RESTRICTED_PROCS : mConfig.ROOT_PROCS, String.valueOf(pid));
-
         sBoostedPids.put(pid, enable);
     }
 
@@ -401,10 +404,18 @@ public class BoostAdjuster {
         void register() {
             registerKey("axion_cpu_boost");
             registerKey("axion_big_core_boost");
+            registerKey("axion_prime_core_boost");
             registerKey("axion_sf_boost");
             registerKey("axion_touch_boost");
             registerKey("axion_min_freq_boost");
             registerKey("axion_min_freq_big_boost");
+            registerKey("axion_min_freq_prime_boost");
+            registerKey("axion_min_freq");
+            registerKey("axion_min_freq_big");
+            registerKey("axion_min_freq_prime");
+            registerKey("axion_max_freq");
+            registerKey("axion_max_freq_big");
+            registerKey("axion_max_freq_prime");
         }
 
         private void registerKey(String key) {
@@ -418,28 +429,46 @@ public class BoostAdjuster {
         public void onChange(boolean selfChange) {
             boolean cpuBoost = intSetting("axion_cpu_boost", 1) == 1;
             boolean bigCoreBoost = intSetting("axion_big_core_boost", 0) == 1;
+            boolean primeCoreBoost = intSetting("axion_prime_core_boost", 0) == 1;
             boolean sfBoost = intSetting("axion_sf_boost", 1) == 1;
-            boolean touchBoost = intSetting("axion_touch_boost", 0) == 1;
-            int minFreqLittle = intSetting("axion_min_freq_boost", 1000000);
-            int minFreqBig = intSetting("axion_min_freq_big_boost", 1000000);
-            mConfig.updateSettings(cpuBoost, bigCoreBoost, sfBoost, touchBoost, minFreqLittle, minFreqBig);
+            boolean inputBoost = intSetting("axion_touch_boost", 0) == 1;
+            
+            int minFreqBoostLittle = intSetting("axion_min_freq_boost", 1000000);
+            int minFreqBoostBig = intSetting("axion_min_freq_big_boost", 1000000);
+            int minFreqBoostPrime = intSetting("axion_min_freq_prime_boost", 1000000);
+
+            int minFreqLittle = intSetting("axion_min_freq", 0);
+            int minFreqBig = intSetting("axion_min_freq_big", 0);
+            int minFreqPrime = intSetting("axion_min_freq_prime", 0);
+
+            int maxFreqLittle = intSetting("axion_max_freq", 999999);
+            int maxFreqBig = intSetting("axion_max_freq_big", 999999);
+            int maxFreqPrime = intSetting("axion_max_freq_prime", 999999);
+
+            mConfig.updateSettings(cpuBoost, bigCoreBoost, primeCoreBoost, sfBoost, inputBoost,
+                                   minFreqBoostLittle, minFreqBoostBig, minFreqBoostPrime,
+                                   minFreqLittle, minFreqBig, minFreqPrime,
+                                   maxFreqLittle, maxFreqBig, maxFreqPrime);
+
             applyConfig();
         }
         
         private int intSetting(String key, int def) {
             return Settings.Secure.getIntForUser(mContext.getContentResolver(), key, def, UserHandle.USER_CURRENT);
         }
-    }
-
-    private void applyConfig() {
-        if (mPerfMode) {
-            setPerfMode(true);
-        }
-        if (mInputBoosting) {
-            inputBoostInternal(true);
-        }
-        if (mBoostingSf) {
-            boostSF(true);
+        
+        void applyConfig() {
+            BoostConfig.BoostData data = mConfig.getData();
+            mConfig.writeInternal(data.littleMin(), data.userMinLittle());
+            mConfig.writeInternal(data.bigMin(), data.userMinBig());
+            if (data.hasPrime()) {
+                mConfig.writeInternal(data.primeMin(), data.userMinPrime());
+            }
+            mConfig.writeInternal(data.littleMax(), data.userMaxLittle());
+            mConfig.writeInternal(data.bigMax(), data.userMaxBig());
+            if (data.hasPrime()) {
+                mConfig.writeInternal(data.primeMax(), data.userMaxPrime());
+            }
         }
     }
 

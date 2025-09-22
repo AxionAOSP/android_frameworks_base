@@ -15,10 +15,16 @@
  */
 package com.android.server.am;
 
+import android.content.Context;
 import android.os.FileUtils;
 import android.os.SystemProperties;
+import android.provider.Settings;
 import android.util.Slog;
 
+import com.android.server.NtServiceInjector;
+
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -29,6 +35,7 @@ public final class BoostConfig {
 
     private final CpuData cData;
     private BoostData data;
+    private Context mContext;
 
     private static final String CPU_SYS_PATH = "/sys/devices/system/cpu/cpu";
     private static final String SCALING_MIN_FREQ_FILE = "/cpufreq/scaling_min_freq";
@@ -42,7 +49,7 @@ public final class BoostConfig {
     public final String CPU_RESTRICTED = cpuPath("restricted");
     public final String CPU_DISPLAY = cpuPath("display");
 
-    public final String ROOT_PROCS = cpuCtlPath("", "/cgroup.procs");
+    public final String ROOT_PROCS = cpuCtlPath("", "cgroup.procs");
     public final String RESTRICTED_PROCS = cpuCtlPath("restricted", "/cgroup.procs");
     public final String RESTRICTED_UC_MAX = cpuCtlPath("restricted", "/cpu.uclamp.max");
     public final String RESTRICTED_UC_MIN = cpuCtlPath("restricted", "/cpu.uclamp.min");
@@ -57,6 +64,7 @@ public final class BoostConfig {
     public static final String FG_LIMIT = prop("cpu_limit_ui", "0-2");
 
     public BoostConfig() {
+        mContext = NtServiceInjector.get().getContext();
         cData = initCpuProps();
     }
 
@@ -71,17 +79,27 @@ public final class BoostConfig {
     public void updateSettings(
             boolean cpuBoost, 
             boolean bigCoreBoost, 
+            boolean primeCoreBoost,
             boolean boostSf, 
             boolean inputBoost,
             int freqBoost,
-            int freqBoostBig
+            int freqBoostBig,
+            int freqBoostPrime,
+            int userMinLittle,
+            int userMinBig,
+            int userMinPrime,
+            int userMaxLittle,
+            int userMaxBig,
+            int userMaxPrime
     ) {
         data = new BoostData(
-                cpuBoost, bigCoreBoost, boostSf, inputBoost, freqBoost,
+                cpuBoost, bigCoreBoost, primeCoreBoost, boostSf, inputBoost,
                 cData.smallCores, cData.bigCores, cData.primeCores,
                 cData.littleMin, cData.bigMin, cData.primeMin,
-                cData.littleMax, cData.bigMax, cData.primeMax, 
-                cData.allCores, freqBoostBig
+                cData.littleMax, cData.bigMax, cData.primeMax, cData.allCores,
+                s(freqBoost), s(freqBoostBig), s(freqBoostPrime),
+                s(userMinLittle), s(userMinBig), s(userMinPrime),
+                s(userMaxLittle), s(userMaxBig), s(userMaxPrime)
         );
         logger("updateSettings: " + data);
     }
@@ -89,9 +107,9 @@ public final class BoostConfig {
     public record BoostData(
             boolean cpuBoost,
             boolean bigCoreBoost,
+            boolean primeCoreBoost,
             boolean boostSf,
             boolean inputBoost,
-            int freqBoost,
             String smallCores,
             String bigCores,
             String primeCores,
@@ -102,8 +120,20 @@ public final class BoostConfig {
             String bigMax,
             String primeMax,
             String allCores,
-            int freqBoostBig
-    ) {}
+            String freqBoost,
+            String freqBoostBig,
+            String freqBoostPrime,
+            String userMinLittle,
+            String userMinBig,
+            String userMinPrime,
+            String userMaxLittle,
+            String userMaxBig,
+            String userMaxPrime
+    ) {
+        public boolean hasPrime() {
+            return primeCores != null && !primeCores.isEmpty();
+        }
+    }
 
     private record CpuData(
             String smallCores, String bigCores, String primeCores,
@@ -114,7 +144,7 @@ public final class BoostConfig {
 
     private CpuData initCpuProps() {
         int cpuCount = Runtime.getRuntime().availableProcessors();
-        if (cpuCount <= 0) return emptyData();
+        if (cpuCount <= 0) return null;
 
         int[] maxFreqs = new int[cpuCount];
         for (int i = 0; i < cpuCount; i++) {
@@ -219,12 +249,6 @@ public final class BoostConfig {
                 allCores);
     }
 
-    private CpuData emptyData() {
-        return new CpuData("", "", "",
-                "", "", "",
-                "", "", "", "");
-    }
-
     private static String rangeTo(String[] cores, int count) {
         if (cores.length == 0) return "";
         int limit = Math.min(count, cores.length);
@@ -320,10 +344,16 @@ public final class BoostConfig {
 
     private static String readFile(String path) {
         try {
-            return new String(Files.readAllBytes(Paths.get(path))).trim();
+            String res = new String(Files.readAllBytes(Paths.get(path))).trim();
+            return res;
         } catch (IOException e) {
+            logger("readFile path: " + path + " error=" + e);
             return null;
         }
+    }
+
+    private static String s(int val) {
+        return String.valueOf(val);
     }
 
     private static void logger(String msg) {

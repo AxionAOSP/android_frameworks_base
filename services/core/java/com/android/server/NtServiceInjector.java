@@ -17,41 +17,64 @@ package com.android.server;
 
 import android.content.Context;
 
+import com.android.server.am.ActivityManagerService;
 import com.android.server.wm.WindowManagerService;
 
 public class NtServiceInjector {
     private static NtServiceInjector instance;
-    private final Context context;
-    private WindowManagerService windowManagerService;
+    private Context mContext;
+    private WindowManagerService mWindowManagerService;
+    private ActivityManagerService mActivityManagerService;
 
-    private NtServiceInjector(Context context) {
-        this.context = context.getApplicationContext();
-    }
-
-    public static synchronized NtServiceInjector get(Context context) {
-        if (instance == null) {
-            instance = new NtServiceInjector(context);
-        }
-        return instance;
+    private NtServiceInjector() {
     }
 
     public static synchronized NtServiceInjector get() {
         if (instance == null) {
-            throw new IllegalStateException("NtServiceInjector not initialized. Call getInstance(Context) first.");
+            instance = new NtServiceInjector();
         }
         return instance;
     }
 
-    public void setWindowManagerService(WindowManagerService service) {
-        this.windowManagerService = service;
+    public void setContext(Context context) {
+        mContext = context;
     }
 
-    public WindowManagerService getWindowManagerService() {
-        return windowManagerService;
+    public void setWindowManagerService(WindowManagerService service) {
+        mWindowManagerService = service;
+    }
+
+    public void setActivityManagerService(ActivityManagerService ams) {
+        mActivityManagerService = ams;
     }
 
     public Context getContext() {
-        return context;
+        return mContext;
+    }
+
+    public WindowManagerService getWindowManagerService() {
+        if (mWindowManagerService == null) {
+            throw new IllegalStateException("WindowManagerService not initialized yet.");
+        }
+        return mWindowManagerService;
+    }
+
+    public ActivityManagerService getActivityManagerService() {
+        if (mActivityManagerService == null) {
+            throw new IllegalStateException("ActivityManagerService not initialized yet.");
+        }
+        return mActivityManagerService;
+    }
+
+    public static Context getCtx() {
+        return get().getContext();
+    }
+
+    public static WindowManagerService getWm() {
+        return get().getWindowManagerService();
+    }
+
+    public static ActivityManagerService getAm() {
+        return get().getActivityManagerService();
     }
 }
-

@@ -133,6 +133,7 @@ import com.android.internal.util.DumpUtils;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.internal.util.LatencyTracker;
 import com.android.internal.util.Preconditions;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.EventLogTags;
 import com.android.server.LockGuard;
 import com.android.server.PackageWatchdog;
@@ -4815,6 +4816,15 @@ public final class PowerManagerService extends SystemService
         if (mode == Mode.LAUNCH && enabled && mBatterySaverStateMachine != null
                 && mBatterySaverStateMachine.getBatterySaverController().isLaunchBoostDisabled()) {
             return false;
+        }
+        switch (mode) {
+            case Mode.LAUNCH:
+                if (enabled) {
+                    AxExtServiceFactory.getBoostAdjuster().boostHint("launch", 2000);
+                }
+                break;
+            default:
+                break;
         }
         return mNativeWrapper.nativeSetPowerMode(mode, enabled);
     }

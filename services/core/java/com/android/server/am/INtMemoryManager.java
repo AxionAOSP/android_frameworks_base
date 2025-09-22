@@ -19,7 +19,7 @@ import android.content.Context;
 import com.android.server.wm.WindowManagerService;
 
 public interface INtMemoryManager {
-    default void systemReady(ActivityManagerService ams, WindowManagerService wms, Context context) {
+    default void systemReady() {
     }
 
     default void setForkProcAdj(ProcessRecord app) {

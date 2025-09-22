@@ -608,12 +608,12 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
         }
     }
     
-    public void systemReady(Context context) {        
+    public void systemReady() {        
         if (DEBUG) {
             Slog.d(TAG, "Initial from system ready");
         }
         
-        this.context = context;
+        this.context = NtServiceInjector.getCtx();
         this.isSystemReady = true;
         this.am = (AlarmManager) context.getSystemService("alarm");
         

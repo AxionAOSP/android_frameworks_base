@@ -13,25 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.server;
+package com.android.server.am;
 
-import com.android.server.am.*;
+import android.content.Context;
 
-public interface IAxExtServiceFactory {
-    enum ExtType {
-        NT_MEMORY_MANAGER(INtMemoryManager.class),
-        NT_APP_USAGE_MANAGER(INtAppUsageManager.class),
-        BOOST_ADJUSTER(IBoostAdjuster.class),
-        PROCESS_MANAGER(IProcessManager.class);
-
-        private final Class<?> clazz;
-
-        ExtType(Class<?> clazz) {
-            this.clazz = clazz;
-        }
-
-        public Class<?> getClazz() {
-            return clazz;
-        }
-    }
+public interface IProcessManager {
+    void systemReady();
 }

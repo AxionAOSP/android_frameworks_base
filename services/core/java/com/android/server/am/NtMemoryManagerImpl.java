@@ -26,6 +26,7 @@ import android.os.Process;
 import android.os.SystemProperties;
 import android.util.Slog;
 import com.android.server.AxExtServiceFactory;
+import com.android.server.NtServiceInjector;
 import com.android.server.am.CachedAppOptimizer;
 import com.android.server.wm.WindowManagerService;
 import com.android.server.utils.SimpleAppRecord;
@@ -707,10 +708,10 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
         }
     }
 
-    public void systemReady(ActivityManagerService ams, WindowManagerService wms, Context context) {
-        mActivityManagerService = ams;
-        mWindowManagerService = wms;
-        mContext = context;
+    public void systemReady() {
+        mActivityManagerService = NtServiceInjector.getAm();
+        mWindowManagerService = NtServiceInjector.getWm();
+        mContext = NtServiceInjector.getCtx();
         initializeHandler();
         scheduleForkHighUsedApps();
         updateConfiguration();
