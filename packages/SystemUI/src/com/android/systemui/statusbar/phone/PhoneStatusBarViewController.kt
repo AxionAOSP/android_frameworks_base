@@ -132,6 +132,7 @@ private constructor(
 
     override fun onViewAttached() {
         battery = mView.requireViewById(R.id.battery)
+        clockController.onStatusBarViewAttached()
         addDarkReceivers()
         addCursorSupportToIconContainers()
 
@@ -194,6 +195,7 @@ private constructor(
         progressProvider?.setReadyToHandleTransition(false)
         moveFromCenterAnimationController?.onViewDetached()
         configurationController.removeCallback(configurationListener)
+        clockController.onStatusBarViewDetached()
     }
 
     init {
@@ -245,12 +247,10 @@ private constructor(
 
     private fun addDarkReceivers() {
         darkIconDispatcher.addDarkReceiver(battery)
-        clockController.addDarkReceiver()
     }
 
     private fun removeDarkReceivers() {
         darkIconDispatcher.removeDarkReceiver(battery)
-        clockController.removeDarkReceiver()
     }
 
     inner class PhoneStatusBarViewTouchHandler : Gefingerpoken {
