@@ -156,9 +156,8 @@ public class BoostAdjuster implements IBoostAdjuster {
         final int prio = Process.getThreadPriority(pid);
         try {
             if (enabled) {
-                final int policy =  Process.SCHED_RR | Process.SCHED_RESET_ON_FORK;
-                Process.setThreadScheduler(pid, policy, 1);
-                if (renderTid > 0) Process.setThreadScheduler(renderTid, policy, 1);
+                mAm.scheduleAsFifoPriority(pid, true, 1);
+                if (renderTid > 0) mAm.scheduleAsFifoPriority(renderTid, true, 10);
             } else {
                 Process.setThreadScheduler(pid, 0, 0);
                 Process.setThreadPriority(prio);
