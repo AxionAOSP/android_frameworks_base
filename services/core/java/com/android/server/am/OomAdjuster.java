@@ -548,11 +548,11 @@ public class OomAdjuster {
                     + processName + " to " + group);
         }
         try {
-            if (BoostAdjuster.isInPerfList(processName)) {
+            if (AxUtils.isInPerfList(processName)) {
                 Slog.d(TAG, "set group = " + group);
             }
-            if (BoostAdjuster.isInPerfList(processName) && !BoostAdjuster.isCamera(processName) 
-                || BoostAdjuster.isCamera(processName) && (group == THREAD_GROUP_TOP_APP 
+            if (AxUtils.isInPerfList(processName) && !AxUtils.isCamera(processName) 
+                || AxUtils.isCamera(processName) && (group == THREAD_GROUP_TOP_APP 
                     || group == THREAD_GROUP_RESTRICTED)) {
                 Slog.d(TAG, pid + ": target set cpuset: " + group);
                 Process.setProcessGroup(pid, THREAD_GROUP_RESTRICTED);
@@ -3634,8 +3634,9 @@ public class OomAdjuster {
             if (isBatchingOomAdj && mConstants.ENABLE_BATCHING_OOM_ADJ) {
                 mProcsToOomAdj.add(app);
             } else {
+                boolean isHighOpt = AxExtServiceFactory.getMemoryManager().isEnableOptHighUsed(app);
                 int targetAdj = AxExtServiceFactory.getMemoryManager().getTargetAdj(app);
-                if (state.getCurAdj() > targetAdj && targetAdj != -1) {
+                if (isHighOpt && state.getCurAdj() > targetAdj && targetAdj != -1) {
                     mInjector.setOomAdj(app.getPid(), app.uid, targetAdj);
                 } else {
                     mInjector.setOomAdj(app.getPid(), app.uid, state.getCurAdj());
@@ -3672,28 +3673,28 @@ public class OomAdjuster {
             int processGroup;
             switch (curSchedGroup) {
                 case SCHED_GROUP_BACKGROUND:
-                    processGroup = THREAD_GROUP_BACKGROUND;
+                    processGroup = 0;
                     break;
+                case SCHED_GROUP_RESTRICTED:
+                    if (AxUtils.isRestrictedNeedSelfControll(app)) {
+                        processGroup = AxUtils.THREAD_GROUP_NT_FOREGROUND;
+                        break;
+                    } else {
+                        processGroup = THREAD_GROUP_RESTRICTED;
+                        break;
+                    }
+                case SCHED_GROUP_DEFAULT:
+                default:
+                    if (AxUtils.isForegroundNeedSelfControll(oldSchedGroup, app)) {
+                        processGroup = AxUtils.THREAD_GROUP_NT_FOREGROUND;
+                        break;
+                    } else {
+                        processGroup = THREAD_GROUP_DEFAULT;
+                        break;
+                    }
                 case SCHED_GROUP_TOP_APP:
                 case SCHED_GROUP_TOP_APP_BOUND:
                     processGroup = THREAD_GROUP_TOP_APP;
-                    break;
-                case SCHED_GROUP_RESTRICTED:
-                    if (BoostAdjuster.isRestrictedNeedSelfControll(app)) {
-                        processGroup = BoostAdjuster.THREAD_GROUP_NT_FOREGROUND;
-                    } else {
-                        processGroup = THREAD_GROUP_RESTRICTED;
-                    }
-                    break;
-                case SCHED_GROUP_FOREGROUND_WINDOW:
-                    processGroup = THREAD_GROUP_FOREGROUND_WINDOW;
-                    break;
-                default:
-                    if (BoostAdjuster.isForegroundNeedSelfControll(oldSchedGroup, app)) {
-                        processGroup = BoostAdjuster.THREAD_GROUP_NT_FOREGROUND;
-                    } else {
-                        processGroup = THREAD_GROUP_DEFAULT;
-                    }
                     break;
             }
             setAppAndChildProcessGroup(app, processGroup);

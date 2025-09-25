@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 AxionOS Project
+ * Copyright (C) 2025 AxionOS
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,15 +16,15 @@
 package com.android.server;
 
 import android.content.Context;
-
 import com.android.server.am.ActivityManagerService;
+import com.android.server.pm.PackageManagerService;
 import com.android.server.wm.WindowManagerService;
 
 public class NtServiceInjector {
-    private static NtServiceInjector instance;
-    private Context mContext;
-    private WindowManagerService mWindowManagerService;
-    private ActivityManagerService mActivityManagerService;
+    private static NtServiceInjector instance = null;
+    private ActivityManagerService mService;
+    private Context ctx;
+    private WindowManagerService mWindowService;
 
     private NtServiceInjector() {
     }
@@ -36,34 +36,28 @@ public class NtServiceInjector {
         return instance;
     }
 
-    public void setContext(Context context) {
-        mContext = context;
+    void setCtx(Context context) {
+        ctx = context;
     }
 
-    public void setWindowManagerService(WindowManagerService service) {
-        mWindowManagerService = service;
+    void setActivityManagerService(ActivityManagerService activityManagerService) {
+        mService = activityManagerService;
     }
 
-    public void setActivityManagerService(ActivityManagerService ams) {
-        mActivityManagerService = ams;
-    }
-
-    public Context getContext() {
-        return mContext;
+    void setWindowManagerService(WindowManagerService windowManagerService) {
+        mWindowService = windowManagerService;
     }
 
     public WindowManagerService getWindowManagerService() {
-        if (mWindowManagerService == null) {
-            throw new IllegalStateException("WindowManagerService not initialized yet.");
-        }
-        return mWindowManagerService;
+        return mWindowService;
     }
 
     public ActivityManagerService getActivityManagerService() {
-        if (mActivityManagerService == null) {
-            throw new IllegalStateException("ActivityManagerService not initialized yet.");
-        }
-        return mActivityManagerService;
+        return mService;
+    }
+
+    public Context getContext() {
+        return ctx;
     }
 
     public static Context getCtx() {

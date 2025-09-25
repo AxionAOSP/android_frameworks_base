@@ -348,6 +348,7 @@ import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.XmlUtils;
 import com.android.modules.utils.TypedXmlPullParser;
 import com.android.modules.utils.TypedXmlSerializer;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.LocalServices;
 import com.android.server.am.AppTimeTracker;
 import com.android.server.am.PendingIntentRecord;
@@ -6219,6 +6220,10 @@ final class ActivityRecord extends WindowToken {
         newIntents = null;
 
         mTaskSupervisor.updateHomeProcessIfNeeded(this);
+        
+        if (isActivityTypeHome()) {
+            AxExtServiceFactory.getMemoryManager().scheduleForkHighUsedApps();
+        }
 
         if (nowVisible) {
             mTaskSupervisor.stopWaitingForActivityVisible(this);

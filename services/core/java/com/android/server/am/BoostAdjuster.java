@@ -15,463 +15,753 @@
  */
 package com.android.server.am;
 
+import static com.android.server.am.DeviceData.*;
+import static com.android.server.am.BoostFlagsManager.*;
+import static com.android.server.am.AxUtils.*;
+
+import android.app.role.RoleManager;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.database.ContentObserver;
 import android.net.Uri;
 import android.os.*;
 import android.os.Process;
-import android.util.Slog;
 import android.provider.Settings;
-
+import android.util.Slog;
 import com.android.server.NtServiceInjector;
 import com.android.server.UiThread;
-
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 
 public class BoostAdjuster implements IBoostAdjuster {
 
+    private static final String RES_PROCS = "/dev/cpuctl/restricted/cgroup.procs";
+    private static final String ROOT_PROCS = "/dev/cpuctl/cgroup.procs";
+
     private static final String TAG = "BoostAdjuster";
 
-    public static final int THREAD_GROUP_NT_FOREGROUND = 10;
-    public static final int THREAD_GROUP_RESTRICTED = Process.THREAD_GROUP_RESTRICTED;
+    private static final int MSG_CPU_UPDATE_BACKGROUND = 100;
+    private static final int MSG_CPU_UPDATE_SYS_BG = 101;
+    private static final int MSG_CPU_UPDATE_TOP_APP = 102;
+    private static final int MSG_CPU_UPDATE_FG = 103;
+    private static final int MSG_CPU_UPDATE_RES = 104;
+    private static final int MSG_CPU_UPDATE_DEX = 105;
+    private static final int MSG_RESTRICTED_COUNTER_UPDATE = 106;
+    private static final int MSG_CPU_UPDATE_NT_FG = 107;
+    private static final int MSG_DISABLE_BOOST_HINT = 108;
+    private static final int MSG_BOOST_HINT = 109;
+    private static final int MSG_GAME_BOOST = 110;
 
-    private final ActivityManagerService mAm;
-    private final HandlerThread mHandlerThread;
-    private final BoostHandler mHandler;
-    private final UiHandler mUiHandler;
-    private BoostConfig mConfig;
-    private ConfigObserver mConfigObserver;
+    private static HashMap<String, String> sDefaultsCpu = new HashMap<>();
+    private static HashMap<String, Integer> sCpuUpdateMessages = new HashMap<>();
+    private static HashMap<String, HashMap> sCpusetGroups =  new HashMap<>();
 
-    private final HashMap<Integer, Boolean> sBoostedPids = new HashMap<>();
-    private final HashMap<String, Boolean> sPerfMap = new HashMap<>();
-    private boolean mPerfMode = false;
-    private boolean mBoostingSf = false;
-    private boolean mInputBoosting = false;
+    private static HashMap<Integer, Object> bgCpusetOverrides = new HashMap<>();
+    private static HashMap<Integer, Object> sysBgCpusetOverrides = new HashMap<>();
+    private static HashMap<Integer, Object> topAppCpusetOverrides = new HashMap<>();
+    private static HashMap<Integer, Object> fgCpusetOverrides = new HashMap<>();
+    private static HashMap<Integer, Object> restrictedCpusetOverrides = new HashMap<>();
+    private static HashMap<Integer, Object> dex2oatCpusetOverrides = new HashMap<>();
+    private static HashMap<Integer, Object> ntFgCpusetOverrides = new HashMap<>();
+    
+    private final HashMap<Integer, Integer> mRestrictedPidMap = new HashMap<>();
+    private static final Map<String, File> sFileCache = new HashMap<>();
+    private final Map<String, Long> activeHints = new HashMap<>();
+
+    private Map<String, String> sConfig;
+    private Map<String, String> sBoosts;
+    private Map<String, String> sMinFreqs;
+    private Map<String, String> sSfBoostEnabled;
+    private Map<String, String> sSfBoostDisabled;
+    private Map<String, String> sRestrictBackgroundOn;
+    private Map<String, String> sRestrictBackgroundOff;
+    
+    private ProcessList procList;
+    private Context mContext;
+    private Handler mHandler;
+
+    private DeviceData.BoostData mData;
+    private DeviceData mDeviceData;
+    private BoostFlagsManager mFlags;
+
+    private boolean isNotLimited = true;
+    private final Runnable inputReset = new InputBoostResetRunnable();
+
+    private Handler mFreezeHandler;
+    private boolean mFreezing = false;
+    private int mFreezeDuration = 600;
+
     private boolean mSystemReady = false;
-
-    public static final ArrayList<String> sAppWhiteList = new ArrayList<>();
-    public static final ArrayList<String> sAppPerfList = new ArrayList<>();
-    public static final ArrayList<String> CAMERA_APPS = new ArrayList<>();
+    private boolean mInputBoost = false;
+    private boolean mCpuBoost = false;
+    private boolean mSfBoost = false;
+    
+    private int mGameGpuBoost = 1;
+    private int mSysGpuBoost = 1;
+    
+    private String mResumedPackage = null;
 
     static {
-        sAppWhiteList.add("com.google.android.providers.media.module");
-        sAppWhiteList.add("android.process.media");
-        sAppWhiteList.add("android.os.cts");
-        sAppPerfList.add("com.android.systemui");
-        sAppPerfList.add("com.android.launcher3");
-        CAMERA_APPS.add("com.google.android.GoogleCamera");
-        CAMERA_APPS.add("org.lineageos.aperture");
-        CAMERA_APPS.add("com.oplus.camera");
+        sFileCache.put(CPU_BG, new File(CPU_BG));
+        sFileCache.put(CPU_SYS_BG, new File(CPU_SYS_BG));
+        sFileCache.put(CPU_TOP_APP, new File(CPU_TOP_APP));
+        sFileCache.put(CPU_FG, new File(CPU_FG));
+        sFileCache.put(CPU_RESTRICTED, new File(CPU_RESTRICTED));
+        sFileCache.put(CPU_DEX2OAT, new File(CPU_DEX2OAT));
+        sFileCache.put(CPU_NT_FG, new File(CPU_NT_FG));
+
+        sCpuUpdateMessages.put(CPU_SYS_BG, Integer.valueOf(MSG_CPU_UPDATE_SYS_BG));
+        sCpuUpdateMessages.put(CPU_BG, Integer.valueOf(MSG_CPU_UPDATE_BACKGROUND));
+        sCpuUpdateMessages.put(CPU_TOP_APP, Integer.valueOf(MSG_CPU_UPDATE_TOP_APP));
+        sCpuUpdateMessages.put(CPU_FG, Integer.valueOf(MSG_CPU_UPDATE_FG));
+        sCpuUpdateMessages.put(CPU_RESTRICTED, Integer.valueOf(MSG_CPU_UPDATE_RES));
+        sCpuUpdateMessages.put(CPU_DEX2OAT, Integer.valueOf(MSG_CPU_UPDATE_DEX));
+        sCpuUpdateMessages.put(CPU_NT_FG, Integer.valueOf(MSG_CPU_UPDATE_NT_FG));
+
+        sCpusetGroups.put(CPU_BG, bgCpusetOverrides);
+        sCpusetGroups.put(CPU_SYS_BG, sysBgCpusetOverrides);
+        sCpusetGroups.put(CPU_TOP_APP, topAppCpusetOverrides);
+        sCpusetGroups.put(CPU_FG, fgCpusetOverrides);
+        sCpusetGroups.put(CPU_RESTRICTED, restrictedCpusetOverrides);
+        sCpusetGroups.put(CPU_DEX2OAT, dex2oatCpusetOverrides);
+        sCpusetGroups.put(CPU_NT_FG, ntFgCpusetOverrides);
     }
 
     public BoostAdjuster() {
-        mAm = NtServiceInjector.getAm();
-        mHandlerThread = new HandlerThread("BoostAdjusterThread");
-        mHandlerThread.start();
-        mHandler = new BoostHandler(mHandlerThread.getLooper(), this);
-        mUiHandler = new UiHandler(UiThread.getHandler().getLooper(), this);
+        HandlerThread handlerThread = new HandlerThread("BoostAdjusterThread");
+        handlerThread.start();
+        mHandler = new BoostAdjusterHandler(handlerThread.getLooper());
+        HandlerThread thread = new HandlerThread("FreezeHandlerThread", -2);
+        thread.start();
+        mFreezeHandler = new FreezerHandler(thread.getLooper());
+        mFlags = new BoostFlagsManager();
     }
-    
+
     public void systemReady() {
+        mContext = NtServiceInjector.getCtx();
+        procList = NtServiceInjector.getAm().mProcessList;
+        mDeviceData = new DeviceData();
+        BoostSettingsRepository repo = new BoostSettingsRepository(mDeviceData, mHandler);
+        repo.setOnSettingsChangeListener(data -> {
+            updateConfigs(data);
+        });
         mSystemReady = true;
-        mConfig = new BoostConfig();
-        mConfigObserver = new ConfigObserver(new Handler(), NtServiceInjector.getCtx());
     }
 
-    public void write(String path, String value) {
-        mHandler.sendMessage(mHandler.obtainMessage(BoostHandler.MSG_WRITE, new WriteParams(path, value)));
+    private void updateConfigs(DeviceData.BoostData data) {
+        mData = data;
+        
+        mInputBoost = mData.inputBoost;
+        mCpuBoost = mData.cpuBoost;
+        mSfBoost = mData.sfBoost;
+        mGameGpuBoost = mData.gGpuBoost;
+        mSysGpuBoost = mData.sGpuBoost;
+        
+        sConfig = Map.of(
+                data.sMin, data.uSMin,
+                data.bMin, data.uBMin,
+                data.pMin, data.uPMin,
+                data.sMax, data.uSMax,
+                data.bMax, data.uBMax,
+                data.pMax, data.uPMax
+        );
+
+        sBoosts = Map.of(
+                data.sMin, data.fBoost,
+                data.bMin, data.bigBoost ? data.fBoostB : data.uBMin,
+                data.pMin, data.fBoostP
+        );
+
+        sMinFreqs = Map.of(
+                data.sMin, data.uSMin,
+                data.bMin, data.uBMin,
+                data.pMin, data.uPMin
+        );
+
+        sSfBoostEnabled = Map.of(
+                CPU_DISPLAY, data.allCores,
+                DISPLAY_UC_MIN, "15",
+                DISPLAY_UC_MAX, "100"
+        );
+
+        sSfBoostDisabled = Map.of(
+                CPU_DISPLAY, data.displayCpus,
+                DISPLAY_UC_MIN, "0",
+                DISPLAY_UC_MAX, "100"
+        );
+
+        sRestrictBackgroundOn = Map.of(
+                CPU_BG, data.bgLimit,
+                CPU_NT_FG, data.bgLimit
+        );
+
+        sRestrictBackgroundOff = Map.of(
+                CPU_BG, data.bgCpus,
+                CPU_NT_FG, data.bgCpus
+        );
+
+        sDefaultsCpu.put(CPU_SYS_BG, data.sCores);
+        sDefaultsCpu.put(CPU_BG, data.bgCpus);
+        sDefaultsCpu.put(CPU_TOP_APP, data.allCores);
+        sDefaultsCpu.put(CPU_FG, data.allCores);
+        sDefaultsCpu.put(CPU_RESTRICTED, data.allCores);
+        sDefaultsCpu.put(CPU_DEX2OAT, data.allCores);
+        sDefaultsCpu.put(CPU_NT_FG, data.allCores);
+
+        write(sConfig);
     }
 
-    public void adjustCpusetCpus(String cgroup, long durationMillis) {
-        mHandler.sendMessage(mHandler.obtainMessage(BoostHandler.MSG_ADJUST_CPUSET,
-                new AdjustCpusetParams(cgroup, durationMillis)));
+    private void restoreCpuset(String path, String cpus) {
+        if (cpus == null) return;
+        File file = sFileCache.get(path);
+        if (file == null) return;
+        try {
+            FileUtils.stringToFile(file, cpus);
+            logger("restore: cpuFile = " + file + ", cpus = " + cpus);
+        } catch (IOException e) {
+            logger("restore cpuset failed");
+        }
     }
 
-    public void animationBoost(int pid, boolean enabled) {
-        mHandler.sendMessage(mHandler.obtainMessage(BoostHandler.MSG_ANIMATION_BOOST, enabled ? 1 : 0, pid));
+    private void boostUtil(int pid, int enable) {
+        Message msg = mHandler.obtainMessage(MSG_RESTRICTED_COUNTER_UPDATE);
+        msg.arg1 = pid;
+        msg.arg2 = enable;
+        mHandler.sendMessage(msg);
+    }
+
+    private void updateCpuctlRestrictedCounter(int pid, int enable) {
+        mRestrictedPidMap.put(Integer.valueOf(pid), Integer.valueOf(enable));
+        logger("updateCpuctlRestrictedCounter: mRestrictedPidMap: " + mRestrictedPidMap.toString());
+        boostPid(pid, enable);
+    }
+
+    private void boostPid(int pid, int enable) {
+        logger("restricted pid = " + pid + ", enable = " + enable);
+        if (enable == 1) {
+            try {
+                FileUtils.stringToFile(RES_PROCS, String.valueOf(pid));
+                try {
+                    FileUtils.stringToFile(RESTRICTED_UC_MIN, String.valueOf(100));
+                    FileUtils.stringToFile(RESTRICTED_UC_MAX, String.valueOf(100));
+                    adjustCpusetCpus(CPU_RESTRICTED, mData.boostCpus, 0L);
+                    return;
+                } catch (Exception e) {
+                    Slog.w(TAG, "Failed to set restricted cpuctl node\n" + e);
+                    return;
+                }
+            } catch (Exception e2) {
+                Slog.w(TAG, "Failed to set pid to restricted cpuctl node\n" + e2);
+                return;
+            }
+        }
+        if (enable != 0) {
+            Slog.w(TAG, "Unknown restricted Cpuctl Boost control value: " + String.valueOf(enable) + "\n");
+        }
+        try {
+            FileUtils.stringToFile(ROOT_PROCS, String.valueOf(pid));
+            try {
+                if (isNeedBoostOff()) {
+                    FileUtils.stringToFile(RESTRICTED_UC_MIN, String.valueOf(0));
+                    FileUtils.stringToFile(RESTRICTED_UC_MAX, String.valueOf(100));
+                    if (mData != null) adjustCpusetCpus(CPU_RESTRICTED, mData.allCores, 0L);
+                }
+            } catch (Exception e3) {
+                Slog.w(TAG, "Failed to set restricted cpuctl node\n" + e3);
+            }
+        } catch (Exception e4) {
+            Slog.w(TAG, "Failed to set pid to root cpuctl node\n" + e4);
+        }
+    }
+
+    public void adjustCpusetCpus(String path, String value, long duration) {
+        int callingUid = Binder.getCallingUid();
+        logger("calling uid is " + callingUid);
+
+        HashMap map = sCpusetGroups.get(path);
+        long now = System.currentTimeMillis();
+        long expiry = (duration == -1L) ? -1L : now + duration;
+        CpusetData newData = new CpusetData(callingUid, value, now, expiry);
+
+        if (map == null) {
+            logger("unknown group: " + path + ", ignore!");
+            return;
+        }
+
+        if (duration >= 0) {
+            CpusetData existing = (CpusetData) map.get(Integer.valueOf(callingUid));
+            if (existing == null) {
+                map.put(Integer.valueOf(callingUid), newData);
+            } else {
+                if (existing.duration == -1L && (newData.duration == -1L || newData.duration > 0)
+                        || (existing.duration > 0 && newData.duration > 0 && newData.duration < existing.duration)) {
+                    logger(callingUid + " not need set again, return!");
+                    return;
+                }
+                existing.duration = newData.duration;
+            }
+        } else if (duration == -1) {
+            map.remove(Integer.valueOf(callingUid));
+        }
+
+        File file = sFileCache.get(path);
+        if (file.exists()) {
+            try {
+                logger("uid = " + callingUid + " group = " + path + ", origin cpus: " + sDefaultsCpu.get(path) + ", targetCpus = " + value + ", duration = " + duration);
+                FileUtils.stringToFile(file, value);
+            } catch (IOException e) {
+                logger("adjust cpuset failed");
+            }
+        }
+
+        if (duration > 0) {
+            Integer what = sCpuUpdateMessages.get(path);
+            if (what != null) {
+                Message delayedMsg = mHandler.obtainMessage(what.intValue());
+                delayedMsg.arg1 = callingUid;
+                mHandler.sendMessageDelayed(delayedMsg, duration);
+            }
+        }
+    }
+
+    public void animationBoost(int pid, int renderTid, long duration) {
+        logger("animationboost: pid = " + pid + " renderTid = " + renderTid + ", duration = " + duration);
+        try {
+            int threadPriority = Process.getThreadPriority(pid);
+
+            if (duration > 0) {
+                Process.setThreadScheduler(pid, Process.SCHED_RR, 1);
+                Process.setThreadScheduler(renderTid, Process.SCHED_RR, 1);
+                boostUtil(pid, 1);
+                boostAnimRes(true);
+                Message m = mHandler.obtainMessage(pid);
+                m.setCallback(new PrioBoostResetRunnable(pid, threadPriority, renderTid));
+                mHandler.removeMessages(pid);
+                mHandler.sendMessageDelayed(m, duration);
+                return;
+            }
+
+            if (duration == 0) {
+                Process.setThreadScheduler(pid, Process.SCHED_RR, 1);
+                Process.setThreadScheduler(renderTid, Process.SCHED_RR, 1);
+                boostUtil(pid, 1);
+                boostAnimRes(true);
+                return;
+            }
+
+            if (duration == -1) {
+                Process.setThreadScheduler(pid, 0, 0);
+                Process.setThreadPriority(threadPriority);
+                Process.setThreadScheduler(renderTid, 0, 0);
+                boostUtil(pid, 0);
+                boostAnimRes(false);
+            }
+        } catch (Exception e) {
+            Slog.w(TAG, "Failed to set/restore scheduling policy\n" + e);
+        }
+    }
+
+    public void inputBoost() {
+        if (mData == null || gameActive()) return;
+        if (!isNotLimited) {
+            UiThread.getHandler().removeCallbacks(inputReset);
+            UiThread.getHandler().postDelayed(inputReset, 800L);
+            return;
+        }
+        adjustCpusetCpus(CPU_NT_FG, mData.uiLimit, 0L);
+        adjustCpusetCpus(CPU_DEX2OAT, mData.bgLimit, 0L);
+        adjustCpusetCpus(CPU_BG, mData.bgLimit, 0L);
+        SystemProperties.set("dalvik.vm.dex2oat-threads", "1");
+        if (mInputBoost) enablePerformanceMode(true);
+        UiThread.getHandler().postDelayed(inputReset, 800L);
+        isNotLimited = false;
     }
 
     public void setThreadAffinity(int pid, int affinity) {
-        mHandler.sendMessage(mHandler.obtainMessage(BoostHandler.MSG_SET_THREAD_AFFINITY, affinity, pid));
-    }
-
-    public void setPerformanceMode(boolean enabled, String reason) {
-        synchronized (sPerfMap) {
-            if (sPerfMap.containsKey(reason) && sPerfMap.get(reason) == enabled) return;
-            mHandler.removeMessages(BoostHandler.MSG_SET_PERFORMANCE_MODE);
-            sPerfMap.put(reason, enabled);
-            boolean boost = sPerfMap.containsValue(true);
-            mHandler.sendMessage(
-                mHandler.obtainMessage(BoostHandler.MSG_SET_PERFORMANCE_MODE, boost ? 1 : 0, 0)
-            );
-        }
-    }
-
-    public void boostHint(String reason, long duration) {
-        mHandler.sendMessage(mHandler.obtainMessage(BoostHandler.MSG_BOOST_HINT, (int) duration, 0));
-    }
-
-    public void inputBoost(long durationMillis) {
-        mUiHandler.removeMessages(UiHandler.MSG_DISABLE_INPUT_BOOST);
-        mUiHandler.sendMessage(mUiHandler.obtainMessage(UiHandler.MSG_INPUT_BOOST, (int) durationMillis, 0));
-        mUiHandler.sendMessageDelayed(
-                mUiHandler.obtainMessage(UiHandler.MSG_DISABLE_INPUT_BOOST),
-                durationMillis
-        );
-    }
-
-    public void onWakefulnessChanged(boolean awake) {
-        mHandler.sendMessage(mHandler.obtainMessage(BoostHandler.MSG_ON_WAKEFULNESS_CHANGED, awake ? 1 : 0, 0));
-    }
-
-    private void adjustCpusetInternal(String cgroup, long durationMillis) {
-        if (cgroup == null) return;
-        adjustCpuset(cgroup, true);
-        mHandler.postDelayed(() -> adjustCpuset(cgroup, false), durationMillis);
-    }
-
-    private void adjustCpuset(String cgroup, boolean boost) {
-        String cpuset;
-        switch (cgroup) {
-            case "nt_foreground":
-                cpuset = boost ? mConfig.getData().allCores() : BoostConfig.FG_LIMIT;
-                break;
-            case "background":
-                cpuset = boost ? BoostConfig.BG_CPU : BoostConfig.BG_LIMIT;
-                break;
-            default:
-                return;
-        }
-        mConfig.writeInternal(mConfig.cpuPath(cgroup), cpuset);
-    }
-
-    private void animationBoostInternal(int pid, boolean enabled) {
-        ProcessRecord proc;
-        synchronized (mAm.mPidsSelfLocked) {
-            proc = mAm.mPidsSelfLocked.get(pid);
-        }
-        if (proc == null) return;
-        final int renderTid = proc.getRenderThreadTid();
-        final int prio = Process.getThreadPriority(pid);
-        try {
-            if (enabled) {
-                mAm.scheduleAsFifoPriority(pid, true, 1);
-                if (renderTid > 0) mAm.scheduleAsFifoPriority(renderTid, true, 10);
-            } else {
-                Process.setThreadScheduler(pid, 0, 0);
-                Process.setThreadPriority(prio);
-                Process.setThreadScheduler(renderTid, 0, 0);
-            }
-        } catch (Exception ignored) {}
-        boostPid(pid, enabled);
-        boostSF(enabled);
-    }
-
-    public void setThreadAffinityInternal(int pid, int affinity) {
         if (affinity == 0) {
-            Process.setThreadGroupAndCpuset(pid, Process.THREAD_GROUP_TOP_APP);
+            Process.setThreadGroupAndCpuset(pid, 5);
         } else {
-            Process.setThreadGroupAndCpuset(pid, Process.THREAD_GROUP_FOREGROUND);
+            Process.setThreadGroupAndCpuset(pid, 0);
         }
         Process.setThreadAffinity(pid, affinity);
     }
 
-    private void setPerformanceModeInternal(boolean enabled) {
-        if (!mSystemReady) return;
-        if (!mConfig.getData().cpuBoost() && !mConfig.getData().inputBoost()) {
-            if (mPerfMode) setPerfMode(false);
-            return;
-        }
-        if (mPerfMode == enabled) return;
-        setPerfMode(enabled);
+    private boolean isNeedBoostOff() {
+        logger("isNeedBoostOff: mRestrictedPidMap: " + mRestrictedPidMap.toString());
+        return !mRestrictedPidMap.values().contains(1);
     }
 
-    private void setPerfMode(boolean enabled) {
-        BoostConfig.BoostData data = mConfig.getData();
-        String littleFreq = enabled ? data.freqBoost() : data.userMinLittle();
-        String bigFreq = enabled && data.bigCoreBoost() ? data.freqBoostBig() : data.userMinBig();
-        String primeFreq = enabled ? data.freqBoostPrime() : data.userMinPrime();
-        mConfig.writeInternal(data.littleMin(), littleFreq);
-        mConfig.writeInternal(data.bigMin(), bigFreq);
-        if (data.hasPrime()) {
-            mConfig.writeInternal(data.primeMin(), primeFreq);
+    private class InputBoostResetRunnable implements Runnable {
+        InputBoostResetRunnable() {}
+
+        @Override
+        public void run() {
+            if (mData == null) return;
+            adjustCpusetCpus(CPU_DEX2OAT, mData.allCores, -1L);
+            adjustCpusetCpus(CPU_NT_FG, mData.allCores, -1L);
+            adjustCpusetCpus(CPU_BG, mData.bgCpus, -1L);
+            SystemProperties.set("dalvik.vm.dex2oat-threads", "3");
+            if (mInputBoost) enablePerformanceMode(false);
+            isNotLimited = true;
         }
-        mPerfMode = enabled;
     }
 
-    private void inputBoostInternal(boolean enabled) {
-        if (mInputBoosting == enabled) return;
-        if (mConfig.getData().inputBoost()) {
-            setPerformanceModeInternal(enabled);
-        }
-        adjustCpuset("background", enabled);
-        adjustCpuset("nt_foreground", enabled);
-        SystemProperties.set("dalvik.vm.dex2oat-threads", enabled ? "1" : "2");
-        mInputBoosting = enabled;
-    }
+    class PrioBoostResetRunnable implements Runnable {
+        final int prio;
+        final int rtid;
+        final int pid;
 
-    private void boostSF(boolean enable) {
-        if (!mConfig.getData().boostSf()) enable = false;
-        if (mBoostingSf == enable) return;
-        IBinder sfBinder = ServiceManager.getService("SurfaceFlinger");
-        if (sfBinder != null) {
-            Parcel data = Parcel.obtain();
+        PrioBoostResetRunnable(int pid, int prio, int rtid) {
+            this.pid = pid;
+            this.prio = prio;
+            this.rtid = rtid;
+        }
+
+        @Override
+        public void run() {
             try {
-                data.writeInterfaceToken("android.ui.ISurfaceComposer");
-                data.writeInt(enable ? 1 : 0);
-                sfBinder.transact(1048, data, null, 0);
+                Process.setThreadScheduler(pid, 0, 0);
+                Process.setThreadPriority(prio);
+                Process.setThreadScheduler(rtid, 0, 0);
+                boostUtil(pid, 0);
+                boostAnimRes(false);
             } catch (Exception e) {
-                logger("boostSF transact failed: " + e);
-            } finally {
-                data.recycle();
+                Slog.w(TAG, "Failed to restore scheduling policy\n" + e);
             }
         }
-
-        String val = enable ? String.valueOf(BoostConfig.SF_UC_MIN_BOOST) : "0";
-        mConfig.writeInternal(mConfig.DISPLAY_UC_MIN, val);
-        mConfig.writeInternal(mConfig.DISPLAY_UC_MAX, "100");
-        mBoostingSf = enable;
     }
 
-    private void boostPid(int pid, boolean enable) {
-        BoostConfig.BoostData data = mConfig.getData();
-        if (sBoostedPids.containsKey(pid) && sBoostedPids.get(pid) == enable) return;
-        String boostCores = data.bigCores() + (data.hasPrime() ? ("," + data.primeCores()) : "");
-        String boostVal = enable ? "100" : "0";
-        mConfig.writeInternal(mConfig.RESTRICTED_UC_MIN, boostVal);
-        mConfig.writeInternal(mConfig.RESTRICTED_UC_MAX, "100");
-        mConfig.writeInternal(mConfig.CPU_RESTRICTED, enable ? boostCores : data.allCores());
-        mConfig.writeInternal(enable ? mConfig.RESTRICTED_PROCS : mConfig.ROOT_PROCS, String.valueOf(pid));
-        sBoostedPids.put(pid, enable);
-    }
+    private static class CpusetData {
+        private final String value;
+        private final int uid;
+        private long currentTime;
+        private long duration;
 
-    private void restrictBackground(boolean limit) {
-        mConfig.writeInternal(mConfig.CPU_BG, limit ? BoostConfig.BG_LIMIT : BoostConfig.FG_LIMIT);
-        mConfig.writeInternal(mConfig.CPU_NT_FG, limit ? BoostConfig.BG_LIMIT : BoostConfig.BG_CPU);
-    }
-
-    private void onWakefulnessChangedInternal(boolean awake) {
-        restrictBackground(!awake);
-    }
-
-    private static boolean needsControl(ProcessRecord app, boolean verifyGroup, int oldScheduleGroup) {
-        if (verifyGroup && oldScheduleGroup == ProcessList.SCHED_GROUP_TOP_APP && app.hasActivities()) {
-            logger("previous schedule group is top, not need limit!");
-            return false;
+        public CpusetData(int uid, String value, long currentTime, long duration) {
+            this.uid = uid;
+            this.value = value;
+            this.currentTime = currentTime;
+            this.duration = duration;
         }
-        if (app.uid % 100000 < 10000 || isInPerfList(app.processName) || isInWhiteList(app.processName)) {
-            logger("system app not need limit!");
-            return false;
-        }
-        if (app.getHostingRecord() == null || app.getHostingRecord().isTopApp()) {
-            return false;
-        }
-        logger("process : " + app.processName + " is not top!");
-        return true;
     }
 
-    public static boolean isForegroundNeedSelfControll(int oldScheduleGroup, ProcessRecord app) {
-        return needsControl(app, true, oldScheduleGroup);
-    }
-
-    public static boolean isRestrictedNeedSelfControll(ProcessRecord app) {
-        return needsControl(app, false, -1);
-    }
-
-    public static boolean isInWhiteList(String processName) {
-        return processName != null && sAppWhiteList.contains(processName);
-    }
-
-    public static boolean isInPerfList(String processName) {
-        return processName != null && (sAppPerfList.contains(processName) || isCamera(processName));
-    }
-
-    public static boolean isCamera(String processName) {
-        return processName != null && CAMERA_APPS.contains(processName);
-    }
-
-    public static void boostCamera(boolean boost) {
-        SystemProperties.set(BoostConfig.SCALING_GOV, boost ? BoostConfig.PERF_GOV : BoostConfig.DEFAULT_GOV);
-    }
-
-    public static boolean isBoosted() {
-        return BoostConfig.PERF_GOV.equals(BoostConfig.scalingGov());
-    }
-
-    private static class BoostHandler extends Handler {
-        static final int MSG_WRITE = 1;
-        static final int MSG_ADJUST_CPUSET = 2;
-        static final int MSG_DISABLE_BOOST_HINT = 3;
-        static final int MSG_ANIMATION_BOOST = 4;
-        static final int MSG_SET_THREAD_AFFINITY = 5;
-        static final int MSG_SET_PERFORMANCE_MODE = 6;
-        static final int MSG_BOOST_HINT = 7;
-        static final int MSG_ON_WAKEFULNESS_CHANGED = 8;
-
-        private final BoostAdjuster mAdjuster;
-
-        BoostHandler(Looper looper, BoostAdjuster adjuster) {
+    class BoostAdjusterHandler extends Handler {
+        BoostAdjusterHandler(Looper looper) {
             super(looper);
-            mAdjuster = adjuster;
         }
 
         @Override
         public void handleMessage(Message msg) {
-            switch (msg.what) {
-                case MSG_WRITE:
-                    WriteParams wp = (WriteParams) msg.obj;
-                    mAdjuster.mConfig.writeInternal(wp.path, wp.value);
+            if (!mSystemReady || mData == null) return;
+            int what = msg.what;
+            switch (what) {
+                case MSG_CPU_UPDATE_BACKGROUND:
+                    bgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
+                    if (bgCpusetOverrides.isEmpty()) {
+                        restoreCpuset(CPU_BG, mData.bgCpus);
+                    }
                     break;
-                case MSG_ADJUST_CPUSET:
-                    AdjustCpusetParams cp = (AdjustCpusetParams) msg.obj;
-                    mAdjuster.adjustCpusetInternal(cp.cgroup, cp.durationMillis);
+                case MSG_CPU_UPDATE_SYS_BG:
+                    sysBgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
+                    if (sysBgCpusetOverrides.isEmpty()) {
+                        restoreCpuset(CPU_SYS_BG, mData.sCores);
+                    }
                     break;
-                case MSG_DISABLE_BOOST_HINT:
-                    mAdjuster.setPerformanceModeInternal(false);
+                case MSG_CPU_UPDATE_TOP_APP:
+                    topAppCpusetOverrides.remove(Integer.valueOf(msg.arg1));
+                    if (topAppCpusetOverrides.isEmpty()) {
+                        restoreCpuset(CPU_TOP_APP, mData.allCores);
+                    }
                     break;
-                case MSG_ANIMATION_BOOST:
-                    mAdjuster.animationBoostInternal(msg.arg2, msg.arg1 == 1);
+                case MSG_CPU_UPDATE_FG:
+                    fgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
+                    if (fgCpusetOverrides.isEmpty()) {
+                        restoreCpuset(CPU_FG, mData.allCores);
+                    }
                     break;
-                case MSG_SET_THREAD_AFFINITY:
-                    mAdjuster.setThreadAffinityInternal(msg.arg2, msg.arg1);
+                case MSG_CPU_UPDATE_RES:
+                    restrictedCpusetOverrides.remove(Integer.valueOf(msg.arg1));
+                    if (restrictedCpusetOverrides.isEmpty()) {
+                        restoreCpuset(CPU_RESTRICTED, mData.allCores);
+                    }
                     break;
-                case MSG_SET_PERFORMANCE_MODE:
-                    mAdjuster.setPerformanceModeInternal(msg.arg1 == 1);
+                case MSG_CPU_UPDATE_DEX:
+                    dex2oatCpusetOverrides.remove(Integer.valueOf(msg.arg1));
+                    if (dex2oatCpusetOverrides.isEmpty()) {
+                        restoreCpuset(CPU_DEX2OAT, mData.allCores);
+                    }
+                    break;
+                case MSG_RESTRICTED_COUNTER_UPDATE:
+                    updateCpuctlRestrictedCounter(msg.arg1, msg.arg2);
+                    break;
+                case MSG_CPU_UPDATE_NT_FG:
+                    ntFgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
+                    if (ntFgCpusetOverrides.isEmpty()) {
+                        restoreCpuset(CPU_NT_FG, mData.allCores);
+                    }
                     break;
                 case MSG_BOOST_HINT:
-                    mAdjuster.setPerformanceModeInternal(true);
-                    sendEmptyMessageDelayed(MSG_DISABLE_BOOST_HINT, msg.arg1);
+                    bootHintInternal(true);
                     break;
-                case MSG_ON_WAKEFULNESS_CHANGED:
-                    mAdjuster.onWakefulnessChangedInternal(msg.arg1 == 1);
+                case MSG_DISABLE_BOOST_HINT:
+                    bootHintInternal(false);
+                    break;
+                case MSG_GAME_BOOST:
+                    final boolean boost = msg.arg1 == 1;
+                    mDeviceData.boostGpu(boost ? mGameGpuBoost : 0);
+                    boostTopApp(boost);
+                    enablePerformanceMode(boost);
                     break;
                 default:
-                    logger("Unknown message: " + msg.what);
+                    logger("unknown msg, drop it!");
+                    break;
             }
         }
     }
 
-    private static class UiHandler extends Handler {
-        static final int MSG_INPUT_BOOST = 1;
-        static final int MSG_DISABLE_INPUT_BOOST = 2;
+    private void boostTopApp(boolean boost) {
+        if (mData == null) return;
+        dex2oatCpusetOverrides.remove(Integer.valueOf(Process.myUid()));
+        ntFgCpusetOverrides.remove(Integer.valueOf(Process.myUid()));
+        bgCpusetOverrides.remove(Integer.valueOf(Process.myUid()));
+        if (!boost) {
+            restoreCpuset(CPU_NT_FG, mData.allCores);
+            restoreCpuset(CPU_DEX2OAT, mData.allCores);
+            restoreCpuset(CPU_BG, mData.bgCpus);
+            SystemProperties.set("dalvik.vm.dex2oat-threads", "3");
+            isNotLimited = true;
+            return;
+        }
+        isNotLimited = false;
+        UiThread.getHandler().removeCallbacks(inputReset);
+        adjustCpusetCpus(CPU_NT_FG, mData.uiLimit, 0L);
+        adjustCpusetCpus(CPU_DEX2OAT, mData.bgLimit, 0L);
+        adjustCpusetCpus(CPU_BG, mData.bgLimit, 0L);
+        SystemProperties.set("dalvik.vm.dex2oat-threads", "1");
+    }
+    
+    public void enablePerformanceMode(boolean enabled) {
+        if (gameActive() || !mFlags.isNewState(BOOST_PF, enabled)) return;
+        if (!mCpuBoost && !mInputBoost) {
+            if (!mFlags.isActive(BOOST_PF)) return;
+            enabled = false;
+        }
+        final boolean boost = enabled;
+        mFlags.setFlag(BOOST_PF, boost);
+        mHandler.post(() -> {
+            write(boost ? sBoosts : sMinFreqs);
+        });
+    }
 
-        private final BoostAdjuster mAdjuster;
+    public void boostHint(String reason, long duration) {
+        if (gameActive() || duration <= 0) return;
 
-        UiHandler(Looper looper, BoostAdjuster adjuster) {
+        long expiry = System.currentTimeMillis() + duration;
+        synchronized (activeHints) {
+            activeHints.put(reason, expiry);
+        }
+
+        mHandler.sendMessage(mHandler.obtainMessage(MSG_BOOST_HINT, (int) duration));
+
+        mHandler.postDelayed(() -> {
+            synchronized (activeHints) {
+                long now = System.currentTimeMillis();
+                activeHints.entrySet().removeIf(e -> e.getValue() <= now);
+                if (activeHints.isEmpty()) {
+                    mHandler.sendMessage(mHandler.obtainMessage(MSG_DISABLE_BOOST_HINT));
+                }
+            }
+        }, duration);
+    }
+
+    private void bootHintInternal(boolean enabled) {
+        if (!mFlags.isNewState(BOOST_HT, enabled)) return;
+        mFlags.setFlag(BOOST_HT, enabled);
+        enablePerformanceMode(enabled);
+        boostSF(enabled);
+        mDeviceData.boostGpu(enabled ? mSysGpuBoost : 0);
+        boostTopApp(enabled);
+        getProcessesAndFrozen(mResumedPackage);
+    }
+    
+    public void onWakefulnessChanged(boolean awake) {
+        mHandler.post(() -> write(awake ? sRestrictBackgroundOff : sRestrictBackgroundOn));
+    }
+    
+    public void boostGame(boolean enabled) {
+        if (!mFlags.isNewState(BOOST_GM, enabled)) return;
+        final boolean boost = enabled;
+        mFlags.setFlag(BOOST_GM, boost);
+        mHandler.sendMessage(mHandler.obtainMessage(MSG_GAME_BOOST, enabled ? 1 : 0));
+    }
+
+    private void boostAnimRes(boolean enabled) {
+        if (gameActive()) return;
+        boostSF(enabled);
+        mDeviceData.boostGpu(enabled ? mSysGpuBoost : 0);
+        boostTopApp(enabled);
+        getProcessesAndFrozen(mResumedPackage);
+    }
+
+    private void boostSF(boolean enabled) {
+        if (!mSfBoost) { 
+            if (!mFlags.isActive(BOOST_SF)) return;
+            enabled = false;
+        }
+        if (!mFlags.isNewState(BOOST_SF, enabled)) return;
+        IBinder b = ServiceManager.getService("SurfaceFlinger");
+        if (b == null) return;
+        mFlags.setFlag(BOOST_SF, enabled);
+        Parcel p = Parcel.obtain();
+        try {
+            p.writeInterfaceToken("android.ui.ISurfaceComposer");
+            p.writeInt(enabled ? 1 : 0);
+            b.transact(1048, p, null, 0);
+        } catch (Exception e) {
+            logger("boostSF transact failed: " + e);
+            mFlags.setFlag(BOOST_SF, false);
+        } finally {
+            p.recycle();
+        }
+        write(enabled ? sSfBoostEnabled : sSfBoostDisabled);
+    }
+
+    public void write(Map<String, String> values) {
+        mHandler.post(() -> values.forEach((k, v) -> {
+            if (k != null && v != null) AxUtils.write(k, v);
+        }));
+    }
+    
+    private boolean gameActive() {
+        return mFlags.isActive(BOOST_GM);
+    }
+    
+    public void getProcessesAndFrozen(String packageName) {
+        if (mFreezeHandler == null || packageName == null) {
+            return;
+        }
+        if (mFreezing) {
+            logger("AnimationFreeze: freezing, ignore!");
+            return;
+        }
+        mResumedPackage = packageName;
+        mFreezing = true;
+        Message message = new Message();
+        message.obj = packageName;
+        message.what = 1;
+        mFreezeHandler.sendMessage(message);
+    }
+    
+    private void setFrozen(int pid, int uid, boolean frozen) {
+        try {
+            Process.setProcessFrozen(pid, uid, frozen);
+        } catch (Exception e) {
+            logger(e.toString());
+        }
+        logger("AnimationFreeze: frozen: uid = " + uid + ", pid = " + pid + ", frozen: " + frozen);
+    }
+
+    private void animationUnfreeze(ArrayList<ProcessRecord> procListToUnfreeze) {
+        logger("AnimationFreeze: unfrozen processes start");
+        for (int i = 0; i < procListToUnfreeze.size(); i++) {
+            ProcessRecord record = procListToUnfreeze.get(i);
+            setFrozen(record.mPid, record.getUid(), false);
+        }
+        logger("AnimationFreeze: unfrozen processes end");
+    }
+    
+    private void animationFreeze(ArrayList<ProcessRecord> procListToFreeze) {
+        logger("AnimationFreeze: frozen processes start");
+        for (int i = 0; i < procListToFreeze.size(); i++) {
+            ProcessRecord record = procListToFreeze.get(i);
+            setFrozen(record.mPid, record.getUid(), true);
+        }
+        logger("AnimationFreeze: frozen processes end");
+    }
+
+    private void backgroundFreeze(String packageName) {
+        logger("AnimationFreeze: get frozen app list and frozen start");
+        ArrayList<ProcessRecord> freezeList = new ArrayList<>();
+        if (procList == null) {
+            Slog.e(TAG, "AnimationFreeze: system is not ready, return!");
+            mFreezing = false;
+            return;
+        }
+        ArrayList<ProcessRecord> lruProcesses = (ArrayList<ProcessRecord>) procList.ntGetLruProcesses().clone();
+        try {
+            boolean homeContains = packageName.isEmpty() ? false :
+                    ((RoleManager) mContext.getSystemService(RoleManager.class)).getRoleHolders("android.app.role.HOME").contains(packageName);
+
+            for (int i = 0; i < lruProcesses.size(); i++) {
+                ProcessRecord pr = lruProcesses.get(i);
+                if (pr != null && pr.getState() != null && !pr.getProcessName().equals(packageName) 
+                        && !pr.getProcessName().contains("webview")
+                        && (!homeContains || !pr.getProcessName().equals("com.google.android.googlequicksearchbox:search"))) {
+                    int curAdj = pr.getCurAdj();
+                    if (pr.getUid() > 10000 && curAdj >= 250 && curAdj != 600 && curAdj != 700 && curAdj < 900) {
+                        logger("AnimationFreeze: freeze package: " + pr.getProcessName());
+                        freezeList.add(pr);
+                    }
+                }
+            }
+            
+            final int size = freezeList.size();
+
+            if (size == 0) {
+                mFreezing = false;
+                return;
+            }
+
+            mFreezeHandler.post(new AnimationFreezeRunnable(freezeList));
+            logger("AnimationFreeze: get frozen app list and frozen end, the size of frozen list is " + size);
+            mFreezeHandler.postDelayed(new AnimationUnfreezeRunnable(freezeList), (long) mFreezeDuration);
+        } catch (Exception e) {
+            logger("AnimationFreeze: get process failed, return!");
+            mFreezing = false;
+        }
+    }
+
+    class FreezerHandler extends Handler {
+        FreezerHandler(Looper looper) {
             super(looper);
-            mAdjuster = adjuster;
         }
 
         @Override
         public void handleMessage(Message msg) {
-            switch (msg.what) {
-                case MSG_INPUT_BOOST:
-                    mAdjuster.inputBoostInternal(true);
-                    break;
-                case MSG_DISABLE_INPUT_BOOST:
-                    mAdjuster.inputBoostInternal(false);
-                    break;
-                default:
-                    logger("Unknown UI message: " + msg.what);
+            if (msg.what != 1) {
+                return;
             }
+            backgroundFreeze(String.valueOf(msg.obj));
         }
     }
+    
+    class AnimationFreezeRunnable implements Runnable {
+        final ArrayList<ProcessRecord> freezeList;
 
-    private static class WriteParams {
-        final String path;
-        final String value;
-        WriteParams(String path, String value) { this.path = path; this.value = value; }
-    }
-
-    private static class AdjustCpusetParams {
-        final String cgroup;
-        final long durationMillis;
-        AdjustCpusetParams(String cgroup, long durationMillis) { this.cgroup = cgroup; this.durationMillis = durationMillis; }
-    }
-
-    private final class ConfigObserver extends ContentObserver {
-        private final Context mContext;
-
-        ConfigObserver(Handler handler, Context context) {
-            super(handler);
-            mContext = context;
-            register();
-            onChange(true);
-        }
-
-        void register() {
-            registerKey("axion_cpu_boost");
-            registerKey("axion_big_core_boost");
-            registerKey("axion_prime_core_boost");
-            registerKey("axion_sf_boost");
-            registerKey("axion_touch_boost");
-            registerKey("axion_min_freq_boost");
-            registerKey("axion_min_freq_big_boost");
-            registerKey("axion_min_freq_prime_boost");
-            registerKey("axion_min_freq");
-            registerKey("axion_min_freq_big");
-            registerKey("axion_min_freq_prime");
-            registerKey("axion_max_freq");
-            registerKey("axion_max_freq_big");
-            registerKey("axion_max_freq_prime");
-        }
-
-        private void registerKey(String key) {
-            Uri uri = Settings.Secure.getUriFor(key);
-            if (uri != null) {
-                mContext.getContentResolver().registerContentObserver(uri, false, this);
-            }
+        AnimationFreezeRunnable(ArrayList<ProcessRecord> freezeList) {
+            this.freezeList = freezeList;
         }
 
         @Override
-        public void onChange(boolean selfChange) {
-            boolean cpuBoost = intSetting("axion_cpu_boost", 1) == 1;
-            boolean bigCoreBoost = intSetting("axion_big_core_boost", 0) == 1;
-            boolean primeCoreBoost = intSetting("axion_prime_core_boost", 0) == 1;
-            boolean sfBoost = intSetting("axion_sf_boost", 1) == 1;
-            boolean inputBoost = intSetting("axion_touch_boost", 0) == 1;
-            
-            int minFreqBoostLittle = intSetting("axion_min_freq_boost", 1000000);
-            int minFreqBoostBig = intSetting("axion_min_freq_big_boost", 1000000);
-            int minFreqBoostPrime = intSetting("axion_min_freq_prime_boost", 1000000);
-
-            int minFreqLittle = intSetting("axion_min_freq", 0);
-            int minFreqBig = intSetting("axion_min_freq_big", 0);
-            int minFreqPrime = intSetting("axion_min_freq_prime", 0);
-
-            int maxFreqLittle = intSetting("axion_max_freq", 999999);
-            int maxFreqBig = intSetting("axion_max_freq_big", 999999);
-            int maxFreqPrime = intSetting("axion_max_freq_prime", 999999);
-
-            mConfig.updateSettings(cpuBoost, bigCoreBoost, primeCoreBoost, sfBoost, inputBoost,
-                                   minFreqBoostLittle, minFreqBoostBig, minFreqBoostPrime,
-                                   minFreqLittle, minFreqBig, minFreqPrime,
-                                   maxFreqLittle, maxFreqBig, maxFreqPrime);
-
-            applyConfig();
-        }
-        
-        private int intSetting(String key, int def) {
-            return Settings.Secure.getIntForUser(mContext.getContentResolver(), key, def, UserHandle.USER_CURRENT);
-        }
-        
-        void applyConfig() {
-            BoostConfig.BoostData data = mConfig.getData();
-            mConfig.writeInternal(data.littleMin(), data.userMinLittle());
-            mConfig.writeInternal(data.bigMin(), data.userMinBig());
-            if (data.hasPrime()) {
-                mConfig.writeInternal(data.primeMin(), data.userMinPrime());
-            }
-            mConfig.writeInternal(data.littleMax(), data.userMaxLittle());
-            mConfig.writeInternal(data.bigMax(), data.userMaxBig());
-            if (data.hasPrime()) {
-                mConfig.writeInternal(data.primeMax(), data.userMaxPrime());
-            }
+        public void run() {
+            animationFreeze(freezeList);
         }
     }
 
-    private static void logger(String msg) {
-        if (SystemProperties.getBoolean("persist.sys.ax_boost_debug", false)) Slog.d(TAG, msg);
+    class AnimationUnfreezeRunnable implements Runnable {
+        final ArrayList<ProcessRecord> procListToUnfreeze;
+
+        AnimationUnfreezeRunnable(ArrayList<ProcessRecord> procList) {
+            this.procListToUnfreeze = procList;
+        }
+
+        @Override
+        public void run() {
+            animationUnfreeze(procListToUnfreeze);
+            mFreezing = false;
+        }
     }
 }

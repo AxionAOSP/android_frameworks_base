@@ -1756,4 +1756,20 @@ public class ProcessRecord implements WindowProcessListener {
             consumer.accept(provider);
         }
     }
+    
+    public ProcessStateRecord getState() {
+        return this.mState;
+    }
+
+    public String getProcessName() {
+        return this.processName;
+    }
+
+    public int getUid() {
+        return this.uid;
+    }
+
+    public int getCurAdj() {
+        return this.mState.getCurAdj();
+    }
 }

@@ -19,21 +19,33 @@ import android.content.Context;
 
 public interface IBoostAdjuster {
 
-    void adjustCpusetCpus(String cgroup, long durationMillis);
+    default void systemReady() {
+    }
 
-    void animationBoost(int pid, boolean enabled);
+    default void setThreadAffinity(int tid, int setAffinity) {
+    }
 
-    void setThreadAffinity(int pid, int affinity);
+    default void adjustCpusetCpus(String group, String cpus, long duration) {
+    }
 
-    void setPerformanceMode(boolean enabled, String reason);
+    default void animationBoost(int pid, int renderTid, long duration) {
+    }
 
-    void boostHint(String reason, long duration);
+    default void enablePerformanceMode(boolean enable) {
+    }
 
-    void inputBoost(long durationMillis);
+    default void getProcessesAndFrozen(String resumePackageName) {
+    }
 
-    void write(String path, String value);
+    default void inputBoost() {
+    }
     
-    void systemReady();
+    default void boostHint(String reason, long duration) {
+    }
     
-    void onWakefulnessChanged(boolean awake);
+    default void onWakefulnessChanged(boolean awake) {
+    }
+    
+    default void boostGame(boolean enable) {
+    }
 }

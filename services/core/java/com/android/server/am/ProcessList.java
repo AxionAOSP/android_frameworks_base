@@ -1603,8 +1603,9 @@ public final class ProcessList {
         for (int i = 0; i < totalApps; i++) {
             final int pid = apps.get(i).getPid();
             int amt = apps.get(i).mState.getCurAdj();
+            boolean isHighOpt = AxExtServiceFactory.getMemoryManager().isEnableOptHighUsed(apps.get(i));
             int targetAdj = AxExtServiceFactory.getMemoryManager().getTargetAdj(apps.get(i));
-            if (amt > targetAdj && targetAdj != -1) {
+            if (isHighOpt && amt > targetAdj && targetAdj != -1) {
                 amt = targetAdj;
             }
             final int uid = apps.get(i).uid;
@@ -2613,11 +2614,9 @@ public final class ProcessList {
                 if (startResult.pid > 0 && app.getHostingRecord() != null && !app.getHostingRecord().isTopApp()) {
                     sHandler.postDelayed(() -> {
                         try {
-                            if (app.uid % 100000 > 10000 && !BoostAdjuster.isInWhiteList(app.processName) 
-                                    && !BoostAdjuster.isInPerfList(app.processName)) {
-                                Process.setProcessGroup(startResult.pid, BoostAdjuster.THREAD_GROUP_NT_FOREGROUND);
-                            } else if (BoostAdjuster.isInPerfList(app.processName)) {
-                                Process.setProcessGroup(startResult.pid, BoostAdjuster.THREAD_GROUP_RESTRICTED);
+                            if (app.uid % 100000 > 10000 && !AxUtils.isInWhiteList(app.processName) 
+                                    && !AxUtils.isInPerfList(app.processName)) {
+                                Process.setProcessGroup(startResult.pid, AxUtils.THREAD_GROUP_NT_FOREGROUND);
                             }
                         } catch (Exception e) {
                         }
@@ -4328,6 +4327,10 @@ public final class ProcessList {
     @GuardedBy({"mService", "mProcLock"})
     ArrayList<ProcessRecord> getLruProcessesLSP() {
         return mLruProcesses;
+    }
+
+    public ArrayList<ProcessRecord> ntGetLruProcesses() {
+        return this.mLruProcesses;
     }
 
     /**

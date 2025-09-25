@@ -2074,22 +2074,15 @@ final class ActivityManagerConstants extends ContentObserver {
     }
 
     private void updateMaxCachedProcesses() {
-        com.android.internal.util.MemInfoReader memInfoReader = new com.android.internal.util.MemInfoReader();
-        memInfoReader.readMemInfo();
-        final long ramBytes = memInfoReader.getTotalSize();
-
-        final long GB = android.util.DataUnit.GIGABYTES.toBytes(1);
-
-        if (ramBytes <= 4 * GB) {
-            CUR_MAX_CACHED_PROCESSES = 24;
-        } else if (ramBytes <= 6 * GB) {
-            CUR_MAX_CACHED_PROCESSES = 40;
+        long physicalMemory = AxUtils.getPhysicalMemory();
+        if (physicalMemory >= AxUtils.MEM_8GB) {
+            CUR_MAX_CACHED_PROCESSES = 64;
+        } else if (physicalMemory >= AxUtils.MEM_6GB) {
+            CUR_MAX_CACHED_PROCESSES = 36;
         } else {
-            CUR_MAX_CACHED_PROCESSES = 1024;
+            CUR_MAX_CACHED_PROCESSES = 24;
         }
-
         CUR_MAX_EMPTY_PROCESSES = computeEmptyProcessLimit(CUR_MAX_CACHED_PROCESSES);
-
         final int rawMaxEmptyProcesses = computeEmptyProcessLimit(
                 Integer.min(CUR_MAX_CACHED_PROCESSES, MAX_CACHED_PROCESSES));
         CUR_TRIM_EMPTY_PROCESSES = rawMaxEmptyProcesses / 2;

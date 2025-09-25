@@ -6730,7 +6730,7 @@ public class AudioService extends IAudioService.Stub
                         Log.w(TAG, "setMode link does not exist ...");
                     }
                 }
-                BoostHelper.executeAdjustCpusetCpus("/dev/cpuset/dex2oat/cpus", "0-7");
+                BoostHelper.adjustCpusetCpus("/dev/cpuset/dex2oat/cpus", "0-7", -1L);
             } else {
                 if (currentModeHandler != null) {
                     currentModeHandler.setMode(mode);
@@ -6754,7 +6754,7 @@ public class AudioService extends IAudioService.Stub
                     }
                 }
                 if (mode == AudioSystem.MODE_RINGTONE) {
-                    BoostHelper.executeAdjustCpusetCpus("/dev/cpuset/dex2oat/cpus", "0-1");
+                    BoostHelper.adjustCpusetCpus("/dev/cpuset/dex2oat/cpus", "0-1", 0L);
                 }
                 if (mode == AudioSystem.MODE_IN_COMMUNICATION) {
                     // Force active state when entering/updating the stack to avoid glitches when

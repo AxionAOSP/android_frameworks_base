@@ -28,39 +28,41 @@ class NTCpuBindController private constructor() {
     private var mLimitOtherProcessCpuReason = 0
     private var mLimitForegroundAppCpu = false
     private var mLimitOtherProcessCpu = false
+    
+    private val pid get() = Process.myUid()
 
     fun bindBigCore() {
-        if (mBindStatus != STATUS_BIND_BIG_CORE) {
-            mBindStatus = STATUS_BIND_BIG_CORE
-            BoostHelper.setThreadAffinity(Process.myPid(), STATUS_BIND_BIG_CORE)
+        if (mBindStatus == STATUS_BIND_BIG_CORE) {
+            return
         }
+        mBindStatus = STATUS_BIND_BIG_CORE
+        BoostHelper.setThreadAffinity(pid, STATUS_BIND_BIG_CORE)
     }
 
     fun bindSmallCore() {
-        if (mBindStatus != STATUS_BIND_SMALL_CORE) {
-            mBindStatus = STATUS_BIND_SMALL_CORE
-            BoostHelper.setThreadAffinity(Process.myPid(), STATUS_BIND_SMALL_CORE)
+        if (mBindStatus == STATUS_BIND_SMALL_CORE) {
+            return
         }
+        mBindStatus = STATUS_BIND_SMALL_CORE
+        BoostHelper.setThreadAffinity(pid, STATUS_BIND_SMALL_CORE)
     }
 
     fun unbind() {
-        if (mBindStatus != STATUS_UNBIND) {
-            mBindStatus = STATUS_UNBIND
-            BoostHelper.setThreadAffinity(Process.myPid(), STATUS_UNBIND)
+        if (mBindStatus == STATUS_UNBIND) {
+            return
         }
-    }
-
-    fun animationBoost(type: Int, enabled: Boolean) {
-        if (enabled) animationBoostOn(type) else animationBoostOff(type)
+        mBindStatus = STATUS_UNBIND
+        BoostHelper.setThreadAffinity(pid, STATUS_UNBIND)
     }
 
     fun animationBoostOn(type: Int) {
         mAnimationBoostType = mAnimationBoostType or type
-        if (mAnimationBoost != ANIMATION_BOOST_ON) {
-            bindBigCore()
-            mAnimationBoost = ANIMATION_BOOST_ON
-            BoostHelper.animationBoost(Process.myPid(), true)
+        if (mAnimationBoost == ANIMATION_BOOST_ON) {
+            return
         }
+        bindBigCore()
+        mAnimationBoost = ANIMATION_BOOST_ON
+        BoostHelper.animationBoost(pid, ANIMATION_BOOST_ON)
     }
 
     fun animationBoostOff(type: Int) {
@@ -68,16 +70,16 @@ class NTCpuBindController private constructor() {
         if (mAnimationBoostType <= 0 && mAnimationBoost != ANIMATION_BOOST_OFF) {
             unbind()
             mAnimationBoost = ANIMATION_BOOST_OFF
-            BoostHelper.animationBoost(Process.myPid(), false)
+            BoostHelper.animationBoost(pid, ANIMATION_BOOST_OFF)
         }
     }
 
     fun setLimitForegroundAppCpu(limit: Boolean) {
         if (limit != mLimitForegroundAppCpu) {
             if (limit) {
-                BoostHelper.executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_SMALL_LIMIT)
+                BoostHelper.adjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_SMALL_LIMIT, 0L)
             } else { 
-                BoostHelper.executeAdjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT)
+                BoostHelper.adjustCpusetCpus(TOP_APP_GROUP, CPUS_PARAMS_UI_UNLIMIT, 0L)
             }
             mLimitForegroundAppCpu = limit
         }
@@ -86,11 +88,11 @@ class NTCpuBindController private constructor() {
     fun setLimitOtherProcessCpu(limit: Boolean) {
         if (limit != mLimitOtherProcessCpu) {
             if (limit) {
-                BoostHelper.executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_BG_LIMIT)
-                BoostHelper.executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_LIMIT)
+                BoostHelper.adjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_BG_LIMIT, 0L)
+                BoostHelper.adjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_BG_LIMIT, 0L)
             } else {
-                BoostHelper.executeAdjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_UI_UNLIMIT)
-                BoostHelper.executeAdjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_UI_UNLIMIT)
+                BoostHelper.adjustCpusetCpus(CAMERA_DAEMON_GROUP, CPUS_PARAMS_UI_UNLIMIT, 0L)
+                BoostHelper.adjustCpusetCpus(DEX2OAT_GROUP, CPUS_PARAMS_UI_UNLIMIT, 0L)
             }
             mLimitOtherProcessCpu = limit
         }

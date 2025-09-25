@@ -10,9 +10,9 @@ public class BoostHelper {
     private static final String TAG = "BoostHelper";
     private static final boolean DEBUG = false;
 
-    public static void setPerformanceMode(boolean enabled, String reason) {
+    public static void enablePerformanceMode(boolean enabled) {
         try {
-            ActivityManager.getService().setPerformanceMode(enabled, reason);
+            ActivityManager.getService().enablePerformanceMode(enabled);
         } catch (Exception e) {
             logException("setPerformanceMode", e);
         }
@@ -26,41 +26,33 @@ public class BoostHelper {
         }
     }
 
-    public static void executeAdjustCpusetCpus(String path, String cpus) {
+    public static void adjustCpusetCpus(String group, String cpus, long duration) {
         try {
-            ActivityManager.getService().executeAdjustCpusetCpus(path, cpus);
-        } catch (Exception e) {
-            logException("executeAdjustCpusetCpus", e);
-        }
-    }
-
-    public static void adjustCpusetCpus(String cgroup, long durationMillis) {
-        try {
-            ActivityManager.getService().adjustCpusetCpus(cgroup, durationMillis);
+            ActivityManager.getService().adjustCpusetCpus(group, cpus, duration);
         } catch (Exception e) {
             logException("adjustCpusetCpus", e);
         }
     }
 
-    public static void animationBoost(int pid, boolean enabled) {
+    public static void animationBoost(int pid, long duration) {
         try {
-            ActivityManager.getService().animationBoost(pid, enabled);
+            ActivityManager.getService().animationBoost(pid, duration);
         } catch (Exception e) {
             logException("animationBoost", e);
         }
     }
 
-    public static void setThreadAffinity(int pid, int affinity) {
+    public static void setThreadAffinity(int tid, int affinity) {
         try {
-            ActivityManager.getService().setThreadAffinity(pid, affinity);
+            ActivityManager.getService().setThreadAffinity(tid, affinity);
         } catch (Exception e) {
             logException("setThreadAffinity", e);
         }
     }
 
-    public static void inputBoost(long durationMillis) {
+    public static void inputBoost() {
         try {
-            ActivityManager.getService().inputBoost(durationMillis);
+            ActivityManager.getService().inputBoost();
         } catch (Exception e) {
             logException("inputBoost", e);
         }

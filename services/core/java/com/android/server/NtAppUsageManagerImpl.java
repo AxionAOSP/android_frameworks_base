@@ -23,6 +23,7 @@ import android.os.*;
 import android.os.Process;
 import android.util.*;
 import android.util.Slog;
+import com.android.server.am.AxUtils;
 import com.android.server.am.ProcessList;
 import com.android.server.am.ProcessRecord;
 import com.android.server.utils.SimpleAppRecord;
@@ -33,6 +34,7 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
     
     static final String TAG = "NtAppUsageManager";
     static final boolean DEBUG = SystemProperties.getBoolean("persist.sys.appusage.debug", false);
+    private final boolean PR_APPS_SUPPORT = AxUtils.isPreferredAppsSupported();
     static final String HIGH_USED_DIE_KEY = "high_used_die";
     static final String OPTI_HIGH_USED_KEY = "opti_high_used";
     
@@ -104,7 +106,6 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
     int maxLowUsedApps = 3;
     
     ArrayList<Integer> targetValues = new ArrayList<>();
-    int highUsedAppDeathCount = 0;
 
     public static class UsageRecord {
         String pkg;
@@ -446,7 +447,6 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
                 }
                 
                 if (packageCount >= MAX_APP_COUNT_PER_BATCH) {
-                    submitUsageData(pkgs.toString(), usageTimes.toString());
                     pkgs.setLength(0);
                     usageTimes.setLength(0);
                     packageCount = 0;
@@ -456,13 +456,6 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
                     reportBundle.putString(previousSlot.pkg, String.valueOf(previousSlot.launchCount));
                 }
             }
-            
-            if (packageCount > 0) {
-                submitUsageData(pkgs.toString(), usageTimes.toString());
-                submitAppLaunchCount(reportBundle);
-            }
-            
-            submitHighUsedAppDeaths();
         }
         
         void scheduleNextAlarm() {
@@ -608,13 +601,13 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
         }
     }
     
-    public void systemReady() {        
+    public void systemReady() {
+        if (!PR_APPS_SUPPORT) return;        
         if (DEBUG) {
             Slog.d(TAG, "Initial from system ready");
         }
         
         this.context = NtServiceInjector.getCtx();
-        this.isSystemReady = true;
         this.am = (AlarmManager) context.getSystemService("alarm");
         
         long currentTime = System.currentTimeMillis();
@@ -634,11 +627,14 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
             init(context);
         });
         
+        this.isSystemReady = true;
+        
         Slog.d(TAG, "systemReady: starting service: " +
                 "dirExists=" + dataDirectory.exists() +
                 ", dirEmpty=" + (dataDirectory.exists() && dataDirectory.isDirectory() && dataDirectory.listFiles() != null && dataDirectory.listFiles().length == 0) +
                 ", time=" + currentTime +
-                ", slotBoundary=" + slotBoundary);
+                ", slotBoundary=" + slotBoundary +
+                ", hasValidRecords=" + hasValidSavedRecords());
     }
 
     public ArrayList<String> getHighUsedPackageList(boolean needUpdate) {
@@ -730,7 +726,7 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
     }
     
     public void updateLaunchTime(String pkg) {
-        if (isScreenOff) {
+        if (isScreenOff || !isSystemReady) {
             if (DEBUG) {
                 Slog.d(TAG, "Screen is off, skip updateLaunchTime : " + pkg);
             }
@@ -746,7 +742,7 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
                 record.onAppLaunched(System.currentTimeMillis());
                 record.canUpdateDuration = false;
                 
-                if (!lastRunningPackage.equals(pkg)) {
+                if (lastRunningPackage != null && !lastRunningPackage.equals(pkg)) {
                     record.onLaunchCountIncreased(pkg);
                 }
                 lastRunningPackage = pkg;
@@ -760,6 +756,7 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
     }
     
     public void updateDuration(String pkg) {
+        if (!PR_APPS_SUPPORT) return;
         synchronized (this) {
             UsageRecord record = pkgUsgMap.get(pkg);
             if (record == null || !isScreenOff || !record.canUpdateDuration) {
@@ -777,8 +774,8 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
     }
     
     public void appDied(ProcessRecord processRecord) {
+        if (!PR_APPS_SUPPORT) return;
         if (isHighUsedPackages(processRecord.info.packageName)) {
-            highUsedAppDeathCount++;
             Slog.d(TAG, processRecord.info.packageName + " is died with pid " + processRecord.mPid);
             Message message = handler.obtainMessage(MSG_APP_DIED);
             Bundle data = new Bundle();
@@ -790,6 +787,7 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
     }
     
     public void addNewPackages(String pkg) {
+        if (!PR_APPS_SUPPORT) return;
         synchronized (this) {
             if (pkgUsgMap.containsKey(pkg)) {
                 pkgUsgMap.remove(pkg);
@@ -802,6 +800,7 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
     }
     
     public void removePackage(String pkg) {
+        if (!PR_APPS_SUPPORT) return;
         synchronized (this) {
             if (!updatingPackageName.equals(pkg)) {
                 if (DEBUG) {
@@ -815,10 +814,12 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
     }
     
     public void setUpdatingPackage(String pkg) {
+        if (!PR_APPS_SUPPORT) return;
         updatingPackageName = pkg;
     }
     
     public void setLastCachedPss(String pkg, long pss) {
+        if (!PR_APPS_SUPPORT) return;
         synchronized (this) {
             UsageRecord record = pkgUsgMap.get(pkg);
             if (record != null) {
@@ -833,6 +834,7 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
     }
     
     public void setRemoveTaskTime(String pkg) {
+        if (!PR_APPS_SUPPORT) return;
         synchronized (this) {
             UsageRecord record = pkgUsgMap.get(pkg);
             if (record != null) {
@@ -845,6 +847,7 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
     }
     
     public void setTargetAdj(String pkg, int targetAdj) {
+        if (!PR_APPS_SUPPORT) return;
         try {
             synchronized (this) {
                 for (String p : pkgUsgMap.keySet()) {
@@ -860,11 +863,13 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
     }
     
     public void setScreenState(boolean isScreenOff) {
+        if (!PR_APPS_SUPPORT) return;
         this.isScreenOff = isScreenOff;
         writeRecordsToDisk(false);
     }
     
     public void cleanAllData(long newTime) {
+        if (!PR_APPS_SUPPORT) return;
         long currentTime = System.currentTimeMillis();
         if (DEBUG) {
             Slog.d(TAG, "Old time : " + currentTime + ", new time : " + newTime);
@@ -881,6 +886,7 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
     }
     
     public void writeRecordsToDisk(boolean force) {
+        if (!PR_APPS_SUPPORT) return;
         long currentTime = System.currentTimeMillis();
         if (!force && (isWritingRecord || currentTime - lastRecordWriteTime < RECORD_WRITE_INTERVAL_MS)) {
             Slog.d(TAG, "No need to write old record");
@@ -894,13 +900,49 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
     }
 
     boolean isWarmedUp() {
-        if (!hasWarmedUp && System.currentTimeMillis() - warmUpTime < WARM_UP_DURATION_MS) {
+        if (!PR_APPS_SUPPORT) return false;
+        
+        if (hasWarmedUp) {
+            return true;
+        }
+        
+        if (hasValidSavedRecords()) {
+            hasWarmedUp = true;
+            return true;
+        }
+        
+        if (System.currentTimeMillis() - warmUpTime < WARM_UP_DURATION_MS) {
             return false;
         }
+        
         hasWarmedUp = true;
         return true;
     }
-    
+
+    private boolean hasValidSavedRecords() {
+        if (pkgUsgMap.isEmpty()) {
+            return false;
+        }
+        
+        int appsWithData = 0;
+        for (UsageRecord record : pkgUsgMap.values()) {
+            if (record.timeSlotRecords.size() > 0) {
+                boolean hasUsageData = false;
+                for (TimeSlotRecord slot : record.timeSlotRecords) {
+                    if (slot.launchCount > 0 || slot.foregroundDuration > 0 || slot.totalUsageTime > 0) {
+                        hasUsageData = true;
+                        break;
+                    }
+                }
+                if (hasUsageData) {
+                    appsWithData++;
+                }
+            }
+        }
+        
+        return appsWithData >= 3;
+    }
+
     boolean isLmkdKill(String pkg, int pid) {
         int iIntValue = ProcessList.checkLmkdKillOptiProc(pid).intValue();
         Slog.d(TAG, "isLmkdKill " + pkg + ", pid= " + pid + ", found= " + iIntValue);
@@ -935,13 +977,14 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
             for (String pkg : packages) {
                 if (!pkgUsgMap.containsKey(pkg)) {
                     pkgUsgMap.put(pkg, new UsageRecord(pkg, false, false));
-                }
-                if (DEBUG) {
-                    Slog.d(TAG, "initialAllPackage : " + pkg);
+                    if (DEBUG) {
+                        Slog.d(TAG, "Adding new package : " + pkg);
+                    }
+                } else if (DEBUG) {
+                    Slog.d(TAG, "Preserving existing package record: " + pkg);
                 }
             }
         }
-        isWritingRecord = false;
     }
     
     void createHandlerThread() {
@@ -985,6 +1028,8 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
     
     void parseRecordFile(File file) throws Throwable {
         BufferedReader reader = null;
+        boolean foundValidData = false;
+        
         try {
             reader = new BufferedReader(new FileReader(file));
             String currentPackage = "";
@@ -1018,6 +1063,10 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
                         record.totalUsageTime = Long.parseLong(parts[2]);
                         record.lruTime = Long.parseLong(parts[3]);
                         
+                        if (record.launchCount > 0 || record.totalUsageTime > 0) {
+                            foundValidData = true;
+                        }
+                        
                         pkgUsgMap.get(currentPackage).timeSlotRecords.add(record);
                         pkgUsgMap.get(currentPackage).totalLruTime = record.startTime;
                         
@@ -1027,6 +1076,14 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
                     }
                 }
             }
+            
+            if (foundValidData && hasWarmedUp) {
+                Slog.d(TAG, "Found valid saved records, skipping warmup period");
+            } else if (foundValidData) {
+                Slog.d(TAG, "Found valid saved records but not marked as warmed up, reducing warmup time");
+                warmUpTime = System.currentTimeMillis() - (WARM_UP_DURATION_MS - 60000L);
+            }
+            
         } catch (Exception e) {
             e.printStackTrace();
             resetAllData(System.currentTimeMillis());
@@ -1097,11 +1154,9 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
             lastRankingTime = System.currentTimeMillis();
         } else {
             if (!isSystemReady) {
-                handleDebugOperations();
                 return usageCategoryMap;
             }
             if (currentTime - lastRankingTime <= RANKING_INTERVAL_MS) {
-                handleDebugOperations();
                 return usageCategoryMap;
             }
             Slog.d(TAG, "Need to rank due to duration is over : " + RANKING_INTERVAL_MS);
@@ -1140,7 +1195,6 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
             }
         }
         
-        handleDebugOperations();
         return usageCategoryMap;
     }
     
@@ -1471,98 +1525,26 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
         }
     }
     
-    void handleDebugOperations() {
-        if (DEBUG) {
-            synchronized (this) {
-                try {
-                    ArrayList<UsageRecord> highUsedApps = usageCategoryMap.get(HIGH_USED_PACKAGES_KEY);
-                    ArrayList<UsageRecord> generalUsedApps = usageCategoryMap.get(GENERAL_USED_PACKAGES_KEY);
-                    ArrayList<UsageRecord> lowUsedApps = usageCategoryMap.get(LOW_USED_PACKAGES_KEY);
-                    
-                    if (highUsedApps == null) {
-                        highUsedApps = new ArrayList<>();
-                        usageCategoryMap.put(HIGH_USED_PACKAGES_KEY, highUsedApps);
-                    }
-                    if (generalUsedApps == null) {
-                        generalUsedApps = new ArrayList<>();
-                        usageCategoryMap.put(GENERAL_USED_PACKAGES_KEY, generalUsedApps);
-                    }
-                    if (lowUsedApps == null) {
-                        lowUsedApps = new ArrayList<>();
-                        usageCategoryMap.put(LOW_USED_PACKAGES_KEY, lowUsedApps);
-                    }
-                    
-                    for (String pkg : debugHighUsedPackages) {
-                        movePackageBetweenCategories(pkg, generalUsedApps, highUsedApps);
-                        movePackageBetweenCategories(pkg, lowUsedApps, highUsedApps);
-                    }
-                    
-                    for (String pkg : debugGeneralUsedPackages) {
-                        movePackageBetweenCategories(pkg, highUsedApps, generalUsedApps);
-                        movePackageBetweenCategories(pkg, lowUsedApps, generalUsedApps);
-                    }
-                    
-                    for (String pkg : debugLowUsedPackages) {
-                        movePackageBetweenCategories(pkg, highUsedApps, lowUsedApps);
-                        movePackageBetweenCategories(pkg, generalUsedApps, lowUsedApps);
-                    }
-                } catch (Throwable th) {
-                    throw th;
-                }
-            }
-        }
-    }
-    
-    void movePackageBetweenCategories(String pkg, ArrayList<UsageRecord> fromList, ArrayList<UsageRecord> toList) {
-        Iterator<UsageRecord> iterator = fromList.iterator();
-        while (iterator.hasNext()) {
-            UsageRecord record = iterator.next();
-            if (record.pkg.equals(pkg)) {
-                iterator.remove();
-                toList.add(record);
-                break;
-            }
-        }
-    }
-    
-    public void submitUsageData(String pkgs, String usageTimes) {
-        Bundle data = new Bundle();
-        data.putString(PACKAGE_KEY, pkgs);
-        data.putString(FOREGROUND_TIME_KEY, usageTimes);
-        if (DEBUG) {
-            Slog.d(TAG, "submitAppUsage");
-            Slog.d(TAG, "pkgNameList: " + pkgs);
-            Slog.d(TAG, "timeList: " + usageTimes);
-        }
-    }
-    
-    public void submitAppLaunchCount(Bundle bundle) {
-        if (DEBUG) {
-            Slog.d(TAG, "submitAppLaunchCount");
-            Slog.d(TAG, "pkgNameLaunchTotalTime: " + bundle.toString());
-        }
-    }
-    
-    void submitHighUsedAppDeaths() {
-        Bundle data = new Bundle();
-        data.putInt(HIGH_USED_DIE_KEY, highUsedAppDeathCount);
-        boolean isHighUsedOptEnabled = true; 
-        data.putBoolean(OPTI_HIGH_USED_KEY, isHighUsedOptEnabled);
-        if (DEBUG) {
-            Slog.d(TAG, "submitHighUsedDie: " + highUsedAppDeathCount + ", " + isHighUsedOptEnabled);
-        }
-        highUsedAppDeathCount = 0;
-    }
-    
     public void init(Context context) {
         initClusters();
+        
         loadRecords();
+        
         initPackages(context);
+        
         if (warmUpTime == 0) {
             warmUpTime = System.currentTimeMillis();
         }
+        
+        if (hasValidSavedRecords()) {
+            hasWarmedUp = true;
+            Slog.d(TAG, "Init completed with valid saved records, system ready immediately");
+        }
+        
         targetValues.add(801);
         targetValues.add(601);
         targetValues.add(401);
+        
+        isWritingRecord = false;
     }
 }

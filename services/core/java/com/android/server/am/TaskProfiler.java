@@ -16,62 +16,194 @@
 package com.android.server.am;
 
 import android.os.Process;
+import android.os.StrictMode;
 import android.util.Slog;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
-import java.util.Arrays;
+import com.android.server.AnimationThread;
+import com.android.server.DisplayThread;
+import com.android.server.UiThread;
+import com.android.server.wm.SurfaceAnimationThread;
+
+import java.io.*;
+import java.util.*;
 
 public class TaskProfiler {
     private static final String TAG = "TaskProfiler";
+    private static final boolean DEBUG = false;
+
+    private static final int UX_KERNEL   = Process.THREAD_GROUP_BACKGROUND;
+    private static final int UX_LATENCY = AxUtils.THREAD_GROUP_AX_DISPLAY; 
 
     public TaskProfiler() {
     }
 
     public void initTaskProfiles() {
-        String[] bgProfiles = { "ProcessCapacityLow" };
-        String[] bgProcs = { "kswapd", "kcompactd" };
-        setTaskProfilesForProcs(bgProcs, bgProfiles);
+        try {
+            Map<String, Integer> processMap = buildProcessMap();
+            Set<Integer> uxThreads = new HashSet<>();
+
+            uxThreads.addAll(setUxThreadByNames(processMap,
+                    Arrays.asList("kswapd0", "kcompactd0"), UX_KERNEL));
+
+            uxThreads.addAll(findByPrefix(processMap, "khugepaged", UX_KERNEL));
+            uxThreads.addAll(findByPrefix(processMap, "f2fs_gc", UX_KERNEL));
+            uxThreads.addAll(findByPrefix(processMap, "eh_comp_thread", UX_KERNEL));
+
+            uxThreads.addAll(findMatchingTidsInProcess(ActivityManagerService.MY_PID,
+                    new String[]{"InputReader", "InputDispatcher"}, UX_LATENCY));
+
+            setUxThread(AnimationThread.get().getThreadId(), UX_LATENCY);
+            setUxThread(SurfaceAnimationThread.get().getThreadId(), UX_LATENCY);
+            setUxThread(DisplayThread.get().getThreadId(), UX_LATENCY);
+            setUxThread(UiThread.get().getThreadId(), UX_LATENCY);
+
+            if (DEBUG) Slog.i(TAG, "Applied task profiles to " + uxThreads.size() + " tids. processMap:\n" + dumpProcessMap(processMap));
+        } catch (Exception e) {
+            Slog.w(TAG, "initTaskProfiles failed: " + e);
+        }
     }
 
-    public static void setTaskProfilesForProcs(String[] procGroups, String[] profiles) {
-        File procDir = new File("/proc");
-        File[] entries = procDir.listFiles(file -> file.isDirectory() && file.getName().matches("\\d+"));
-        if (entries == null) {
-            Slog.w(TAG, "/proc not accessible or empty.");
-            return;
-        }
+    private Map<String, Integer> buildProcessMap() {
+        Map<String, Integer> map = new HashMap<>();
+        File[] entries = new File("/proc").listFiles(f -> f.isDirectory() && f.getName().matches("\\d+"));
+        if (entries == null) return map;
 
-        for (File pidDir : entries) {
-            File commFile = new File(pidDir, "comm");
-            String processName = null;
+        for (File entry : entries) {
+            try {
+                int id = Integer.parseInt(entry.getName());
+                String comm = readSingleLine(entry.getPath() + "/comm");
+                String cmdline = readCmdline(entry.getPath() + "/cmdline");
 
-            try (BufferedReader reader = new BufferedReader(new FileReader(commFile))) {
-                processName = reader.readLine();
-            } catch (IOException e) {
-                Slog.w(TAG, "Could not read " + commFile.getPath() + ": " + e);
-                continue;
-            }
-
-            if (processName == null) continue;
-
-            for (String proc : procGroups) {
-                if (processName.contains(proc)) {
-                    try {
-                        int pid = Integer.parseInt(pidDir.getName());
-                        Process.setTaskProfiles(pid, profiles);
-                        Slog.i(TAG, "Applied profiles " + Arrays.toString(profiles) +
-                                " to process " + processName + " (PID " + pid + ")");
-                    } catch (NumberFormatException e) {
-                        Slog.w(TAG, "Invalid PID: " + pidDir.getName());
-                    } catch (Exception e) {
-                        Slog.w(TAG, "Failed to set profiles for PID " + pidDir.getName() + ": " + e);
+                String name = (comm != null ? comm.trim() : null);
+                if (cmdline != null && !cmdline.isEmpty()) {
+                    if (name == null ||
+                        name.startsWith("binder:") ||
+                        name.length() >= 15 ||
+                        name.startsWith("android.hardwar")) {
+                        name = cmdline.trim();
                     }
+                }
+
+                if (name != null && !map.containsKey(name)) {
+                    map.put(name, id);
+                    Slog.i(TAG, "Adding thread: " + name + " (pid=" + id + ")");
+                }
+            } catch (Exception ignored) { }
+        }
+        return map;
+    }
+
+    private Set<Integer> setUxThreadByNames(Map<String, Integer> map, List<String> names, int group) {
+        Set<Integer> out = new HashSet<>();
+        for (String n : names) {
+            Integer pid = map.get(n);
+            if (pid != null) {
+                setUxThread(pid, group);
+                out.add(pid);
+            }
+        }
+        return out;
+    }
+
+    private Set<Integer> findByPrefix(Map<String, Integer> map, String prefix, int group) {
+        Set<Integer> out = new HashSet<>();
+        for (Map.Entry<String, Integer> e : map.entrySet()) {
+            if (e.getKey().startsWith(prefix)) {
+                setUxThread(e.getValue(), group);
+                out.add(e.getValue());
+            }
+        }
+        return out;
+    }
+
+    private Set<Integer> findByContains(Map<String, Integer> map, List<String> substrings, int group) {
+        Set<Integer> out = new HashSet<>();
+        for (Map.Entry<String, Integer> e : map.entrySet()) {
+            for (String sub : substrings) {
+                Slog.i(TAG, "findByContains: substrings: " + sub);
+                if (e.getKey().contains(sub)) {
+                    setUxThread(e.getValue(), group);
+                    out.add(e.getValue());
                     break;
                 }
             }
         }
+        return out;
+    }
+
+    private Set<Integer> findMatchingTidsInProcess(int pid, String[] names, int group) {
+        Set<Integer> found = new HashSet<>();
+        File taskDir = new File("/proc/" + pid + "/task");
+        File[] tasks = taskDir.listFiles(f -> f.getName().matches("\\d+"));
+        if (tasks == null) return found;
+
+        Set<String> targets = new HashSet<>(Arrays.asList(names));
+        for (File t : tasks) {
+            try {
+                int tid = Integer.parseInt(t.getName());
+                String tname = readSingleLine(t.getPath() + "/comm");
+                if (tname != null && targets.contains(tname.trim())) {
+                    setUxThread(tid, group);
+                    found.add(tid);
+                }
+            } catch (Exception ignored) { }
+        }
+        return found;
+    }
+
+    private static void setUxThread(int tid, int group) {
+        try {
+            Process.setThreadGroupAndCpuset(tid, group);
+            if (group == UX_KERNEL) {
+                Process.setThreadScheduler(tid, Process.SCHED_IDLE, 0);
+            }
+            String name = readSingleLine("/proc/" + tid + "/comm");
+            String cpuset = readSingleLine("/proc/" + tid + "/cpuset");
+            Slog.i(TAG, "Applied group " + group +
+                    (group == UX_KERNEL ? " + SCHED_IDLE" : "") +
+                    " to " + tid +
+                    (name != null ? " (" + name + ")" : "") +
+                    (cpuset != null ? " [cpuset=" + cpuset + "]" : ""));
+        } catch (Exception e) {
+            Slog.w(TAG, "Failed to set group/scheduler for " + tid + ": " + e);
+        }
+    }
+
+    private static String readSingleLine(String path) {
+        int saved = StrictMode.allowThreadDiskReadsMask();
+        try (BufferedReader r = new BufferedReader(new FileReader(path))) {
+            return r.readLine();
+        } catch (IOException e) {
+            return null;
+        } finally {
+            StrictMode.setThreadPolicyMask(saved);
+        }
+    }
+
+    private static String readCmdline(String path) {
+        int saved = StrictMode.allowThreadDiskReadsMask();
+        try (FileInputStream fis = new FileInputStream(path)) {
+            byte[] buf = new byte[512];
+            int len = fis.read(buf);
+            if (len > 0) {
+                String raw = new String(buf, 0, len).trim();
+                return raw.replace('\0', ' ');
+            }
+        } catch (IOException ignored) {
+        } finally {
+            StrictMode.setThreadPolicyMask(saved);
+        }
+        return null;
+    }
+
+    private static String dumpProcessMap(Map<String, Integer> map) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Process Map:\n");
+        List<String> keys = new ArrayList<>(map.keySet());
+        Collections.sort(keys);
+        for (String name : keys) {
+            sb.append("  ").append(name).append(" (pid=").append(map.get(name)).append(")\n");
+        }
+        return sb.toString();
     }
 }

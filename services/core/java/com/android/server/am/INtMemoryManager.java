@@ -65,4 +65,11 @@ public interface INtMemoryManager {
     
     default void releaseMemory(int i, int i2, boolean b, boolean b2) {
     }
+    
+    default long getPhysicalMemory() {
+        return 8388608;
+    }
+    
+    default void addForkedHighUsageProcess(ProcessRecord app) {
+    }
 }

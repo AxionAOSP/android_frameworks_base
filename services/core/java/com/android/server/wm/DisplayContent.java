@@ -253,7 +253,7 @@ import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.internal.util.function.pooled.PooledPredicate;
 import com.android.server.inputmethod.InputMethodManagerInternal;
 import com.android.server.policy.WindowManagerPolicy;
-import com.android.server.am.BoostAdjuster;
+import com.android.server.am.AxUtils;
 import com.android.server.wm.utils.RegionUtils;
 import com.android.server.wm.utils.RotationCache;
 import com.android.server.wm.utils.WmDisplayCutout;
@@ -4057,13 +4057,13 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
 
         boolean isCamera = newFocus != null
                 && newFocus.packageName != null
-                && BoostAdjuster.CAMERA_APPS.contains(newFocus.packageName);
+                && AxUtils.isCamera(newFocus.packageName);
 
-        if (isCamera && !mBoostingCamera && !BoostAdjuster.isBoosted()) {
-            BoostAdjuster.boostCamera(true);
+        if (isCamera && !mBoostingCamera && !AxUtils.isBoosted()) {
+            AxUtils.boostCamera(true);
             mBoostingCamera = true;
         } else if (!isCamera && mBoostingCamera) {
-            BoostAdjuster.boostCamera(false);
+            AxUtils.boostCamera(false);
             mBoostingCamera = false;
         }
 

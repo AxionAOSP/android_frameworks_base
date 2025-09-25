@@ -1043,14 +1043,21 @@ interface IActivityManager {
      * Boost framework
      */
     void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera);
-    void executeAdjustCpusetCpus(String path, String cpuset);
-    void adjustCpusetCpus(String cgroup, long durationMillis);
-    void animationBoost(int pid, boolean enabled);
-    void setThreadAffinity(int pid, int affinity);
-    void setPerformanceMode(boolean enabled, String reason);
-    void boostHint(String reason, long duration);
-    void inputBoost(long duration);
 
+    void boostHint(String reason, long duration);
+
+    void setThreadAffinity(int tid, int setAffinity);
+
+    void adjustCpusetCpus(String group, String cpus, long duration);
+
+    void animationBoost(int pid, long duration);
+
+    void enablePerformanceMode(boolean enabled);
+
+    void getProcessesAndFrozen(String resumePackageName);
+
+    void inputBoost();
+    
     /**
      * Force full screen
      */

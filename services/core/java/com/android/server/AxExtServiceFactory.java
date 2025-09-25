@@ -15,11 +15,15 @@
  */
 package com.android.server;
 
+import android.content.Context;
+
 import com.android.server.am.*;
 import com.android.server.wm.WindowManagerService;
 import com.android.server.INtAppUsageManager;
 
 public class AxExtServiceFactory {
+    private static AxExtServiceFactory sInstance = null;
+
     private static final Object sLock = new Object();
 
     private static volatile INtMemoryManager sNtMemoryManager;
@@ -27,7 +31,31 @@ public class AxExtServiceFactory {
     private static volatile IBoostAdjuster sBoostAdjuster;
     private static volatile IProcessManager sProcessManager;
 
-    private AxExtServiceFactory() { }
+    private AxExtServiceFactory(Context context) {
+        NtServiceInjector.get().setCtx(context);
+    }
+
+    public static synchronized AxExtServiceFactory init(Context context) {
+        if (sInstance == null) {
+            sInstance = new AxExtServiceFactory(context);
+        }
+        return sInstance;
+    }
+
+    public static AxExtServiceFactory get() {
+        if (sInstance == null) {
+            throw new IllegalStateException("AxExtServiceFactory not initialized");
+        }
+        return sInstance;
+    }
+
+    public static void injectActivityManagerService(ActivityManagerService ams) {
+        NtServiceInjector.get().setActivityManagerService(ams);
+    }
+
+    public static void injectWindowManagerService(WindowManagerService wms) {
+        NtServiceInjector.get().setWindowManagerService(wms);
+    }
 
     @SuppressWarnings("unchecked")
     public static <T> T getOrCreate(IAxExtServiceFactory.ExtType type) {
@@ -86,8 +114,11 @@ public class AxExtServiceFactory {
 
     public static void systemReady() {
         getProcessManager().systemReady();
-        getBoostAdjuster().systemReady();
         getAppUsageManager().systemReady();
+    }
+    
+    public static void onLateSystemReady() {
+        getBoostAdjuster().systemReady();
         getMemoryManager().systemReady();
     }
 

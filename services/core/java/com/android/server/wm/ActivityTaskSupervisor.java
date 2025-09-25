@@ -2149,6 +2149,8 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
 
     boolean reportResumedActivityLocked(ActivityRecord r) {
         this.mStoppingActivities.remove(r);
+        AxExtServiceFactory.getBoostAdjuster().getProcessesAndFrozen(r.packageName);
+        AxExtServiceFactory.getBoostAdjuster().inputBoost();
         Task rootTask = r.getRootTask();
         if (rootTask.getDisplayArea().allResumedActivitiesComplete()) {
             this.mRootWindowContainer.ensureActivitiesVisible();

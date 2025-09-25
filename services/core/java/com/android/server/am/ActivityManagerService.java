@@ -445,7 +445,6 @@ import com.android.server.IoThread;
 import com.android.server.LocalManagerRegistry;
 import com.android.server.LocalServices;
 import com.android.server.LockGuard;
-import com.android.server.NtServiceInjector;
 import com.android.server.PackageWatchdog;
 import com.android.server.ServiceThread;
 import com.android.server.SystemConfig;
@@ -2058,7 +2057,6 @@ public class ActivityManagerService extends IActivityManager.Stub
             mWindowManager = wm;
             mWmInternal = LocalServices.getService(WindowManagerInternal.class);
             mActivityTaskManager.setWindowManager(wm);
-            NtServiceInjector.get().setWindowManagerService(wm);
         }
     }
 
@@ -2610,8 +2608,6 @@ public class ActivityManagerService extends IActivityManager.Stub
             Slog.e(TAG, "Failed to get read only fd for shared memory", e);
             throw new RuntimeException(e);
         }
-        NtServiceInjector.get().setContext(mContext);
-        NtServiceInjector.get().setActivityManagerService(this);
     }
 
     void setBroadcastQueueForTest(BroadcastQueue broadcastQueue) {
@@ -3360,6 +3356,7 @@ public class ActivityManagerService extends IActivityManager.Stub
                                     empty_app.isForkedFromHighUsed = true;
                                     if (DEBUG_NMM) Slog.d("NtMemoryManager", "start high used after booting: " + app_str);
                                 }
+                                AxExtServiceFactory.getMemoryManager().addForkedHighUsageProcess(empty_app);
                             }
                         }
                     } catch (Exception e) {
@@ -5351,6 +5348,7 @@ public class ActivityManagerService extends IActivityManager.Stub
             
             mHandler.postDelayed(() -> {
                 SystemProperties.set("persist.sys.axion_boot_completed", "1");
+                AxExtServiceFactory.onLateSystemReady();
             }, 5000);
 
             mUserController.onBootComplete(
@@ -17638,7 +17636,7 @@ public class ActivityManagerService extends IActivityManager.Stub
         public void startProcess(String processName, ApplicationInfo info, boolean knownToBeDead,
                 boolean isTop, String hostingType, ComponentName hostingName) {
             try {
-                if (BoostAdjuster.CAMERA_APPS.contains(processName)) {
+                if (AxUtils.isCamera(processName)) {
                     AxExtServiceFactory.getMemoryManager().boostCamera(true);
                 }
                 if (Trace.isTagEnabled(Trace.TRACE_TAG_ACTIVITY_MANAGER)) {
@@ -19677,28 +19675,31 @@ public class ActivityManagerService extends IActivityManager.Stub
     }
 
     @Override
-    public void executeAdjustCpusetCpus(String path, String cpuset) {
-        AxExtServiceFactory.getBoostAdjuster().write(path, cpuset);
+    public void adjustCpusetCpus(String group, String cpus, long duration) {
+        AxExtServiceFactory.getBoostAdjuster().adjustCpusetCpus(group, cpus, duration);
     }
 
     @Override
-    public void adjustCpusetCpus(String cgroup, long durationMillis) {
-        AxExtServiceFactory.getBoostAdjuster().adjustCpusetCpus(cgroup, durationMillis);
+    public void animationBoost(int pid, long duration) {
+        ProcessRecord curProc;
+        synchronized (mPidsSelfLocked) {
+            curProc = mPidsSelfLocked.get(pid);
+        }
+        if (curProc == null) {
+            Slog.d("ActivityManager", "pid: " + pid + " is not exist, return!");
+            return;
+        }
+        AxExtServiceFactory.getBoostAdjuster().animationBoost(pid, curProc.getRenderThreadTid(), duration);
     }
 
     @Override
-    public void animationBoost(int pid, boolean enabled) {
-         AxExtServiceFactory.getBoostAdjuster().animationBoost(pid, enabled);
+    public void setThreadAffinity(int tid, int affinity) {
+        AxExtServiceFactory.getBoostAdjuster().setThreadAffinity(tid, affinity);
     }
 
     @Override
-    public void setThreadAffinity(int pid, int affinity) {
-        AxExtServiceFactory.getBoostAdjuster().setThreadAffinity(pid, affinity);
-    }
-
-    @Override
-    public void setPerformanceMode(boolean enabled, String reason) {
-       AxExtServiceFactory.getBoostAdjuster().setPerformanceMode(enabled, reason);
+    public void enablePerformanceMode(boolean enabled) {
+       AxExtServiceFactory.getBoostAdjuster().enablePerformanceMode(enabled);
     }
 
     @Override
@@ -19707,10 +19708,15 @@ public class ActivityManagerService extends IActivityManager.Stub
     }
 
     @Override
-    public void inputBoost(long durationMillis) {
-        AxExtServiceFactory.getBoostAdjuster().inputBoost(durationMillis);
+    public void inputBoost() {
+        AxExtServiceFactory.getBoostAdjuster().inputBoost();
     }
 
+    @Override
+    public void getProcessesAndFrozen(String currentResumePackage) {
+        AxExtServiceFactory.getBoostAdjuster().getProcessesAndFrozen(currentResumePackage);
+    }
+    
     @Override
     public boolean shouldForceLongScreen(String packageName) {
         return mActivityTaskManager.shouldForceLongScreen(packageName);
