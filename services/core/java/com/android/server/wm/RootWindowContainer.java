@@ -146,6 +146,7 @@ import com.android.internal.util.BoostHelper;
 import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.internal.util.function.pooled.PooledPredicate;
 import com.android.server.LocalServices;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.am.AppTimeTracker;
 import com.android.server.am.UserState;
@@ -2396,6 +2397,10 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
         if (preferredTaskDisplayArea != null) {
             mTmpFindTaskResult.process(preferredTaskDisplayArea);
             if (mTmpFindTaskResult.mIdealRecord != null) {
+                if(mTmpFindTaskResult.mIdealRecord.getState() == DESTROYED) {
+                    /*It's a new app launch */
+                    startIoPrefetch(r);
+                }
                 if(mTmpFindTaskResult.mIdealRecord.getState() == STOPPED) {
                     ProcessFreezerManager freezer = ProcessFreezerManager.getInstance();
                     if (freezer != null && freezer.useFreezerManager()) {
@@ -2411,6 +2416,7 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
         if ((mTmpFindTaskResult.mIdealRecord == null) ||
             (mTmpFindTaskResult.mIdealRecord.getState() == DESTROYED)) {
             if (r != null && r.isMainIntent(r.intent)) {
+                startIoPrefetch(r);
                 ProcessFreezerManager freezer = ProcessFreezerManager.getInstance();
                 if (freezer != null && freezer.useFreezerManager()) {
                     freezer.startFreeze(r.packageName, ProcessFreezerManager.FIRST_LAUNCH_FREEZE);
@@ -3931,5 +3937,11 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
                 }
             }
         }
+    }
+    
+    void startIoPrefetch(ActivityRecord r) {
+        AxExtServiceFactory.getUxPerformance().perfIOPrefetchStart(-1, r.packageName,
+                      r.info.applicationInfo.sourceDir.substring(
+                        0, r.info.applicationInfo.sourceDir.lastIndexOf('/')));
     }
 }

@@ -22,7 +22,8 @@ public interface IAxExtServiceFactory {
         NT_MEMORY_MANAGER(INtMemoryManager.class),
         NT_APP_USAGE_MANAGER(INtAppUsageManager.class),
         BOOST_ADJUSTER(IBoostAdjuster.class),
-        PROCESS_MANAGER(IProcessManager.class);
+        PROCESS_MANAGER(IProcessManager.class),
+        UX_PERFORMANCE(IUxPerformance.class);
 
         private final Class<?> clazz;
 

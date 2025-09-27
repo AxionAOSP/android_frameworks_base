@@ -2285,6 +2285,7 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
         }
         
         AxExtServiceFactory.getAppUsageManager().setScreenState(isOff);
+        AxExtServiceFactory.getUxPerformance().setScreenState(isOff);
 
         // Return true if the screen isn't blocked.
         return mPendingScreenOnUnblocker == null
