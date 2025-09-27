@@ -323,6 +323,9 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+
+import com.android.internal.util.ScrollOptimizer;
+
 /**
  * The top of a view hierarchy, implementing the needed protocol between View
  * and the WindowManager.  This is for the most part an internal implementation
@@ -1212,7 +1215,7 @@ public final class ViewRootImpl implements ViewParent,
     private String mTag = TAG;
     private String mFpsTraceName;
     private String mLargestViewTraceName;
-
+    
     private final boolean mAppStartInfoTimestampsFlagValue;
     private AtomicBoolean mAppStartTimestampsSent = new AtomicBoolean(false);
     private boolean mAppStartTrackingStarted = false;
@@ -1232,7 +1235,12 @@ public final class ViewRootImpl implements ViewParent,
             Flags.enableInvalidateCheckThread();
     private static boolean sSurfaceFlingerBugfixFlagValue =
             com.android.graphics.surfaceflinger.flags.Flags.vrrBugfix24q4();
-    private static final boolean sEnableVrr = ViewProperties.vrr_enabled().orElse(true);
+    // Disable VRR feature to meet power expectations.
+    // VRR wakes up the idle device after 750ms timeout. This bounds Display and GPU to
+    // wake up as well, leading to higher power consumption during idling.
+    // Disable VRR to avoid this extra wakeup call as it can cause power regression.
+    // Google bug: https://partnerissuetracker.corp.google.com/u/0/issues/409971466
+    private static final boolean sEnableVrr = false;
     private static final boolean sToolkitInitialTouchBoostFlagValue = toolkitInitialTouchBoost();
     private static boolean sToolkitFrameRateDebugFlagValue =  toolkitFrameRateDebug();
 
@@ -2826,6 +2834,7 @@ public final class ViewRootImpl implements ViewParent,
             mBlastBufferQueue.destroy();
         }
         mBlastBufferQueue = new BLASTBufferQueue(mTag, true /* updateDestinationFrame */);
+        ScrollOptimizer.setBLASTBufferQueue(mBlastBufferQueue);
         // If we create and destroy BBQ without recreating the SurfaceControl, we can end up
         // queuing buffers on multiple apply tokens causing out of order buffer submissions. We
         // fix this by setting the same apply token on all BBQs created by this VRI.
@@ -10475,6 +10484,7 @@ public final class ViewRootImpl implements ViewParent,
     }
 
     void doProcessInputEvents() {
+        ScrollOptimizer.setBLASTBufferQueue(mBlastBufferQueue);
         // Deliver all pending input events in the queue.
         while (mPendingInputEventHead != null) {
             QueuedInputEvent q = mPendingInputEventHead;
@@ -10489,6 +10499,10 @@ public final class ViewRootImpl implements ViewParent,
                     mPendingInputEventCount);
 
             mViewFrameInfo.setInputEvent(mInputEventAssigner.processEvent(q.mEvent));
+            
+            if (q.mEvent instanceof MotionEvent) {
+                ScrollOptimizer.setMotionType(((MotionEvent)q.mEvent).getActionMasked());
+            }
 
             deliverInputEvent(q);
         }

@@ -4251,6 +4251,10 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
                                     }
                                     mSelector.setHotspot(x, ev.getY());
                                 }
+                                if (!mDataChanged && !mIsDetaching
+                                        && isAttachedToWindow()) {
+                                    performClick.run();
+                                }
                                 if (mTouchModeReset != null) {
                                     removeCallbacks(mTouchModeReset);
                                 }

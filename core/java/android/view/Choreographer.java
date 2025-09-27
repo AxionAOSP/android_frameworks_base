@@ -41,6 +41,8 @@ import android.util.Log;
 import android.util.TimeUtils;
 import android.view.animation.AnimationUtils;
 
+import com.android.internal.util.ScrollOptimizer;
+
 import java.io.PrintWriter;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -344,6 +346,8 @@ public final class Choreographer {
         mLastFrameTimeNanos = Long.MIN_VALUE;
 
         mFrameIntervalNanos = (long)(1000000000 / getRefreshRate());
+        
+        ScrollOptimizer.setFrameInterval(mFrameIntervalNanos);
 
         mCallbackQueues = new CallbackQueue[CALLBACK_LAST + 1];
         for (int i = 0; i <= CALLBACK_LAST; i++) {
@@ -842,7 +846,7 @@ public final class Choreographer {
     private void scheduleFrameLocked(long now) {
         if (!mFrameScheduled) {
             mFrameScheduled = true;
-            if (USE_VSYNC) {
+            if (ScrollOptimizer.shouldUseVsync()) {
                 if (DEBUG_FRAMES) {
                     Log.d(TAG, "Scheduling next frame on vsync.");
                 }
@@ -858,6 +862,7 @@ public final class Choreographer {
                     mHandler.sendMessageAtFrontOfQueue(msg);
                 }
             } else {
+                sFrameDelay = ScrollOptimizer.getFrameDelay();
                 final long nextFrameTime = Math.max(
                         mLastFrameTimeNanos / TimeUtils.NANOS_PER_MS + sFrameDelay, now);
                 if (DEBUG_FRAMES) {
@@ -1088,6 +1093,13 @@ public final class Choreographer {
                 mLastVsyncEventData.copyFrom(vsyncEventData);
             }
 
+            if (frameIntervalNanos > 0 && (Math.abs(frameIntervalNanos - mFrameIntervalNanos)
+                    > TimeUtils.NANOS_PER_MS)) {
+                mFrameIntervalNanos = frameIntervalNanos;
+                ScrollOptimizer.setFrameInterval(mFrameIntervalNanos);
+            }
+            ScrollOptimizer.setUITaskStatus(true);
+
             if (resynced && Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
                 String message = String.format("Choreographer#doFrame - resynced to %d in %.1fms",
                         timeline.mVsyncId, (timeline.mDeadlineNanos - startNanos) * 0.000001f);
@@ -1108,6 +1120,7 @@ public final class Choreographer {
             doCallbacks(Choreographer.CALLBACK_TRAVERSAL, frameIntervalNanos);
 
             doCallbacks(Choreographer.CALLBACK_COMMIT, frameIntervalNanos);
+            ScrollOptimizer.setUITaskStatus(false);
         } finally {
             AnimationUtils.unlockAnimationClock();
             mInDoFrameCallback = false;
@@ -1539,6 +1552,7 @@ public final class Choreographer {
                 mTimestampNanos = timestampNanos;
                 mFrame = frame;
                 mLastVsyncEventData.copyFrom(vsyncEventData);
+                ScrollOptimizer.setVsyncTime(mTimestampNanos);
                 Message msg = Message.obtain(mHandler, this);
                 msg.setAsynchronous(true);
                 mHandler.sendMessageAtTime(msg, timestampNanos / TimeUtils.NANOS_PER_MS);

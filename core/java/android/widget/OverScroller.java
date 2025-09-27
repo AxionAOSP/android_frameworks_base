@@ -25,6 +25,7 @@ import android.view.ViewConfiguration;
 import android.view.animation.AnimationUtils;
 import android.view.animation.Interpolator;
 
+import com.android.internal.util.ScrollOptimizer;
 
 /**
  * This class encapsulates scrolling with the ability to overshoot the bounds
@@ -163,6 +164,9 @@ public class OverScroller {
      */
     public final void forceFinished(boolean finished) {
         mScrollerX.mFinished = mScrollerY.mFinished = finished;
+        if (finished && mMode == FLING_MODE) {
+            ScrollOptimizer.setFlingFlag(ScrollOptimizer.FLING_END);
+        }
     }
 
     /**
@@ -287,6 +291,9 @@ public class OverScroller {
      */
     public boolean computeScrollOffset() {
         if (isFinished()) {
+            if (mMode == FLING_MODE) {
+                ScrollOptimizer.setFlingFlag(ScrollOptimizer.FLING_END);
+            }
             return false;
         }
 
@@ -324,6 +331,10 @@ public class OverScroller {
                             mScrollerY.finish();
                         }
                     }
+                }
+
+                if (isFinished()) {
+                    ScrollOptimizer.setFlingFlag(ScrollOptimizer.FLING_END);
                 }
 
                 break;
@@ -364,6 +375,7 @@ public class OverScroller {
      * @param duration Duration of the scroll in milliseconds.
      */
     public void startScroll(int startX, int startY, int dx, int dy, int duration) {
+        ScrollOptimizer.setFlingFlag(ScrollOptimizer.FLING_END);
         mMode = SCROLL_MODE;
         mScrollerX.startScroll(startX, dx, duration);
         mScrollerY.startScroll(startY, dy, duration);
@@ -434,6 +446,8 @@ public class OverScroller {
                 velocityY += oldVelocityY;
             }
         }
+        
+        ScrollOptimizer.setFlingFlag(ScrollOptimizer.FLING_START);
 
         mMode = FLING_MODE;
         mScrollerX.fling(startX, velocityX, minX, maxX, overX);
@@ -502,6 +516,9 @@ public class OverScroller {
      * @see #forceFinished(boolean)
      */
     public void abortAnimation() {
+        if (mMode == FLING_MODE) {
+            ScrollOptimizer.setFlingFlag(ScrollOptimizer.FLING_END);
+        }
         mScrollerX.finish();
         mScrollerY.finish();
     }
@@ -907,9 +924,10 @@ public class OverScroller {
          */
         boolean update() {
             final long time = AnimationUtils.currentAnimationTimeMillis();
-            final long currentTime = time - mStartTime;
+            final long adjustedTime = ScrollOptimizer.getAdjustedAnimationClock(time);
+            final long currentTime = adjustedTime - mStartTime;
 
-            if (currentTime == 0) {
+            if (currentTime <= 0) {
                 // Skip work but report that we're still going if we have a nonzero duration.
                 return mDuration > 0;
             }
