@@ -15,44 +15,39 @@
  */
 package com.android.systemui.lockscreen
 
+import android.content.Context
 import android.content.IntentFilter
 import android.media.AudioManager
-import android.view.View
 import com.android.systemui.res.R
 import com.android.systemui.util.*
 
 enum class WidgetAction(
-    val activeRes: Int,
-    val inactiveRes: Int,
     val onClick: (LockScreenWidgetsController) -> Unit,
-    val onLongClick: ((LockScreenWidgetsController, View) -> Boolean)? = null,
+    val onLongClick: ((LockScreenWidgetsController) -> Boolean)? = null,
     val registerCallback: (LockScreenWidgetsController) -> Unit = {},
     val unregisterCallback: (LockScreenWidgetsController) -> Unit = {}
 ) {
     WIFI(
-        LsWidgetsRes.WIFI_ACTIVE, LsWidgetsRes.WIFI_INACTIVE,
         onClick = onClickLambda@{
             val enabled = !it.callbacks.wifiInfo.enabled
             it.networkController.setWifiEnabled(enabled)
             it.factory.update(WIFI, enabled)
         },
-        onLongClick = { c, v -> c.showInternetDialog(v); true },
+        onLongClick = { c -> c.showInternetDialog(); true },
         registerCallback = { it.networkController.addCallback(it.callbacks.wifiSignalCallback) },
         unregisterCallback = { it.networkController.removeCallback(it.callbacks.wifiSignalCallback) }
     ),
     DATA(
-        LsWidgetsRes.DATA_ACTIVE, LsWidgetsRes.DATA_INACTIVE,
         onClick = onClickLambda@{
             val enabled = !it.dataController.isMobileDataEnabled
             it.dataController.setMobileDataEnabled(enabled)
             it.factory.update(DATA, enabled)
         },
-        onLongClick = { c, v -> c.showInternetDialog(v); true },
+        onLongClick = { c -> c.showInternetDialog(); true },
         registerCallback = { it.networkController.addCallback(it.callbacks.cellSignalCallback) },
         unregisterCallback = { it.networkController.removeCallback(it.callbacks.cellSignalCallback) }
     ),
     RINGER(
-        LsWidgetsRes.RINGER_ACTIVE, LsWidgetsRes.RINGER_INACTIVE,
         onClick = onClickLambda@{
             val current = it.audioManager.ringerMode
             val next = if (current == AudioManager.RINGER_MODE_NORMAL)
@@ -72,19 +67,17 @@ enum class WidgetAction(
             }
         }
     ),
-    BT(
-        LsWidgetsRes.BT_ACTIVE, LsWidgetsRes.BT_INACTIVE,
+    BLUETOOTH(
         onClick = onClickLambda@{
             val enabled = !it.bluetoothEnabled
             it.bluetoothController.setBluetoothEnabled(enabled)
-            it.factory.update(BT, enabled)
+            it.factory.update(BLUETOOTH, enabled)
         },
-        onLongClick = { c, v -> c.showBluetoothDialog(v); true },
+        onLongClick = { c -> c.showBluetoothDialog(); true },
         registerCallback = { it.bluetoothController.addCallback(it.callbacks.btCallback) },
         unregisterCallback = { it.bluetoothController.removeCallback(it.callbacks.btCallback) }
     ),
     TORCH(
-        LsWidgetsRes.TORCH_RES_ACTIVE, LsWidgetsRes.TORCH_RES_INACTIVE,
         onClick = onClickLambda@{
             val cameraId = it.cameraId ?: return@onClickLambda
             runCatching {
@@ -97,14 +90,26 @@ enum class WidgetAction(
         unregisterCallback = { it.flashlightController.removeCallback(it.callbacks.flashlightCallback) }
     ),
     HOTSPOT(
-        LsWidgetsRes.HOTSPOT_ACTIVE, LsWidgetsRes.HOTSPOT_INACTIVE,
         onClick = onClickLambda@{
             val newState = !it.hotspotController.isHotspotEnabled
             it.hotspotController.setHotspotEnabled(newState)
             it.factory.update(HOTSPOT, newState)
         },
-        onLongClick = { c, v -> c.showInternetDialog(v); true },
+        onLongClick = { c -> c.showInternetDialog(); true },
         registerCallback = { it.hotspotController.addCallback(it.callbacks.hotspotCallback) },
         unregisterCallback = { it.hotspotController.removeCallback(it.callbacks.hotspotCallback) }
     );
 }
+
+fun WidgetAction.labelRes(): Int = when (this) {
+    WidgetAction.DATA -> R.string.widget_data
+    WidgetAction.WIFI -> R.string.widget_wifi
+    WidgetAction.HOTSPOT -> R.string.widget_hotspot
+    WidgetAction.TORCH -> R.string.widget_torch
+    WidgetAction.BLUETOOTH -> R.string.widget_bluetooth
+    WidgetAction.RINGER -> R.string.widget_ringer
+    else -> R.string.widget_unknown
+}
+
+fun WidgetAction.label(context: Context): String =
+    context.getString(labelRes())

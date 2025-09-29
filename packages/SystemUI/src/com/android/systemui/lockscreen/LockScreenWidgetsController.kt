@@ -20,19 +20,16 @@ import android.content.Context
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
 import android.os.Handler
-import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import com.android.systemui.animation.Expandable
-import com.android.systemui.animation.view.LaunchableImageView
 import com.android.systemui.bluetooth.qsdialog.BluetoothDetailsContentViewModel
-import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.qs.tiles.dialog.InternetDialogManager
-import com.android.systemui.res.R
 import com.android.systemui.statusbar.connectivity.*
 import com.android.systemui.statusbar.policy.*
 import com.android.systemui.util.*
 import dagger.Lazy
+
+data class WidgetSpec(val action: WidgetAction, val span: Int)
 
 class LockScreenWidgetsController(
     internal val container: ViewGroup,
@@ -69,11 +66,16 @@ class LockScreenWidgetsController(
             updateViews(true)
         }
 
-    val actions: List<WidgetAction>
+    val widgetSpecs: List<WidgetSpec>
         get() = settings.value
             .split(",")
-            .mapNotNull { name ->
-                WidgetAction.values().find { it.name.equals(name.trim(), ignoreCase = true) }
+            .mapNotNull { token ->
+                val parts = token.split(":")
+                val name = parts.getOrNull(0)?.trim() ?: return@mapNotNull null
+                val span = parts.getOrNull(1)?.toIntOrNull() ?: 1
+                WidgetAction.values()
+                    .find { it.name.equals(name, ignoreCase = true) }
+                    ?.let { WidgetSpec(it, span) }
             }
 
     var listening = false
@@ -84,7 +86,7 @@ class LockScreenWidgetsController(
         }
 
     val scrimUtils get() = ScrimUtils.get()
-    val enabled get() = settings.isEnabled && actions.isNotEmpty()
+    val enabled get() = settings.isEnabled && widgetSpecs.isNotEmpty()
     val bluetoothEnabled get() = BluetoothAdapter.getDefaultAdapter()?.isEnabled == true
     val dozing get() = scrimUtils.isDozing()
 
@@ -100,9 +102,9 @@ class LockScreenWidgetsController(
     }
 
     private fun startListeners() {
-        listeners += actions.associate { action ->
-            action.registerCallback(this)
-            "widget_${action.name}" to { action.unregisterCallback(this) }
+        listeners += widgetSpecs.associate { spec ->
+            spec.action.registerCallback(this)
+            "widget_${spec.action.name}" to { spec.action.unregisterCallback(this) }
         }
     }
 
@@ -125,16 +127,16 @@ class LockScreenWidgetsController(
         }
     }
 
-    fun showInternetDialog(v: View) = postUpdate {
+    fun showInternetDialog() = postUpdate {
         internetDialogManager.create(
             true,
             accessPointController.canConfigMobileData(),
             accessPointController.canConfigWifi(),
-            Expandable.fromView(v)
+            null
         )
     }
 
-    fun showBluetoothDialog(v: View) = postUpdate {
-        detailsContentViewModel.get().showDialog(Expandable.fromView(v))
+    fun showBluetoothDialog() = postUpdate {
+        detailsContentViewModel.get().showDialog(null)
     }
 }

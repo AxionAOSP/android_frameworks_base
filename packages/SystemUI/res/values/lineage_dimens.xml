@@ -75,11 +75,11 @@
     
     <!-- Lockscreen Widgets -->
     <dimen name="kg_widget_circle_size">72dp</dimen>
-    <dimen name="kg_widgets_margin_horizontal">12dp</dimen>
-    <dimen name="kg_widgets_margin_side">4dp</dimen>
-    <dimen name="kg_widgets_icon_padding">24dp</dimen>
-    <dimen name="kg_widget_margin_vertical">16dp</dimen>
-    <dimen name="kg_widget_margin_bottom">6dp</dimen>
+    <dimen name="kg_widgets_spacing">12dp</dimen>
+    <dimen name="kg_widgets_label_start_padding">24dp</dimen>
+    <dimen name="kg_widgets_icon_size">24dp</dimen>
+    <dimen name="kg_widgets_doze_stroke">1.5dp</dimen>
+    <dimen name="kg_widgets_top_padding">22dp</dimen>
 
     <!-- Pulse -->
     <dimen name="visualizer_pulse_height">300dp</dimen>

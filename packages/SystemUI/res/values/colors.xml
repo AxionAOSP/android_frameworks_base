@@ -298,10 +298,4 @@
 
     <!-- Mistouch -->
     <color name="keyguard_mistouch_prevention_text_color">#767579</color>
-
-    <!-- Lockscreen Widgets -->
-    <color name="lockscreen_widget_background_color_dark">@android:color/system_neutral1_900</color>
-    <color name="lockscreen_widget_background_color_light">@android:color/system_neutral1_50</color>
-    <color name="lockscreen_widget_background_color_adark">@android:color/system_accent1_100</color>
-    <color name="lockscreen_widget_background_color_alight">@android:color/system_accent1_600</color>
 </resources>

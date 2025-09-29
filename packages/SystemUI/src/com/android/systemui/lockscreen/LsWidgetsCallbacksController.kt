@@ -18,6 +18,7 @@ package com.android.systemui.lockscreen
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import androidx.compose.runtime.*
 import com.android.systemui.statusbar.connectivity.*
 import com.android.systemui.statusbar.policy.*
 import com.android.systemui.util.ScrimUtils
@@ -27,6 +28,7 @@ class LsWidgetsCallbacksController(private val controller: LockScreenWidgetsCont
     private val wifiCallbackInfo = WifiCallbackInfo()
 
     val wifiInfo: WifiCallbackInfo get() = wifiCallbackInfo
+    var connectedDeviceName by mutableStateOf<String?>(null)
 
     val configurationListener = object : ConfigurationController.ConfigurationListener {
         override fun onUiModeChanged() {
@@ -74,12 +76,15 @@ class LsWidgetsCallbacksController(private val controller: LockScreenWidgetsCont
         }
         override fun onBluetoothDevicesChanged() {
             controller.states.updateBluetooth()
+            connectedDeviceName = controller.bluetoothController.getConnectedDeviceName()
         }
     }
 
     val wifiSignalCallback = object : SignalCallback {
         override fun setWifiIndicators(indicators: WifiIndicators) {
             if (indicators.qsIcon == null) {
+                wifiInfo.enabled = false
+                wifiInfo.ssid = null
                 controller.states.updateWiFi(false)
                 return
             }
@@ -90,8 +95,8 @@ class LsWidgetsCallbacksController(private val controller: LockScreenWidgetsCont
     }
 
     class WifiCallbackInfo {
-        var enabled = false
-        var ssid: String? = null
+        var enabled by mutableStateOf(false)
+        var ssid by mutableStateOf<String?>(null)
     }
 
     val cellSignalCallback = object : SignalCallback {

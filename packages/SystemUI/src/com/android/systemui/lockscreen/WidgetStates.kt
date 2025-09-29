@@ -41,7 +41,7 @@ class WidgetStates(
     }
 
     fun updateBluetooth() {
-        updateStateIfChanged(WidgetAction.BT, controller.bluetoothEnabled)
+        updateStateIfChanged(WidgetAction.BLUETOOTH, controller.bluetoothEnabled)
     }
 
     fun updateWiFi(enabled: Boolean) {
@@ -60,7 +60,7 @@ class WidgetStates(
         return when (action) {
             WidgetAction.TORCH -> controller.isFlashOn
             WidgetAction.RINGER -> controller.audioManager.ringerMode == AudioManager.RINGER_MODE_VIBRATE
-            WidgetAction.BT -> controller.bluetoothEnabled
+            WidgetAction.BLUETOOTH -> controller.bluetoothEnabled
             WidgetAction.WIFI -> controller.callbacks.wifiInfo.enabled
             WidgetAction.DATA -> controller.networkController.mobileDataController.isMobileDataEnabled
             WidgetAction.HOTSPOT -> controller.hotspotController.isHotspotEnabled

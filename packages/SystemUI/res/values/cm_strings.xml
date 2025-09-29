@@ -198,4 +198,15 @@
 
     <!-- Button to restart SystemUI, within the Restart Options dialog -->
     <string name="global_action_restart_systemui">SystemUI</string>
+    
+    <!-- Lockscreen Widget -->
+    <string name="widget_data">Data</string>
+    <string name="widget_wifi">Wi-Fi</string>
+    <string name="widget_hotspot">Hotspot</string>
+    <string name="widget_torch">Torch</string>
+    <string name="widget_bluetooth">Bluetooth</string>
+    <string name="widget_ringer">Ringer</string>
+    <string name="ringer_vibrate">Vibrate</string>
+    <string name="ringer_normal">Ring</string>
+    <string name="widget_unknown">Widget</string>
 </resources>

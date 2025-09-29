@@ -16,134 +16,263 @@
 package com.android.systemui.lockscreen
 
 import android.content.Context
-import android.view.View
-import android.view.ViewGroup
-import com.android.systemui.animation.view.LaunchableImageView
+import android.content.Intent
+import android.view.MotionEvent
+import android.widget.FrameLayout
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.*
+import androidx.compose.foundation.gestures.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.*
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.vector.*
+import androidx.compose.ui.input.pointer.*
+import androidx.compose.ui.layout.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.*
+import androidx.compose.ui.res.*
+import androidx.compose.ui.text.style.*
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.*
+import androidx.lifecycle.*
+import com.android.systemui.animation.LaunchableView
+import com.android.systemui.animation.LaunchableViewDelegate
+import com.android.systemui.util.repeatWhenAttached
 import com.android.systemui.res.R
-import com.google.android.flexbox.*
 
 class WidgetFactory(
-    private val context: Context,
-    private val controller: LockScreenWidgetsController
+    private val ctx: Context,
+    private val ctrl: LockScreenWidgetsController
 ) {
-    private val theme = Theme(context)
-    private val actions: List<WidgetAction?> 
-        get() = controller.actions.take(4).let { it + List(4 - it.size) { null } }
-    private val states: WidgetStates get() = controller.states
-    private val enabled get() = controller.enabled
+    private val dimens = Dimens(ctx)
 
-    val flexBox: FlexboxLayout by lazy {
-        FlexboxLayout(context).apply {
-            id = R.id.widgets_container
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+    private val widgetsState = mutableStateListOf<WidgetSpec>()
+
+    private val _dozingState = mutableStateOf(false)
+    private val dozingState: State<Boolean> = _dozingState
+
+    private val _activeStates = mutableStateMapOf<WidgetAction, Boolean>()
+    private val activeStates: Map<WidgetAction, Boolean> = _activeStates
+
+    private val hostView by lazy { FrameLayoutTouchPassthrough(ctx) }
+
+    private inner class FrameLayoutTouchPassthrough(context: Context) : FrameLayout(context), LaunchableView {
+        private val composeView: ComposeView by lazy {
+            ComposeView(context).apply {
+                repeatWhenAttached {
+                    repeatOnLifecycle(Lifecycle.State.STARTED) {
+                        setViewCompositionStrategy(
+                            ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
+                        )
+                        setContent {
+                            WidgetsArea(widgetsState)
+                        }
+                    }
+                }
+            }
+        }
+
+        init {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                dimens.hostHeightPx
             )
-            setPaddingRelative(theme.sidePadding, 0, theme.sidePadding, 0)
-            flexDirection = FlexDirection.ROW
-            justifyContent = JustifyContent.FLEX_START
-            alignItems = AlignItems.CENTER
-            flexWrap = FlexWrap.WRAP
+            addView(
+                composeView,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            )
+        }
+
+        private val delegate = LaunchableViewDelegate(
+            this,
+            superSetVisibility = { super.setVisibility(it) }
+        )
+
+        override fun setShouldBlockVisibilityChanges(block: Boolean) {
+            delegate.setShouldBlockVisibilityChanges(block)
+        }
+
+        override fun setVisibility(visibility: Int) {
+            delegate.setVisibility(visibility)
+        }
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            composeView.onTouchEvent(event)
+            return super.onTouchEvent(event)
+        }
+
+        override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+            composeView.onInterceptTouchEvent(event)
+            return super.onInterceptTouchEvent(event)
         }
     }
 
     fun init() {
-        flexBox.removeAllViews()
-        actions.indices.forEach { index ->
-            flexBox.addView(create(index))
-        }
-        controller.container.addView(flexBox)
+        ctrl.container.addView(hostView)
+        widgetsState.clear()
+        widgetsState.addAll(ctrl.widgetSpecs.filterNotNull())
+        update()
     }
 
-    fun updateViews(force: Boolean) {
-        for (i in 0 until flexBox.childCount) {
-            val action = actions.getOrNull(i)
-            val view = flexBox.childAt(i) ?: continue
-            if (action == null || !enabled) {
-                view.visibility = View.GONE
-                view.setOnClickListener(null)
-                view.setOnLongClickListener(null)
-            } else {
-                if (force) {
-                    bind(i, true)
-                } else {
-                    style(i, states.isActive(action))
-                }
+    fun updateViews(force: Boolean = false) {
+        widgetsState.clear()
+        widgetsState.addAll(ctrl.widgetSpecs.filterNotNull())
+        update()
+    }
+
+    fun update(action: WidgetAction, isActive: Boolean) {
+        val idx = widgetsState.indexOfFirst { it.action == action }
+        if (idx >= 0) {
+            val spec = widgetsState[idx]
+            widgetsState[idx] = spec.copy()
+        }
+        update()
+    }
+
+    private fun update() {
+        _dozingState.value = ctrl.dozing
+        ctrl.widgetSpecs.forEach { spec ->
+            _activeStates[spec.action] = ctrl.states.isActive(spec.action)
+        }
+    }
+
+    @Composable
+    private fun WidgetsArea(widgets: List<WidgetSpec>) {
+        val theme = rememberTheme()
+
+        Row(
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(dimens.hostHeightDp)
+                .padding(top = dimens.topPaddingDp)
+        ) {
+            widgets.forEach { spec ->
+                WidgetsContent(spec, theme)
             }
         }
     }
 
-    fun update(action: WidgetAction, isActive: Boolean) {
-        actions.indexOf(action).takeIf { it >= 0 }?.let { index ->
-            style(index, isActive)
-        }
-    }
+    @Composable
+    private fun WidgetsContent(spec: WidgetSpec, theme: Theme) {
+        val isActive by derivedStateOf { activeStates[spec.action] ?: ctrl.states.isActive(spec.action) }
+        val dozing by dozingState
 
-    private fun create(index: Int): LaunchableImageView =
-        LaunchableImageView(context).apply {
-            isFocusable = true
-            isClickable = true
-            bind(index, force = true)
+        val bgColor = when {
+            dozing -> Color.Transparent
+            isActive -> theme.activeBg
+            else -> theme.neutralBg
         }
 
-    private fun bind(index: Int, force: Boolean) {
-        val action = actions.getOrNull(index)
-        val v = flexBox.childAt(index) ?: return
-        if (action == null) {
-            v.visibility = View.GONE
-            v.setOnClickListener(null)
-            v.setOnLongClickListener(null)
-            return
+        val border = if (dozing) {
+            Modifier.border(
+                width = dimens.dozeStrokeDp,
+                color = Color.White,
+                shape = CircleShape
+            )
+        } else {
+            Modifier
         }
-        v.visibility = View.VISIBLE
-        style(index, states.isActive(action))
-        if (!force) return
-        setSize(index)
-        v.setOnClickListener { action.onClick(controller) }
-        v.setOnLongClickListener(action.onLongClick?.let { longClick ->
-            { view -> longClick(controller, view) }
-        })
-    }
 
-    private fun style(index: Int, isActive: Boolean) {
-        val action = actions.getOrNull(index) ?: return
-        val v = flexBox.childAt(index) ?: return
-
-        val doze = controller.dozing
-        val iconRes = theme.themed(action.activeRes, action.inactiveRes, isActive)
-        val bgRes = when {
-            doze -> theme.doze(isActive)
-            isActive -> LsWidgetsRes.BG_ACTIVE
-            else -> theme.default()
-        }
         val iconTint = when {
-            doze -> theme.white
-            isActive -> theme.accent
-            else -> theme.neutral
+            dozing -> Color.White
+            isActive -> theme.activeIcon
+            else -> theme.neutralIcon
         }
+        
+        val slotSize = dimens.widgetSizeDp
+        val spacing = dimens.spacingDp
 
-        v.setImageResource(iconRes)
-        v.setBackgroundResource(bgRes)
-        v.backgroundTintList = if (isActive && !doze) theme.tint(theme.accentInverse) else null
-        v.imageTintList = theme.tint(iconTint)
+        if (spec.span == 2) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(spacing),
+                modifier = Modifier
+                    .width((slotSize * 2) + (spacing * 2))
+                    .height(slotSize)
+                    .background(bgColor, CircleShape)
+                    .clip(CircleShape)
+                    .then(border)
+                    .combinedClickable(
+                        onClick = { spec.action.onClick(ctrl) },
+                        onLongClick = spec.action.onLongClick?.let { { it(ctrl) } }
+                    )
+                    .padding(horizontal = dimens.labelStartDp)
+            ) {
+                WidgetIcon(spec, iconTint, theme)
+                WidgetLabel(
+                    action = spec.action, 
+                    tintColor = iconTint, 
+                    modifier = Modifier.weight(1f).basicMarquee()
+                )
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(slotSize)
+                    .background(bgColor, CircleShape)
+                    .clip(CircleShape)
+                    .then(border)
+                    .combinedClickable(
+                        onClick = { spec.action.onClick(ctrl) },
+                        onLongClick = spec.action.onLongClick?.let { { it(ctrl) } }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                WidgetIcon(spec, iconTint, theme)
+            }
+        }
     }
 
-    private fun setSize(index: Int) {
-        val v = flexBox.childAt(index) ?: return
-        val size = theme.widgetSize
-        val gap = theme.spacing
-        val padding = theme.iconPadding
-        val total = actions.size
-        val left = if (index == 0) 0 else gap
-        val right = if (index == total - 1) 0 else gap
-        v.layoutParams = FlexboxLayout.LayoutParams(size, size).apply {
-            setMargins(left, gap, right, gap)
-            flexGrow = 0f
-            flexShrink = 0f
-        }
-        v.setPadding(padding, padding, padding, padding)
+    @Composable
+    private fun WidgetIcon(spec: WidgetSpec, tintColor: Color, theme: Theme) {
+        val active by derivedStateOf { activeStates[spec.action] ?: ctrl.states.isActive(spec.action) }
+        val iconVector = WidgetIconFactory.getIcon(spec.action, active)
+        Icon(
+            imageVector = iconVector,
+            contentDescription = spec.action.label(ctx),
+            tint = tintColor,
+            modifier = Modifier.size(dimens.iconSizeDp)
+        )
     }
 
-    private fun ViewGroup.childAt(index: Int): LaunchableImageView? =
-        getChildAt(index) as? LaunchableImageView
+    @Composable
+    private fun WidgetLabel(action: WidgetAction, tintColor: Color, modifier: Modifier) {
+        val active by derivedStateOf { activeStates[action] ?: ctrl.states.isActive(action) }
+        
+        val label = action.label(ctx)
+
+        val text = when {
+            action == WidgetAction.BLUETOOTH && active -> {
+                ctrl.callbacks.connectedDeviceName
+            }
+            action == WidgetAction.WIFI && active -> {
+                ctrl.callbacks.wifiInfo.ssid?.removeSurrounding("\"")
+            }
+            action == WidgetAction.DATA && active -> {
+                ctrl.networkController.getMobileDataNetworkName()
+            }
+            action == WidgetAction.RINGER -> {
+                val label = 
+                    if (active) R.string.ringer_vibrate 
+                    else R.string.ringer_normal
+                stringResource(label)
+            }
+            else -> label
+        } ?: label
+
+        Text(
+            text = text,
+            color = tintColor,
+            maxLines = 1,
+            modifier = modifier
+        )
+    }
 }
