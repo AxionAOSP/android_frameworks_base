@@ -61,6 +61,7 @@
                 android:layoutDirection="ltr" 
                 android:paddingStart="0dp" 
                 android:paddingEnd="0dp" 
+                android:alpha="0.3" 
                 app:ntDotColor="@color/volume_dot_color" 
                 app:ntDotGap="@dimen/dot_gap" 
                 app:ntDotRadius="@dimen/dot_width" 
