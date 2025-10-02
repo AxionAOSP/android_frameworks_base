@@ -20,15 +20,20 @@ import android.os.SystemProperties;
 
 public class ClonedAppsUtils {
 
+    private static final int INVALID_USER = -1;
+
     public static int getClonedAppsUserId() {
-        return SystemProperties.getInt("persist.sys.cloned_apps_userId", -1);
+        return SystemProperties.getInt("persist.sys.cloned_apps_userId", INVALID_USER);
     }
 
     public static boolean isClonedUser(UserHandle user) {
-        return user.getIdentifier() == getClonedAppsUserId() && getClonedAppsUserId() != -1; // UserHandle.USER_ALL is -1
+        return user != null && isClonedUser(user.getIdentifier());
     }
 
     public static boolean isClonedUser(int userId) {
-        return userId == getClonedAppsUserId();
+        int clonedUserId = getClonedAppsUserId();
+        return userId != UserHandle.USER_ALL
+                && clonedUserId != INVALID_USER
+                && userId == clonedUserId;
     }
 }
