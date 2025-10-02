@@ -23,7 +23,6 @@
        and in layout xml as: "@*android:<type>/<name>"
   -->
   <java-symbol type="integer" name="config_maxBitmapSizePx" />
-  <java-symbol type="string" name="config_bodyFontFamily" />
   <java-symbol type="id" name="account_name" />
   <java-symbol type="id" name="account_row_icon" />
   <java-symbol type="id" name="account_row_text" />
