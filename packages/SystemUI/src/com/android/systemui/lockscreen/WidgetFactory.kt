@@ -141,6 +141,10 @@ class WidgetFactory(
             _activeStates[spec.action] = ctrl.states.isActive(spec.action)
         }
     }
+    
+    fun updateVisibility(vis: Int) {
+        hostView.setVisibility(vis)
+    }
 
     @Composable
     private fun WidgetsArea(widgets: List<WidgetSpec>) {

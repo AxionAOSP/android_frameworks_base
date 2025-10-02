@@ -63,6 +63,7 @@ class LockScreenWidgetsController(
     var settings: WidgetSettings = repository.settings
         set(value) {
             field = value
+            updateVisibility(value.isEnabled)
             updateViews(true)
         }
 
@@ -125,6 +126,12 @@ class LockScreenWidgetsController(
                 updatingViews = false
             }
         }
+    }
+    
+    fun updateVisibility(visible: Boolean) {
+        val vis = if (visible) View.VISIBLE else View.GONE
+        factory.updateVisibility(vis)
+        container.visibility = vis
     }
 
     fun showInternetDialog() = postUpdate {
