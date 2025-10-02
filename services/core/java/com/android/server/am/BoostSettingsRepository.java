@@ -24,7 +24,7 @@ import android.provider.Settings;
 
 import com.android.server.NtServiceInjector;
 
-import java.util.Map;
+import java.util.HashMap;
 import java.util.function.Consumer;
 
 public class BoostSettingsRepository {
@@ -64,24 +64,25 @@ public class BoostSettingsRepository {
     private static final String GAME_GPU_BOOST = "axion_game_gpu_boost_level";
     private static final String SYS_GPU_BOOST = "axion_sys_gpu_boost_level";
 
-    private static final Map<String, Number> DEFAULTS = Map.ofEntries(
-            Map.entry(ACB, 1),
-            Map.entry(ABCB, 0),
-            Map.entry(APCB, 0),
-            Map.entry(ASFB, 1),
-            Map.entry(ATB, 0),
-            Map.entry(MIN_FREQ_BOOST, DEF),
-            Map.entry(MIN_FREQ_BIG_BOOST, DEF),
-            Map.entry(MIN_FREQ_PRIME_BOOST, DEF),
-            Map.entry(MIN_FREQ, 0),
-            Map.entry(MIN_FREQ_BIG, 0),
-            Map.entry(MIN_FREQ_PRIME, 0),
-            Map.entry(MAX_FREQ, MAX),
-            Map.entry(MAX_FREQ_BIG, MAX),
-            Map.entry(MAX_FREQ_PRIME, MAX),
-            Map.entry(GAME_GPU_BOOST, 1),
-            Map.entry(SYS_GPU_BOOST, 1)
-    );
+    private static final HashMap<String, Number> DEFAULTS = new HashMap<>();
+    static {
+        DEFAULTS.put(ACB, 1);
+        DEFAULTS.put(ABCB, 0);
+        DEFAULTS.put(APCB, 0);
+        DEFAULTS.put(ASFB, 1);
+        DEFAULTS.put(ATB, 0);
+        DEFAULTS.put(MIN_FREQ_BOOST, DEF);
+        DEFAULTS.put(MIN_FREQ_BIG_BOOST, DEF);
+        DEFAULTS.put(MIN_FREQ_PRIME_BOOST, DEF);
+        DEFAULTS.put(MIN_FREQ, 0);
+        DEFAULTS.put(MIN_FREQ_BIG, 0);
+        DEFAULTS.put(MIN_FREQ_PRIME, 0);
+        DEFAULTS.put(MAX_FREQ, MAX);
+        DEFAULTS.put(MAX_FREQ_BIG, MAX);
+        DEFAULTS.put(MAX_FREQ_PRIME, MAX);
+        DEFAULTS.put(GAME_GPU_BOOST, 1);
+        DEFAULTS.put(SYS_GPU_BOOST, 1);
+    }
 
     public DeviceData.BoostData loadDeviceData() {
         boolean cpuBoost = getInt(ACB) == 1;
