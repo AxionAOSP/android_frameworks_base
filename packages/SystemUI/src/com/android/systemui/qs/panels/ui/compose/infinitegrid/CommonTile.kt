@@ -16,10 +16,12 @@
 
 package com.android.systemui.qs.panels.ui.compose.infinitegrid
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.drawable.Animatable
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.graphics.drawable.Drawable
+import android.graphics.Typeface
 import android.text.TextUtils
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.graphics.res.animatedVectorResource
@@ -41,9 +43,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -78,6 +80,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.text.font.*
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -103,7 +106,6 @@ import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileContentEndPadding
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileContentStartPadding
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileDividerHeight
-import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileTextSize
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.scaleRatio
 import com.android.systemui.qs.panels.ui.viewmodel.AccessibilityUiState
 import com.android.systemui.qs.ui.compose.borderOnFocus
@@ -306,15 +308,23 @@ private fun TileLabel(
     var textSize by remember { mutableIntStateOf(0) }
 
     val iterations = if (isVisible()) TILE_MARQUEE_ITERATIONS else 0
-    
+
     val context = LocalContext.current
     val density = LocalDensity.current
 
-    BasicText(
+    val fontName = remember(context) {
+        context.getAndroidConfig("config_bodyFontFamily")
+    }
+    val fontFamily = remember(fontName) {
+        FontFamily(Typeface.create(fontName, Typeface.NORMAL))
+    }
+
+    Text(
         text = text,
-        color = color,
         style = style.copy(
-            fontSize = with(density) { context.TileTextSize.toSp() }
+            color = color(),
+            fontSize = 16.sp,
+            fontFamily = fontFamily,
         ),
         maxLines = 1,
         onTextLayout = { textSize = it.size.width },
@@ -373,7 +383,6 @@ object CommonTileDefaults {
         }
 
     val Context.TileLabelBlurWidth: Dp get() = 20.dp * scaleRatio
-    val Context.TileTextSize: Dp get() = 16.dp * scaleRatio
     val Context.LargeTileIconSize: Dp get() = 24.dp * scaleRatio
     val Context.TileContentEndPadding: Dp get() = 20.dp * scaleRatio
     val Context.IconEndPadding: Dp get() = 12.dp * scaleRatio
@@ -382,4 +391,10 @@ object CommonTileDefaults {
     val Context.ToggleTargetSize: Dp get() = 60.dp * scaleRatio
     val Context.TileHeight: Dp get() = 72.dp * scaleRatio
     @Composable fun longPressLabel() = stringResource(id = R.string.accessibility_long_click_tile)
+}
+
+@SuppressLint("DiscouragedApi")
+private fun Context.getAndroidConfig(configName: String): String {
+    val configId = resources.getIdentifier(configName, "string", "android")
+    return if (configId != 0) resources.getString(configId) else "sans-serif"
 }
