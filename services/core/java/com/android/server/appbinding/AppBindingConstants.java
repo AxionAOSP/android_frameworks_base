@@ -101,11 +101,9 @@ public class AppBindingConstants {
                 SERVICE_RECONNECT_MAX_BACKOFF_SEC_KEY, TimeUnit.HOURS.toSeconds(1));
 
         boolean smsServiceEnabled = parser.getBoolean(SMS_SERVICE_ENABLED_KEY, true);
-        
-        boolean lowerSmsOomImportance = true;
 
         int smsAppBindFlags;
-        if (lowerSmsOomImportance) {
+        if (com.android.server.am.Flags.lowerSmsOomImportance()) {
             smsAppBindFlags = parser.getInt(
                     SMS_APP_BIND_FLAGS_KEY,
                     Context.BIND_ALMOST_PERCEPTIBLE | Context.BIND_FOREGROUND_SERVICE);

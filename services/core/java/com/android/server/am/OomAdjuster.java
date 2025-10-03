@@ -440,8 +440,6 @@ public class OomAdjuster {
     private static final long NO_FOLLOW_UP_TIME = Long.MAX_VALUE;
     @GuardedBy("mService")
     private long mNextFollowUpUpdateUptimeMs = NO_FOLLOW_UP_TIME;
-    
-    private boolean useCpuTimeCapability = true;
 
     /**
      * The oom score a client needs to be to raise a service with UI out of cache.
@@ -1869,7 +1867,7 @@ public class OomAdjuster {
                             "Raise procstate to cached activity: " + app);
                 }
             }
-            if (adj > PERCEPTIBLE_MEDIUM_APP_ADJ) {
+            if (Flags.perceptibleTasks() && adj > PERCEPTIBLE_MEDIUM_APP_ADJ) {
                 if (perceptibleTaskStoppedTimeMillis >= 0) {
                     final long now = mInjector.getUptimeMillis();
                     if (now - perceptibleTaskStoppedTimeMillis < PERCEPTIBLE_TASK_TIMEOUT_MILLIS) {
@@ -2801,7 +2799,7 @@ public class OomAdjuster {
             if (app.mOptRecord.setShouldNotFreeze(true, dryRun,
                     app.mOptRecord.shouldNotFreezeReason()
                     | client.mOptRecord.shouldNotFreezeReason(), mAdjSeq)) {
-                if (useCpuTimeCapability) {
+                if (Flags.useCpuTimeCapability()) {
                     // Do nothing, capability updated check will handle the dryrun output.
                 } else {
                     // Bail out early, as we only care about the return value for a dryrun.
@@ -2877,7 +2875,7 @@ public class OomAdjuster {
                             app.mOptRecord.shouldNotFreezeReason()
                             | ProcessCachedOptimizerRecord
                             .SHOULD_NOT_FREEZE_REASON_BINDER_ALLOW_OOM_MANAGEMENT, mAdjSeq)) {
-                        if (useCpuTimeCapability) {
+                        if (Flags.useCpuTimeCapability()) {
                             // Do nothing, capability updated check will handle the dryrun output.
                         } else {
                             // Bail out early, as we only care about the return value for a dryrun.
@@ -3122,7 +3120,7 @@ public class OomAdjuster {
                         app.mOptRecord.shouldNotFreezeReason()
                         | ProcessCachedOptimizerRecord
                         .SHOULD_NOT_FREEZE_REASON_BIND_WAIVE_PRIORITY, mAdjSeq)) {
-                    if (useCpuTimeCapability) {
+                    if (Flags.useCpuTimeCapability()) {
                         // Do nothing, capability updated check will handle the dryrun output.
                     } else {
                         // Bail out early, as we only care about the return value for a dryrun.
@@ -3185,7 +3183,7 @@ public class OomAdjuster {
                 updated = true;
             }
 
-            if (useCpuTimeCapability) {
+            if (Flags.useCpuTimeCapability()) {
                 if ((capability != prevCapability)
                         && ((capability & prevCapability) == prevCapability)) {
                     updated = true;
@@ -3286,7 +3284,7 @@ public class OomAdjuster {
             if (app.mOptRecord.setShouldNotFreeze(true, dryRun,
                     app.mOptRecord.shouldNotFreezeReason()
                     | client.mOptRecord.shouldNotFreezeReason(), mAdjSeq)) {
-                if (useCpuTimeCapability) {
+                if (Flags.useCpuTimeCapability()) {
                     // Do nothing, capability updated check will handle the dryrun output.
                 } else {
                     // Bail out early, as we only care about the return value for a dryrun.
@@ -3372,7 +3370,7 @@ public class OomAdjuster {
                 return true;
             }
 
-            if (useCpuTimeCapability) {
+            if (Flags.useCpuTimeCapability()) {
                 if ((capability != prevCapability)
                         && ((capability & prevCapability) == prevCapability)) {
                     return true;
@@ -4159,7 +4157,7 @@ public class OomAdjuster {
      */
     boolean getFreezePolicy(ProcessRecord proc) {
         // Reasons to not freeze:
-        if (useCpuTimeCapability) {
+        if (Flags.useCpuTimeCapability()) {
             if ((proc.mState.getCurCapability() & PROCESS_CAPABILITY_CPU_TIME) != 0) {
                 /// App is important enough (see {@link #getCpuCapability}) or bound by something
                 /// important enough to not be frozen.
@@ -4224,7 +4222,7 @@ public class OomAdjuster {
                         + (hasCpuCapability ? "T" : "-")
                         + (immediate ? "I" : "-")
                         + (freezePolicy ? "Z" : "-")
-                        + (useCpuTimeCapability ? "t" : "-")
+                        + (Flags.useCpuTimeCapability() ? "t" : "-")
                         + (Flags.prototypeAggressiveFreezing() ? "a" : "-")
                         + "/" + app.getPid()
                         + "/" + state.getCurAdj()
@@ -4360,7 +4358,7 @@ public class OomAdjuster {
                         != client.getSetCapability()) {
             // The connection might elevate the importance of the service's capabilities.
             needDryRun = true;
-        } else if (useCpuTimeCapability
+        } else if (Flags.useCpuTimeCapability()
                 && (client.getSetCapability() & ~app.getSetCapability()
                     & PROCESS_CAPABILITY_CPU_TIME) != 0) {
             // The connection might grant PROCESS_CAPABILITY_CPU_TIME to the service.
@@ -4412,7 +4410,7 @@ public class OomAdjuster {
                 && client.mOptRecord.shouldNotFreeze()) {
             // Process has shouldNotFreeze and it could have gotten it from the client.
             return true;
-        } else if (useCpuTimeCapability
+        } else if (Flags.useCpuTimeCapability()
                 && (client.getSetCapability() & app.getSetCapability()
                     & PROCESS_CAPABILITY_CPU_TIME) != 0) {
             return true;
@@ -4435,7 +4433,7 @@ public class OomAdjuster {
                 && client.mOptRecord.shouldNotFreeze()
                 && !app.mOptRecord.shouldNotFreeze()) {
             needDryRun = true;
-        } else if (useCpuTimeCapability
+        } else if (Flags.useCpuTimeCapability()
                 && (client.getSetCapability() & ~app.getSetCapability()
                     & PROCESS_CAPABILITY_CPU_TIME) != 0) {
             // The connection might grant PROCESS_CAPABILITY_CPU_TIME to the provider.
@@ -4466,7 +4464,7 @@ public class OomAdjuster {
                 && client.mOptRecord.shouldNotFreeze()) {
             // Process has shouldNotFreeze and it could have gotten it from the client.
             return true;
-        } else if (useCpuTimeCapability
+        } else if (Flags.useCpuTimeCapability()
                 && (client.getSetCapability() & app.getSetCapability()
                     & PROCESS_CAPABILITY_CPU_TIME) != 0) {
             return true;

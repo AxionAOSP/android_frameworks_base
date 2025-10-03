@@ -791,8 +791,7 @@ class BroadcastQueueImpl extends BroadcastQueue {
         // TODO: Apply delivery group policies and FLAG_REPLACE_PENDING to collapse the
         // outgoing broadcasts.
         // TODO: Add traces/logs for the enqueueing outgoing broadcasts logic.
-        final boolean deferOutgoingBroadcasts = true; 
-        if (deferOutgoingBroadcasts && isProcessFreezable(r.callerApp)) {
+        if (Flags.deferOutgoingBroadcasts() && isProcessFreezable(r.callerApp)) {
             final BroadcastProcessQueue queue = getOrCreateProcessQueue(
                     r.callerApp.processName, r.callerApp.uid);
             if (queue.getOutgoingBroadcastCount() >= mConstants.MAX_FROZEN_OUTGOING_BROADCASTS) {
