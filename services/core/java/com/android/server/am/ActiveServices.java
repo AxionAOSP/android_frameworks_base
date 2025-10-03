@@ -238,6 +238,7 @@ import com.android.internal.util.DumpUtils;
 import com.android.internal.util.FastPrintWriter;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.server.AppStateTracker;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.LocalServices;
 import com.android.server.SystemService;
 import com.android.server.am.ActivityManagerService.ItemMatcher;
@@ -5297,7 +5298,7 @@ public final class ActiveServices {
         boolean inRestarting = oldPosInRestarting != -1;
         if ((r.serviceInfo.applicationInfo.flags
                 &ApplicationInfo.FLAG_PERSISTENT) == 0) {
-            long minDuration = mAm.mConstants.SERVICE_RESTART_DURATION;
+            long minDuration = AxExtServiceFactory.getProcessManager().getDelayRestartDuration(r);
             long resetTime = mAm.mConstants.SERVICE_RESET_RUN_DURATION;
             boolean canceled = false;
 
@@ -5402,7 +5403,7 @@ public final class ActiveServices {
                 }
             } else {
                 // It's been forced to ignore the restart backoff, fix the delay here.
-                r.restartDelay = mAm.mConstants.SERVICE_RESTART_DURATION;
+                r.restartDelay = AxExtServiceFactory.getProcessManager().getDelayRestartDuration(r);
                 r.nextRestartTime = now + r.restartDelay;
             }
         } else {
@@ -5461,6 +5462,12 @@ public final class ActiveServices {
         }
 
         mAm.mHandler.removeCallbacks(r.restarter);
+        
+        if (AxExtServiceFactory.getProcessManager().checkDelayRestartService(r)) {
+            Slog.d("NtProcessManager", "Delay " + r.processName);
+            return;
+        }
+
         mAm.mHandler.postAtTime(r.restarter, r.nextRestartTime);
         r.nextRestartTime = now + r.restartDelay;
         Slog.w(TAG, scheduling + " restart of crashed service "
@@ -5706,8 +5713,8 @@ public final class ActiveServices {
                 final ServiceRecord r = mRestartingServices.get(i);
                 if (TextUtils.equals(r.packageName, packageName)) {
                     final long remaining = r.nextRestartTime - now;
-                    if (remaining > mAm.mConstants.SERVICE_RESTART_DURATION) {
-                        r.restartDelay = mAm.mConstants.SERVICE_RESTART_DURATION;
+                    if (remaining > AxExtServiceFactory.getProcessManager().getDelayRestartDuration(r)) {
+                        r.restartDelay = AxExtServiceFactory.getProcessManager().getDelayRestartDuration(r);
                         r.nextRestartTime = now + r.restartDelay;
                         performScheduleRestartLocked(r, "Rescheduling", reason, now);
                     }

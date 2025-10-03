@@ -19,4 +19,15 @@ import android.content.Context;
 
 public interface IProcessManager {
     void systemReady();
+    
+    default long getDelayRestartDuration(ServiceRecord sr) {
+        return 1000L;
+    }
+
+    default boolean checkDelayRestartService(ServiceRecord sr) {
+        return false;
+    }
+
+    default void updateTopApp(String topPackageName) {
+    }
 }

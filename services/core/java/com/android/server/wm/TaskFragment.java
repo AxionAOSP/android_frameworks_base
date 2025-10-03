@@ -1552,6 +1552,7 @@ class TaskFragment extends WindowContainer<WindowContainer> {
 
         AxExtServiceFactory.getAppUsageManager().updateLaunchTime(next.packageName);
         AxExtServiceFactory.getMemoryManager().setHighPressureScene(next.packageName);
+        AxExtServiceFactory.getProcessManager().updateTopApp(next.packageName);
 
         // If the most recent activity was noHistory but was only stopped rather
         // than stopped+finished because the device went to sleep, we need to make
