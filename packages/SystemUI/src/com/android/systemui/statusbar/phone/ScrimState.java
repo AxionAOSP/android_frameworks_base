@@ -241,11 +241,11 @@ public enum ScrimState {
             final boolean isDocked = mDockManager.isDocked();
             mBlankScreen = mDisplayRequiresBlanking;
 
-            mFrontTint = Color.BLACK;
+            mFrontTint = mBackgroundColor;
             mFrontAlpha = (alwaysOnEnabled || isDocked || quickPickupEnabled)
                     ? mAodFrontScrimAlpha : 1f;
 
-            mBehindTint = Color.BLACK;
+            mBehindTint = mBackgroundColor;
             mBehindAlpha = ScrimController.TRANSPARENT;
 
             mAnimationDuration = ScrimController.ANIMATION_DURATION_LONG;
@@ -278,8 +278,8 @@ public enum ScrimState {
         @Override
         public void prepare(ScrimState previousState) {
             mFrontAlpha = mAodFrontScrimAlpha;
-            mBehindTint = Color.BLACK;
-            mFrontTint = Color.BLACK;
+            mBehindTint = mBackgroundColor;
+            mFrontTint = mBackgroundColor;
             mBlankScreen = mDisplayRequiresBlanking;
             mAnimationDuration = mWakeLockScreenSensorActive
                     ? ScrimController.ANIMATION_DURATION_LONG : ScrimController.ANIMATION_DURATION;
@@ -314,12 +314,12 @@ public enum ScrimState {
 
             if (mDisplayRequiresBlanking && previousState == ScrimState.AOD) {
                 // Set all scrims black, before they fade transparent.
-                updateScrimColor(mScrimInFront, 1f /* alpha */, Color.BLACK /* tint */);
-                updateScrimColor(mScrimBehind, 1f /* alpha */, Color.BLACK /* tint */);
+                updateScrimColor(mScrimInFront, 1f /* alpha */, mBackgroundColor /* tint */);
+                updateScrimColor(mScrimBehind, 1f /* alpha */, mBackgroundColor /* tint */);
 
                 // Scrims should still be black at the end of the transition.
-                mFrontTint = Color.BLACK;
-                mBehindTint = Color.BLACK;
+                mFrontTint = mBackgroundColor;
+                mBehindTint = mBackgroundColor;
                 mBlankScreen = true;
             } else if (Flags.notificationShadeBlur()) {
                 mBehindTint = ShadeColors.shadePanel(mScrimBehind.getResources(),
