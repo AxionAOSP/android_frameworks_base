@@ -7938,6 +7938,9 @@ public final class ActivityThread extends ClientTransactionHandler
         data.info = getPackageInfo(data.appInfo, mCompatibilityInfo, null /* baseLoader */,
                 false /* securityViolation */, true /* includeCode */,
                 false /* registerPackage */, isSdkSandbox);
+
+        Typeface.changeFont();
+
         if (isSdkSandbox) {
             data.info.setSdkSandboxStorage(data.sdkSandboxClientAppVolumeUuid,
                     data.sdkSandboxClientAppPackage);
