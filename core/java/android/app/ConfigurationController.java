@@ -29,6 +29,7 @@ import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.HardwareRenderer;
+import android.graphics.Typeface;
 import android.os.LocaleList;
 import android.os.Trace;
 import android.util.DisplayMetrics;
@@ -226,6 +227,7 @@ class ConfigurationController {
                 mActivityThread.collectComponentCallbacks(false /* includeUiContexts */);
 
         freeTextLayoutCachesIfNeeded(configDiff);
+        Typeface.changeFont();
 
         if (callbacks != null) {
             final int size = callbacks.size();
