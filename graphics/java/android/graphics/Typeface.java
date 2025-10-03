@@ -29,6 +29,7 @@ import android.annotation.TestApi;
 import android.annotation.UiThread;
 import android.compat.annotation.UnsupportedAppUsage;
 import android.content.res.AssetManager;
+import android.content.res.Resources;
 import android.graphics.fonts.Font;
 import android.graphics.fonts.FontFamily;
 import android.graphics.fonts.FontStyle;
@@ -56,6 +57,7 @@ import android.util.SparseArray;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.util.android.FontController;
 import com.android.internal.util.Preconditions;
 import com.android.text.flags.Flags;
 
@@ -77,6 +79,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -153,7 +156,7 @@ public class Typeface {
     private static final LruCache<Long, LruCache<String, Typeface>> sVariableCache =
             new LruCache<>(16);
     private static final Object sVariableCacheLock = new Object();
-
+    
     /** @hide */
     @VisibleForTesting
     public static void clearTypefaceCachesForTestingPurpose() {
@@ -177,7 +180,7 @@ public class Typeface {
      */
     @GuardedBy("SYSTEM_FONT_MAP_LOCK")
     @UnsupportedAppUsage(trackingBug = 123769347)
-    static final Map<String, Typeface> sSystemFontMap = new ArrayMap<>();
+    static final Map<String, Typeface> sSystemFontMap = new HashMap<>();
 
     // DirectByteBuffer object to hold sSystemFontMap's backing memory mapping.
     static ByteBuffer sSystemFontMapBuffer = null;
@@ -253,6 +256,8 @@ public class Typeface {
      * @hide
      */
     public static final String DEFAULT_FAMILY = "sans-serif";
+    
+    private static volatile String sFontName = DEFAULT_FAMILY;
 
     // Style value for building typeface.
     private static final int STYLE_NORMAL = 0;
@@ -941,7 +946,7 @@ public class Typeface {
      * @return The best matching typeface.
      */
     public static Typeface create(String familyName, @Style int style) {
-        return create(getSystemDefaultTypeface(familyName), style);
+        return create(getOverrideTypeface(familyName), style);
     }
 
     /**
@@ -1309,11 +1314,18 @@ public class Typeface {
         mCleaner.run();
     }
 
-    private static Typeface getSystemDefaultTypeface(@NonNull String familyName) {
+    /** @hide */
+    public static Typeface getOverrideTypeface(@NonNull String familyName) {
+        Typeface tf = FontController.getOverrideTypeface(familyName);
+        return tf == null ? getSystemDefaultTypeface(familyName) : tf;
+    }
+
+    /** @hide */
+    public static Typeface getSystemDefaultTypeface(@NonNull String familyName) {
         Typeface tf = sSystemFontMap.get(familyName);
         return tf == null ? Typeface.DEFAULT : tf;
     }
-
+    
     /** @hide */
     @VisibleForTesting
     public static void initSystemDefaultTypefaces(Map<String, FontFamily[]> fallbacks,
@@ -1491,6 +1503,42 @@ public class Typeface {
     }
 
     /** @hide */
+    public static void changeFont(Resources res) {
+        if (res == null) {
+            return;
+        }
+
+        synchronized (sDynamicCacheLock) {
+            sDynamicTypefaceCache.evictAll();
+        }
+
+        int configId = res.getIdentifier("config_bodyFontFamily", "string", "android");
+        String fontFamily = res.getString(configId);
+
+        sFontName = fontFamily;
+
+        Typeface tf = getOverrideTypeface(sFontName);
+
+        Typeface tfBold = create(tf, BOLD);
+        Typeface tfItalic = create(tf, ITALIC);
+        Typeface tfItalicBold = create(tf, BOLD_ITALIC);
+
+        nativeForceSetStaticFinalField("DEFAULT", tf);
+        nativeForceSetStaticFinalField("DEFAULT_BOLD", tfBold);
+        nativeForceSetStaticFinalField("SANS_SERIF", tf);
+
+        changeDefaultFontForTest(
+                Arrays.asList(
+                        tf, tfBold, tfItalic, tfItalicBold),
+                Arrays.asList(tf, Typeface.SERIF, Typeface.MONOSPACE));
+    }
+
+    /** @hide */
+    public static String getFontName() {
+        return sFontName;
+    }
+
+    /** @hide */
     @VisibleForTesting
     public static void setSystemFontMap(Map<String, Typeface> systemFontMap) {
         synchronized (SYSTEM_FONT_MAP_LOCK) {
@@ -1589,6 +1637,11 @@ public class Typeface {
         // Preload Roboto-Regular.ttf in Zygote for improving app launch performance.
         preloadFontFile(SystemFonts.SYSTEM_FONT_DIR + "Roboto-Regular.ttf");
         preloadFontFile(SystemFonts.SYSTEM_FONT_DIR + "RobotoStatic-Regular.ttf");
+        
+        preloadFontFile(SystemFonts.SYSTEM_FONT_DIR + "Rookery-Regular.otf");
+        preloadFontFile(SystemFonts.SYSTEM_FONT_DIR + "Rookery-Medium.otf");
+        preloadFontFile(SystemFonts.SYSTEM_FONT_DIR + "Rookery-Bold.otf");
+        preloadFontFile(SystemFonts.SYSTEM_FONT_DIR + "Rookery-Italic.otf");
 
         String locale = SystemProperties.get("persist.sys.locale", "en-US");
         String script = ULocale.addLikelySubtags(ULocale.forLanguageTag(locale)).getScript();
