@@ -87,7 +87,9 @@ import java.nio.channels.FileChannel;
         try {
             Font font = new Font.Builder(buffer).build();
             FontFamily family = new FontFamily.Builder(font).build();
-            Typeface typeface = new Typeface.CustomFallbackBuilder(family).build();
+            Typeface typeface = new Typeface.CustomFallbackBuilder(family)
+                    .setSystemFallback(Typeface.DEFAULT_FAMILY)
+                    .build();
 
             TextPaint p = new TextPaint();
             p.setTextSize(24f);
