@@ -179,13 +179,9 @@ public class BoostAdjuster implements IBoostAdjuster {
 
         sSfBoostEnabled.clear();
         sSfBoostEnabled.put(CPU_DISPLAY, data.allCores);
-        sSfBoostEnabled.put(DISPLAY_UC_MIN, "15");
-        sSfBoostEnabled.put(DISPLAY_UC_MAX, "100");
 
         sSfBoostDisabled.clear();
         sSfBoostDisabled.put(CPU_DISPLAY, data.displayCpus);
-        sSfBoostDisabled.put(DISPLAY_UC_MIN, "0");
-        sSfBoostDisabled.put(DISPLAY_UC_MAX, "100");
 
         sRestrictBackgroundOn.clear();
         sRestrictBackgroundOn.put(CPU_BG, data.bgLimit);
@@ -367,7 +363,6 @@ public class BoostAdjuster implements IBoostAdjuster {
         adjustCpusetCpus(CPU_NT_FG, mData.uiLimit, 0L);
         adjustCpusetCpus(CPU_DEX2OAT, mData.bgLimit, 0L);
         adjustCpusetCpus(CPU_BG, mData.bgLimit, 0L);
-        SystemProperties.set("dalvik.vm.dex2oat-threads", "1");
         if (mInputBoost) enablePerformanceMode(true);
         UiThread.getHandler().postDelayed(inputReset, 800L);
         isNotLimited = false;
@@ -375,9 +370,9 @@ public class BoostAdjuster implements IBoostAdjuster {
 
     public void setThreadAffinity(int pid, int affinity) {
         if (affinity == 0) {
-            Process.setThreadGroupAndCpuset(pid, 5);
+            Process.setThreadGroupAndCpuset(pid, Process.THREAD_GROUP_TOP_APP);
         } else {
-            Process.setThreadGroupAndCpuset(pid, 0);
+            Process.setThreadGroupAndCpuset(pid, Process.THREAD_GROUP_FOREGROUND);
         }
         Process.setThreadAffinity(pid, affinity);
     }
@@ -396,7 +391,6 @@ public class BoostAdjuster implements IBoostAdjuster {
             adjustCpusetCpus(CPU_DEX2OAT, mData.allCores, -1L);
             adjustCpusetCpus(CPU_NT_FG, mData.allCores, -1L);
             adjustCpusetCpus(CPU_BG, mData.bgCpus, -1L);
-            SystemProperties.set("dalvik.vm.dex2oat-threads", "3");
             if (mInputBoost) enablePerformanceMode(false);
             isNotLimited = true;
         }
@@ -524,7 +518,6 @@ public class BoostAdjuster implements IBoostAdjuster {
             restoreCpuset(CPU_NT_FG, mData.allCores);
             restoreCpuset(CPU_DEX2OAT, mData.allCores);
             restoreCpuset(CPU_BG, mData.bgCpus);
-            SystemProperties.set("dalvik.vm.dex2oat-threads", "3");
             isNotLimited = true;
             return;
         }
@@ -533,7 +526,6 @@ public class BoostAdjuster implements IBoostAdjuster {
         adjustCpusetCpus(CPU_NT_FG, mData.uiLimit, 0L);
         adjustCpusetCpus(CPU_DEX2OAT, mData.bgLimit, 0L);
         adjustCpusetCpus(CPU_BG, mData.bgLimit, 0L);
-        SystemProperties.set("dalvik.vm.dex2oat-threads", "1");
     }
     
     public void enablePerformanceMode(boolean enabled) {
@@ -756,5 +748,32 @@ public class BoostAdjuster implements IBoostAdjuster {
             animationUnfreeze(procListToUnfreeze);
             mFreezing = false;
         }
+    }
+    
+    public void boostInstall(boolean boost) {
+        String smallCores = prop("cpu_small", "0,1,2,3");
+        String bigCores = prop("cpu_big", "4,5");
+        String primeCores = prop("cpu_prime", "");
+        String bgCores = prop("cpu_bg", "0-2");
+
+        String allCores = joinRanges(smallCores, bigCores);
+        if (!primeCores.isEmpty()) {
+            allCores = joinRanges(allCores, primeCores);
+        }
+
+        allCores = allCores.replace("-", ",");
+
+        int threadCount = boost ?
+                Runtime.getRuntime().availableProcessors() : 1;
+
+        String cpuSet = boost ? allCores : bgCores.replace("-", ",");
+
+        SystemProperties.set("dalvik.vm.dex2oat-threads", String.valueOf(threadCount));
+        SystemProperties.set("dalvik.vm.restore-dex2oat-threads", String.valueOf(threadCount));
+        SystemProperties.set("dalvik.vm.dex2oat-cpu-set", cpuSet);
+        SystemProperties.set("dalvik.vm.restore-dex2oat-cpu-set", cpuSet);
+
+        logger("boostInstall boost=" + boost +
+                " threads=" + threadCount + " cpuset=" + cpuSet);
     }
 }

@@ -159,6 +159,7 @@ public class UxPerformance implements IUxPerformance {
             logger("started PAppsSpeed opt after entering idle mode");
         } else {
             pAppsHandler.removeCallbacksAndMessages(null);
+            AxExtServiceFactory.getBoostAdjuster().boostInstall(false);
             logger("stopped PAppsSpeed opt due to screen event");
         }
     }
@@ -183,6 +184,8 @@ public class UxPerformance implements IUxPerformance {
                 logger("No preferred apps to optimize");
                 return;
             }
+            
+            AxExtServiceFactory.getBoostAdjuster().boostInstall(true);
 
             logger("Running PAppsSpeed opt, total packages=" + pkgSet.size());
 

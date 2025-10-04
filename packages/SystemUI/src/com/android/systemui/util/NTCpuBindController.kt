@@ -29,7 +29,7 @@ class NTCpuBindController private constructor() {
     private var mLimitForegroundAppCpu = false
     private var mLimitOtherProcessCpu = false
     
-    private val pid get() = Process.myUid()
+    private val pid get() = Process.myPid()
 
     fun bindBigCore() {
         if (mBindStatus == STATUS_BIND_BIG_CORE) {

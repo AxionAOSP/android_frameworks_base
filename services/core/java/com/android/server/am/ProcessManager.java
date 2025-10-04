@@ -214,10 +214,6 @@ public class ProcessManager implements IProcessManager {
         }
         synchronized (mPendingStartQueue) {
             if (mPendingStartQueue.size() > 0) {
-                logger("Dump NtPendingStart:");
-                for (ServiceRecord sr : mPendingStartQueue) {
-                    logger(sr.processName + ": " + sr.name);
-                }
                 mHandler.sendMessage(mHandler.obtainMessage(MSG_PROCESS_PENDING));
             }
         }

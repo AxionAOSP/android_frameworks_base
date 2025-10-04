@@ -47,8 +47,6 @@ public final class DeviceData {
 
     public static final String RESTRICTED_UC_MAX = AxUtils.cpuCtlPath("restricted", "/cpu.uclamp.max");
     public static final String RESTRICTED_UC_MIN = AxUtils.cpuCtlPath("restricted", "/cpu.uclamp.min");
-    public static final String DISPLAY_UC_MAX = AxUtils.cpuCtlPath("display", "/cpu.uclamp.max");
-    public static final String DISPLAY_UC_MIN = AxUtils.cpuCtlPath("display", "/cpu.uclamp.min");
 
     private final CpuData cData;
     private String[] gpuAvailableFreqs;

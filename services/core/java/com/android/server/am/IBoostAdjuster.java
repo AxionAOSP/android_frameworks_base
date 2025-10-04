@@ -48,4 +48,7 @@ public interface IBoostAdjuster {
     
     default void boostGame(boolean enable) {
     }
+    
+    default void boostInstall(boolean boost) {
+    }
 }

@@ -35,11 +35,7 @@ import com.android.server.utils.SimpleAppRecord;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import org.json.*;
+import java.util.*;
 
 public class NtMemoryManagerImpl implements INtMemoryManager {
     private static final String TAG = "NtMemoryManagerImpl";
@@ -102,15 +98,40 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
     
     private boolean mSystemReady = false;
 
+
     public static final class ProcessInfo {
         public int pid;
         public int adj;
+        public long rss;
         public String name;
+        public float score;
 
-        public ProcessInfo(int pid, int adj, String name) {
+        public ProcessInfo(int pid, int adj, long rss, String name) {
             this.pid = pid;
             this.adj = adj;
+            this.rss = rss;
             this.name = name;
+        }
+    }
+
+    public static final class RssComparator implements Comparator<ProcessInfo> {
+        @Override
+        public int compare(ProcessInfo p1, ProcessInfo p2) {
+            return Long.compare(p2.rss, p1.rss);
+        }
+    }
+
+    public static final class AdjComparator implements Comparator<ProcessInfo> {
+        @Override
+        public int compare(ProcessInfo p1, ProcessInfo p2) {
+            return Integer.compare(p2.adj, p1.adj);
+        }
+    }
+
+    public static final class ScoreComparator implements Comparator<ProcessInfo> {
+        @Override
+        public int compare(ProcessInfo p1, ProcessInfo p2) {
+            return Float.compare(p2.score, p1.score);
         }
     }
 
@@ -158,13 +179,6 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
                     handleComputeAdj();
                     break;
             }
-        }
-    }
-
-    public static final class ProcessComparator implements Comparator<ProcessInfo> {
-        @Override
-        public int compare(ProcessInfo p1, ProcessInfo p2) {
-            return Integer.valueOf(p2.adj).compareTo(Integer.valueOf(p1.adj));
         }
     }
 
@@ -359,54 +373,101 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
         AxExtServiceFactory.getAppUsageManager().setTargetAdj(appRecord.mPackageName, targetAdj);
     }
 
-    public void releaseMemory(int minAdj, int killCount, boolean killWithUi, 
-                                          boolean skipCamera) {
+    public void releaseMemory(int minAdj, int killCount, boolean killWithUi, boolean skipCamera) {
         if (killCount == 0) return;
+        
+        List<String> whiteList = List.of("com.google.android.googlequicksearchbox:search", "com.google.android.gms", "com.android.chrome");
 
         try {
-            @SuppressWarnings("unchecked")
-            ArrayList<ProcessRecord> lruProcesses = 
-                (ArrayList<ProcessRecord>) mActivityManagerService.mProcessList.getLruProcessesLOSP().clone();
+            ArrayList<ProcessRecord> lruProcesses =
+                    (ArrayList<ProcessRecord>) mActivityManagerService.mProcessList.getLruProcessesLOSP().clone();
             ArrayList<ProcessInfo> candidates = new ArrayList<>();
 
             for (ProcessRecord proc : lruProcesses) {
                 if (proc != null && proc.getSetAdj() >= minAdj) {
                     if (!proc.hasActivities() || killWithUi) {
-                        candidates.add(new ProcessInfo(proc.getPid(), proc.getSetAdj(), proc.processName));
+                        if (whiteList == null || !whiteList.contains(proc.processName)) {
+                            candidates.add(new ProcessInfo(
+                                    proc.getPid(),
+                                    proc.getSetAdj(),
+                                    proc.mProfile.getLastRss(),
+                                    proc.processName));
+                        } else if (DEBUG) {
+                            Slog.d(TAG, "Skip killing whitelisted process: " + proc.processName);
+                        }
                     } else if (DEBUG) {
                         Slog.d(TAG, "Don't kill process with UI: " + proc.processName);
                     }
                 }
             }
 
-            Collections.sort(candidates, new ProcessComparator());
+            float adjWeight = killWithUi ? 1.0f : (10 % 11 / 10.0f);
+            float rssWeight = 1.0f - adjWeight;
+
+            if (DEBUG) {
+                Slog.d(TAG, "adjWeight=" + adjWeight + ", rssWeight=" + rssWeight);
+            }
+
+            if (rssWeight != 0f) {
+                Collections.sort(candidates, new RssComparator());
+                applyWeight(candidates, rssWeight, 1);
+                if (DEBUG) dumpList("After RSS sort", candidates);
+            }
+
+            if (adjWeight != 0f) {
+                Collections.sort(candidates, new AdjComparator());
+                applyWeight(candidates, adjWeight, 0);
+                if (DEBUG) dumpList("After Adj sort", candidates);
+            }
+
+            Collections.sort(candidates, new ScoreComparator());
+            if (DEBUG) dumpList("After Score sort", candidates);
 
             int killed = 0;
             for (ProcessInfo candidate : candidates) {
-                if (!skipCamera || !isCamera(candidate.name)) {
-                    Process.killProcess(candidate.pid);
-                    killed++;
-                    
+                Process.killProcess(candidate.pid);
+                killed++;
+                if (DEBUG) {
+                    Slog.d(TAG, "Killed proc " + candidate.name +
+                            " [pid=" + candidate.pid + "] adj=" + candidate.adj +
+                            " rss=" + candidate.rss + " score=" + candidate.score +
+                            " killed: " + killed);
+                }
+                if (killed >= killCount) {
                     if (DEBUG) {
-                        Slog.d(TAG, "Killed proc " + candidate.name + 
-                               ": adj: " + candidate.adj + 
-                               " to release memory, now killed: " + killed + " processes");
+                        Slog.d(TAG, "Stop killing processes, killCount=" + killCount);
                     }
-                    
-                    if (killed >= killCount) {
-                        if (DEBUG) {
-                            Slog.d(TAG, "Stop killing processes, killCount: " + killCount);
-                        }
-                        return;
-                    }
-                } else if (DEBUG) {
-                    Slog.d(TAG, "Skipped killing camera: " + skipCamera + ", " + candidate.name);
+                    return;
                 }
             }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
+
+    private void applyWeight(List<ProcessInfo> list, float weight, int mode) {
+        float offset = 0f;
+        for (int i = 0; i < list.size(); i++) {
+            if (i != 0) {
+                long prevVal = (mode == 0) ? list.get(i - 1).adj : list.get(i - 1).rss;
+                long currVal = (mode == 0) ? list.get(i).adj : list.get(i).rss;
+
+                if (currVal != prevVal) {
+                    offset = i * weight;
+                }
+                list.get(i).score += offset;
+            }
+        }
+    }
+
+    private void dumpList(String tag, List<ProcessInfo> list) {
+        for (ProcessInfo p : list) {
+            Slog.d(TAG, tag + " -> " + p.name + " adj=" + p.adj +
+                    " rss=" + p.rss + " score=" + p.score);
+        }
+    }
+
 
     private ProcessRecord findProcessRecord(String packageName) {
         synchronized (mActivityManagerService.mProcLock) {
@@ -479,6 +540,7 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
             updateCameraDeviceDatauration();
             updateReleaseMemoryConfiguration();
             updateHighUsedOptimizationConfiguration();
+            updateUsapPoolCOnfiguration();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -728,5 +790,13 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
                 mLastScreenOnTime = currentTime;
             }
         }
+    }
+    
+    private void updateUsapPoolCOnfiguration() {
+        SystemProperties.set("persist.device_config.runtime_native.usap_pool_enabled", "true");
+        SystemProperties.set("persist.device_config.runtime_native.usap_pool_refill_delay_ms", "3000");
+        SystemProperties.set("persist.device_config.runtime_native.usap_refill_threshold", "1");
+        SystemProperties.set("persist.device_config.runtime_native.usap_pool_size_max", "3");
+        SystemProperties.set("persist.device_config.runtime_native.usap_pool_size_min", "1");
     }
 }

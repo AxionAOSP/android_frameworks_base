@@ -453,7 +453,9 @@ void android_os_Process_setThreadAffinity(JNIEnv* env, jobject clazz, int tid, j
         cpuset_str = android::base::GetProperty("persist.sys.axion_cpu_small", "0,1,2,3");
         group_name = "small cores";
     } else if (grp == 0) {
-        cpuset_str = android::base::GetProperty("persist.sys.axion_cpu_big", "4,5,6,7");
+        std::string big = android::base::GetProperty("persist.sys.axion_cpu_big", "4,5,6,7");
+        std::string prime = android::base::GetProperty("persist.sys.axion_cpu_prime", "");
+        cpuset_str = prime.empty() ? big : big + "," + prime;
         group_name = "big cores";
     } else if (grp == 2) {
         int max_cpus = sysconf(_SC_NPROCESSORS_ONLN);
