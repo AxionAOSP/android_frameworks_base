@@ -15,101 +15,117 @@
  */
 package com.android.systemui.lockscreen
 
-import android.content.Context
 import android.content.IntentFilter
 import android.media.AudioManager
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import com.android.systemui.res.R
-import com.android.systemui.util.*
 
 enum class WidgetAction(
+    val labelRes: Int,
     val onClick: (LockScreenWidgetsController) -> Unit,
     val onLongClick: ((LockScreenWidgetsController) -> Boolean)? = null,
     val registerCallback: (LockScreenWidgetsController) -> Unit = {},
-    val unregisterCallback: (LockScreenWidgetsController) -> Unit = {}
+    val unregisterCallback: (LockScreenWidgetsController) -> Unit = {},
+    val activeLabel: @Composable (LockScreenWidgetsController) -> String? = { null }
 ) {
     WIFI(
-        onClick = onClickLambda@{
-            val enabled = !it.callbacks.wifiInfo.enabled
-            it.networkController.setWifiEnabled(enabled)
-            it.factory.update(WIFI, enabled)
+        labelRes = R.string.widget_wifi,
+        onClick = { ctrl ->
+            val enabled = !ctrl.callbacks.wifiInfo.enabled
+            ctrl.networkController.setWifiEnabled(enabled)
+            ctrl.states.setActive(WIFI, enabled)
         },
         onLongClick = { c -> c.showInternetDialog(); true },
         registerCallback = { it.networkController.addCallback(it.callbacks.wifiSignalCallback) },
-        unregisterCallback = { it.networkController.removeCallback(it.callbacks.wifiSignalCallback) }
+        unregisterCallback = { it.networkController.removeCallback(it.callbacks.wifiSignalCallback) },
+        activeLabel = { ctrl -> ctrl.callbacks.wifiInfo.ssid?.removeSurrounding("\"") }
     ),
+
     DATA(
-        onClick = onClickLambda@{
-            val enabled = !it.dataController.isMobileDataEnabled
-            it.dataController.setMobileDataEnabled(enabled)
-            it.factory.update(DATA, enabled)
+        labelRes = R.string.widget_data,
+        onClick = { ctrl ->
+            val enabled = !ctrl.dataController.isMobileDataEnabled
+            ctrl.dataController.setMobileDataEnabled(enabled)
+            ctrl.states.setActive(DATA, enabled)
         },
         onLongClick = { c -> c.showInternetDialog(); true },
         registerCallback = { it.networkController.addCallback(it.callbacks.cellSignalCallback) },
-        unregisterCallback = { it.networkController.removeCallback(it.callbacks.cellSignalCallback) }
+        unregisterCallback = { it.networkController.removeCallback(it.callbacks.cellSignalCallback) },
+        activeLabel = { ctrl -> ctrl.networkController.getMobileDataNetworkName() }
     ),
+
     RINGER(
-        onClick = onClickLambda@{
-            val current = it.audioManager.ringerMode
+        labelRes = R.string.widget_ringer,
+        onClick = { ctrl ->
+            val current = ctrl.audioManager.ringerMode
             val next = if (current == AudioManager.RINGER_MODE_NORMAL)
                 AudioManager.RINGER_MODE_VIBRATE else AudioManager.RINGER_MODE_NORMAL
-            it.audioManager.ringerMode = next
-            it.factory.update(RINGER, next == AudioManager.RINGER_MODE_VIBRATE)
+            ctrl.audioManager.ringerMode = next
+            ctrl.states.setActive(RINGER, next == AudioManager.RINGER_MODE_VIBRATE)
         },
         registerCallback = {
-            val filter = IntentFilter(AudioManager.INTERNAL_RINGER_MODE_CHANGED_ACTION)
-            it.context.registerReceiver(it.callbacks.ringerModeReceiver, filter)
-            it.isRingerRegistered = true
+            runCatching {
+                it.context.registerReceiver(
+                    it.callbacks.ringerModeReceiver,
+                    IntentFilter(AudioManager.RINGER_MODE_CHANGED_ACTION)
+                )
+            }
         },
         unregisterCallback = {
-            if (it.isRingerRegistered) {
+            runCatching {
                 it.context.unregisterReceiver(it.callbacks.ringerModeReceiver)
-                it.isRingerRegistered = false
             }
+        },
+        activeLabel = { ctrl ->
+            stringResource(
+                if (ctrl.audioManager.ringerMode == AudioManager.RINGER_MODE_VIBRATE)
+                    R.string.ringer_vibrate else R.string.ringer_normal
+            )
         }
     ),
+
     BLUETOOTH(
-        onClick = onClickLambda@{
-            val enabled = !it.bluetoothEnabled
-            it.bluetoothController.setBluetoothEnabled(enabled)
-            it.factory.update(BLUETOOTH, enabled)
+        labelRes = R.string.widget_bluetooth,
+        onClick = { ctrl ->
+            val enabled = !ctrl.bluetoothController.isBluetoothEnabled()
+            ctrl.bluetoothController.setBluetoothEnabled(enabled)
+            ctrl.states.setActive(BLUETOOTH, enabled)
         },
         onLongClick = { c -> c.showBluetoothDialog(); true },
         registerCallback = { it.bluetoothController.addCallback(it.callbacks.btCallback) },
-        unregisterCallback = { it.bluetoothController.removeCallback(it.callbacks.btCallback) }
+        unregisterCallback = { it.bluetoothController.removeCallback(it.callbacks.btCallback) },
+        activeLabel = { ctrl -> ctrl.callbacks.connectedDeviceName }
     ),
+
     TORCH(
-        onClick = onClickLambda@{
-            val cameraId = it.cameraId ?: return@onClickLambda
+        labelRes = R.string.widget_torch,
+        onClick = { ctrl ->
             runCatching {
-                it.cameraManager.setTorchMode(cameraId, !it.isFlashOn)
-                it.isFlashOn = !it.isFlashOn
-                it.factory.update(TORCH, it.isFlashOn)
+                val enabled = !ctrl.flashlightController.isEnabled
+                ctrl.flashlightController.setFlashlight(enabled)
+                ctrl.states.setActive(TORCH, enabled)
             }
         },
         registerCallback = { it.flashlightController.addCallback(it.callbacks.flashlightCallback) },
         unregisterCallback = { it.flashlightController.removeCallback(it.callbacks.flashlightCallback) }
     ),
+
     HOTSPOT(
-        onClick = onClickLambda@{
-            val newState = !it.hotspotController.isHotspotEnabled
-            it.hotspotController.setHotspotEnabled(newState)
-            it.factory.update(HOTSPOT, newState)
+        labelRes = R.string.widget_hotspot,
+        onClick = { ctrl ->
+            val newState = !ctrl.hotspotController.isHotspotEnabled
+            ctrl.hotspotController.setHotspotEnabled(newState)
+            ctrl.states.setActive(HOTSPOT, newState)
         },
         onLongClick = { c -> c.showInternetDialog(); true },
         registerCallback = { it.hotspotController.addCallback(it.callbacks.hotspotCallback) },
         unregisterCallback = { it.hotspotController.removeCallback(it.callbacks.hotspotCallback) }
     );
-}
 
-fun WidgetAction.labelRes(): Int = when (this) {
-    WidgetAction.DATA -> R.string.widget_data
-    WidgetAction.WIFI -> R.string.widget_wifi
-    WidgetAction.HOTSPOT -> R.string.widget_hotspot
-    WidgetAction.TORCH -> R.string.widget_torch
-    WidgetAction.BLUETOOTH -> R.string.widget_bluetooth
-    WidgetAction.RINGER -> R.string.widget_ringer
-    else -> R.string.widget_unknown
+    @Composable
+    fun label(ctrl: LockScreenWidgetsController, active: Boolean): String {
+        return activeLabel(ctrl).takeIf { active && !it.isNullOrBlank() }
+            ?: stringResource(labelRes)
+    }
 }
-
-fun WidgetAction.label(context: Context): String =
-    context.getString(labelRes())

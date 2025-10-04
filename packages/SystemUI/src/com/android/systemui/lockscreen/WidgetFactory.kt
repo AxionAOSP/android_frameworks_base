@@ -16,9 +16,9 @@
 package com.android.systemui.lockscreen
 
 import android.content.Context
-import android.content.Intent
 import android.view.MotionEvent
 import android.widget.FrameLayout
+import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.*
@@ -47,28 +47,48 @@ class WidgetFactory(
     private val ctx: Context,
     private val ctrl: LockScreenWidgetsController
 ) {
-    private val dimens = Dimens(ctx)
 
-    private val widgetsState = mutableStateListOf<WidgetSpec>()
+    val dimens = Dimens(ctx)
+
+    private val _widgetsList = mutableStateListOf<WidgetSpec>()
+    val widgetsList: List<WidgetSpec> get() = _widgetsList
 
     private val _dozingState = mutableStateOf(false)
-    private val dozingState: State<Boolean> = _dozingState
-
-    private val _activeStates = mutableStateMapOf<WidgetAction, Boolean>()
-    private val activeStates: Map<WidgetAction, Boolean> = _activeStates
+    val dozingState: State<Boolean> get() = _dozingState
 
     private val hostView by lazy { FrameLayoutTouchPassthrough(ctx) }
 
     private inner class FrameLayoutTouchPassthrough(context: Context) : FrameLayout(context), LaunchableView {
         private val composeView: ComposeView by lazy {
             ComposeView(context).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                )
+
                 repeatWhenAttached {
                     repeatOnLifecycle(Lifecycle.State.STARTED) {
                         setViewCompositionStrategy(
                             ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
                         )
                         setContent {
-                            WidgetsArea(widgetsState)
+                            var contentHeight by remember { mutableStateOf(0) }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .wrapContentHeight()
+                                    .onGloballyPositioned { coordinates ->
+                                        val heightPx = coordinates.size.height
+                                        if (heightPx != contentHeight) {
+                                            contentHeight = heightPx
+                                            this@apply.layoutParams.height = heightPx
+                                            this@apply.requestLayout()
+                                        }
+                                    }
+                            ) {
+                                WidgetsArea()
+                            }
                         }
                     }
                 }
@@ -78,13 +98,13 @@ class WidgetFactory(
         init {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
-                dimens.hostHeightPx
+                FrameLayout.LayoutParams.WRAP_CONTENT
             )
             addView(
                 composeView,
                 FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT
+                    FrameLayout.LayoutParams.WRAP_CONTENT
                 )
             )
         }
@@ -115,40 +135,24 @@ class WidgetFactory(
 
     fun init() {
         ctrl.container.addView(hostView)
-        widgetsState.clear()
-        widgetsState.addAll(ctrl.widgetSpecs.filterNotNull())
-        update()
-    }
-
-    fun updateViews(force: Boolean = false) {
-        widgetsState.clear()
-        widgetsState.addAll(ctrl.widgetSpecs.filterNotNull())
-        update()
-    }
-
-    fun update(action: WidgetAction, isActive: Boolean) {
-        val idx = widgetsState.indexOfFirst { it.action == action }
-        if (idx >= 0) {
-            val spec = widgetsState[idx]
-            widgetsState[idx] = spec.copy()
-        }
-        update()
-    }
-
-    private fun update() {
-        _dozingState.value = ctrl.dozing
-        ctrl.widgetSpecs.forEach { spec ->
-            _activeStates[spec.action] = ctrl.states.isActive(spec.action)
-        }
+        _widgetsList.clear()
+        _widgetsList.addAll(ctrl.widgetSpecs.filterNotNull())
     }
     
+    fun updateViews() {
+        _widgetsList.clear()
+        _widgetsList.addAll(ctrl.widgetSpecs.filterNotNull())
+        _dozingState.value = ctrl.scrimUtils.isDozing()
+    }
+
     fun updateVisibility(vis: Int) {
         hostView.setVisibility(vis)
     }
 
     @Composable
-    private fun WidgetsArea(widgets: List<WidgetSpec>) {
+    private fun WidgetsArea() {
         val theme = rememberTheme()
+        val widgets by remember { derivedStateOf { _widgetsList.toList() } }
 
         Row(
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -166,117 +170,42 @@ class WidgetFactory(
 
     @Composable
     private fun WidgetsContent(spec: WidgetSpec, theme: Theme) {
-        val isActive by derivedStateOf { activeStates[spec.action] ?: ctrl.states.isActive(spec.action) }
+        val isActive by ctrl.states.getState(spec.action)
         val dozing by dozingState
 
-        val bgColor = when {
-            dozing -> Color.Transparent
-            isActive -> theme.activeBg
-            else -> theme.neutralBg
-        }
+        val activeBg = theme.activeBg
+        val neutralBg = theme.neutralBg
+        val activeIcon = theme.activeIcon
+        val neutralIcon = theme.neutralIcon
 
-        val border = if (dozing) {
-            Modifier.border(
-                width = dimens.dozeStrokeDp,
-                color = Color.White,
-                shape = CircleShape
+        val targetBg by remember(isActive, dozing, activeBg, neutralBg) {
+            mutableStateOf(
+                when {
+                    dozing -> Color.Transparent
+                    isActive -> activeBg
+                    else -> neutralBg
+                }
             )
-        } else {
-            Modifier
         }
 
-        val iconTint = when {
-            dozing -> Color.White
-            isActive -> theme.activeIcon
-            else -> theme.neutralIcon
+        val targetIconTint by remember(isActive, dozing, activeIcon, neutralIcon) {
+            mutableStateOf(
+                when {
+                    dozing -> Color.White
+                    isActive -> activeIcon
+                    else -> neutralIcon
+                }
+            )
         }
-        
-        val slotSize = dimens.widgetSizeDp
-        val spacing = dimens.spacingDp
 
-        if (spec.span == 2) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(spacing),
-                modifier = Modifier
-                    .width((slotSize * 2) + (spacing * 2))
-                    .height(slotSize)
-                    .background(bgColor, CircleShape)
-                    .clip(CircleShape)
-                    .then(border)
-                    .combinedClickable(
-                        onClick = { spec.action.onClick(ctrl) },
-                        onLongClick = spec.action.onLongClick?.let { { it(ctrl) } }
-                    )
-                    .padding(horizontal = dimens.labelStartDp)
-            ) {
-                WidgetIcon(spec, iconTint, theme)
-                WidgetLabel(
-                    action = spec.action, 
-                    tintColor = iconTint, 
-                    modifier = Modifier.weight(1f).basicMarquee()
-                )
-            }
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(slotSize)
-                    .background(bgColor, CircleShape)
-                    .clip(CircleShape)
-                    .then(border)
-                    .combinedClickable(
-                        onClick = { spec.action.onClick(ctrl) },
-                        onLongClick = spec.action.onLongClick?.let { { it(ctrl) } }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                WidgetIcon(spec, iconTint, theme)
-            }
+        val bgColor by animateColorAsState(targetValue = targetBg)
+        val iconTint by animateColorAsState(targetValue = targetIconTint)
+
+        val border = remember(dozing) {
+            if (dozing) Modifier.border(dimens.dozeStrokeDp, Color.White, CircleShape)
+            else Modifier
         }
-    }
 
-    @Composable
-    private fun WidgetIcon(spec: WidgetSpec, tintColor: Color, theme: Theme) {
-        val active by derivedStateOf { activeStates[spec.action] ?: ctrl.states.isActive(spec.action) }
-        val iconVector = WidgetIconFactory.getIcon(spec.action, active)
-        Icon(
-            imageVector = iconVector,
-            contentDescription = spec.action.label(ctx),
-            tint = tintColor,
-            modifier = Modifier.size(dimens.iconSizeDp)
-        )
-    }
-
-    @Composable
-    private fun WidgetLabel(action: WidgetAction, tintColor: Color, modifier: Modifier) {
-        val active by derivedStateOf { activeStates[action] ?: ctrl.states.isActive(action) }
-        
-        val label = action.label(ctx)
-
-        val text = when {
-            action == WidgetAction.BLUETOOTH && active -> {
-                ctrl.callbacks.connectedDeviceName
-            }
-            action == WidgetAction.WIFI && active -> {
-                ctrl.callbacks.wifiInfo.ssid?.removeSurrounding("\"")
-            }
-            action == WidgetAction.DATA && active -> {
-                ctrl.networkController.getMobileDataNetworkName()
-            }
-            action == WidgetAction.RINGER -> {
-                val label = 
-                    if (active) R.string.ringer_vibrate 
-                    else R.string.ringer_normal
-                stringResource(label)
-            }
-            else -> label
-        } ?: label
-
-        Text(
-            text = text,
-            color = tintColor,
-            maxLines = 1,
-            modifier = modifier
-        )
+        spec.type.content(spec, bgColor, border, iconTint, theme, dimens, ctrl, isActive)
     }
 }

@@ -15,21 +15,19 @@
  */
 package com.android.systemui.lockscreen
 
-import android.bluetooth.BluetoothAdapter
 import android.content.Context
-import android.hardware.camera2.CameraManager
+import android.content.IntentFilter
 import android.media.AudioManager
 import android.os.Handler
 import android.view.View
 import android.view.ViewGroup
 import com.android.systemui.bluetooth.qsdialog.BluetoothDetailsContentViewModel
 import com.android.systemui.qs.tiles.dialog.InternetDialogManager
-import com.android.systemui.statusbar.connectivity.*
+import com.android.systemui.statusbar.connectivity.AccessPointController
+import com.android.systemui.statusbar.connectivity.NetworkController
 import com.android.systemui.statusbar.policy.*
-import com.android.systemui.util.*
+import com.android.systemui.util.ScrimUtils
 import dagger.Lazy
-
-data class WidgetSpec(val action: WidgetAction, val span: Int)
 
 class LockScreenWidgetsController(
     internal val container: ViewGroup,
@@ -47,24 +45,17 @@ class LockScreenWidgetsController(
     val repository = LockscreenWidgetSettingsRepository(context, this)
 
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     val dataController = networkController.mobileDataController
-    val states = WidgetStates(this)
+
+    val states = WidgetStates()
     val factory = WidgetFactory(context, this)
     val callbacks = LsWidgetsCallbacksController(this)
-
-    var updatingViews = false
-
-    var cameraId: String? = null
-    var isFlashOn = false
-    var isRingerRegistered = false
-    val listeners = mutableMapOf<String, () -> Unit>()
 
     var settings: WidgetSettings = repository.settings
         set(value) {
             field = value
             updateVisibility(value.isEnabled)
-            updateViews(true)
+            factory.updateViews()
         }
 
     val widgetSpecs: List<WidgetSpec>
@@ -73,13 +64,18 @@ class LockScreenWidgetsController(
             .mapNotNull { token ->
                 val parts = token.split(":")
                 val name = parts.getOrNull(0)?.trim() ?: return@mapNotNull null
-                val span = parts.getOrNull(1)?.toIntOrNull() ?: 1
-                WidgetAction.values()
+                val typeStr = parts.getOrNull(1)?.trim()
+
+                val action = WidgetAction.values()
                     .find { it.name.equals(name, ignoreCase = true) }
-                    ?.let { WidgetSpec(it, span) }
+                    ?: return@mapNotNull null
+
+                val type = WidgetType.fromString(typeStr)
+
+                WidgetSpec(action, type)
             }
 
-    var listening = false
+    var listening: Boolean = false
         set(value) {
             if (field == value) return
             if (value && enabled) startListeners() else stopListeners()
@@ -88,13 +84,22 @@ class LockScreenWidgetsController(
 
     val scrimUtils get() = ScrimUtils.get()
     val enabled get() = settings.isEnabled && widgetSpecs.isNotEmpty()
-    val bluetoothEnabled get() = BluetoothAdapter.getDefaultAdapter()?.isEnabled == true
-    val dozing get() = scrimUtils.isDozing()
 
     init {
-        runCatching { cameraId = cameraManager.cameraIdList.firstOrNull() }
         callbacks.observe()
         factory.init()
+    }
+
+    private fun startListeners() {
+        widgetSpecs.forEach { spec ->
+            spec.action.registerCallback(this)
+        }
+    }
+
+    private fun stopListeners() {
+        widgetSpecs.forEach { spec ->
+            spec.action.unregisterCallback(this)
+        }
     }
 
     fun dispose() {
@@ -102,39 +107,13 @@ class LockScreenWidgetsController(
         container.removeAllViews()
     }
 
-    private fun startListeners() {
-        listeners += widgetSpecs.associate { spec ->
-            spec.action.registerCallback(this)
-            "widget_${spec.action.name}" to { spec.action.unregisterCallback(this) }
-        }
-    }
-
-    private fun stopListeners() {
-        listeners.values.forEach { it.invoke() }
-        listeners.clear()
-    }
-
-    private fun postUpdate(action: () -> Unit) = handler.post(action)
-
-    fun updateViews(force: Boolean = false) {
-        if (updatingViews) return
-        updatingViews = true
-        postUpdate {
-            try {
-                factory.updateViews(force)
-            } finally {
-                updatingViews = false
-            }
-        }
-    }
-    
     fun updateVisibility(visible: Boolean) {
         val vis = if (visible) View.VISIBLE else View.GONE
         factory.updateVisibility(vis)
         container.visibility = vis
     }
 
-    fun showInternetDialog() = postUpdate {
+    fun showInternetDialog() {
         internetDialogManager.create(
             true,
             accessPointController.canConfigMobileData(),
@@ -143,7 +122,7 @@ class LockScreenWidgetsController(
         )
     }
 
-    fun showBluetoothDialog() = postUpdate {
+    fun showBluetoothDialog() {
         detailsContentViewModel.get().showDialog(null)
     }
 }

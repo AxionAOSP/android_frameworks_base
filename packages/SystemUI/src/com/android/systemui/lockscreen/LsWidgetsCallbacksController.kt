@@ -18,65 +18,62 @@ package com.android.systemui.lockscreen
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import androidx.compose.runtime.*
+import android.media.AudioManager
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.android.systemui.statusbar.connectivity.*
 import com.android.systemui.statusbar.policy.*
 import com.android.systemui.util.ScrimUtils
 
-class LsWidgetsCallbacksController(private val controller: LockScreenWidgetsController) {
+class LsWidgetsCallbacksController(private val ctrl: LockScreenWidgetsController) {
 
     private val wifiCallbackInfo = WifiCallbackInfo()
 
     val wifiInfo: WifiCallbackInfo get() = wifiCallbackInfo
     var connectedDeviceName by mutableStateOf<String?>(null)
 
+    class WifiCallbackInfo {
+        var enabled by mutableStateOf(false)
+        var ssid by mutableStateOf<String?>(null)
+    }
+
     val configurationListener = object : ConfigurationController.ConfigurationListener {
-        override fun onUiModeChanged() {
-            controller.updateViews()
-        }
-        override fun onThemeChanged() {
-            controller.updateViews()
-        }
-        override fun onDensityOrFontScaleChanged() {
-            controller.updateViews(true)
-        }
+        override fun onUiModeChanged() = ctrl.factory.updateViews()
+        override fun onThemeChanged() = ctrl.factory.updateViews()
+        override fun onDensityOrFontScaleChanged() = ctrl.factory.updateViews()
     }
 
     val scrimUtilsCb = object : ScrimUtils.ScrimEventListener {
-        override fun onDozingChanged() {
-            controller.updateViews()
-        }
-        override fun onKeyguardShowingChanged(showing: Boolean) {
-            controller.listening = showing
-        }
+        override fun onDozingChanged() = ctrl.factory.updateViews()
+        override fun onKeyguardShowingChanged(showing: Boolean) { ctrl.listening = showing }
     }
 
     val flashlightCallback = object : FlashlightController.FlashlightListener {
         override fun onFlashlightChanged(enabled: Boolean) {
-            controller.isFlashOn = enabled
-            controller.states.updateTorch()
+            ctrl.states.setActive(WidgetAction.TORCH, enabled)
         }
         override fun onFlashlightError() {}
         override fun onFlashlightAvailabilityChanged(available: Boolean) {
-            controller.isFlashOn =
-                controller.flashlightController.isEnabled() && available
-            controller.states.updateTorch()
+            val enabled = ctrl.flashlightController.isEnabled() && available
+            ctrl.states.setActive(WidgetAction.TORCH, enabled)
         }
     }
 
     val ringerModeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            controller.states.updateRinger()
+            val isVibrate = ctrl.audioManager.ringerMode == AudioManager.RINGER_MODE_VIBRATE
+            ctrl.states.setActive(WidgetAction.RINGER, isVibrate)
         }
     }
 
     val btCallback = object : BluetoothController.Callback {
         override fun onBluetoothStateChange(enabled: Boolean) {
-            controller.states.updateBluetooth()
+            ctrl.states.setActive(WidgetAction.BLUETOOTH, enabled)
         }
         override fun onBluetoothDevicesChanged() {
-            controller.states.updateBluetooth()
-            connectedDeviceName = controller.bluetoothController.getConnectedDeviceName()
+            ctrl.states.setActive(WidgetAction.BLUETOOTH, ctrl.bluetoothController.isBluetoothEnabled())
+            connectedDeviceName = ctrl.bluetoothController.getConnectedDeviceName()
         }
     }
 
@@ -85,61 +82,54 @@ class LsWidgetsCallbacksController(private val controller: LockScreenWidgetsCont
             if (indicators.qsIcon == null) {
                 wifiInfo.enabled = false
                 wifiInfo.ssid = null
-                controller.states.updateWiFi(false)
+                ctrl.states.setActive(WidgetAction.WIFI, false)
                 return
             }
             wifiInfo.enabled = indicators.enabled
             wifiInfo.ssid = indicators.description
-            controller.states.updateWiFi(wifiInfo.enabled)
+            ctrl.states.setActive(WidgetAction.WIFI, indicators.enabled)
         }
-    }
-
-    class WifiCallbackInfo {
-        var enabled by mutableStateOf(false)
-        var ssid by mutableStateOf<String?>(null)
     }
 
     val cellSignalCallback = object : SignalCallback {
         override fun setMobileDataIndicators(indicators: MobileDataIndicators) {
-            if (indicators.qsIcon == null || !indicators.isDefault) {
-                return
+            if (indicators.qsIcon != null && indicators.isDefault) {
+                ctrl.states.setActive(
+                    WidgetAction.DATA,
+                    ctrl.dataController.isMobileDataEnabled
+                )
             }
-            val isEnabled = controller.networkController
-                .mobileDataController.isMobileDataEnabled
-            controller.states.updateMobileData(isEnabled)
         }
 
         override fun setNoSims(show: Boolean, simDetected: Boolean) {
-            val isEnabled = simDetected && controller.networkController
-                .mobileDataController.isMobileDataEnabled
-            controller.states.updateMobileData(isEnabled)
+            val enabled = simDetected && ctrl.dataController.isMobileDataEnabled
+            ctrl.states.setActive(WidgetAction.DATA, enabled)
         }
 
         override fun setIsAirplaneMode(icon: IconState) {
-            val isEnabled = !icon.visible && controller.networkController
-                .mobileDataController.isMobileDataEnabled
-            controller.states.updateMobileData(isEnabled)
+            val enabled = !icon.visible && ctrl.dataController.isMobileDataEnabled
+            ctrl.states.setActive(WidgetAction.DATA, enabled)
         }
     }
 
     val hotspotCallback = object : HotspotController.Callback {
         override fun onHotspotChanged(enabled: Boolean, numDevices: Int) {
-            controller.states.updateHotspot()
+            ctrl.states.setActive(WidgetAction.HOTSPOT, enabled)
         }
         override fun onHotspotAvailabilityChanged(available: Boolean) {}
     }
-    
+
     fun observe() {
-        controller.scrimUtils.addListener(scrimUtilsCb)
-        controller.configurationController.addCallback(configurationListener)
-        controller.repository.observe()
-        controller.listening = true
+        ctrl.scrimUtils.addListener(scrimUtilsCb)
+        ctrl.configurationController.addCallback(configurationListener)
+        ctrl.repository.observe()
+        ctrl.listening = true
     }
-    
+
     fun dispose() {
-        controller.scrimUtils.removeListener(scrimUtilsCb)
-        controller.configurationController.removeCallback(configurationListener)
-        controller.listening = false
-        controller.repository.dispose()
+        ctrl.scrimUtils.removeListener(scrimUtilsCb)
+        ctrl.configurationController.removeCallback(configurationListener)
+        ctrl.listening = false
+        ctrl.repository.dispose()
     }
 }

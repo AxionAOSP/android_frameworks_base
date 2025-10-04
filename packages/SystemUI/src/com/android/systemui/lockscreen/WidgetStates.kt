@@ -15,56 +15,22 @@
  */
 package com.android.systemui.lockscreen
 
-import android.media.AudioManager
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshots.SnapshotStateMap
+import androidx.compose.runtime.mutableStateMapOf
 
-class WidgetStates(
-    private val controller: LockScreenWidgetsController
-) {
-    private val lastStates = mutableMapOf<WidgetAction, Boolean>()
+class WidgetStates {
+    private val _activeStates: SnapshotStateMap<WidgetAction, MutableState<Boolean>> =
+        mutableStateMapOf()
 
-    private fun updateStateIfChanged(action: WidgetAction, newState: Boolean) {
-        if (lastStates[action] != newState) {
-            lastStates[action] = newState
-            controller.handler.post {
-                controller.factory.update(action, newState)
-            }
-        }
+    fun setActive(action: WidgetAction, active: Boolean) {
+        val state = _activeStates.getOrPut(action) { mutableStateOf(active) }
+        state.value = active
     }
 
-    fun updateTorch() {
-        updateStateIfChanged(WidgetAction.TORCH, controller.isFlashOn)
-    }
+    fun isActive(action: WidgetAction): Boolean = _activeStates[action]?.value ?: false
 
-    fun updateRinger() {
-        val isVibrate = controller.audioManager.ringerMode == AudioManager.RINGER_MODE_VIBRATE
-        updateStateIfChanged(WidgetAction.RINGER, isVibrate)
-    }
-
-    fun updateBluetooth() {
-        updateStateIfChanged(WidgetAction.BLUETOOTH, controller.bluetoothEnabled)
-    }
-
-    fun updateWiFi(enabled: Boolean) {
-        updateStateIfChanged(WidgetAction.WIFI, enabled)
-    }
-
-    fun updateMobileData(enabled: Boolean) {
-        updateStateIfChanged(WidgetAction.DATA, enabled)
-    }
-
-    fun updateHotspot() {
-        updateStateIfChanged(WidgetAction.HOTSPOT, controller.hotspotController.isHotspotEnabled)
-    }
-
-    fun isActive(action: WidgetAction): Boolean {
-        return when (action) {
-            WidgetAction.TORCH -> controller.isFlashOn
-            WidgetAction.RINGER -> controller.audioManager.ringerMode == AudioManager.RINGER_MODE_VIBRATE
-            WidgetAction.BLUETOOTH -> controller.bluetoothEnabled
-            WidgetAction.WIFI -> controller.callbacks.wifiInfo.enabled
-            WidgetAction.DATA -> controller.networkController.mobileDataController.isMobileDataEnabled
-            WidgetAction.HOTSPOT -> controller.hotspotController.isHotspotEnabled
-            else -> false
-        }
-    }
+    fun getState(action: WidgetAction): MutableState<Boolean> =
+        _activeStates.getOrPut(action) { mutableStateOf(false) }
 }

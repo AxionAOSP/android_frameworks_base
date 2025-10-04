@@ -54,16 +54,26 @@ fun rememberTheme(): Theme {
     return remember(night) { Theme(night) }
 }
 
-object WidgetIconFactory {
-    fun getIcon(action: WidgetAction, isActive: Boolean): ImageVector {
-        return when (action) {
-            WidgetAction.WIFI -> if (isActive) Icons.Filled.Wifi else Icons.Filled.WifiOff
-            WidgetAction.DATA -> if (isActive) Icons.Filled.SignalCellularAlt else Icons.Filled.SignalCellularOff
-            WidgetAction.BLUETOOTH -> if (isActive) Icons.Filled.Bluetooth else Icons.Filled.BluetoothDisabled
-            WidgetAction.TORCH -> if (isActive) Icons.Filled.FlashlightOn else Icons.Filled.FlashlightOff
-            WidgetAction.RINGER -> if (isActive) Icons.Filled.Vibration else Icons.Filled.VolumeUp
-            WidgetAction.HOTSPOT -> if (isActive) Icons.Filled.Wifi else Icons.Filled.WifiOff
-        }
+@Composable
+fun WidgetIcon(action: WidgetAction, isActive: Boolean): ImageVector {
+    return when (action) {
+        WidgetAction.WIFI ->
+            if (isActive) Icons.Filled.Wifi else Icons.Filled.WifiOff
+
+        WidgetAction.DATA ->
+            if (isActive) Icons.Filled.SignalCellularAlt else Icons.Filled.SignalCellularOff
+
+        WidgetAction.BLUETOOTH ->
+            if (isActive) Icons.Filled.Bluetooth else Icons.Filled.BluetoothDisabled
+
+        WidgetAction.TORCH ->
+            if (isActive) Icons.Filled.FlashlightOn else Icons.Filled.FlashlightOff
+
+        WidgetAction.RINGER ->
+            if (isActive) Icons.Filled.Vibration else Icons.Filled.VolumeUp
+
+        WidgetAction.HOTSPOT ->
+            if (isActive) Icons.Filled.Wifi else Icons.Filled.WifiOff
     }
 }
 
