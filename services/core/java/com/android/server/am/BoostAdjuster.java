@@ -322,8 +322,8 @@ public class BoostAdjuster implements IBoostAdjuster {
             int threadPriority = Process.getThreadPriority(pid);
 
             if (duration > 0) {
-                Process.setThreadScheduler(pid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 99);
-                if (renderTid > 0) Process.setThreadScheduler(renderTid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 99);
+                Process.setThreadScheduler(pid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 1);
+                if (renderTid > 0) Process.setThreadScheduler(renderTid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 10);
                 boostUtil(pid, 1);
                 boostAnimRes(true);
                 Message m = mHandler.obtainMessage(pid);
@@ -334,8 +334,8 @@ public class BoostAdjuster implements IBoostAdjuster {
             }
 
             if (duration == 0) {
-                Process.setThreadScheduler(pid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 99);
-                if (renderTid > 0) Process.setThreadScheduler(renderTid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 99);
+                Process.setThreadScheduler(pid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 1);
+                if (renderTid > 0) Process.setThreadScheduler(renderTid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 10);
                 boostUtil(pid, 1);
                 boostAnimRes(true);
                 return;

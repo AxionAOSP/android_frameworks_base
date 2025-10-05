@@ -32,7 +32,6 @@ public class TaskProfiler {
     private static final boolean DEBUG = false;
 
     private static final int UX_KERNEL   = Process.THREAD_GROUP_BACKGROUND;
-    private static final int UX_LATENCY = AxUtils.THREAD_GROUP_AX_DISPLAY; 
 
     public TaskProfiler() {
     }
@@ -48,14 +47,6 @@ public class TaskProfiler {
             uxThreads.addAll(findByPrefix(processMap, "khugepaged", UX_KERNEL));
             uxThreads.addAll(findByPrefix(processMap, "f2fs_gc", UX_KERNEL));
             uxThreads.addAll(findByPrefix(processMap, "eh_comp_thread", UX_KERNEL));
-
-            uxThreads.addAll(findMatchingTidsInProcess(ActivityManagerService.MY_PID,
-                    new String[]{"InputReader", "InputDispatcher"}, UX_LATENCY));
-
-            setUxThread(AnimationThread.get().getThreadId(), UX_LATENCY);
-            setUxThread(SurfaceAnimationThread.get().getThreadId(), UX_LATENCY);
-            setUxThread(DisplayThread.get().getThreadId(), UX_LATENCY);
-            setUxThread(UiThread.get().getThreadId(), UX_LATENCY);
 
             if (DEBUG) Slog.i(TAG, "Applied task profiles to " + uxThreads.size() + " tids. processMap:\n" + dumpProcessMap(processMap));
         } catch (Exception e) {
