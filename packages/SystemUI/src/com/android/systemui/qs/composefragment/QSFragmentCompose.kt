@@ -1339,27 +1339,16 @@ fun DragHandle(
     enable: Boolean
 ) {
     val translationY = with(LocalDensity.current) { 100.dp.toPx() }
-
     val qqsMin = 0.01f
     val qqsMax = 0.4f
-
     val expansionProgress = vm.expansionState.progress
-
     val progress = run {
         val range = expansionProgress.coerceIn(qqsMin, qqsMax)
         ((qqsMax - range) / (qqsMax - qqsMin)).coerceIn(0f, 1f)
     }
-
-    val expansionAlpha by animateFloatAsState(
-        targetValue = progress,
-        label = "dragHandleAlpha"
-    )
-
-    val offsetY by animateFloatAsState(
-        targetValue = translationY * (1f - progress),
-        label = "dragHandleOffsetY"
-    )
-
+    val expansionAlpha = progress
+    val offsetY = translationY * (1f - progress)
+    
     Box(
         modifier = Modifier
             .offset { IntOffset(0, offsetY.roundToInt()) }
@@ -1388,15 +1377,12 @@ fun BrightnessLayout(
 ) {
     val cvm = vm.containerViewModel
     val translationY = with(LocalDensity.current) { 100.dp.toPx() }
-
     val qqsMin = 0.01f
     val qqsMax = 0.4f
-
     val qsMin = 0.6f
     val qsMax = 1.0f
     
     val expansionProgress = vm.expansionState.progress
-
     val progress = when (location) {
         "QQS" -> {
             val qqsRange = expansionProgress.coerceIn(qqsMin, qqsMax)
@@ -1410,21 +1396,13 @@ fun BrightnessLayout(
         }
         else -> 0f
     }
-
-    val expansionAlpha by animateFloatAsState(
-        targetValue = progress,
-        label = "expansionAlpha"
-    )
-
-    val offsetY by animateFloatAsState(
-        targetValue = when (location) {
-            "QQS" -> translationY * (1f - progress)
-            "QS" -> -translationY * (1f - progress)
-            else -> 0f
-        },
-        label = "offsetY"
-    )
-
+    val expansionAlpha = progress
+    val offsetY = when (location) {
+        "QQS" -> translationY * (1f - progress)
+        "QS" -> -translationY * (1f - progress)
+        else -> 0f
+    }
+    
     Box(
         modifier = Modifier
             .offset { IntOffset(0, offsetY.roundToInt()) }
