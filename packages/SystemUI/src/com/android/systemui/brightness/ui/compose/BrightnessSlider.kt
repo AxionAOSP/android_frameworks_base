@@ -112,7 +112,7 @@ import com.android.systemui.haptics.slider.compose.ui.SliderHapticsViewModel
 import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.qs.ui.compose.borderOnFocus
 import com.android.systemui.res.R
-import com.android.systemui.util.CustomAndroidColorScheme
+import com.android.systemui.util.AxColorScheme
 import com.android.systemui.utils.PolicyRestriction
 import platform.test.motion.compose.values.MotionTestValueKey
 import platform.test.motion.compose.values.motionTestValues
@@ -421,10 +421,10 @@ object BrightnessSliderMotionTestKeys {
 @Composable
 private fun sliderColors(): PlatformSliderColors {
     return PlatformSliderColors(
-            trackColor = CustomAndroidColorScheme.current.shadeTileColor,
-            indicatorColor = MaterialTheme.colorScheme.primary,
-            iconColor = MaterialTheme.colorScheme.onPrimary,
-            labelColorOnIndicator = MaterialTheme.colorScheme.onPrimary,
+            trackColor = AxColorScheme.secondary,
+            indicatorColor = AxColorScheme.primary,
+            iconColor = AxColorScheme.onPrimary,
+            labelColorOnIndicator = AxColorScheme.onPrimary,
             labelColorOnTrack = MaterialTheme.colorScheme.onSecondaryContainer,
             disabledTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
             disabledIndicatorColor = MaterialTheme.colorScheme.surfaceContainerHighest,

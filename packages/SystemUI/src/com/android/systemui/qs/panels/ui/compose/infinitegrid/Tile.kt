@@ -106,7 +106,7 @@ import com.android.systemui.qs.panels.ui.viewmodel.toIconProvider
 import com.android.systemui.qs.panels.ui.viewmodel.toUiState
 import com.android.systemui.qs.tileimpl.QSTileImpl
 import com.android.systemui.qs.ui.compose.borderOnFocus
-import com.android.systemui.util.CustomAndroidColorScheme
+import com.android.systemui.util.AxColorScheme
 import com.android.systemui.res.R
 import kotlinx.coroutines.CoroutineScope
 
@@ -400,11 +400,11 @@ private object TileDefaults {
     @ReadOnlyComposable
     fun activeIconTileColors(): TileColors =
         TileColors(
-            background = MaterialTheme.colorScheme.primary,
+            background = AxColorScheme.primary,
             iconBackground = Color.Transparent,
-            label = MaterialTheme.colorScheme.onPrimary,
-            secondaryLabel = MaterialTheme.colorScheme.onPrimary,
-            icon = MaterialTheme.colorScheme.onPrimary,
+            label = AxColorScheme.onPrimary,
+            secondaryLabel = AxColorScheme.onPrimary,
+            icon = AxColorScheme.onPrimary,
         )
 
     /** An active tile with dual target only show the active color on the icon */
@@ -412,45 +412,45 @@ private object TileDefaults {
     @ReadOnlyComposable
     fun activeDualTargetTileColors(): TileColors =
         TileColors(
-            background = MaterialTheme.colorScheme.primary,
+            background = AxColorScheme.primary,
             iconBackground = Color.Transparent,
-            label = MaterialTheme.colorScheme.onPrimary,
-            secondaryLabel = MaterialTheme.colorScheme.onPrimary,
-            icon = MaterialTheme.colorScheme.onPrimary,
+            label = AxColorScheme.onPrimary,
+            secondaryLabel = AxColorScheme.onPrimary,
+            icon = AxColorScheme.onPrimary,
         )
 
     @Composable
     @ReadOnlyComposable
     fun inactiveDualTargetTileColors(): TileColors =
         TileColors(
-            background = CustomAndroidColorScheme.current.shadeTileColor,
+            background = AxColorScheme.secondary,
             iconBackground = Color.Transparent,
-            label = MaterialTheme.colorScheme.onSurface,
-            secondaryLabel = MaterialTheme.colorScheme.onSurface,
-            icon = MaterialTheme.colorScheme.onSurface,
+            label = AxColorScheme.onSurface,
+            secondaryLabel = AxColorScheme.onSurface,
+            icon = AxColorScheme.onSurface,
         )
 
     @Composable
     @ReadOnlyComposable
     fun inactiveTileColors(): TileColors =
         TileColors(
-            background = CustomAndroidColorScheme.current.shadeTileColor,
+            background = AxColorScheme.secondary,
             iconBackground = Color.Transparent,
-            label = MaterialTheme.colorScheme.onSurface,
-            secondaryLabel = MaterialTheme.colorScheme.onSurface,
-            icon = MaterialTheme.colorScheme.onSurface,
+            label = AxColorScheme.onSurface,
+            secondaryLabel = AxColorScheme.onSurface,
+            icon = AxColorScheme.onSurface,
         )
 
     @Composable
     @ReadOnlyComposable
     fun unavailableTileColors(): TileColors {
         return TileColors(
-            background = CustomAndroidColorScheme.current.shadeTileColor,
+            background = AxColorScheme.secondary,
             iconBackground = Color.Transparent,
-            label = MaterialTheme.colorScheme.onSurface,
-            secondaryLabel = MaterialTheme.colorScheme.onSurface,
-            icon = MaterialTheme.colorScheme.onSurface,
-            alpha = .38f,
+            label = AxColorScheme.onSurface,
+            secondaryLabel = AxColorScheme.onSurface,
+            icon = AxColorScheme.onSurface,
+            alpha = 0.38f,
         )
     }
 

@@ -20,6 +20,7 @@ import android.content.res.Resources
 import android.graphics.Color
 import com.android.internal.graphics.ColorUtils
 import com.android.systemui.res.R
+import com.android.systemui.util.AxColorScheme
 
 object ShadeColors {
     @JvmStatic
@@ -42,12 +43,7 @@ object ShadeColors {
 
     @JvmStatic
     private fun Resources.shadePanelStandard(): Int {
-        val layerAbove = ColorUtils.setAlphaComponent(
-            getColor(R.color.shade_panel_base, null),
-            (0.4f * 255).toInt()
-        )
-        val layerBelow = ColorUtils.setAlphaComponent(Color.WHITE, (0.1f * 255).toInt())
-        return ColorUtils.compositeColors(layerAbove, layerBelow)
+        return AxColorScheme.panelColor(this)
     }
 
     @JvmStatic
@@ -57,10 +53,7 @@ object ShadeColors {
 
     @JvmStatic
     private fun Resources.notificationScrimStandard(): Int {
-        return ColorUtils.setAlphaComponent(
-            getColor(R.color.notification_scrim_base, null),
-            (0.5f * 255).toInt(),
-        )
+        return Color.TRANSPARENT
     }
 
     @JvmStatic
