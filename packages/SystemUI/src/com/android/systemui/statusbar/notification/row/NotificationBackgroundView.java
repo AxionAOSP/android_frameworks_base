@@ -513,5 +513,6 @@ public class NotificationBackgroundView extends View implements Dumpable,
     
     public void setIsBlurSupported(boolean isBlurSupported) {
         mIsBlurSupported = isBlurSupported;
+        updateBaseLayerColor();
     }
 }

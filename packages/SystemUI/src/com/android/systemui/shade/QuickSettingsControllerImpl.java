@@ -433,7 +433,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         mTranslucentObserver = new ContentObserver(null) {
             @Override
             public void onChange(boolean selfChange) {
-                onTransparencyUpdated();
+                onTransparencyUpdated(0f);
             }
         };
 
@@ -1161,6 +1161,8 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         mLightBarController.setQsExpanded(mFullyExpanded);
         
         NTAppLockerHelper.get().onPanelExpandedChanged(mFullyExpanded);
+        
+        onTransparencyUpdated(adjustedExpansionFraction);
 
         // Update full screen state
         setQsFullScreen(/* qsFullScreen = */ mFullyExpanded && !mSplitShadeEnabled);
@@ -2561,20 +2563,14 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         }
     }
     
-    public final void onTransparencyUpdated() {
+    public final void onTransparencyUpdated(float expansion) {
+        if (expansion != 0.01f) return;
         NotificationStackScrollLayoutController controller = mNotificationStackScrollLayoutController;
         if (controller == null || controller.getView() == null) {
             return;
         }
         NotificationStackScrollLayout view = controller.getView();
-        int childCount = view.getChildCount();
-        for (int i = 0; i < childCount; i++) {
-            View child = view.getChildAt(i);
-            if (child instanceof ExpandableNotificationRow) {
-                final ExpandableNotificationRow row = (ExpandableNotificationRow) child;
-                child.post(row::updateIfNeeded);
-            }
-        }
+        view.post(() -> view.updateBgColor(mBarState == KEYGUARD));
     }
 
     public boolean isVisible() {
