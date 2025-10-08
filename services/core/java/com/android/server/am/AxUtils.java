@@ -24,7 +24,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
+import java.util.*;
+import java.util.stream.Collectors; 
 
 public class AxUtils {
 
@@ -201,6 +202,16 @@ public class AxUtils {
 
     public static void propSet(String key, String val) {
         SystemProperties.set("persist.sys.axion_" + key, val);
+    }
+
+    public static void propSetF(String key, String val) {
+        SystemProperties.set(key, val);
+    }
+
+    public static String joinString(String... parts) {
+        return Arrays.stream(parts)
+                     .filter(s -> s != null && !s.isEmpty())
+                     .collect(Collectors.joining(","));
     }
 
     public static void write(String path, String value) {

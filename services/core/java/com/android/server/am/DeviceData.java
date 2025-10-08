@@ -321,6 +321,12 @@ public final class DeviceData {
         String sMax = CPU_SYS_PATH + sIndex + SCALING_MAX_FREQ_FILE;
         String bMax = CPU_SYS_PATH + bIndex + SCALING_MAX_FREQ_FILE;
         String pMax = CPU_SYS_PATH + pIndex + SCALING_MAX_FREQ_FILE;
+        
+        String sMaxFreq = readFile(sMax);
+        String bMaxFreq = readFile(bMax);
+        String pMaxFreq = readFile(pMax);
+
+        propSetF("persist.sys.ax_max_cpu_freqs", joinString(sMaxFreq, bMaxFreq, pMaxFreq));
 
         String smallR = toRange(sCores);
         String bigR = toRange(bCores);
@@ -333,7 +339,7 @@ public final class DeviceData {
 
         String bgLimit = rangeTo(sCores, 2);
         String uiLimit = smallR;
-
+        
         propSet("cpu_small", sCores);
         propSet("cpu_big", bCores);
         propSet("cpu_prime", pCores);
