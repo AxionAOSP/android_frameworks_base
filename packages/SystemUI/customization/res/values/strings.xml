@@ -30,6 +30,8 @@
     <string name="clock_id_ntype">DEFAULT</string>
     <string name="clock_id_old_quick_look">OLD_QUICKLOOK</string>
     <string name="clock_id_quick_look">QUICKLOOK</string>
+    <string name="clock_id_polyline">POLYLINE</string>
+    <string name="clock_id_space_age">SPACE_AGE</string>
     <string name="clock_image_placeholder">?</string>
     <string name="clock_old_quick_look_image_placeholder">__°</string>
     <string name="clock_text_placeholder">: )</string>

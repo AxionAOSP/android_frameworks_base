@@ -59,6 +59,18 @@ object ClockConfigs {
             Align.CENTER,
             visible = false,
             customHeightRes = R.dimen.old_clock_height
+        ),
+        "PolylineClockView" to ClockStyleConfig(
+            Position.ABOVE,
+            Align.CENTER,
+            customHeightRes = R.dimen.bitmap_digit_clocks_height,
+            customDateMarginTop = R.dimen.bitmap_digit_clocks_top_margin
+        ),
+        "SpaceAgeClockView" to ClockStyleConfig(
+            Position.ABOVE,
+            Align.CENTER,
+            customHeightRes = R.dimen.bitmap_digit_clocks_height,
+            customDateMarginTop = R.dimen.bitmap_digit_clocks_top_margin
         )
     )
 }

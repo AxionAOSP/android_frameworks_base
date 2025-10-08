@@ -95,4 +95,8 @@
     <dimen name="old_one_line_info_clock_text_margin_top">26dp</dimen>
     <dimen name="overlap_padding">4dp</dimen>
     <dimen name="overlap_small_padding">2dp</dimen>
+    <dimen name="space_age_clock_sticky_offset">0.3334dp</dimen>
+    <dimen name="polyline_clock_padding">5dp</dimen>
+    <dimen name="bitmap_digit_clocks_top_margin">0dp</dimen>
+    <dimen name="bitmap_digit_clocks_height">100dp</dimen>
 </resources>

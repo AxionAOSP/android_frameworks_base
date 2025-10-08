@@ -42,6 +42,14 @@ enum class NTClockType(
     OLD_QUICKLOOK(
         clockId = R.string.clock_id_old_quick_look,
         viewId = R.layout.clock_old_quick_look
+    ),
+    SPACE_AGE(
+        clockId = R.string.clock_id_space_age,
+        viewId = R.layout.clock_space_age
+    ),
+    POLYLINE(
+        clockId = R.string.clock_id_polyline,
+        viewId = R.layout.clock_polyline
     );
 
     companion object {

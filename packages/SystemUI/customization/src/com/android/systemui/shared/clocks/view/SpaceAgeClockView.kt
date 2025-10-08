@@ -14,44 +14,33 @@
 package com.android.systemui.shared.clocks.view
 
 import android.content.Context
-import android.graphics.Color
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffColorFilter
 import android.util.AttributeSet
 import com.android.systemui.customization.R
 import com.android.systemui.shared.clocks.extensions.*
-import kotlin.math.roundToInt
 
-class LondonUGClockView @JvmOverloads constructor(
+class SpaceAgeClockView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0,
     defStyleRes: Int = 0
 ) : BitmapDigitClockView(context, attrs, defStyleAttr, defStyleRes) {
 
-    override val tagName = "LondonUGClockView"
+    override val tagName = "SpaceAgeClockView"
 
     override val digitResIds = intArrayOf(
-        R.drawable.london_ug_0,
-        R.drawable.london_ug_1,
-        R.drawable.london_ug_2,
-        R.drawable.london_ug_3,
-        R.drawable.london_ug_4,
-        R.drawable.london_ug_5,
-        R.drawable.london_ug_6,
-        R.drawable.london_ug_7,
-        R.drawable.london_ug_8,
-        R.drawable.london_ug_9
+        R.drawable.space_age_0,
+        R.drawable.space_age_1,
+        R.drawable.space_age_2,
+        R.drawable.space_age_3,
+        R.drawable.space_age_4,
+        R.drawable.space_age_5,
+        R.drawable.space_age_6,
+        R.drawable.space_age_7,
+        R.drawable.space_age_8,
+        R.drawable.space_age_9
     )
 
-    override val digitScale: Float
-        get() = (scaleRatio * 56f) / 32f
+    override val digitSpacing get() = -context.scaledDimen(R.dimen.space_age_clock_sticky_offset)
 
-    override fun clockColor(): Int {
-        return if (isRegionDark || isDoze || isScreenOff) {
-            Color.WHITE
-        } else {
-            Color.argb((0.6f * 255).roundToInt(), 0, 0, 0)
-        }
-    }
+    override fun clockColor(): Int = clockColor
 }

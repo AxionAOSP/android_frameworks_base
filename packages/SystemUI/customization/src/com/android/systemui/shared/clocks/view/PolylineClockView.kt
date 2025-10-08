@@ -14,44 +14,33 @@
 package com.android.systemui.shared.clocks.view
 
 import android.content.Context
-import android.graphics.Color
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffColorFilter
 import android.util.AttributeSet
 import com.android.systemui.customization.R
 import com.android.systemui.shared.clocks.extensions.*
-import kotlin.math.roundToInt
 
-class LondonUGClockView @JvmOverloads constructor(
+class PolylineClockView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0,
     defStyleRes: Int = 0
 ) : BitmapDigitClockView(context, attrs, defStyleAttr, defStyleRes) {
 
-    override val tagName = "LondonUGClockView"
+    override val tagName = "PolylineClockView"
 
     override val digitResIds = intArrayOf(
-        R.drawable.london_ug_0,
-        R.drawable.london_ug_1,
-        R.drawable.london_ug_2,
-        R.drawable.london_ug_3,
-        R.drawable.london_ug_4,
-        R.drawable.london_ug_5,
-        R.drawable.london_ug_6,
-        R.drawable.london_ug_7,
-        R.drawable.london_ug_8,
-        R.drawable.london_ug_9
+        R.drawable.polyline_0,
+        R.drawable.polyline_1,
+        R.drawable.polyline_2,
+        R.drawable.polyline_3,
+        R.drawable.polyline_4,
+        R.drawable.polyline_5,
+        R.drawable.polyline_6,
+        R.drawable.polyline_7,
+        R.drawable.polyline_8,
+        R.drawable.polyline_9
     )
 
-    override val digitScale: Float
-        get() = (scaleRatio * 56f) / 32f
+    override val digitSpacing get() = context.scaledDimen(R.dimen.polyline_clock_padding)
 
-    override fun clockColor(): Int {
-        return if (isRegionDark || isDoze || isScreenOff) {
-            Color.WHITE
-        } else {
-            Color.argb((0.6f * 255).roundToInt(), 0, 0, 0)
-        }
-    }
+    override fun clockColor(): Int = clockColor
 }

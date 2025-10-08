@@ -66,6 +66,8 @@ class NTClockProvider(
             add(NTClockType.GENERAL)
             add(NTClockType.LONDON_UG)
             add(NTClockType.OLD_QUICKLOOK)
+            add(NTClockType.SPACE_AGE)
+            add(NTClockType.POLYLINE)
         }
 
         return availableTypes.map { type ->
