@@ -1551,6 +1551,7 @@ class TaskFragment extends WindowContainer<WindowContainer> {
         }
 
         AxExtServiceFactory.getAppUsageManager().updateLaunchTime(next.packageName);
+        AxExtServiceFactory.getMemoryManager().tuneLmkdParam(next.packageName);
         AxExtServiceFactory.getMemoryManager().setHighPressureScene(next.packageName);
         AxExtServiceFactory.getProcessManager().updateTopApp(next.packageName);
 

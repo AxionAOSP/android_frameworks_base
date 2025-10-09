@@ -15,8 +15,6 @@
  */
 package com.android.server.am;
 
-import static com.android.server.am.AxUtils.*;
-
 import android.content.Context;
 import android.graphics.Point;
 import android.os.Bundle;
@@ -27,424 +25,436 @@ import android.os.Message;
 import android.os.Process;
 import android.os.SystemProperties;
 import android.util.Slog;
-import com.android.server.AxExtServiceFactory;
-import com.android.server.NtServiceInjector;
+
+import com.android.internal.app.procstats.ProcessStats;
+
 import com.android.server.am.CachedAppOptimizer;
 import com.android.server.wm.WindowManagerService;
+import com.android.server.AxExtServiceFactory;
+import com.android.server.NtServiceInjector;
 import com.android.server.utils.SimpleAppRecord;
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
-import java.util.*;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 public class NtMemoryManagerImpl implements INtMemoryManager {
-    private static final String TAG = "NtMemoryManagerImpl";
-    
+
     private static final int MSG_TUNE_EXTRA_FREE = 0;
-    private static final int MSG_KILL_FORK_HIGH_USED = 1;
-    private static final int MSG_FORK_HIGH_USED_APPS = 2;
+    private static final int MSG_KILL_PREFORK = 1;
+    private static final int MSG_FORK_HIGH_USED = 2;
     private static final int MSG_START_EMPTY_APP = 3;
-    private static final int MSG_BOOST_CAMERA_WARM = 4;
-    private static final int MSG_STOP_BOOST_CAMERA_WARM = 5;
+    private static final int MSG_BOOST_CAMERA_START_WARM = 4;
+    private static final int MSG_BOOST_CAMERA_RESET_WARM = 5;
     private static final int MSG_RELEASE_MEMORY_SCREEN_ON = 6;
     private static final int MSG_LOAD_PROCESS_MEMORY = 7;
-    private static final int MSG_BOOST_CAMERA_COLD = 8;
-    private static final int MSG_STOP_BOOST_CAMERA_COLD = 9;
-    private static final int MSG_COMPUTE_ADJ = 10;
+    private static final int MSG_CAMERA_MEMORY_RELEASE = 8;
+    private static final int MSG_BOOST_CAMERA_COLD_RESET = 9;
+    private static final int MSG_CACHE_PERCENT = 10;
+    private static final int MSG_OPT_HIGH_USED = 11;
+
+    private static final List<String> mReleaseProcessWhiteList;
+
+    public static final String TAG = "NtMemoryManager";
 
     public static final boolean DEBUG = SystemProperties.getBoolean("persist.sys.nmm.debug", false);
+
     private static final boolean DEBUG_CAMERA = SystemProperties.getBoolean("persist.sys.nmm.debug_bcamera", false);
+
     private static final long FORK_HIGH_USED_DELAY = DEBUG ? 180000L : 10800000L;
+
     private static final long FORK_HIGH_USED_APPS_DELAY = 30000;
+
     private static final long START_EMPTY_APP_DELAY = 3000;
 
     private Context mContext;
-    private ActivityManagerService mActivityManagerService;
-    private WindowManagerService mWindowManagerService;
+
+    private ActivityManagerService mService;
+
+    private WindowManagerService mWindowService;
+
     private HandlerThread mHandlerThread;
+
     private Handler mHandler;
 
-    private boolean mEnableOptHighUsed = false;
-    private boolean mEnableForkHighUsed = false;
-    private boolean mEnableBoostCamera = false;
-    private boolean mEnablePreFork = false;
-    private boolean mEnableLoadProcessMemory = false;
-    private boolean mPreferredAppsSupported = false;
-    private boolean mEnableReleaseMemory = false;
+    private boolean mTuneExtraFree = true;
 
-    private int mHighUsedAdj = 801;
-    private int mOptHighUsedAdj = 801;
-    private int mHighUsedRank = 5;
+    private boolean mEnableOptHighUsed = true;
+
+    private boolean mOpt3rdAppAdjEnabled = true;
+
+    private boolean mEnableForkHighUsed = true;
+
+    private int mAdjForkHighUsed = 801;
+
+    private int mAdjHighUsed = 801;
+
+    private int mOpt3rdHighAdj = 802;
+
+    private int mForkHighUsedNum = 5;
+
+    private int mTopRankHighUsed = 5;
+
     private long mTotalPssLimit = 1048576;
+
     private long mDefaultPss = 204800;
+
+    private ArrayList<String> mOpt3rdFgList = new ArrayList<>();
+
+    private ArrayList<String> mOpt3rdList = new ArrayList<>();
+
     private ArrayList<ProcessRecord> mForkedProcessList = new ArrayList<>();
-    private long mPhysicalMemory;
 
-    private boolean mIsBoostingCameraWarm = true;
-    private boolean mIsBoostingCameraCold = true;
+    private long mMemorySize = AxUtils.getPhysicalMemory();
+
+    private boolean mEnableBoostCamera = true;
+
+    private boolean mIsBoostingCameraCold = false;
+
+    private boolean mIsBoostingCameraWarm = false;
+
     private long mBoostCameraDuration = 5000;
-    private int mKillProcessCount = 20;
-    private int mKillProcessCountWarmStart = 5;
-    private long mLastScreenOnTime = 0;
-    private long mReleaseMemoryDuration = 3600000;
-    private int mKillProcessScreenOnCount = 5;
 
-    private long[] mPssSections = new long[3];
-    private int[] mTargetAdjs = new int[3];
+    private int mKillProcessCount = 20;
+
+    private int mKillProcessCountWarmStart = 5;
+
+    private boolean mEnableReleaseMemory = true;
+
+    private long mLastScreenOnTime = 0;
+
+    private long mReleaseMemoryDuration = 3600000;
+
+    private long mWeight = 10;
+
+    private int mReleaseMemoryKillCount = 5;
+
+    private boolean mEnableLoadProcessMemory = true;
+
+    private int mCachePercent = 0;
+
+    private int mCameraCachePercent = 0;
+
+    private long[] mPssSections = new long[]{ 102400L, 204800L, 512000L };
+
+    private int[] mTargetAdjs = new int[]{ 201, 401, 801 };
+
     private long mComputeAdjDuration = 86400000;
+
     private long mComputeTargetAdjDuration = 600000;
+
+    private boolean mEnablePreFork = true;
+
     private boolean mIsHighPressureScene = false;
-    private int mPreforkMemoryLevel = 0;
+
+    private int mPreforkMemoryLevel = ProcessStats.ADJ_MEM_FACTOR_CRITICAL;
+
+    private boolean mEnableTuneLmkd = true;
+
+    private ArrayList<String> mWhiteListForCameraStart = new ArrayList<>();
     
     private boolean mSystemReady = false;
 
-
-    public static final class ProcessInfo {
-        public int pid;
-        public int adj;
-        public long rss;
-        public String name;
-        public float score;
-
-        public ProcessInfo(int pid, int adj, long rss, String name) {
-            this.pid = pid;
-            this.adj = adj;
-            this.rss = rss;
-            this.name = name;
+    public static final class ProcessComparator implements Comparator<ProcessInfo> {
+        @Override
+        public int compare(ProcessInfo processInfo, ProcessInfo processInfo2) {
+            return Long.valueOf(processInfo.rss).compareTo(Long.valueOf(processInfo2.rss));
         }
     }
 
-    public static final class RssComparator implements Comparator<ProcessInfo> {
+    public static final class ProcessInfo {
+        public int adj;
+        public long rss;
+        public int pid;
+        public String name;
+        public float score = 0.0f;
+
+        public ProcessInfo(int i, int i2, long j, String str) {
+            pid = i;
+            adj = i2;
+            rss = j;
+            name = str;
+        }
+    }
+
+    class MemoryManagerHandler extends Handler {
+        MemoryManagerHandler(Looper looper) {
+            super(looper);
+        }
+
         @Override
-        public int compare(ProcessInfo p1, ProcessInfo p2) {
-            return Long.compare(p2.rss, p1.rss);
+        public void handleMessage(Message message) {
+            int i = 0;
+            switch (message.what) {
+                case MSG_TUNE_EXTRA_FREE:
+                    if (mWindowService != null) {
+                        Point displaySize = new Point();
+                        mWindowService.getBaseDisplaySize(0, displaySize);
+                        int extraFreeFactor = 6; // calculated from n2a with 61279 efk = factor ≈ 61279 / (((1080*2412)*4)/1024) ≈ 6.02
+                        int extraFreeKb = (((displaySize.x * displaySize.y) * 4) * extraFreeFactor) / 1024;
+                        SystemProperties.set("sys.sysctl.extra_free_kbytes", Integer.toString(extraFreeKb));
+                    }
+                    if (DEBUG) {
+                        Slog.d(TAG, "new extra_free_kbytes: " + SystemProperties.getInt("sys.sysctl.extra_free_kbytes", 0));
+                    }
+                    return;
+                case MSG_KILL_PREFORK:
+                    synchronized (mForkedProcessList) {
+                        int i2 = message.getData().getInt("pid", -1);
+                        ArrayList forkedProcessList = mForkedProcessList;
+                        int size = forkedProcessList.size();
+                        while (i < size) {
+                            Object obj = forkedProcessList.get(i);
+                            i++;
+                            ProcessRecord processRecord = (ProcessRecord) obj;
+                            if (processRecord.mPid == i2) {
+                                Slog.d(TAG, "Kill pre fork high used: " + processRecord.processName);
+                                mForkedProcessList.remove(processRecord);
+                                Process.killProcess(i2);
+                            }
+                        }
+                    }
+                    return;
+                case MSG_FORK_HIGH_USED:
+                    forkHighUsedApps();
+                    return;
+                case MSG_START_EMPTY_APP:
+                    String proc = message.getData().getString("proc", "");
+                    if (proc.length() > 0) {
+                        ArrayList<String> arrayList = new ArrayList<>();
+                        arrayList.add(proc);
+                        Bundle bundle = new Bundle();
+                        bundle.putStringArrayList("start_empty_apps", arrayList);
+                        bundle.putBoolean("fork_high", true);
+                        mService.startActivityAsUserEmpty(bundle);
+                    }
+                    return;
+                case MSG_BOOST_CAMERA_START_WARM:
+                    SystemProperties.set("persist.sys.nmm.boost.camera", "1");
+                    releaseMemory(900, mKillProcessCountWarmStart, true, mWhiteListForCameraStart);
+                    return;
+                case MSG_BOOST_CAMERA_RESET_WARM:
+                    mIsBoostingCameraWarm = false;
+                    if (DEBUG) {
+                        Slog.d(TAG, "mIsBoostingCameraStart : " + mIsBoostingCameraWarm);
+                    }
+                    return;
+                case MSG_RELEASE_MEMORY_SCREEN_ON:
+                    if (DEBUG) {
+                        Slog.d(TAG, "Start to kill process to release memory on screen on");
+                    }
+                    SystemProperties.set("persist.sys.nmm.boost.camera", "1");
+                    releaseMemory(900, mReleaseMemoryKillCount, false, mReleaseProcessWhiteList);
+                    return;
+                case MSG_LOAD_PROCESS_MEMORY:
+                    String loadPkg = message.getData().getString("packageName", "");
+                    if (loadPkg.length() > 0) {
+                        startLoadProcessMemory(loadPkg);
+                    }
+                    return;
+                case MSG_CAMERA_MEMORY_RELEASE:
+                    SystemProperties.set("persist.sys.nmm.boost.camera", "1");
+                    releaseMemory(900, mKillProcessCount, true, mWhiteListForCameraStart);
+                    return;
+                case MSG_BOOST_CAMERA_COLD_RESET:
+                    mIsBoostingCameraCold = false;
+                    if (DEBUG) {
+                        Slog.d(TAG, "mIsBoostingCameraColdStart : " + mIsBoostingCameraCold);
+                    }
+                    return;
+                case MSG_CACHE_PERCENT:
+                    String tunePkg = message.getData().getString("packageName", "");
+                    int cachePercent = SystemProperties.getInt("persist.sys.nmm.cache_percent", 0);
+                    if (tunePkg.contains("camera")) {
+                        if (cachePercent != 0) {
+                            SystemProperties.set("persist.sys.nmm.cache_percent", Integer.toString(mCameraCachePercent));
+                            ProcessList.updateLmkProps();
+                        }
+                        return;
+                    }
+                    if (cachePercent == mCameraCachePercent) {
+                        SystemProperties.set("persist.sys.nmm.cache_percent", Integer.toString(mCachePercent));
+                        ProcessList.updateLmkProps();
+                    }
+                    return;
+                case MSG_OPT_HIGH_USED:
+                    if (mEnableOptHighUsed) {
+                        computeHighUsedAppsAdjs();
+                        mHandler.sendMessageDelayed(mHandler.obtainMessage(MSG_OPT_HIGH_USED), mComputeTargetAdjDuration);
+                    }
+                    return;
+                default:
+                    return;
+            }
         }
     }
 
     public static final class AdjComparator implements Comparator<ProcessInfo> {
         @Override
-        public int compare(ProcessInfo p1, ProcessInfo p2) {
-            return Integer.compare(p2.adj, p1.adj);
+        public int compare(ProcessInfo processInfo, ProcessInfo processInfo2) {
+            return Integer.valueOf(processInfo.adj).compareTo(Integer.valueOf(processInfo2.adj));
         }
     }
 
     public static final class ScoreComparator implements Comparator<ProcessInfo> {
         @Override
-        public int compare(ProcessInfo p1, ProcessInfo p2) {
-            return Float.compare(p2.score, p1.score);
+        public int compare(ProcessInfo processInfo, ProcessInfo processInfo2) {
+            return Float.valueOf(processInfo2.score).compareTo(Float.valueOf(processInfo.score));
         }
     }
 
-    class MemoryHandler extends Handler {
-        MemoryHandler(Looper looper) {
-            super(looper);
-        }
-
-        @Override
-        public void handleMessage(Message msg) {
-            if (!mSystemReady) return;
-            switch (msg.what) {
-                case MSG_TUNE_EXTRA_FREE:
-                    handleTuneExtraFree();
-                    break;
-                case MSG_KILL_FORK_HIGH_USED:
-                    handleKillForkedHighUsed(msg);
-                    break;
-                case MSG_FORK_HIGH_USED_APPS:
-                    forkHighUsedApps();
-                    break;
-                case MSG_START_EMPTY_APP:
-                    handleStartEmptyApp(msg);
-                    break;
-                case MSG_BOOST_CAMERA_WARM:
-                    handleBoostCameraWarm();
-                    break;
-                case MSG_STOP_BOOST_CAMERA_WARM:
-                    handleStopBoostCameraWarm();
-                    break;
-                case MSG_RELEASE_MEMORY_SCREEN_ON:
-                    handleReleaseMemoryScreenOn();
-                    break;
-                case MSG_LOAD_PROCESS_MEMORY:
-                    String packageName = msg.getData().getString("packageName", "");
-                    handleLoadProcessMemory(packageName);
-                    break;
-                case MSG_BOOST_CAMERA_COLD:
-                    handleBoostCameraCold();
-                    break;
-                case MSG_STOP_BOOST_CAMERA_COLD:
-                    handleStopBoostCameraCold();
-                    break;
-                case MSG_COMPUTE_ADJ:
-                    handleComputeAdj();
-                    break;
-            }
-        }
+    static {
+        mReleaseProcessWhiteList = List.of("com.google.android.googlequicksearchbox:search", "com.google.android.gms", "com.android.chrome");
     }
 
     public NtMemoryManagerImpl() {
+        Slog.d(TAG, "init NtMemoryManagerImpl");
     }
 
-    private void handleTuneExtraFree() {
-        if (mWindowManagerService != null) {
-            Point displaySize = new Point();
-            mWindowManagerService.getBaseDisplaySize(0, displaySize);
-            int extraFreeFactor = 6; // calculated from n2a with 61279 efk = factor ≈ 61279 / (((1080*2412)*4)/1024) ≈ 6.02
-            int extraFreeKb = (((displaySize.x * displaySize.y) * 4) * extraFreeFactor) / 1024;
-            SystemProperties.set("sys.sysctl.extra_free_kbytes", Integer.toString(extraFreeKb));
-        }
-        if (DEBUG) {
-            Slog.d(TAG, "New extra_free_kbytes: " + SystemProperties.getInt("sys.sysctl.extra_free_kbytes", 0));
-        }
-    }
-
-    private void handleKillForkedHighUsed(Message msg) {
-        synchronized (mForkedProcessList) {
-            int pid = msg.getData().getInt("pid", -1);
-            Iterator<ProcessRecord> it = mForkedProcessList.iterator();
-            while (it.hasNext()) {
-                ProcessRecord proc = it.next();
-                if (proc.mPid == pid) {
-                    if (DEBUG) Slog.d(TAG, "Killing pre-forked high used: " + proc.processName);
-                    mForkedProcessList.remove(proc);
-                    Process.killProcess(pid);
-                    break;
-                }
-            }
-        }
-    }
-
-    private void forkHighUsedApps() {
-        long j;
-        ArrayList highUsedRecords = AxExtServiceFactory.getAppUsageManager().getHighUsedRecords(true);
-        if (highUsedRecords.size() == 0) {
-            if (DEBUG) {
-                Slog.d(TAG, "forkHighUsedApps: sizeOfHighUsed == 0");
-            }
+    private void releaseMemory(int i, int i2, boolean z, List<String> list) {
+        if (i2 == 0) {
             return;
         }
-        long j2 = this.mPhysicalMemory;
-        if (j2 != -1) {
-            this.mTotalPssLimit = (long) (this.mTotalPssLimit * (j2 / 8388608.0d));
-            if (DEBUG) {
-                Slog.d(TAG, "TotalPssLimit: " + this.mTotalPssLimit);
-            }
-        }
-        Iterator it = highUsedRecords.iterator();
-        while (true) {
-            j = 0;
-            if (!it.hasNext()) {
-                break;
-            }
-            SimpleAppRecord simpleAppRecord = (SimpleAppRecord) it.next();
-            if (simpleAppRecord.mLastCachedPss == 0) {
-                simpleAppRecord.mLastCachedPss = mDefaultPss;
-            }
-        }
-        ArrayList arrayList = new ArrayList();
-        if (DEBUG) {
-            Slog.d(TAG, "start to fork high used apps after booting");
-            Iterator it2 = highUsedRecords.iterator();
-            while (it2.hasNext()) {
-                Slog.d(TAG, "high used candidate: " + ((SimpleAppRecord) it2.next()).mPackageName);
-            }
-        }
-        Iterator it3 = highUsedRecords.iterator();
-        long j3 = 0;
-        while (true) {
-            if (!it3.hasNext()) {
-                break;
-            }
-            SimpleAppRecord simpleAppRecord2 = (SimpleAppRecord) it3.next();
-            j3 += simpleAppRecord2.mLastCachedPss;
-            boolean z = DEBUG;
-            if (z) {
-                Slog.d(TAG, simpleAppRecord2.mPackageName + " : LastCachedPss: " + simpleAppRecord2.mLastCachedPss);
-            }
-            if (j3 < this.mTotalPssLimit) {
-                arrayList.add(simpleAppRecord2.mPackageName);
-            } else if (z) {
-                Slog.d(TAG, "TotalPssLimit is reached now: " + j3);
-            }
-        }
-        if (DEBUG) Slog.d(TAG, "Fork list " + arrayList);
-        Iterator it4 = arrayList.iterator();
-        while (it4.hasNext()) {
-            String str = (String) it4.next();
-            Bundle bundle = new Bundle();
-            bundle.putString("proc", str);
-            Message msg = mHandler.obtainMessage(MSG_START_EMPTY_APP);
-            msg.setData(bundle);
-            j += START_EMPTY_APP_DELAY;
-            mHandler.sendMessageDelayed(msg, j);
-        }
-    }
-
-    private void handleStartEmptyApp(Message msg) {
-        String packageName = msg.getData().getString("proc", "");
-        if (packageName.length() > 0) {
-            ArrayList<String> apps = new ArrayList<>();
-            apps.add(packageName);
-            Bundle bundle = new Bundle();
-            bundle.putStringArrayList("start_empty_apps", apps);
-            bundle.putBoolean("fork_high", true);
-            mActivityManagerService.startActivityAsUserEmpty(bundle);
-        }
-    }
-
-    private void handleBoostCameraWarm() {
-        releaseMemory(900, mKillProcessCountWarmStart, true, true);
-    }
-
-    private void handleStopBoostCameraWarm() {
-        mIsBoostingCameraWarm = false;
-        if (DEBUG) {
-            Slog.d(TAG, "Stopped boosting camera warm start: " + mIsBoostingCameraWarm);
-        }
-    }
-
-    private void handleBoostCameraCold() {
-        releaseMemory(900, mKillProcessCount, true, true);
-    }
-
-    private void handleStopBoostCameraCold() {
-        mIsBoostingCameraCold = false;
-        if (DEBUG) {
-            Slog.d(TAG, "Stopped boosting camera cold start: " + mIsBoostingCameraCold);
-        }
-    }
-
-    private void handleReleaseMemoryScreenOn() {
-        if (DEBUG) {
-            Slog.d(TAG, "Starting to kill processes to release memory on screen on");
-        }
-        SystemProperties.set("persist.sys.nmm.boost.camera", "1");
-        releaseMemory(900, mKillProcessScreenOnCount, false, false);
-    }
-
-    private void handleComputeAdj() {
-        if (!mEnableOptHighUsed) return;
-        computeTargetAdjustment();
-        mHandler.sendMessageDelayed(
-            mHandler.obtainMessage(MSG_COMPUTE_ADJ), mComputeTargetAdjDuration);
-    }
-
-    private void computeTargetAdjustment() {
-        ArrayList highUsedRecords = AxExtServiceFactory.getAppUsageManager().getHighUsedRecords(false);
-        long jCurrentTimeMillis = System.currentTimeMillis();
-        Iterator it = highUsedRecords.iterator();
-        while (it.hasNext()) {
-            computeTargetAdjForApp((SimpleAppRecord) it.next(), jCurrentTimeMillis);
-        }
-    }
-
-    private void computeTargetAdjForApp(SimpleAppRecord appRecord, long currentTime) {
-        int targetAdj = mTargetAdjs[2];
-        
-        long lastRemoveTaskTime = appRecord.mLastRemoveTaskTime;
-        if (lastRemoveTaskTime != 0 && currentTime - lastRemoveTaskTime < mComputeAdjDuration) {
-            if (DEBUG) Slog.d(TAG, "don't raise adj due to remove task : " + appRecord.mPackageName + " : -1");
-            AxExtServiceFactory.getAppUsageManager().setTargetAdj(appRecord.mPackageName, -1);
-            return;
-        }
-        
-        if (currentTime - appRecord.mLastLmkdTimeTime < mComputeTargetAdjDuration) {
-            if (DEBUG) Slog.d(TAG, "sar.mCurTargetAdj " + appRecord.mCurTargetAdj);
-            int currentTargetAdj = appRecord.mCurTargetAdj;
-            if (currentTargetAdj == mTargetAdjs[2]) {
-                targetAdj = mTargetAdjs[1];
-                if (DEBUG) Slog.d(TAG, "raise adj due to mid lmkd kill : " + appRecord.mPackageName + " : " + targetAdj);
-            } else if (currentTargetAdj == mTargetAdjs[1]) {
-                targetAdj = mTargetAdjs[0];
-                if (DEBUG) Slog.d(TAG, "raise adj due to mid lmkd kill : " + appRecord.mPackageName + " : " + targetAdj);
-            }
-        }
-        
-        long lastCachedPss = appRecord.mLastCachedPss;
-        
-        if (lastCachedPss > mPssSections[2]) {
-            targetAdj = mTargetAdjs[2];
-            if (DEBUG) Slog.d(TAG, "lower adj due to pss is over : " + this.mTargetAdjs[2] + " , " + appRecord.mPackageName + " : " + targetAdj);
-        } else if (lastCachedPss > mPssSections[1] && targetAdj < mTargetAdjs[1]) {
-            targetAdj = mTargetAdjs[1];
-            if (DEBUG) Slog.d(TAG, "lower adj due to pss is over : " + this.mTargetAdjs[1] + " , " + appRecord.mPackageName + " : " + targetAdj);
-        }
-        
-        AxExtServiceFactory.getAppUsageManager().setTargetAdj(appRecord.mPackageName, targetAdj);
-    }
-
-    public void releaseMemory(int minAdj, int killCount, boolean killWithUi, boolean skipCamera) {
-        if (killCount == 0) return;
-        
-        List<String> whiteList = List.of("com.google.android.googlequicksearchbox:search", "com.google.android.gms", "com.android.chrome");
-
         try {
-            ArrayList<ProcessRecord> lruProcesses =
-                    (ArrayList<ProcessRecord>) mActivityManagerService.mProcessList.getLruProcessesLOSP().clone();
-            ArrayList<ProcessInfo> candidates = new ArrayList<>();
-
-            for (ProcessRecord proc : lruProcesses) {
-                if (proc != null && proc.getSetAdj() >= minAdj) {
-                    if (!proc.hasActivities() || killWithUi) {
-                        if (whiteList == null || !whiteList.contains(proc.processName)) {
-                            candidates.add(new ProcessInfo(
-                                    proc.getPid(),
-                                    proc.getSetAdj(),
-                                    proc.mProfile.getLastRss(),
-                                    proc.processName));
+            ArrayList arrayList = (ArrayList) mService.mProcessList.getLruProcessesLOSP().clone();
+            ArrayList<ProcessInfo> arrayList2 = new ArrayList<>();
+            int size = arrayList.size();
+            int i3 = 0;
+            int i4 = 0;
+            while (i4 < size) {
+                Object obj = arrayList.get(i4);
+                i4++;
+                ProcessRecord processRecord = (ProcessRecord) obj;
+                if (processRecord != null && processRecord.getSetAdj() >= i) {
+                    if (!processRecord.hasActivities() || z) {
+                        if (!list.contains(processRecord.processName)) {
+                            arrayList2.add(new ProcessInfo(processRecord.getPid(), processRecord.getSetAdj(), processRecord.mProfile.getLastRss(), processRecord.processName));
                         } else if (DEBUG) {
-                            Slog.d(TAG, "Skip killing whitelisted process: " + proc.processName);
+                            Slog.d(TAG, "skip killing whiteListProcess:" + processRecord.processName);
                         }
                     } else if (DEBUG) {
-                        Slog.d(TAG, "Don't kill process with UI: " + proc.processName);
+                        Slog.d(TAG, "Don't kill process has ui: " + processRecord.processName);
                     }
                 }
             }
-
-            float adjWeight = killWithUi ? 1.0f : (10 % 11 / 10.0f);
-            float rssWeight = 1.0f - adjWeight;
-
+            float f = z ? 1.0f : mWeight / 10.0f;
+            float f2 = 1.0f - f;
             if (DEBUG) {
-                Slog.d(TAG, "adjWeight=" + adjWeight + ", rssWeight=" + rssWeight);
+                Slog.d(TAG, "adjWight=" + f + ", rssWight=" + f2);
             }
-
-            if (rssWeight != 0f) {
-                Collections.sort(candidates, new RssComparator());
-                applyWeight(candidates, rssWeight, 1);
-                if (DEBUG) dumpList("After RSS sort", candidates);
+            if (f2 != 0.0f) {
+                Collections.sort(arrayList2, new ProcessComparator());
+                applyWeight(arrayList2, f2, 1);
             }
-
-            if (adjWeight != 0f) {
-                Collections.sort(candidates, new AdjComparator());
-                applyWeight(candidates, adjWeight, 0);
-                if (DEBUG) dumpList("After Adj sort", candidates);
+            if (f != 0.0f) {
+                Collections.sort(arrayList2, new AdjComparator());
+                applyWeight(arrayList2, f, 0);
             }
-
-            Collections.sort(candidates, new ScoreComparator());
-            if (DEBUG) dumpList("After Score sort", candidates);
-
-            int killed = 0;
-            for (ProcessInfo candidate : candidates) {
-                Process.killProcess(candidate.pid);
-                killed++;
-                if (DEBUG) {
-                    Slog.d(TAG, "Killed proc " + candidate.name +
-                            " [pid=" + candidate.pid + "] adj=" + candidate.adj +
-                            " rss=" + candidate.rss + " score=" + candidate.score +
-                            " killed: " + killed);
-                }
-                if (killed >= killCount) {
-                    if (DEBUG) {
-                        Slog.d(TAG, "Stop killing processes, killCount=" + killCount);
-                    }
+            Collections.sort(arrayList2, new ScoreComparator());
+            int size2 = arrayList2.size();
+            int i5 = 0;
+            while (i5 < size2) {
+                ProcessInfo processInfo = arrayList2.get(i5);
+                i5++;
+                ProcessInfo processInfo2 = processInfo;
+                Process.killProcess(processInfo2.pid);
+                i3++;
+                Slog.d(TAG, "kill proc " + processInfo2.name + "[" + processInfo2.pid + "]: adj:" + processInfo2.adj + " rss:" + processInfo2.rss + " to release memory, now killed : " + i3 + " proceeses");
+                if (i3 >= i2) {
+                    Slog.d(TAG, "Stop kill process , KillProcessCount " + i2);
                     return;
                 }
             }
-
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
+
+    private void startLoadProcessMemory(String pkg) {
+        if (pkg.length() <= 0) {
+            Slog.d(TAG, "Invalid packageName to load memory");
+            return;
+        }
+        if (DEBUG) {
+            Slog.d(TAG, "Start find package uid of " + pkg);
+        }
+        ProcessRecord prLocked = getProcessRecordLocked(pkg);
+        if (prLocked == null) {
+            if (DEBUG) {
+                Slog.d(TAG, "Couldn't find package uid of " + pkg);
+            }
+            return;
+        }
+        if (DEBUG) {
+            Slog.d(TAG, "Start to load process memory of " + pkg);
+        }
+        synchronized (mService.mProcLock) {
+            mService.mOomAdjuster.mCachedAppOptimizer.compactApp(prLocked, CachedAppOptimizer.CompactProfile.POPULATE, CachedAppOptimizer.CompactSource.SHELL, true);
+        }
+        if (DEBUG) {
+            Slog.d(TAG, "Load process memory of " + pkg + " successfully");
+        }
+    }
+
+    private void loadProcessMemoryInternal(String str) {
+        Bundle bundle = new Bundle();
+        bundle.putString("packageName", str);
+        Message messageObtainMessage = mHandler.obtainMessage(MSG_LOAD_PROCESS_MEMORY);
+        messageObtainMessage.setData(bundle);
+        mHandler.sendMessage(messageObtainMessage);
+        if (!DEBUG || str.length() <= 0) {
+            return;
+        }
+        Slog.d(TAG, "Send msg to load memory: " + str);
+    }
+
+    public void scheduleForkHighUsedApps() {
+        if (!mSystemReady) return;
+        mHandler.sendMessageDelayed(mHandler.obtainMessage(MSG_FORK_HIGH_USED), FORK_HIGH_USED_APPS_DELAY);
+    }
+
+    private void computeHighUsedAppsAdjs() {
+        int i = 0;
+        ArrayList highUsedRecords = AxExtServiceFactory.getAppUsageManager().getHighUsedRecords(false);
+        long jCurrentTimeMillis = System.currentTimeMillis();
+        int size = highUsedRecords.size();
+        while (i < size) {
+            Object obj = highUsedRecords.get(i);
+            i++;
+            computeHighUsedAppAdj((SimpleAppRecord) obj, jCurrentTimeMillis);
+        }
+    }
+
+    private void loadEnableOptHighUsed() {
+        Slog.d(TAG, "EnableOptHighUsed : " + mEnableOptHighUsed);
+        if (mEnableOptHighUsed) {
+            SystemProperties.set("persist.sys.nmm.low_adj", Integer.toString(mTargetAdjs[0]));
+            SystemProperties.set("persist.sys.nmm.mid_adj", Integer.toString(mTargetAdjs[1]));
+            SystemProperties.set("persist.sys.nmm.high_adj", Integer.toString(mTargetAdjs[2]));
+            ProcessList.updateLmkProps();
+        }
+    }
+
+    private void loadBoostCamera() {
+        Slog.d(TAG, "EnableBoostCamera : " + mEnableBoostCamera);
+        if (mEnableBoostCamera || DEBUG_CAMERA) {
+            if (mMemorySize == AxUtils.MEM_12GB) {
+                mKillProcessCount = 5;
+                mKillProcessCountWarmStart = 5;
+            } else if (mMemorySize == AxUtils.MEM_8GB) {
+                mKillProcessCount = 15;
+                mKillProcessCountWarmStart = 5;
+            } else {
+                mKillProcessCount = 15;
+                mKillProcessCountWarmStart = 5;
+            }
+            Slog.d(TAG, "KillProcessCount : " + mKillProcessCount);
+            Slog.d(TAG, "KillProcessCountWarmStart : " + mKillProcessCountWarmStart);
+            Slog.d(TAG, "CameraCachePercent : " + mCameraCachePercent);
+        }
+    }
+
 
     private void applyWeight(List<ProcessInfo> list, float weight, int mode) {
         float offset = 0f;
@@ -461,209 +471,171 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
         }
     }
 
-    private void dumpList(String tag, List<ProcessInfo> list) {
-        for (ProcessInfo p : list) {
-            Slog.d(TAG, tag + " -> " + p.name + " adj=" + p.adj +
-                    " rss=" + p.rss + " score=" + p.score);
+    private void initThread() {
+        HandlerThread handlerThread = new HandlerThread("NothingMemoryManager");
+        mHandlerThread = handlerThread;
+        handlerThread.start();
+        mHandler = new MemoryManagerHandler(mHandlerThread.getLooper());
+    }
+
+    private void forkHighUsedApps() {
+        long j;
+        int i = 0;
+        if (mEnableForkHighUsed) {
+            ArrayList highUsedRecords = AxExtServiceFactory.getAppUsageManager().getHighUsedRecords(true);
+            if (highUsedRecords.size() == 0) {
+                if (DEBUG) {
+                    Slog.d(TAG, "sizeOfHighUsed == 0");
+                    return;
+                }
+                return;
+            }
+            long j2 = mMemorySize;
+            if (j2 != -1) {
+                mTotalPssLimit = (long) (mTotalPssLimit * (j2 / 8388608.0d));
+                if (DEBUG) {
+                    Slog.d(TAG, "TotalPssLimit: " + mTotalPssLimit);
+                }
+            }
+            int size = highUsedRecords.size();
+            int i2 = 0;
+            while (true) {
+                j = 0;
+                if (i2 >= size) {
+                    break;
+                }
+                Object obj = highUsedRecords.get(i2);
+                i2++;
+                SimpleAppRecord simpleAppRecord = (SimpleAppRecord) obj;
+                if (simpleAppRecord.mLastCachedPss == 0) {
+                    simpleAppRecord.mLastCachedPss = mDefaultPss;
+                }
+            }
+            ArrayList arrayList = new ArrayList();
+            if (DEBUG) {
+                Slog.d(TAG, "start to fork high used apps after booting");
+                int size2 = highUsedRecords.size();
+                int i3 = 0;
+                while (i3 < size2) {
+                    Object obj2 = highUsedRecords.get(i3);
+                    i3++;
+                    Slog.d(TAG, "high used candidate: " + ((SimpleAppRecord) obj2).mPackageName);
+                }
+            }
+            int size3 = highUsedRecords.size();
+            int i4 = 0;
+            long j3 = 0;
+            while (true) {
+                if (i4 >= size3) {
+                    break;
+                }
+                Object obj3 = highUsedRecords.get(i4);
+                i4++;
+                SimpleAppRecord simpleAppRecord2 = (SimpleAppRecord) obj3;
+                j3 += simpleAppRecord2.mLastCachedPss;
+                if (DEBUG) {
+                    Slog.d(TAG, simpleAppRecord2.mPackageName + " : LastCachedPss: " + simpleAppRecord2.mLastCachedPss);
+                }
+                if (j3 < mTotalPssLimit) {
+                    arrayList.add(simpleAppRecord2.mPackageName);
+                } else if (DEBUG) {
+                    Slog.d(TAG, "TotalPssLimit is reached now: " + j3);
+                }
+            }
+            Slog.d(TAG, "Fork list " + arrayList);
+            int size4 = arrayList.size();
+            while (i < size4) {
+                Object obj4 = arrayList.get(i);
+                i++;
+                Bundle bundle = new Bundle();
+                bundle.putString("proc", (String) obj4);
+                Message messageObtainMessage = mHandler.obtainMessage(MSG_START_EMPTY_APP);
+                messageObtainMessage.setData(bundle);
+                Handler handler = mHandler;
+                j += START_EMPTY_APP_DELAY;
+                handler.sendMessageDelayed(messageObtainMessage, j);
+            }
         }
     }
 
-
-    private ProcessRecord findProcessRecord(String packageName) {
-        synchronized (mActivityManagerService.mProcLock) {
-            int userId = mActivityManagerService.getCurrentUserId();
-            if (DEBUG) {
-                Slog.d(TAG, "findProcessRecord: Current userId = " + userId);
-            }
-            int packageUid = mActivityManagerService.getPackageManagerInternal()
-                .getPackageUid(packageName, 0L, userId);
-            if (DEBUG) {
-                Slog.d(TAG, "findProcessRecord: Package uid = " + packageUid);
-            }
-            return mActivityManagerService.getProcessRecordLocked(packageName, packageUid);
-        }
-    }
-
-    public void handleLoadProcessMemory(String packageName) {
-        if (packageName.length() <= 0) {
-            if (DEBUG) Slog.d(TAG, "Invalid packageName to load memory");
+    private void computeHighUsedAppAdj(SimpleAppRecord sar, long j) {
+        int i;
+        int i2 = mTargetAdjs[2];
+        long j2 = sar.mLastRemoveTaskTime;
+        if (j2 != 0 && j - j2 < mComputeAdjDuration) {
+            Slog.d(TAG, "don't raise adj due to remove task : " + sar.mPackageName + " : -1");
+            AxExtServiceFactory.getAppUsageManager().setTargetAdj(sar.mPackageName, -1);
             return;
         }
-
-        if (DEBUG) {
-            Slog.d(TAG, "Starting to find package uid of " + packageName);
+        if (j - sar.mLastLmkdTimeTime < mComputeTargetAdjDuration) {
+            Slog.d(TAG, "sar.mCurTargetAdj " + sar.mCurTargetAdj);
+            int i3 = sar.mCurTargetAdj;
+            int[] iArr = mTargetAdjs;
+            if (i3 == iArr[2]) {
+                i2 = iArr[1];
+                Slog.d(TAG, "raise adj due to mid lmkd kill : " + sar.mPackageName + " : " + i2);
+            } else if (i3 == iArr[1]) {
+                i2 = iArr[0];
+                Slog.d(TAG, "raise adj due to mid lmkd kill : " + sar.mPackageName + " : " + i2);
+            }
         }
-
-        ProcessRecord proc = findProcessRecord(packageName);
-        if (proc == null) {
+        Slog.d(TAG, sar.mPackageName + " last pss: " + sar.mLastCachedPss);
+        long j3 = sar.mLastCachedPss;
+        long[] jArr = mPssSections;
+        if (j3 > jArr[2]) {
+            i2 = mTargetAdjs[2];
             if (DEBUG) {
-                Slog.d(TAG, "Couldn't find package uid of " + packageName);
+                Slog.d(TAG, "lower adj due to pss is over : " + mPssSections[2] + " , " + sar.mPackageName + " : " + i2);
             }
-            return;
+        } else if (j3 > jArr[1] && i2 < (i = mTargetAdjs[1])) {
+            if (DEBUG) {
+                Slog.d(TAG, "lower adj due to pss is over : " + mPssSections[1] + " , " + sar.mPackageName + " : " + i);
+            }
+            i2 = i;
         }
-
-        if (DEBUG) {
-            Slog.d(TAG, "Starting to load process memory of " + packageName);
-        }
-
-        boolean result = false;
-
-        synchronized (mActivityManagerService.mProcLock) {
-            result = mActivityManagerService.mOomAdjuster.mCachedAppOptimizer.compactApp(
-                proc, CachedAppOptimizer.CompactProfile.POPULATE, 
-                CachedAppOptimizer.CompactSource.SHELL, true);
-        }
-
-        if (DEBUG) {
-            Slog.d(TAG, "Loaded process memory of " + packageName + " result=" + result);
-        }
+        AxExtServiceFactory.getAppUsageManager().setTargetAdj(sar.mPackageName, i2);
     }
 
-    private void parseStringList(ArrayList<String> list, String configValue) {
-        list.clear();
-        if (configValue != null && configValue.length() > 0) {
-            for (String item : configValue.split(",")) {
-                list.add(item);
+    private ProcessRecord getProcessRecordLocked(String str) {
+        ProcessRecord processRecordLocked;
+        synchronized (mService.mProcLock) {
+            int currentUserId = mService.getCurrentUserId();
+            if (DEBUG) {
+                Slog.d(TAG, "Current userId = " + Integer.toString(currentUserId));
             }
-        }
-        
-        if (DEBUG) {
-            for (String item : list) {
-                Slog.d(TAG, "Parsed list item: " + item);
+            int packageUid = mService.getPackageManagerInternal().getPackageUid(str, 0L, currentUserId);
+            if (DEBUG) {
+                Slog.d(TAG, "Current packageUid = " + Integer.toString(packageUid));
             }
+            processRecordLocked = mService.getProcessRecordLocked(str, packageUid);
         }
+        return processRecordLocked;
     }
 
-    private void updateConfiguration() {
-        try {
-            mHandler.obtainMessage(MSG_TUNE_EXTRA_FREE).sendToTarget();
-            updateCameraDeviceDatauration();
-            updateReleaseMemoryConfiguration();
-            updateHighUsedOptimizationConfiguration();
-            updateUsapPoolCOnfiguration();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void updateCameraDeviceDatauration() {
-        if (DEBUG) Slog.d(TAG, "EnableBoostCamera: " + mEnableBoostCamera);
-        
-        if (mEnableBoostCamera || DEBUG_CAMERA) {
-            if (mPhysicalMemory == MEM_12GB) {
-                mKillProcessCount = 5;
-                mKillProcessCountWarmStart = 5;
-            } else if (mPhysicalMemory == MEM_8GB) {
-                mKillProcessCount = 15;
-                mKillProcessCountWarmStart = 5;
-            } else {
-                mKillProcessCount = 15;
-                mKillProcessCountWarmStart = 5;
-            }
-            
-            if (DEBUG) Slog.d(TAG, "KillProcessCount: " + mKillProcessCount);
-            if (DEBUG) Slog.d(TAG, "KillProcessCountWarmStart: " + mKillProcessCountWarmStart);
-            if (DEBUG) Slog.d(TAG, "BoostCameraDuration: " + mBoostCameraDuration);
-        }
-    }
-
-    private void updateReleaseMemoryConfiguration() {
-        if (DEBUG) Slog.d(TAG, "EnableReleaseMemory: " + mEnableReleaseMemory);
+    private void loadReleaseMemoryConfig() {
+        Slog.d(TAG, "EnableReleaseMemory : " + mEnableReleaseMemory);
         if (mEnableReleaseMemory) {
-            if (mPhysicalMemory == MEM_12GB) {
-                mKillProcessScreenOnCount = 10;
-            } else if (mPhysicalMemory == MEM_8GB) {
-                mKillProcessScreenOnCount = 20;
+            if (mMemorySize == AxUtils.MEM_12GB) {
+                mReleaseMemoryKillCount = 10;
+            } else if (mMemorySize == AxUtils.MEM_8GB) {
+                mReleaseMemoryKillCount = 20;
             } else {
-                mKillProcessScreenOnCount = 20;
+                mReleaseMemoryKillCount = 20;
             }
-            if (DEBUG) Slog.d(TAG, "KillProcessScreenOnCount: " + mKillProcessScreenOnCount);
+            Slog.d(TAG, "KillProcessScreenOnCount : " + mReleaseMemoryKillCount);
         }
     }
 
-    private void updateHighUsedOptimizationConfiguration() {
-        if (DEBUG) Slog.d(TAG, "EnableOptHighUsed: " + mEnableOptHighUsed);
-        if (!mEnableOptHighUsed) return;
-        mTargetAdjs[0] = 201;
-        mTargetAdjs[1] = 401;
-        mTargetAdjs[2] = 801;
-        mPssSections[0] = 102400L;
-        mPssSections[1] = 204800L;
-        mPssSections[2] = 512000L;
-
-        SystemProperties.set("persist.sys.nmm.low_adj", Integer.toString(mTargetAdjs[0]));
-        SystemProperties.set("persist.sys.nmm.mid_adj", Integer.toString(mTargetAdjs[1]));
-        SystemProperties.set("persist.sys.nmm.high_adj", Integer.toString(mTargetAdjs[2]));
-
-        ProcessList.updateLmkProps();
-        mHandler.obtainMessage(MSG_COMPUTE_ADJ).sendToTarget();
-
-        if (DEBUG) {
-            Slog.d(TAG, "TargetAdjs: " + mTargetAdjs[0] + ", " + mTargetAdjs[1] + ", " + mTargetAdjs[2]);
-            Slog.d(TAG, "PssSections: " + mPssSections[0] + ", " + mPssSections[1] + ", " + mPssSections[2]);
-            Slog.d(TAG, "ComputeTargetAdjDuration: " + mComputeTargetAdjDuration);
-        }
+    public boolean isOpt3rdAppAdjEnabled() {
+        return mOpt3rdAppAdjEnabled;
     }
 
-    public void scheduleForkHighUsedApps() {
-        if (!mEnableForkHighUsed) return;
-        mHandler.removeMessages(MSG_FORK_HIGH_USED_APPS);
-        mHandler.sendMessageDelayed(
-            mHandler.obtainMessage(MSG_FORK_HIGH_USED_APPS), FORK_HIGH_USED_APPS_DELAY);
-    }
-
-    private void scheduleKillForkedProcess(int pid) {
-        Message msg = mHandler.obtainMessage(MSG_KILL_FORK_HIGH_USED);
+    public void scheduleKillForkedProcess(int i) {
+        Message messageObtainMessage = mHandler.obtainMessage(MSG_KILL_PREFORK);
         Bundle bundle = new Bundle();
-        bundle.putInt("pid", pid);
-        msg.setData(bundle);
-        mHandler.sendMessageDelayed(msg, FORK_HIGH_USED_DELAY);
-    }
-
-    public void loadProcessMemory(String packageName) {
-        if (!mEnableLoadProcessMemory) return;
-        Bundle bundle = new Bundle();
-        bundle.putString("packageName", packageName);
-        Message msg = mHandler.obtainMessage(MSG_LOAD_PROCESS_MEMORY);
-        msg.setData(bundle);
-        mHandler.sendMessage(msg);
-        
-        if (DEBUG && packageName.length() > 0) {
-            Slog.d(TAG, "Sending message to load memory: " + packageName);
-        }
-    }
-
-    public void systemReady() {
-        mHandlerThread = new HandlerThread("NtMemoryManagerImpl");
-        mHandlerThread.start();
-        mHandler = new MemoryHandler(mHandlerThread.getLooper());
-        mActivityManagerService = NtServiceInjector.getAm();
-        mWindowManagerService = NtServiceInjector.getWm();
-        mContext = NtServiceInjector.getCtx();
-
-        mPhysicalMemory = AxUtils.getPhysicalMemory();
-        mPreferredAppsSupported = isPreferredAppsSupported();
-        mEnableForkHighUsed = mPreferredAppsSupported;
-        mEnableOptHighUsed = mPreferredAppsSupported;
-        mEnableBoostCamera = mPreferredAppsSupported;
-        mEnablePreFork = mPreferredAppsSupported;
-        mEnableLoadProcessMemory = mPreferredAppsSupported;
-        mEnableReleaseMemory = true;
-        mSystemReady = true;
-
-        scheduleForkHighUsedApps();
-        updateConfiguration();
-
-        if (DEBUG) {
-            Slog.d(TAG, "systemReady:");
-            Slog.d(TAG, "  mPreferredAppsSupporte = " + mPreferredAppsSupported);
-            Slog.d(TAG, "  mPhysicalMemory = " + mPhysicalMemory);
-            Slog.d(TAG, "  mEnableForkHighUsed = " + mEnableForkHighUsed);
-            Slog.d(TAG, "  mEnableOptHighUsed = " + mEnableOptHighUsed);
-            Slog.d(TAG, "  mEnableBoostCamera = " + mEnableBoostCamera);
-            Slog.d(TAG, "  mEnablePreFork = " + mEnablePreFork);
-            Slog.d(TAG, "  mEnableLoadProcessMemory = " + mEnableLoadProcessMemory);
-        }
+        bundle.putInt("pid", i);
+        messageObtainMessage.setData(bundle);
+        mHandler.sendMessageDelayed(messageObtainMessage, FORK_HIGH_USED_DELAY);
     }
 
     public void boostCamera(boolean isColdStart) {
@@ -671,26 +643,65 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
             if (isColdStart) {
                 if (mIsBoostingCameraCold) {
                     if (DEBUG) {
-                        Slog.d(TAG, "Already boosting camera cold start, skipping");
+                        Slog.d(TAG, "now is boosting camera cold start, skipped this boost");
                     }
                     return;
-                }
-                mIsBoostingCameraCold = true;
-                mHandler.sendMessage(mHandler.obtainMessage(MSG_BOOST_CAMERA_COLD));
-                mHandler.sendMessageDelayed(mHandler.obtainMessage(MSG_STOP_BOOST_CAMERA_COLD), 
-                    mBoostCameraDuration);
-            } else {
-                if (mIsBoostingCameraWarm) {
-                    if (DEBUG) {
-                        Slog.d(TAG, "Already boosting camera warm start, skipping");
-                    }
+                } else {
+                    mIsBoostingCameraCold = true;
+                    mHandler.sendMessage(mHandler.obtainMessage(MSG_CAMERA_MEMORY_RELEASE));
+                    mHandler.sendMessageDelayed(mHandler.obtainMessage(MSG_BOOST_CAMERA_COLD_RESET), mBoostCameraDuration);
                     return;
                 }
-                mIsBoostingCameraWarm = true;
-                mHandler.sendMessage(mHandler.obtainMessage(MSG_BOOST_CAMERA_WARM));
-                mHandler.sendMessageDelayed(mHandler.obtainMessage(MSG_STOP_BOOST_CAMERA_WARM), 
-                    mBoostCameraDuration);
             }
+            if (mIsBoostingCameraWarm) {
+                if (DEBUG) {
+                    Slog.d(TAG, "now is boosting camera warm/hot start, skipped this boost");
+                }
+            } else {
+                mIsBoostingCameraWarm = true;
+                mHandler.sendMessage(mHandler.obtainMessage(MSG_BOOST_CAMERA_START_WARM));
+                mHandler.sendMessageDelayed(mHandler.obtainMessage(MSG_BOOST_CAMERA_RESET_WARM), mBoostCameraDuration);
+            }
+        }
+    }
+
+    public void optimize3rdApp(ProcessRecord pr, ProcessRecord proc) {
+        if (!mOpt3rdAppAdjEnabled) {
+            if (DEBUG) {
+                Slog.d(TAG, "mEnableOpt3rd is false");
+                return;
+            }
+            return;
+        }
+        if (proc == null || pr.info.packageName.equals(proc.info.packageName)) {
+            return;
+        }
+        if (pr.mServices.hasForegroundServices() && mOpt3rdFgList.contains(pr.processName)) {
+            pr.mState.setAdjType("started-services");
+            pr.mState.setCurAdj(mOpt3rdHighAdj);
+            pr.mState.setCurrentSchedulingGroup(0);
+            pr.mState.setServiceHighRam(true);
+            pr.mState.setServiceB(true);
+            pr.mState.setCurProcState(10);
+            pr.mState.setCurRawProcState(10);
+            if (DEBUG) {
+                Slog.d(TAG, pr.processName + " is set to adj " + pr.mState.getCurAdj() + " due to in fgs opt list");
+                return;
+            }
+            return;
+        }
+        if (!mOpt3rdList.contains(pr.processName) || pr.mState.getCurAdj() >= mOpt3rdHighAdj) {
+            return;
+        }
+        if (!pr.mState.hasShownUi()) {
+            pr.mState.setCurAdj(mOpt3rdHighAdj);
+        } else if (!pr.getWindowProcessController().isPreviousProcess() || pr.mState.getCurAdj() >= 700) {
+            pr.mState.setCurAdj(900);
+        } else {
+            pr.mState.setCurAdj(700);
+        }
+        if (DEBUG) {
+            Slog.d(TAG, pr.processName + " is set to adj " + pr.mState.getCurAdj() + " due to in persist opt list");
         }
     }
 
@@ -698,11 +709,10 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
         return mTargetAdjs;
     }
 
-    public int getTargetAdj(ProcessRecord processRecord) {
-        SimpleAppRecord simpleAppRecordGeedHighUsedRecord =
-             AxExtServiceFactory.getAppUsageManager().geedHighUsedRecord(false, processRecord.processName);
-        if (simpleAppRecordGeedHighUsedRecord != null) {
-            return simpleAppRecordGeedHighUsedRecord.mCurTargetAdj;
+    public int getTargetAdj(ProcessRecord pr) {
+        SimpleAppRecord sar = AxExtServiceFactory.getAppUsageManager().geedHighUsedRecord(false, pr.processName);
+        if (sar != null) {
+            return sar.mCurTargetAdj;
         }
         return -1;
     }
@@ -711,92 +721,146 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
         return mEnableOptHighUsed;
     }
 
-    public boolean isEnableOptHighUsed(ProcessRecord processRecord) {
-        int iIndexOf = AxExtServiceFactory.getAppUsageManager().getHighUsedPackageList(false).indexOf(processRecord.processName);
-        return mEnableOptHighUsed 
-                && !processRecord.processName.equals("com.android.settings") 
-                && processRecord.mState.hasShownUi() 
-                && iIndexOf != -1
-                && iIndexOf < mHighUsedRank;
-    }
-
-    public boolean isEnablePreFork(int memoryLevel) {
+    public boolean isEnablePreFork(int memLevel) {
         if (!mEnablePreFork || mIsHighPressureScene) {
-            if (DEBUG) Slog.d(TAG, "PreFork disabled - EnablePreFork: " + mEnablePreFork + ", HighPressureScene: " + mIsHighPressureScene);
+            Slog.d(TAG, "Disable prefork, EnablePreFork: " + mEnablePreFork + ", IsHighPressureScene: " + mIsHighPressureScene);
             return false;
         }
-
-        if (memoryLevel <= mPreforkMemoryLevel) {
+        if (memLevel <= mPreforkMemoryLevel) {
             return true;
         }
-
-        if (DEBUG) Slog.d(TAG, "PreFork forbidden - current memory level: " + memoryLevel + ", threshold: " + mPreforkMemoryLevel);
+        Slog.d(TAG, "Forbid prefork, current mem level: " + memLevel + ", criterial: " + mPreforkMemoryLevel);
         return false;
     }
 
-    public void addForkedHighUsageProcess(ProcessRecord app) {
-        synchronized (mForkedProcessList) {
-            mForkedProcessList.add(app);
-            if (DEBUG) {
-                Slog.d(TAG, "Added new forked high usage: " + app.processName);
-            }
+    public void loadProcessMemory(String pkg) {
+        if (mEnableLoadProcessMemory && mSystemReady) {
+            loadProcessMemoryInternal(pkg);
         }
-        scheduleKillForkedProcess(app.mPid);
     }
 
-    public void setForkProcAdj(ProcessRecord app) {
-        if (app.mState.getCurAdj() < 900) {
-            if (app.mState.getCurAdj() != mHighUsedAdj) {
-                app.isForkedFromHighUsed = false;
-                if (DEBUG) {
-                    Slog.d(TAG, "Forked high usage process now in use: " + app.processName);
+    public void addForkedFromHighUsed(ProcessRecord pr) {
+        synchronized (mForkedProcessList) {
+            mForkedProcessList.add(pr);
+            if (DEBUG) {
+                Slog.d(TAG, "add new fork high used: " + pr.processName);
+            }
+        }
+        scheduleKillForkedProcess(pr.mPid);
+    }
+
+    public boolean isForkedFromHighUsed(ProcessRecord pr) {
+        if (!mEnableForkHighUsed || !AxExtServiceFactory.getAppUsageManager().isHighUsedPackages(pr.processName) || pr.isForkedFromHighUsed) {
+            if (DEBUG) {
+                if (!mEnableForkHighUsed) {
+                    Slog.d(TAG, "EnableForkHighUsed is false");
+                }
+                if (pr.isForkedFromHighUsed) {
+                    Slog.d(TAG, pr.processName + " isForkedFromHighUsed");
+                } else {
+                    Slog.d(TAG, pr.processName + " is not high used");
                 }
             }
-            return;
+            return false;
         }
-
-        app.mState.setAdjType("pre_fork");
-        app.mState.setCurAdj(mHighUsedAdj);
-        if (DEBUG) {
-            Slog.d(TAG, "Set forked high usage " + app.processName + 
-                   " to adj " + app.mState.getCurAdj());
-        }
-    }
-
-    public void setOptAdj(ProcessRecord app) {
-        app.mState.setCurAdj(mOptHighUsedAdj);
-        if (DEBUG) {
-            Slog.d(TAG, "Set high usage " + app.processName + 
-                   " to adj " + app.mState.getCurAdj());
-        }
-    }
-
-    public void setHighPressureScene(String packageName) {
-        if (packageName != null) {
-            if (packageName.toLowerCase().contains("camera")) {
-                mIsHighPressureScene = true;
-            } else if (packageName.contains("launcher")) {
-                mIsHighPressureScene = false;
+        synchronized (mForkedProcessList) {
+            if (mForkedProcessList.size() > mForkHighUsedNum) {
+                if (DEBUG) {
+                    Slog.d(TAG, "mMaxForkNumber is reached: " + mForkHighUsedNum);
+                }
+                return false;
             }
+            ArrayList<ProcessRecord> arrayList = mForkedProcessList;
+            int size = arrayList.size();
+            int i = 0;
+            while (i < size) {
+                ProcessRecord pr2 = arrayList.get(i);
+                i++;
+                if (pr2.processName.equals(pr.processName)) {
+                    if (DEBUG) {
+                        Slog.d(TAG, "already is fork process list: " + pr.processName);
+                    }
+                    return false;
+                }
+            }
+            return true;
         }
-        if (DEBUG) Slog.d(TAG, "High pressure scene: " + mIsHighPressureScene + " for " + packageName);
     }
 
     public void releaseMemoryAtScreenOn() {
-        if (mEnableReleaseMemory) {
-            long currentTime = System.currentTimeMillis();
-            if (mLastScreenOnTime == 0 || currentTime - mLastScreenOnTime > mReleaseMemoryDuration) {
+        if (mEnableReleaseMemory && mSystemReady) {
+            long jCurrentTimeMillis = System.currentTimeMillis();
+            long j = mLastScreenOnTime;
+            if (j == 0 || jCurrentTimeMillis - j > mReleaseMemoryDuration) {
                 mHandler.sendMessage(mHandler.obtainMessage(MSG_RELEASE_MEMORY_SCREEN_ON));
-                mLastScreenOnTime = currentTime;
+                mLastScreenOnTime = jCurrentTimeMillis;
             }
         }
     }
-    
-    private void updateUsapPoolCOnfiguration() {
-        SystemProperties.set("persist.device_config.runtime_native.usap_pool_enabled", "true");
-        SystemProperties.set("persist.device_config.runtime_native.usap_pool_refill_delay_ms", "3000");
-        SystemProperties.set("persist.device_config.runtime_native.usap_refill_threshold", "1");
-        SystemProperties.set("persist.device_config.runtime_native.usap_pool_size_max", "3");
-        SystemProperties.set("persist.device_config.runtime_native.usap_pool_size_min", "1");
+
+    public void setForkProcAdj(ProcessRecord pr) {
+        if (pr.mState.getCurAdj() < 900) {
+            if (pr.mState.getCurAdj() != mAdjForkHighUsed) {
+                pr.isForkedFromHighUsed = false;
+                if (DEBUG) {
+                    Slog.d(TAG, "high used fork is used now: " + pr.processName);
+                }
+                return;
+            }
+            return;
+        }
+        pr.mState.setAdjType("pre_fork");
+        pr.mState.setCurAdj(mAdjForkHighUsed);
+        if (DEBUG) {
+            Slog.d(TAG, "Set fork high used " + pr.processName + " to adj " + pr.mState.getCurAdj());
+        }
+    }
+
+    public void setHighPressureScene(String pkg) {
+        if (pkg != null) {
+            if (pkg.contains("camera")) {
+                mIsHighPressureScene = true;
+            } else if (pkg.contains("launcher")) {
+                mIsHighPressureScene = false;
+            }
+        }
+        Slog.d(TAG, "mIsHighPressureScene: " + mIsHighPressureScene + " : " + pkg);
+    }
+
+    public void setOptAdj(ProcessRecord pr) {
+        pr.mState.setCurAdj(mAdjHighUsed);
+        if (DEBUG) {
+            Slog.d(TAG, "Set high used " + pr.processName + " to adj " + pr.mState.getCurAdj());
+        }
+    }
+
+    public void systemReady() {
+        mService = NtServiceInjector.getAm();
+        mWindowService = NtServiceInjector.getWm();
+        mContext = NtServiceInjector.getCtx();
+        initThread();
+        scheduleForkHighUsedApps();
+        loadEnableOptHighUsed();
+        loadReleaseMemoryConfig();
+        loadBoostCamera();
+        mSystemReady = true;
+    }
+
+    public void tuneLmkdParam(String str) {
+        if (mEnableTuneLmkd && mSystemReady) {
+            Bundle bundle = new Bundle();
+            bundle.putString("packageName", str);
+            Message messageObtainMessage = mHandler.obtainMessage(MSG_CACHE_PERCENT);
+            messageObtainMessage.setData(bundle);
+            mHandler.sendMessage(messageObtainMessage);
+        }
+    }
+
+    public boolean isEnableOptHighUsed(ProcessRecord pr) {
+        int iIndexOf = AxExtServiceFactory.getAppUsageManager()
+            .getHighUsedPackageList(false).indexOf(pr.processName);
+        return mEnableOptHighUsed && !pr.processName.equals("com.android.settings") 
+                && pr.mState.hasShownUi() 
+                && iIndexOf != -1 && iIndexOf < mTopRankHighUsed;
     }
 }

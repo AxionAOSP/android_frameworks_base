@@ -72,4 +72,7 @@ public interface INtMemoryManager {
     
     default void addForkedHighUsageProcess(ProcessRecord app) {
     }
+    
+    default void tuneLmkdParam(String str) {
+    }
 }

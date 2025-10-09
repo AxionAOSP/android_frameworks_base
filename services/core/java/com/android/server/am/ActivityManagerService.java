@@ -3354,7 +3354,6 @@ public class ActivityManagerService extends IActivityManager.Stub
                                     empty_app.isForkedFromHighUsed = true;
                                     if (DEBUG_NMM) Slog.d("NtMemoryManager", "start high used after booting: " + app_str);
                                 }
-                                AxExtServiceFactory.getMemoryManager().addForkedHighUsageProcess(empty_app);
                             }
                         }
                     } catch (Exception e) {

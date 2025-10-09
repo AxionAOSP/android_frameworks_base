@@ -1831,7 +1831,6 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         }
         task.mInRemoveTask = true;
         try {
-            AxExtServiceFactory.getMemoryManager().scheduleForkHighUsedApps();
             WindowEventHelper.removeTask(task, reason);
             task.removeActivities(reason, false /* excludingTaskOverlay */);
             cleanUpRemovedTask(task, killProcess, removeFromRecents);
