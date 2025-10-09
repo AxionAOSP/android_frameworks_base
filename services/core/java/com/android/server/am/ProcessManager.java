@@ -137,28 +137,44 @@ public class ProcessManager implements IProcessManager {
     }
 
     public boolean checkDelayRestartService(ServiceRecord serviceRecord) {
+        if (!mEnableDelayRestart) {
+            return false;
+        }
+
+        boolean shouldDelay = shouldDelayRestart(serviceRecord);
+        if (!shouldDelay) {
+            return false;
+        }
+
+        if (mHandler != null) {
+            mHandler.post(() -> handleDelayRestartService(serviceRecord));
+        }
+
+        return true;
+    }
+
+    private boolean shouldDelayRestart(ServiceRecord serviceRecord) {
+        boolean isPersistent = (serviceRecord.serviceInfo.applicationInfo.flags
+                & ApplicationInfo.FLAG_PERSISTENT) != 0;
+
+        ProcessRecord pRec = serviceRecord.app;
+        boolean isVisible = false;
+        if (pRec != null && pRec.mProfile != null) {
+            isVisible = (pRec.mProfile.getCurRawAdj() == ProcessList.VISIBLE_APP_ADJ);
+        }
+
+        return !(isPersistent ||
+                 serviceRecord.isForeground ||
+                 isVisible ||
+                 isServiceCallFromTopApp(serviceRecord));
+    }
+
+    private void handleDelayRestartService(ServiceRecord sr) {
         synchronized (mPendingStartQueue) {
-            if (!mEnableDelayRestart) {
-                return false;
+            if (!mPendingStartQueue.contains(sr)) {
+                mPendingStartQueue.add(sr);
+                logger("Queued service for delayed restart: " + sr);
             }
-
-            boolean isPersistent = (serviceRecord.serviceInfo.applicationInfo.flags
-                    & ApplicationInfo.FLAG_PERSISTENT) != 0;
-
-            ProcessRecord pRec = serviceRecord.app;
-            boolean isVisible = false;
-            if (pRec != null && pRec.mProfile != null) {
-                isVisible = (pRec.mProfile.getCurRawAdj() == ProcessList.VISIBLE_APP_ADJ);
-            }
-
-            if (isPersistent || serviceRecord.isForeground || isVisible 
-                    || isServiceCallFromTopApp(serviceRecord)) {
-                return false;
-            }
-
-            mPendingStartQueue.add(serviceRecord);
-            logger("Queued service for delayed restart: " + serviceRecord);
-            return true;
         }
     }
 
