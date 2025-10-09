@@ -71,22 +71,32 @@ class LsWidgetsCallbacksController(private val ctrl: LockScreenWidgetsController
         override fun onBluetoothStateChange(enabled: Boolean) {
             ctrl.states.setActive(WidgetAction.BLUETOOTH, enabled)
         }
+
         override fun onBluetoothDevicesChanged() {
             ctrl.states.setActive(WidgetAction.BLUETOOTH, ctrl.bluetoothController.isBluetoothEnabled())
-            connectedDeviceName = ctrl.bluetoothController.getConnectedDeviceName()
+            val newName = ctrl.bluetoothController.getConnectedDeviceName()
+            if (connectedDeviceName != newName) {
+                connectedDeviceName = newName
+            }
         }
     }
 
     val wifiSignalCallback = object : SignalCallback {
         override fun setWifiIndicators(indicators: WifiIndicators) {
             if (indicators.qsIcon == null) {
-                wifiInfo.enabled = false
-                wifiInfo.ssid = null
+                if (wifiInfo.enabled) wifiInfo.enabled = false
+                if (wifiInfo.ssid != null) wifiInfo.ssid = null
                 ctrl.states.setActive(WidgetAction.WIFI, false)
                 return
             }
-            wifiInfo.enabled = indicators.enabled
-            wifiInfo.ssid = indicators.description
+
+            if (wifiInfo.enabled != indicators.enabled) {
+                wifiInfo.enabled = indicators.enabled
+            }
+            if (wifiInfo.ssid != indicators.description) {
+                wifiInfo.ssid = indicators.description
+            }
+
             ctrl.states.setActive(WidgetAction.WIFI, indicators.enabled)
         }
     }
@@ -94,10 +104,7 @@ class LsWidgetsCallbacksController(private val ctrl: LockScreenWidgetsController
     val cellSignalCallback = object : SignalCallback {
         override fun setMobileDataIndicators(indicators: MobileDataIndicators) {
             if (indicators.qsIcon != null && indicators.isDefault) {
-                ctrl.states.setActive(
-                    WidgetAction.DATA,
-                    ctrl.dataController.isMobileDataEnabled
-                )
+                ctrl.states.setActive(WidgetAction.DATA, ctrl.dataController.isMobileDataEnabled)
             }
         }
 

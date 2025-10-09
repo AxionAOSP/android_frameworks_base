@@ -26,7 +26,9 @@ class WidgetStates {
 
     fun setActive(action: WidgetAction, active: Boolean) {
         val state = _activeStates.getOrPut(action) { mutableStateOf(active) }
-        state.value = active
+        if (state.value != active) {
+            state.value = active
+        }
     }
 
     fun isActive(action: WidgetAction): Boolean = _activeStates[action]?.value ?: false

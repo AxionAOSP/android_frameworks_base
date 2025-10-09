@@ -72,20 +72,10 @@ class WidgetFactory(
                             ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
                         )
                         setContent {
-                            var contentHeight by remember { mutableStateOf(0) }
-
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .wrapContentHeight()
-                                    .onGloballyPositioned { coordinates ->
-                                        val heightPx = coordinates.size.height
-                                        if (heightPx != contentHeight) {
-                                            contentHeight = heightPx
-                                            this@apply.layoutParams.height = heightPx
-                                            this@apply.requestLayout()
-                                        }
-                                    }
+                                    .wrapContentHeight(unbounded = true)
                             ) {
                                 WidgetsArea()
                             }
@@ -140,9 +130,20 @@ class WidgetFactory(
     }
     
     fun updateViews() {
-        _widgetsList.clear()
-        _widgetsList.addAll(ctrl.widgetSpecs.filterNotNull())
-        _dozingState.value = ctrl.scrimUtils.isDozing()
+        val newSpecs = ctrl.widgetSpecs.filterNotNull()
+        val specsChanged = _widgetsList.size != newSpecs.size ||
+            !_widgetsList.containsAll(newSpecs) ||
+            !newSpecs.containsAll(_widgetsList)
+
+        if (specsChanged) {
+            _widgetsList.clear()
+            _widgetsList.addAll(newSpecs)
+        }
+
+        val newDoze = ctrl.scrimUtils.isDozing()
+        if (_dozingState.value != newDoze) {
+            _dozingState.value = newDoze
+        }
     }
 
     fun updateVisibility(vis: Int) {
@@ -152,14 +153,14 @@ class WidgetFactory(
     @Composable
     private fun WidgetsArea() {
         val theme = rememberTheme()
-        val widgets by remember { derivedStateOf { _widgetsList.toList() } }
+        val widgets = _widgetsList
 
         Row(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(dimens.hostHeightDp)
+                .wrapContentHeight()
                 .padding(top = dimens.topPaddingDp)
         ) {
             widgets.forEach { spec ->
@@ -178,24 +179,16 @@ class WidgetFactory(
         val activeIcon = theme.activeIcon
         val neutralIcon = theme.neutralIcon
 
-        val targetBg by remember(isActive, dozing, activeBg, neutralBg) {
-            mutableStateOf(
-                when {
-                    dozing -> Color.Transparent
-                    isActive -> activeBg
-                    else -> neutralBg
-                }
-            )
+        val targetBg = when {
+            dozing -> Color.Transparent
+            isActive -> activeBg
+            else -> neutralBg
         }
 
-        val targetIconTint by remember(isActive, dozing, activeIcon, neutralIcon) {
-            mutableStateOf(
-                when {
-                    dozing -> Color.White
-                    isActive -> activeIcon
-                    else -> neutralIcon
-                }
-            )
+        val targetIconTint = when {
+            dozing -> Color.White
+            isActive -> activeIcon
+            else -> neutralIcon
         }
 
         val bgColor by animateColorAsState(targetValue = targetBg)
