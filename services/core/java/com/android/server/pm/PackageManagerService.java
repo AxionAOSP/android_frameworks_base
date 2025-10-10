@@ -3056,7 +3056,7 @@ public class PackageManagerService implements PackageSender, TestUtilityService 
         return mDexManager;
     }
 
-    /*package*/ DexOptHelper getDexOptHelper() {
+    public DexOptHelper getDexOptHelper() {
         return mDexOptHelper;
     }
 

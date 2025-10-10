@@ -18,189 +18,336 @@ package com.android.server.am;
 import static com.android.server.am.AxUtils.logger;
 
 import android.app.AppGlobals;
+import android.app.usage.UsageStats;
+import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.content.pm.IPackageManager;
+import android.content.pm.PackageInfo;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.os.SystemProperties;
+import android.provider.Settings;
+import android.text.TextUtils;
 
 import com.android.server.AxExtServiceFactory;
 import com.android.server.NtServiceInjector;
+import com.android.server.pm.*;
+
+import org.json.JSONObject;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class UxPerformance implements IUxPerformance {
 
     public static final int REQUEST_FAILED = -1;
     public static final int REQUEST_SUCCEEDED = 0;
 
-    private boolean enablePrefetch = false;
+    private static final String DEXOPT_TRACKER_KEY = "ux_dexopt_tracker";
+    private static final long DEXOPT_EXPIRY_MS = 15L * 24 * 60 * 60 * 1000;
+    private static final String[] OAT_DIRS = {"/oat/arm64/", "/oat/arm/"};
+    private static final String[] FILE_SUFFIXES = {".art", ".odex", ".vdex"};
 
-    private Context context;
+    private boolean enablePrefetch = true;
+    private volatile boolean screenOff;
+    private boolean systemReady = false;
+
     private IPackageManager packageManager;
+    private PackageManagerService mPackageService;
+    private DexOptHelper mDexOptHelper;
 
-    private HandlerThread prefetchHandlerThread;
     private Handler prefetchHandler;
-
-    private HandlerThread pAppsHandlerThread;
     private Handler pAppsHandler;
-    
-    private boolean screenOff;
 
-    public UxPerformance() {
-    }
+    private final Object dexoptLock = new Object();
+    private final Object prefetchLock = new Object();
+
+    private ExecutorService prefetchExecutor;
+
+    public UxPerformance() {}
 
     public void systemReady() {
-        this.enablePrefetch = AxUtils.isPreferredAppsSupported();
-        this.context = enablePrefetch ? NtServiceInjector.getCtx() : null;
-        this.packageManager = enablePrefetch ? AppGlobals.getPackageManager() : null;
-
-        logger("UxPerformance created: enablePrefetch=" + enablePrefetch);
-
         if (!enablePrefetch) {
-            logger("UxPerformance disabled: preferred apps not supported");
+            logger("UxPerformance disabled: prefetch not supported");
             return;
         }
 
-        prefetchHandlerThread = new HandlerThread("DexPrefetchHandlerThread");
-        prefetchHandlerThread.start();
-        prefetchHandler = new Handler(prefetchHandlerThread.getLooper());
+        mPackageService = NtServiceInjector.getPm();
+        packageManager = AppGlobals.getPackageManager();
+        mDexOptHelper = (mPackageService != null) ? mPackageService.getDexOptHelper() : null;
 
-        pAppsHandlerThread = new HandlerThread("PAppsSpeedHandlerThread");
-        pAppsHandlerThread.start();
-        pAppsHandler = new Handler(pAppsHandlerThread.getLooper());
+        logger("UxPerformance initialized (enablePrefetch=" + enablePrefetch + ")");
+
+        prefetchHandler = createHandler("DexPrefetchHandlerThread");
+        pAppsHandler = createHandler("PAppsSpeedHandlerThread");
+
+        prefetchExecutor = Executors.newFixedThreadPool(
+                Runtime.getRuntime().availableProcessors(), r -> {
+                    Thread t = new Thread(r, "DexPrefetchWorker");
+                    t.setDaemon(true);
+                    return t;
+                });
+                
+        systemReady = true;
+
+        pAppsHandler.post(this::cleanupDexoptTracker);
+    }
+
+    private Handler createHandler(String name) {
+        HandlerThread thread = new HandlerThread(name);
+        thread.start();
+        return new Handler(thread.getLooper());
     }
 
     public int perfIOPrefetchStart(int pid, String packageName, String codePath) {
-        if (!enablePrefetch) {
-            logger("Prefetch disabled");
-            return REQUEST_FAILED;
-        }
-
+        if (!systemReady || !enablePrefetch || codePath == null) return REQUEST_FAILED;
         prefetchHandler.post(() -> dexPrefetch(codePath));
         return REQUEST_SUCCEEDED;
     }
 
     private void dexPrefetch(String codePath) {
-        if (codePath == null) {
-            logger("DexPrefetch: codePath is null, aborting");
-            return;
+        List<File> filesToLoad = new ArrayList<>();
+
+        for (String dirSuffix : OAT_DIRS) {
+            File dir = new File(codePath + dirSuffix);
+            if (dir.exists()) {
+                String baseName = codePath.startsWith("/data")
+                        ? "base"
+                        : codePath.substring(codePath.lastIndexOf('/') + 1);
+
+                for (String suffix : FILE_SUFFIXES) {
+                    File f = new File(dir, baseName + suffix);
+                    if (f.exists()) filesToLoad.add(f);
+                    logger("Scheduled dex prefetch for file: " + f.getAbsolutePath());
+                }
+                break;
+            }
         }
 
-        if (codePath.startsWith("/data")) {
-            logger("Prefetching data package");
-            if (new File(codePath + "/oat/arm64/").exists()) {
-                loadFiles(codePath + "/oat/arm64/", "base");
-            } else if (new File(codePath + "/oat/arm/").exists()) {
-                loadFiles(codePath + "/oat/arm/", "base");
-            }
-        } else {
-            logger("Prefetching system/vendor package");
-            String[] parts = codePath.split("/");
-            String pkgName = parts[parts.length - 1];
-
-            if (new File(codePath + "/oat/arm64/").exists()) {
-                loadFiles(codePath + "/oat/arm64/", pkgName);
-            } else if (new File(codePath + "/oat/arm/").exists()) {
-                loadFiles(codePath + "/oat/arm/", pkgName);
-            }
+        for (File f : filesToLoad) {
+            prefetchExecutor.submit(() -> loadFileLocked(f));
         }
     }
 
-    private void loadFiles(String dir, String baseName) {
-        String[] suffixes = {".art", ".odex", ".vdex"};
-        logger("Loading files from: " + dir);
-
-        for (String suffix : suffixes) {
-            File file = new File(dir + baseName + suffix);
-            if (!file.exists()) continue;
-
+    private void loadFileLocked(File file) {
+        synchronized (prefetchLock) {
             try (FileChannel channel = new RandomAccessFile(file, "r").getChannel()) {
-                MappedByteBuffer buffer =
-                        channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
-
-                logger("Loading file: " + file.getAbsolutePath());
+                MappedByteBuffer buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
                 buffer.load();
-            } catch (FileNotFoundException e) {
-                logger("File not found: " + file.getAbsolutePath());
+                logger("Dex prefetch completed: " + file.getAbsolutePath());
             } catch (IOException e) {
-                logger("I/O error: " + file.getAbsolutePath());
+                logger("Dex prefetch failed for file: " + file.getAbsolutePath() + " - " + e);
             }
         }
-    }
-
-    private Set<String> getPreferredApps() {
-        Set<String> pkgSet = new LinkedHashSet<>();
-
-        List<String> highUsedPkgsList = AxExtServiceFactory.getAppUsageManager()
-                .getHighUsedPackageList(false);
-        List<String> generalUsedPkgsList = AxExtServiceFactory.getAppUsageManager()
-                .getGeneralUsedPackageList(false);
-
-        if (highUsedPkgsList != null) pkgSet.addAll(highUsedPkgsList);
-        if (generalUsedPkgsList != null) pkgSet.addAll(generalUsedPkgsList);
-
-        return pkgSet;
     }
 
     public void setScreenState(boolean off) {
-        if (!enablePrefetch) return;
-        
+        if (!enablePrefetch || !systemReady) return;
+
         screenOff = off;
+        pAppsHandler.removeCallbacksAndMessages(null);
 
         if (screenOff) {
             pAppsHandler.post(this::runPAppsOpt);
-            logger("started PAppsSpeed opt after entering idle mode");
+            logger("Started dexopt on screen OFF");
         } else {
-            pAppsHandler.removeCallbacksAndMessages(null);
-            AxExtServiceFactory.getBoostAdjuster().boostInstall(false);
-            logger("stopped PAppsSpeed opt due to screen event");
+            logger("Cancelled dexopt on screen ON");
         }
     }
 
     private void runPAppsOpt() {
-        if (!enablePrefetch || packageManager == null) return;
+        if (!enablePrefetch || !systemReady || packageManager == null || mDexOptHelper == null) return;
 
         try {
-            boolean useJitProfiles =
-                    SystemProperties.getBoolean("dalvik.vm.usejitprofiles", false);
-            String defaultFilter = SystemProperties.get("pm.dexopt.bg-dexopt");
-            boolean lowStorage = packageManager.isStorageLow();
-
-            if ("speed".equals(defaultFilter) || lowStorage) {
-                logger("Skipping PApps opt (filter=" + defaultFilter
-                        + ", lowStorage=" + lowStorage + ")");
+            if (packageManager.isStorageLow()) {
+                logger("Skipping dexopt: low storage");
                 return;
             }
 
-            Set<String> pkgSet = getPreferredApps();
-            if (pkgSet.isEmpty()) {
-                logger("No preferred apps to optimize");
+            List<String> allPackages = getAllInstalledPackages();
+            if (allPackages.isEmpty()) {
+                logger("No installed packages found for dexopt");
                 return;
             }
-            
+
+            allPackages = sortPackagesByUsageStats(allPackages);
+
+            Map<String, Long> trackerSnapshot;
+            synchronized (dexoptLock) {
+                trackerSnapshot = getDexoptTracker();
+            }
+
+            int total = allPackages.size();
+            int processed = 0;
+            int skipped = 0;
+
             AxExtServiceFactory.getBoostAdjuster().boostInstall(true);
+            logger("----- Dexopt started (" + total + " packages) -----");
 
-            logger("Running PAppsSpeed opt, total packages=" + pkgSet.size());
-
-            for (String pkg : pkgSet) {
+            for (String pkg : allPackages) {
                 if (!screenOff) {
-                    logger("PAppsSpeed opt pasued");
+                    logger("Dexopt cancelled mid-run (screen ON)");
+                    synchronized (dexoptLock) {
+                        saveDexoptTracker(trackerSnapshot);
+                    }
                     break;
                 }
-                boolean success = packageManager.performDexOptMode(
-                        pkg, useJitProfiles, "speed", true, true, null);
-                logger("Optimized package: " + pkg + " -> " + success);
+                if (shouldSkipDexopt(pkg, trackerSnapshot)) {
+                    skipped++;
+                    continue;
+                }
+
+                int result = mDexOptHelper.doDexoptPackage(pkg);
+                switch (result) {
+                    case PackageDexOptimizer.DEX_OPT_PERFORMED:
+                        trackerSnapshot.put(pkg, System.currentTimeMillis());
+                        logger("Dex optimization performed for pkg=" + pkg);
+                        break;
+
+                    case PackageDexOptimizer.DEX_OPT_SKIPPED:
+                        trackerSnapshot.put(pkg, System.currentTimeMillis());
+                        skipped++;
+                        logger("Dex optimization skipped for pkg=" + pkg);
+                        break;
+
+                    case PackageDexOptimizer.DEX_OPT_CANCELLED:
+                        logger("Dex optimization cancelled for pkg=" + pkg);
+                        break;
+
+                    case PackageDexOptimizer.DEX_OPT_FAILED:
+                        logger("Dex optimization FAILED for pkg=" + pkg);
+                        break;
+
+                    default:
+                        logger("Unknown dexopt result (" + result + ") for pkg=" + pkg);
+                        break;
+                }
+
+                processed++;
+                
+                int finalTotal = total - skipped;
+
+                if (processed % 20 == 0 || processed == finalTotal)
+                    logger("Dexopt progress: " + processed + "/" + finalTotal);
             }
 
+            synchronized (dexoptLock) {
+                saveDexoptTracker(trackerSnapshot);
+            }
+
+            logger("----- Dexopt finished (" + processed + "/" + (total - skipped) + " processed) -----");
+
         } catch (Exception e) {
-            logger("PAppsSpeed exception: " + e);
+            logger("Dexopt exception: " + e);
+        } finally {
+            AxExtServiceFactory.getBoostAdjuster().boostInstall(false);
         }
+    }
+
+    private boolean shouldSkipDexopt(String pkg, Map<String, Long> tracker) {
+        Long last = tracker.get(pkg);
+        return last != null && (System.currentTimeMillis() - last < DEXOPT_EXPIRY_MS);
+    }
+
+    private List<String> sortPackagesByUsageStats(List<String> pkgs) {
+        if (pkgs == null || pkgs.isEmpty()) return pkgs;
+
+        try {
+            Context context = NtServiceInjector.getCtx();
+            UsageStatsManager usm =
+                    (UsageStatsManager) context.getSystemService(Context.USAGE_STATS_SERVICE);
+            if (usm == null) return pkgs;
+
+            long now = System.currentTimeMillis();
+            long interval = 3L * 24 * 60 * 60 * 1000;
+
+            List<UsageStats> stats =
+                    usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - interval, now);
+            if (stats == null || stats.isEmpty()) return pkgs;
+
+            Map<String, Long> usageMap = new HashMap<>();
+            for (UsageStats stat : stats) {
+                long time = stat.getTotalTimeInForeground();
+                if (time > 0) usageMap.put(stat.getPackageName(), time);
+            }
+
+            pkgs.sort((a, b) -> Long.compare(
+                    usageMap.getOrDefault(b, 0L),
+                    usageMap.getOrDefault(a, 0L))
+            );
+
+            logger("Packages prioritized by usage stats (" + usageMap.size() + " entries)");
+        } catch (Exception e) {
+            logger("sortPackagesByUsageStats failed: " + e);
+        }
+
+        return pkgs;
+    }
+
+    private Map<String, Long> getDexoptTracker() {
+        Map<String, Long> map = new HashMap<>();
+        try {
+            Context ctx = NtServiceInjector.getCtx();
+            String json = Settings.Secure.getString(ctx.getContentResolver(), DEXOPT_TRACKER_KEY);
+            if (json == null) return map;
+
+            JSONObject obj = new JSONObject(json);
+            for (Iterator<String> keys = obj.keys(); keys.hasNext(); ) {
+                String key = keys.next();
+                map.put(key, obj.getLong(key));
+            }
+        } catch (Exception ignored) {}
+        return map;
+    }
+
+    private void saveDexoptTracker(Map<String, Long> map) {
+        try {
+            JSONObject obj = new JSONObject(map);
+            Context ctx = NtServiceInjector.getCtx();
+            Settings.Secure.putString(ctx.getContentResolver(), DEXOPT_TRACKER_KEY, obj.toString());
+            logger("saving status. status=" + obj.toString());
+        } catch (Exception ignored) {}
+    }
+
+    private void cleanupDexoptTracker() {
+        Map<String, Long> trackerSnapshot;
+        synchronized (dexoptLock) {
+            trackerSnapshot = getDexoptTracker();
+        }
+
+        if (trackerSnapshot.isEmpty()) return;
+
+        Set<String> installedSet = new HashSet<>(getAllInstalledPackages());
+        int before = trackerSnapshot.size();
+        trackerSnapshot.keySet().removeIf(pkg -> !installedSet.contains(pkg));
+
+        if (trackerSnapshot.size() < before) {
+            synchronized (dexoptLock) {
+                saveDexoptTracker(trackerSnapshot);
+            }
+            logger("Cleaned dexopt tracker: removed " + (before - trackerSnapshot.size()) + " stale entries");
+        }
+    }
+
+    private List<String> getAllInstalledPackages() {
+        List<String> result = new ArrayList<>();
+        try {
+            List<PackageInfo> infos =
+                    packageManager.getInstalledPackages(0, 0).getList();
+            for (PackageInfo pi : infos) {
+                if (pi != null && !TextUtils.isEmpty(pi.packageName)) {
+                    result.add(pi.packageName);
+                }
+            }
+        } catch (Exception e) {
+            logger("getAllInstalledPackages failed: " + e);
+        }
+        return result;
     }
 }

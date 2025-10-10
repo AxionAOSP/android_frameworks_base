@@ -25,6 +25,7 @@ public class NtServiceInjector {
     private ActivityManagerService mService;
     private Context ctx;
     private WindowManagerService mWindowService;
+    private PackageManagerService mPackageService;
 
     private NtServiceInjector() {
     }
@@ -47,6 +48,10 @@ public class NtServiceInjector {
     void setWindowManagerService(WindowManagerService windowManagerService) {
         mWindowService = windowManagerService;
     }
+    
+    void setPackageManagerService(PackageManagerService pm) {
+        mPackageService = pm;
+    }
 
     public WindowManagerService getWindowManagerService() {
         return mWindowService;
@@ -54,6 +59,10 @@ public class NtServiceInjector {
 
     public ActivityManagerService getActivityManagerService() {
         return mService;
+    }
+
+    public PackageManagerService getPackageManagerService() {
+        return mPackageService;
     }
 
     public Context getContext() {
@@ -70,5 +79,9 @@ public class NtServiceInjector {
 
     public static ActivityManagerService getAm() {
         return get().getActivityManagerService();
+    }
+    
+    public static PackageManagerService getPm() {
+        return get().getPackageManagerService();
     }
 }

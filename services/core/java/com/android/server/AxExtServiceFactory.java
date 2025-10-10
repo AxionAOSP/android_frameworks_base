@@ -18,6 +18,7 @@ package com.android.server;
 import android.content.Context;
 
 import com.android.server.am.*;
+import com.android.server.pm.*;
 import com.android.server.wm.WindowManagerService;
 import com.android.server.INtAppUsageManager;
 
@@ -56,6 +57,10 @@ public class AxExtServiceFactory {
 
     public static void injectWindowManagerService(WindowManagerService wms) {
         NtServiceInjector.get().setWindowManagerService(wms);
+    }
+    
+    public static void injectPackageManagerservice(PackageManagerService pm) {
+        NtServiceInjector.get().setPackageManagerService(pm);
     }
 
     @SuppressWarnings("unchecked")
