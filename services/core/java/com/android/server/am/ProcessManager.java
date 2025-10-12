@@ -50,6 +50,9 @@ public class ProcessManager implements IProcessManager {
     private long mDelayRestartDuration = 3000; 
 
     private final ArrayList<ServiceRecord> mPendingStartQueue = new ArrayList<>();
+    private final Set<String> mWhitelistPackages = new HashSet<>(Arrays.asList(
+            "com.android.axion.widgets"
+    ));
 
     private String mTopAppProcessName = "";
 
@@ -137,7 +140,7 @@ public class ProcessManager implements IProcessManager {
     }
 
     public boolean checkDelayRestartService(ServiceRecord serviceRecord) {
-        if (!mEnableDelayRestart) {
+        if (!mEnableDelayRestart || isWhitelisted(serviceRecord)) {
             return false;
         }
 
@@ -233,6 +236,10 @@ public class ProcessManager implements IProcessManager {
                 mHandler.sendMessage(mHandler.obtainMessage(MSG_PROCESS_PENDING));
             }
         }
+    }
+
+    private boolean isWhitelisted(ServiceRecord sr) {
+        return sr != null && mWhitelistPackages.contains(sr.processName);
     }
 
     private void startDelayService() {
