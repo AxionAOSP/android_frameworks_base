@@ -28,6 +28,8 @@ import android.graphics.Insets;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.os.Trace;
+import android.os.UserHandle;
+import android.provider.Settings;
 import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.DisplayCutout;
@@ -82,7 +84,7 @@ public class KeyguardStatusBarView extends RelativeLayout {
     @Nullable private BatteryMeterView mBatteryView;
     private StatusIconContainer mStatusIconContainer;
     private StatusBarUserSwitcherContainer mUserSwitcherContainer;
-
+    
     private boolean mKeyguardUserSwitcherEnabled;
     private boolean mKeyguardUserAvatarEnabled;
 
@@ -118,6 +120,10 @@ public class KeyguardStatusBarView extends RelativeLayout {
     private int mTopClipping;
     private final Rect mClipRect = new Rect(0, 0, 0, 0);
     private boolean mIsUserSwitcherEnabled;
+
+    private int mStatusBarExtraPaddingStart = 0;
+    private int mStatusBarExtraPaddingTop = 0;
+    private int mStatusBarExtraPaddingEnd = 0;
 
     public KeyguardStatusBarView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -166,12 +172,7 @@ public class KeyguardStatusBarView extends RelativeLayout {
         updateSystemIconsLayoutParams();
 
         // mStatusIconArea
-        mStatusIconArea.setPaddingRelative(
-                mStatusIconArea.getPaddingStart(),
-                getResources().getDimensionPixelSize(R.dimen.status_bar_padding_top),
-                mStatusIconArea.getPaddingEnd(),
-                mStatusIconArea.getPaddingBottom()
-        );
+        updatePaddings();
 
         // mStatusIconContainer
         mStatusIconContainer.setPaddingRelative(
@@ -216,8 +217,27 @@ public class KeyguardStatusBarView extends RelativeLayout {
         mCarrierLabel.setLayoutParams(lp);
     }
 
+    private int convertToDip(int padding) {
+        return (int) TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                padding,
+                mContext.getResources().getDisplayMetrics());
+    }
+
     void loadDimens() {
         Resources res = getResources();
+        mStatusBarExtraPaddingStart = convertToDip(Settings.System.getIntForUser(
+                mContext.getContentResolver(),
+                "statusbar_extra_padding_start", 0,
+                UserHandle.USER_CURRENT));
+        mStatusBarExtraPaddingTop = convertToDip(Settings.System.getIntForUser(
+                mContext.getContentResolver(),
+                "statusbar_extra_padding_top", 0,
+                UserHandle.USER_CURRENT));
+        mStatusBarExtraPaddingEnd = convertToDip(Settings.System.getIntForUser(
+                mContext.getContentResolver(),
+                "statusbar_extra_padding_end", 0,
+                UserHandle.USER_CURRENT));
         mSystemIconsSwitcherHiddenExpandedMargin = res.getDimensionPixelSize(
                 R.dimen.system_icons_switcher_hidden_expanded_margin);
         mStatusBarPaddingEnd = res.getDimensionPixelSize(
@@ -228,6 +248,24 @@ public class KeyguardStatusBarView extends RelativeLayout {
                 R.dimen.display_cutout_margin_consumption);
         mRoundedCornerPadding = res.getDimensionPixelSize(
                 R.dimen.rounded_corner_content_padding);
+    }
+
+    void updatePaddings() {
+        // mStatusIconArea
+        mStatusIconArea.setPaddingRelative(
+                mStatusIconArea.getPaddingStart(),
+                getResources().getDimensionPixelSize(R.dimen.status_bar_padding_top) + mStatusBarExtraPaddingTop,
+                getResources().getDimensionPixelSize(R.dimen.status_bar_padding_end) + mStatusBarExtraPaddingEnd,
+                mStatusIconArea.getPaddingBottom()
+        );
+
+        // mCarrierLabel
+        mCarrierLabel.setPaddingRelative(
+                getResources().getDimensionPixelSize(R.dimen.status_bar_padding_start) + mStatusBarExtraPaddingStart,
+                getResources().getDimensionPixelSize(R.dimen.status_bar_padding_top) + mStatusBarExtraPaddingTop,
+                mCarrierLabel.getPaddingEnd(),
+                mCarrierLabel.getPaddingBottom()
+        );
     }
 
     private void updateVisibilities() {
