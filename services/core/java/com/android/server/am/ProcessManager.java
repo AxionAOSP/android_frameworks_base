@@ -64,11 +64,11 @@ public class ProcessManager implements IProcessManager {
         @Override
         public void notifyThrottling(Temperature temperature) {
             int status = temperature.getStatus();
-            logger("Thermal event: " + temperature + " (status=" + status + ")");
+            logger("ProcessManager: Thermal event: " + temperature + " (status=" + status + ")");
             if (status != Temperature.THROTTLING_NONE) {
                 releaseMemory();
             } else {
-                logger("Throttling ended, no mitigation");
+                logger("ProcessManager: Throttling ended, no mitigation");
             }
         }
     };
@@ -102,13 +102,13 @@ public class ProcessManager implements IProcessManager {
                 ServiceManager.getService(Context.THERMAL_SERVICE));
 
         if (mThermalService == null) {
-            logger("IThermalService not available");
+            logger("ProcessManager: IThermalService not available");
             return;
         }
 
         try {
             mThermalService.registerThermalEventListener(mThermalListener);
-            logger("Thermal listener registered");
+            logger("ProcessManager: Thermal listener registered");
         } catch (Exception e) {
             Slog.e(TAG, "Failed to register thermal listener", e);
         }
@@ -120,12 +120,12 @@ public class ProcessManager implements IProcessManager {
             return;
         }
         mLastReleaseTime = now;
-        logger("Performing thermal mitigation: releasing memory");
+        logger("ProcessManager: Performing thermal mitigation: releasing memory");
         mActivityManagerService.releaseMemory(900, 20, false, false);
     }
 
     public void systemReady() {
-        logger("ProcessManager enabled");
+        logger("ProcessManager: ProcessManager enabled");
         mActivityManagerService = NtServiceInjector.getAm();
         mContext = NtServiceInjector.getCtx();
 
@@ -135,7 +135,7 @@ public class ProcessManager implements IProcessManager {
 
     public void updateTopApp(String topProcessName) {
         mTopAppProcessName = topProcessName;
-        logger("Top app: " + mTopAppProcessName);
+        logger("ProcessManager: Top app: " + mTopAppProcessName);
         processPendingStartsIfNeeded();
     }
 
@@ -156,45 +156,52 @@ public class ProcessManager implements IProcessManager {
         return true;
     }
 
-    private boolean shouldDelayRestart(ServiceRecord serviceRecord) {
-        boolean isPersistent = (serviceRecord.serviceInfo.applicationInfo.flags
+    private boolean shouldDelayRestart(ServiceRecord r) {
+        boolean isPersistent = (r.serviceInfo.applicationInfo.flags
                 & ApplicationInfo.FLAG_PERSISTENT) != 0;
 
-        ProcessRecord pRec = serviceRecord.app;
+        ProcessRecord pRec = r.app;
         boolean isVisible = false;
         if (pRec != null && pRec.mProfile != null) {
-            isVisible = (pRec.mProfile.getCurRawAdj() == ProcessList.VISIBLE_APP_ADJ);
+            isVisible = (pRec.mProfile.getCurRawAdj() == ProcessList.VISIBLE_APP_ADJ) 
+                || pRec.hasActivities();
         }
 
-        return !(isPersistent ||
-                 serviceRecord.isForeground ||
+        boolean result = !(isPersistent ||
+                 r.isForeground ||
                  isVisible ||
-                 isServiceCallFromTopApp(serviceRecord));
+                 isServiceCallFromTopApp(r));
+        
+        if (result) logger("ProcessManager: Delay " + r.processName);
+        return result;
     }
 
     private void handleDelayRestartService(ServiceRecord sr) {
         synchronized (mPendingStartQueue) {
             if (!mPendingStartQueue.contains(sr)) {
                 mPendingStartQueue.add(sr);
-                logger("Queued service for delayed restart: " + sr);
+                logger("ProcessManager: Queued service for delayed restart: " + sr);
             }
         }
     }
 
-    public long getDelayRestartDuration(ServiceRecord serviceRecord) {
-        boolean isPersistent = (serviceRecord.serviceInfo.applicationInfo.flags
+    public long getDelayRestartDuration(ServiceRecord r) {
+        boolean isPersistent = (r.serviceInfo.applicationInfo.flags
                 & ApplicationInfo.FLAG_PERSISTENT) != 0;
 
-        ProcessRecord pRec = serviceRecord.app;
-        boolean isVisible = (pRec != null && pRec.mProfile != null
-                && pRec.mProfile.getCurRawAdj() == ProcessList.VISIBLE_APP_ADJ);
+        ProcessRecord pRec = r.app;
+        boolean isVisible = false;
+        if (pRec != null && pRec.mProfile != null) {
+            isVisible = (pRec.mProfile.getCurRawAdj() == ProcessList.VISIBLE_APP_ADJ) 
+                || pRec.hasActivities();
+        }
 
         if (mEnableDelayRestart 
                 && !isPersistent 
-                && !serviceRecord.isForeground 
+                && !r.isForeground 
                 && !isVisible
-                && !isServiceCallFromTopApp(serviceRecord)) {
-            if (serviceHasBindings(serviceRecord)) {
+                && !isServiceCallFromTopApp(r)) {
+            if (serviceHasBindings(r)) {
                 return mShortDelayRestartDuration;
             } else {
                 return mLongDelayRestartDuration;
@@ -204,26 +211,26 @@ public class ProcessManager implements IProcessManager {
         return mActivityManagerService.mConstants.SERVICE_RESTART_DURATION;
     }
 
-    private boolean isServiceCallFromTopApp(ServiceRecord serviceRecord) {
+    private boolean isServiceCallFromTopApp(ServiceRecord r) {
         String topProcess = null;
         ProcessRecord top = mActivityManagerService.getTopApp();
         if (top != null) topProcess = top.processName;
 
         if (topProcess == null) return false;
-        String recent = serviceRecord.mRecentCallingPackage;
+        String recent = r.mRecentCallingPackage;
         boolean result = false;
-        if (serviceRecord.processName.contains(topProcess) ||
+        if (r.processName.contains(topProcess) ||
                 (recent != null && recent.contains(topProcess))) {
             result = true;
         }
-        logger("isServiceCallFromTopApp? processName=" + serviceRecord.processName
-                + " recentCallingPkg=" + serviceRecord.mRecentCallingPackage + " => " + result);
+        logger("ProcessManager: isServiceCallFromTopApp? processName=" + r.processName
+                + " recentCallingPkg=" + r.mRecentCallingPackage + " => " + result);
         return result;
     }
 
-    private boolean serviceHasBindings(ServiceRecord serviceRecord) {
-        logger("ServiceRecord processName: " + serviceRecord.processName + ", binds : " + serviceRecord.bindings.size());
-        return serviceRecord.bindings.size() > 0;
+    private boolean serviceHasBindings(ServiceRecord r) {
+        logger("ProcessManager: ServiceRecord processName: " + r.processName + ", binds : " + r.bindings.size());
+        return r.bindings.size() > 0;
     }
 
     private void processPendingStartsIfNeeded() {
@@ -248,7 +255,7 @@ public class ProcessManager implements IProcessManager {
                 ServiceRecord sr = mPendingStartQueue.get(0);
                 long now = SystemClock.uptimeMillis();
                 sr.nextRestartTime = now;
-                logger("startDelayService: " + sr.processName + ": " + sr.name);
+                logger("ProcessManager: startDelayService: " + sr.processName + ": " + sr.name);
                 mActivityManagerService.mServices.performScheduleRestartLocked(sr, "Scheduling", "NtDelay", now);
                 mPendingStartQueue.remove(0);
                 mHandler.sendMessageDelayed(mHandler.obtainMessage(MSG_SCHEDULE_NEXT), mDelayRestartDuration);
