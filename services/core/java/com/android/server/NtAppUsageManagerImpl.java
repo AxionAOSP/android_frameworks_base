@@ -26,6 +26,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
 import android.os.SystemProperties;
+import android.text.TextUtils;
 import android.util.AtomicFile;
 import android.util.Slog;
 import com.android.server.am.ProcessList;
@@ -1063,7 +1064,7 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
         mRecordLoaded = true;
     }
 
-    private void updatePackageList(Context context) {
+    private void updatePackageList() {
         ArrayList<String> arrayList = new ArrayList<>();
         for (LauncherActivityInfo launcherActivityInfo : ((LauncherApps) mContext.getSystemService(LauncherApps.class)).getActivityList(null, Process.myUserHandle())) {
             arrayList.add(launcherActivityInfo.getComponentName().getPackageName());
@@ -1386,7 +1387,7 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
             PackageRecord pr = arrayList.get(i);
             i++;
             PackageRecord pr2 = pr;
-            if (PackageRecord.getPackageName(pr2).equals(str)) {
+            if (TextUtils.equals(PackageRecord.getPackageName(pr2), str)) {
                 SimpleAppRecord simpleAppRecord = new SimpleAppRecord();
                 simpleAppRecord.mPackageName = pr2.getPkg();
                 simpleAppRecord.mLastCachedPss = pr2.getLastCachedPss();
@@ -1480,10 +1481,10 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
         misWritingRecord = false;
     }
 
-    public void initDependencies(Context context) {
+    public void initDependencies() {
         recreateClusters();
         loadRecords();
-        updatePackageList(context);
+        updatePackageList();
         if (mWarmUpDuration == 0) {
             mWarmUpDuration = System.currentTimeMillis();
         }
@@ -1526,7 +1527,7 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
 
     public void removePackage(String str) {
         synchronized (this) {
-            if (!mUpdatingPkgName.equals(str)) {
+            if (!TextUtils.equals(mUpdatingPkgName, str)) {
                 if (DEBUG) {
                     Slog.d(TAG, "Removing package : " + str);
                 }
@@ -1575,7 +1576,7 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
                     Iterator<String> it = mCurrentMaxDayRecord.keySet().iterator();
                     while (it.hasNext()) {
                         PackageRecord pr = mCurrentMaxDayRecord.get(it.next());
-                        if (pr.getPkg().equals(pkg)) {
+                        if (TextUtils.equals(pr.getPkg(), pkg)) {
                             pr.setTargetAdj(adj);
                         }
                     }
@@ -1609,8 +1610,10 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        initDependencies(mContext);
         initHandlerThread();
+        mHandler.post(() -> {
+            initDependencies();
+        });
         mSystemReady = true;
     }
 
@@ -1646,7 +1649,7 @@ public class NtAppUsageManagerImpl implements INtAppUsageManager {
             if (pr != null) {
                 pr.onAppLaunched(System.currentTimeMillis());
                 pr.canUpdateDuration = false;
-                if (!mLastRunningPackage.equals(str)) {
+                if (!TextUtils.equals(mLastRunningPackage, str)) {
                     pr.onLaunchCountIncreased(str);
                 }
                 mLastRunningPackage = str;
