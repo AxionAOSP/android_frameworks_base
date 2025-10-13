@@ -783,11 +783,11 @@ public class NotificationStackScrollLayout
         }
     }
     
-    public void updateBgColor(boolean onKeyguard) {
+    public void updateIfNeeded() {
         for (int i = 0; i < getChildCount(); i++) {
             View child = getChildAt(i);
             if (child instanceof ActivatableNotificationView activatableView) {
-                activatableView.setUseTransparency(!onKeyguard);
+                activatableView.updateIfNeeded();
             }
         }
     }
