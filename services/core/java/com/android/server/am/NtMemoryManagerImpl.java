@@ -839,11 +839,12 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
         mWindowService = NtServiceInjector.getWm();
         mContext = NtServiceInjector.getCtx();
         initThread();
-        scheduleForkHighUsedApps();
         loadEnableOptHighUsed();
         loadReleaseMemoryConfig();
         loadBoostCamera();
+        tuneExtraFree();
         mSystemReady = true;
+        scheduleForkHighUsedApps();
     }
 
     public void tuneLmkdParam(String str) {
@@ -862,5 +863,9 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
         return mEnableOptHighUsed && !pr.processName.equals("com.android.settings") 
                 && pr.mState.hasShownUi() 
                 && iIndexOf != -1 && iIndexOf < mTopRankHighUsed;
+    }
+    
+    public void tuneExtraFree() {
+        mHandler.sendMessage(mHandler.obtainMessage(MSG_TUNE_EXTRA_FREE));
     }
 }
