@@ -322,6 +322,10 @@ public final class DeviceData {
         String bMax = CPU_SYS_PATH + bIndex + SCALING_MAX_FREQ_FILE;
         String pMax = CPU_SYS_PATH + pIndex + SCALING_MAX_FREQ_FILE;
         
+        propSet("cpu_small_index", sIndex);
+        propSet("cpu_big_index", bIndex);
+        propSet("cpu_prime_index", pIndex);
+
         String sMaxFreq = readFile(sMax);
         String bMaxFreq = readFile(bMax);
         String pMaxFreq = readFile(pMax);
