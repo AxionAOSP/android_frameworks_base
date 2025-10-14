@@ -498,7 +498,7 @@ public class BoostAdjuster implements IBoostAdjuster {
                     break;
                 case MSG_GAME_BOOST:
                     final boolean boost = msg.arg1 == 1;
-                    mDeviceData.boostGpu(boost ? mGameGpuBoost : 0);
+                    boostGpuInternal(boost ? mGameGpuBoost : 0);
                     boostTopApp(boost);
                     enablePerformanceMode(boost);
                     break;
@@ -567,7 +567,7 @@ public class BoostAdjuster implements IBoostAdjuster {
         mFlags.setFlag(BOOST_HT, enabled);
         enablePerformanceMode(enabled);
         boostSF(enabled);
-        mDeviceData.boostGpu(enabled ? mSysGpuBoost : 0);
+        boostGpuInternal(enabled ? mSysGpuBoost : 0);
         boostTopApp(enabled);
         getProcessesAndFrozen(mResumedPackage);
     }
@@ -586,9 +586,14 @@ public class BoostAdjuster implements IBoostAdjuster {
     private void boostAnimRes(boolean enabled) {
         if (gameActive()) return;
         boostSF(enabled);
-        mDeviceData.boostGpu(enabled ? mSysGpuBoost : 0);
+        boostGpuInternal(enabled ? mSysGpuBoost : 0);
         boostTopApp(enabled);
         getProcessesAndFrozen(mResumedPackage);
+    }
+    
+    private void boostGpuInternal(int boost) {
+        if (mDeviceData == null) return;
+        mDeviceData.boostGpu(boost);
     }
 
     private void boostSF(boolean enabled) {
