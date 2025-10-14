@@ -131,9 +131,7 @@ class WidgetFactory(
     
     fun updateViews() {
         val newSpecs = ctrl.widgetSpecs.filterNotNull()
-        val specsChanged = _widgetsList.size != newSpecs.size ||
-            !_widgetsList.containsAll(newSpecs) ||
-            !newSpecs.containsAll(_widgetsList)
+        val specsChanged = _widgetsList != newSpecs
 
         if (specsChanged) {
             _widgetsList.clear()
