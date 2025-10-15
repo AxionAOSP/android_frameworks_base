@@ -73,7 +73,7 @@ fun WidgetIcon(action: WidgetAction, isActive: Boolean): ImageVector {
             if (isActive) Icons.Filled.Vibration else Icons.Filled.VolumeUp
 
         WidgetAction.HOTSPOT ->
-            if (isActive) Icons.Filled.Wifi else Icons.Filled.WifiOff
+            if (isActive) Icons.Filled.WifiTethering else Icons.Filled.WifiTetheringOff
     }
 }
 
