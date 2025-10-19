@@ -77,4 +77,7 @@
     <string name="battery_notification_channel_tv">Akkuwarnung</string>
     <string name="screenshot_delete_label">Löschen</string>
     <string name="screenshot_delete_description">Screenshot löschen</string>
+
+    <!-- Name of the bluetooth battery level status bar setting. -->
+    <string name="status_bar_bluetooth_battery_level">Bluetooth-Akkustand</string>
 </resources>
