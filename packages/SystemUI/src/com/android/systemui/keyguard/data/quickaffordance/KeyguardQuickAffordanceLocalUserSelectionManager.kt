@@ -19,10 +19,11 @@ package com.android.systemui.keyguard.data.quickaffordance
 
 import android.content.Context
 import android.content.IntentFilter
-import android.content.SharedPreferences
 import com.android.systemui.backup.BackupHelper
 import com.android.systemui.broadcast.BroadcastDispatcher
 import com.android.systemui.common.coroutine.ChannelExt.trySendWithFailureLogging
+import com.android.systemui.util.settings.SecureSettings
+import com.android.systemui.util.settings.SettingsProxyExt.observerFlow
 import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.res.R
@@ -34,6 +35,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 
 /**
@@ -48,10 +50,9 @@ constructor(
     @ShadeDisplayAware private val context: Context,
     private val userFileManager: UserFileManager,
     private val userTracker: UserTracker,
+    private val secureSettings: SecureSettings,
     broadcastDispatcher: BroadcastDispatcher,
 ) : KeyguardQuickAffordanceSelectionManager {
-
-    private var sharedPrefs: SharedPreferences = instantiateSharedPrefs()
 
     private val userId: Flow<Int> = conflatedCallbackFlow {
         val callback =
@@ -100,27 +101,14 @@ constructor(
                     // setup).
                     emit(Unit)
                 },
-            ) { _, _ ->
+            ) { userId, _ ->
+                userId
             }
-            .flatMapLatest {
-                conflatedCallbackFlow {
-                    // We want to instantiate a new SharedPreferences instance each time either the
-                    // user ID changes or we have a backup & restore restoration event. The reason
-                    // is that our sharedPrefs instance needs to be replaced with a new one as it
-                    // depends on the user ID and when the B&R job completes, the backing file is
-                    // replaced but the existing instance still has a stale in-memory cache.
-                    sharedPrefs = instantiateSharedPrefs()
-
-                    val listener =
-                        SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
-                            trySend(getSelections())
-                        }
-
-                    sharedPrefs.registerOnSharedPreferenceChangeListener(listener)
-                    send(getSelections())
-
-                    awaitClose { sharedPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
-                }
+            .flatMapLatest { userId ->
+                val keys = defaults.keys.map { "$KEY_PREFIX_SLOT$it" }.toTypedArray()
+                secureSettings.observerFlow(userId, *keys)
+                    .onStart { emit(Unit) }
+                    .map { getSelections() }
             }
 
     override fun getSelections(): Map<String, List<String>> {
@@ -129,22 +117,21 @@ constructor(
             return defaults
         }
 
-        val slotKeys = sharedPrefs.all.keys.filter { it.startsWith(KEY_PREFIX_SLOT) }
-        val result =
-            slotKeys
-                .associate { key ->
-                    val slotId = key.substring(KEY_PREFIX_SLOT.length)
-                    val value = sharedPrefs.getString(key, null)
-                    val affordanceIds =
-                        if (!value.isNullOrEmpty()) {
-                            value.split(AFFORDANCE_DELIMITER)
-                        } else {
-                            emptyList()
-                        }
-                    slotId to affordanceIds
-                }
-                .toMutableMap()
+        val currentUser = userTracker.userId
+        val result = mutableMapOf<String, List<String>>()
 
+        defaults.keys.forEach { slotId ->
+            val key = "$KEY_PREFIX_SLOT$slotId"
+            val value = secureSettings.getStringForUser(key, currentUser)
+            val affordanceIds =
+                if (!value.isNullOrEmpty()) {
+                    value.split(AFFORDANCE_DELIMITER)
+                } else {
+                    emptyList()
+                }
+            result[slotId] = affordanceIds.ifEmpty { defaults[slotId].orEmpty() }
+        }
+    
         // If the result map is missing keys, it means that the system has never set anything for
         // those slots. This is where we need examine our defaults and see if there should be a
         // default value for the affordances in the slot IDs that are missing from the result.
@@ -164,14 +151,10 @@ constructor(
     override fun setSelections(slotId: String, affordanceIds: List<String>) {
         val key = "$KEY_PREFIX_SLOT$slotId"
         val value = affordanceIds.joinToString(AFFORDANCE_DELIMITER)
-        sharedPrefs.edit().putString(key, value).apply()
-    }
-
-    private fun instantiateSharedPrefs(): SharedPreferences {
-        return userFileManager.getSharedPreferences(
-            FILE_NAME,
-            Context.MODE_PRIVATE,
-            userTracker.userId,
+        secureSettings.putStringForUser(
+            key,
+            value,
+            userTracker.userId
         )
     }
 
