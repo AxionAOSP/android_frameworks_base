@@ -66,6 +66,8 @@ import android.util.SparseIntArray;
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 
+import com.android.internal.graphics.cam.Cam;
+import com.android.internal.graphics.ColorUtils;
 import com.android.systemui.CoreStartable;
 import com.android.systemui.Dumpable;
 import com.android.systemui.broadcast.BroadcastDispatcher;
@@ -90,6 +92,7 @@ import com.android.systemui.util.settings.SecureSettings;
 
 import com.google.ux.material.libmonet.dynamiccolor.DynamicColor;
 import com.google.ux.material.libmonet.dynamiccolor.MaterialDynamicColors;
+import com.google.ux.material.libmonet.hct.Cam16;
 
 import kotlinx.coroutines.flow.Flow;
 import kotlinx.coroutines.flow.StateFlow;
@@ -127,7 +130,7 @@ import javax.inject.Inject;
 public class ThemeOverlayController implements CoreStartable, Dumpable {
     protected static final String TAG = "ThemeOverlayController";
     private static final boolean DEBUG = true;
-
+    
     private final ThemeOverlayApplier mThemeManager;
     private final UserManager mUserManager;
     private final BroadcastDispatcher mBroadcastDispatcher;
@@ -154,6 +157,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
     protected int mMainWallpaperColor = Color.TRANSPARENT;
     // UI contrast as reported by UiModeManager
     private double mContrast = 0.0;
+    private double mChromaBoost = 0.0;
     // Theme variant: Vibrant, Tonal, Expressive, etc
     @VisibleForTesting
     @Style.Type
@@ -492,12 +496,6 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
                     }
                 },
                 UserHandle.USER_ALL);
-        mContrast = mUiModeManager.getContrast();
-        mUiModeManager.addContrastChangeListener(mMainExecutor, contrast -> {
-            mContrast = contrast;
-            // Force reload so that we update even when the main color has not changed
-            reevaluateSystemTheme(true /* forceReload */);
-        });
 
         mSecureSettings.registerContentObserverForUserSync(
                 LineageSettings.Secure.getUriFor(LineageSettings.Secure.BERRY_BLACK_THEME),
@@ -706,20 +704,46 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
 
     private void assignColorsToOverlay(FabricatedOverlay overlay,
             List<Pair<String, DynamicColor>> colors, Boolean isFixed) {
-        colors.forEach(p -> {
+        for (Pair<String, DynamicColor> p : colors) {
+
             String prefix = "android:color/system_" + p.first;
 
             if (isFixed) {
-                overlay.setResourceValue(prefix, TYPE_INT_COLOR_ARGB8,
-                        p.second.getArgb(mLightColorScheme.getMaterialScheme()), null);
-                return;
+                int original = p.second.getArgb(mLightColorScheme.getMaterialScheme());
+                int boosted  = boostChroma(original);
+                overlay.setResourceValue(prefix, TYPE_INT_COLOR_ARGB8, boosted, null);
+                continue;
             }
 
-            overlay.setResourceValue(prefix + "_light", TYPE_INT_COLOR_ARGB8,
-                    p.second.getArgb(mLightColorScheme.getMaterialScheme()), null);
-            overlay.setResourceValue(prefix + "_dark", TYPE_INT_COLOR_ARGB8,
-                    p.second.getArgb(mDarkColorScheme.getMaterialScheme()), null);
-        });
+            int lightOriginal = p.second.getArgb(mLightColorScheme.getMaterialScheme());
+            int darkOriginal  = p.second.getArgb(mDarkColorScheme.getMaterialScheme());
+
+            int boostedLight = boostChroma(lightOriginal);
+            int boostedDark  = boostChroma(darkOriginal);
+
+            overlay.setResourceValue(prefix + "_light",
+                    TYPE_INT_COLOR_ARGB8, boostedLight, null);
+
+            overlay.setResourceValue(prefix + "_dark",
+                    TYPE_INT_COLOR_ARGB8, boostedDark, null);
+        }
+    }
+
+    private int boostChroma(int argb) {
+        Cam cam = Cam.fromInt(argb);
+
+        final float chromaBoost = (float) mChromaBoost;
+
+        float boostedChroma = cam.getChroma() * (1f +  chromaBoost/ 100f);
+        boostedChroma = Math.min(boostedChroma, 150f);
+
+        int boosted = ColorUtils.CAMToColor(
+                cam.getHue(),
+                boostedChroma,
+                cam.getJ()
+        );
+
+        return ColorUtils.setAlphaComponent(boosted, Color.alpha(argb));
     }
 
     /**
@@ -775,6 +799,10 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
         if (!TextUtils.isEmpty(overlayPackageJson)) {
             try {
                 JSONObject object = new JSONObject(overlayPackageJson);
+                
+                mContrast = object.optDouble("_contrast_level", 0.0);
+                mChromaBoost = object.optDouble("_chroma_boost", 0.0);
+
                 for (String category : ThemeOverlayApplier.THEME_CATEGORIES) {
                     if (object.has(category)) {
                         OverlayIdentifier identifier =
@@ -891,7 +919,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
             try {
                 JSONObject object = new JSONObject(overlayPackageJson);
                 style = Style.valueOf(
-                        object.getString(OVERLAY_CATEGORY_THEME_STYLE));
+                        object.optString(OVERLAY_CATEGORY_THEME_STYLE, Style.name(Style.TONAL_SPOT)));
                 if (!validStyles.contains(style)) {
                     style = Style.TONAL_SPOT;
                 }
