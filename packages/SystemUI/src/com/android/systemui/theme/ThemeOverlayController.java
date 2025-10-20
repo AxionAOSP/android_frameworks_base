@@ -66,6 +66,7 @@ import android.util.SparseIntArray;
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 
+import com.android.internal.graphics.cam.Cam;
 import com.android.internal.graphics.ColorUtils;
 import com.android.systemui.CoreStartable;
 import com.android.systemui.Dumpable;
@@ -94,6 +95,7 @@ import com.android.systemui.util.settings.SystemSettings;
 
 import com.google.ux.material.libmonet.dynamiccolor.DynamicColor;
 import com.google.ux.material.libmonet.dynamiccolor.MaterialDynamicColors;
+import com.google.ux.material.libmonet.hct.Cam16;
 
 import kotlinx.coroutines.flow.Flow;
 import kotlinx.coroutines.flow.StateFlow;
@@ -131,6 +133,12 @@ import javax.inject.Inject;
 public class ThemeOverlayController implements CoreStartable, Dumpable {
     protected static final String TAG = "ThemeOverlayController";
     private static final boolean DEBUG = true;
+    
+    private Integer mAccent1Override = null;
+    private Integer mAccent2Override = null;
+    private Integer mAccent3Override = null;
+    private Integer mNeutral1Override = null;
+    private Integer mNeutral2Override = null;
 
     private final ThemeOverlayApplier mThemeManager;
     private final UserManager mUserManager;
@@ -143,7 +151,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
     private final Handler mBgHandler;
     private final Context mContext;
     private final boolean mIsMonetEnabled;
-    private final boolean mIsFidelityEnabled;
+    private boolean mIsFidelityEnabled;
     private final UserTracker mUserTracker;
     private final DeviceProvisionedController mDeviceProvisionedController;
     private final Resources mResources;
@@ -161,6 +169,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
     protected int mMainWallpaperColor = Color.TRANSPARENT;
     // UI contrast as reported by UiModeManager
     private double mContrast = 0.0;
+    private double mChromaBoost = 0.0;
     // Theme variant: Vibrant, Tonal, Expressive, etc
     @VisibleForTesting
     @Style.Type
@@ -504,12 +513,6 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
                     }
                 },
                 UserHandle.USER_ALL);
-        mContrast = mUiModeManager.getContrast();
-        mUiModeManager.addContrastChangeListener(mMainExecutor, contrast -> {
-            mContrast = contrast;
-            // Force reload so that we update even when the main color has not changed
-            reevaluateSystemTheme(true /* forceReload */);
-        });
 
         mSecureSettings.registerContentObserverForUserSync(
                 LineageSettings.Secure.getUriFor(LineageSettings.Secure.BERRY_BLACK_THEME),
@@ -756,17 +759,50 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
 
     protected FabricatedOverlay createNeutralOverlay() {
         FabricatedOverlay overlay = newFabricatedOverlay("neutral");
-        assignTonalPaletteToOverlay("neutral1", overlay, mColorScheme.getNeutral1());
-        assignTonalPaletteToOverlay("neutral2", overlay, mColorScheme.getNeutral2());
+        
+        TonalPalette neutral1 = (mNeutral1Override != null)
+            ? createTonalPaletteFromColor(mNeutral1Override)
+            : mColorScheme.getNeutral1();
+        
+        TonalPalette neutral2 = (mNeutral2Override != null)
+            ? createTonalPaletteFromColor(mNeutral2Override)
+            : mColorScheme.getNeutral2();
+        
+        assignTonalPaletteToOverlay("neutral1", overlay, neutral1);
+        assignTonalPaletteToOverlay("neutral2", overlay, neutral2);
+        
         return overlay;
     }
 
     protected FabricatedOverlay createAccentOverlay() {
         FabricatedOverlay overlay = newFabricatedOverlay("accent");
-        assignTonalPaletteToOverlay("accent1", overlay, mColorScheme.getAccent1());
-        assignTonalPaletteToOverlay("accent2", overlay, mColorScheme.getAccent2());
-        assignTonalPaletteToOverlay("accent3", overlay, mColorScheme.getAccent3());
+        
+        TonalPalette accent1 = (mAccent1Override != null) 
+            ? createTonalPaletteFromColor(mAccent1Override)
+            : mColorScheme.getAccent1();
+        
+        TonalPalette accent2 = (mAccent2Override != null)
+            ? createTonalPaletteFromColor(mAccent2Override)
+            : mColorScheme.getAccent2();
+        
+        TonalPalette accent3 = (mAccent3Override != null)
+            ? createTonalPaletteFromColor(mAccent3Override)
+            : mColorScheme.getAccent3();
+        
+        assignTonalPaletteToOverlay("accent1", overlay, accent1);
+        assignTonalPaletteToOverlay("accent2", overlay, accent2);
+        assignTonalPaletteToOverlay("accent3", overlay, accent3);
+        
         return overlay;
+    }
+
+    private TonalPalette createTonalPaletteFromColor(int processedColor) {
+        Cam16 cam = Cam16.fromInt(processedColor);
+
+        com.google.ux.material.libmonet.palettes.TonalPalette materialPalette =
+                com.google.ux.material.libmonet.palettes.TonalPalette.fromHueAndChroma(cam.getHue(), cam.getChroma());
+
+        return new TonalPalette(materialPalette);
     }
 
     private void assignTonalPaletteToOverlay(String name, FabricatedOverlay overlay,
@@ -775,9 +811,13 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
 
         tonalPalette.allShadesMapped.forEach((key, value) -> {
             String resourceName = resourcePrefix + "_" + key;
-            int colorValue = ColorUtils.setAlphaComponent(value, 0xFF);
-            overlay.setResourceValue(resourceName, TYPE_INT_COLOR_ARGB8, colorValue,
-                    null /* configuration */);
+
+            Cam cam = Cam.fromInt(value);
+            float boostedChroma = (float) (cam.getChroma() * (1.0 + mChromaBoost / 100.0));
+            boostedChroma = Math.min(boostedChroma, 150f);
+            int boostedColor = ColorUtils.CAMToColor(cam.getHue(), boostedChroma, cam.getJ());
+            boostedColor = ColorUtils.setAlphaComponent(boostedColor, 0xFF);
+            overlay.setResourceValue(resourceName, TYPE_INT_COLOR_ARGB8, boostedColor, null);
         });
     }
 
@@ -866,6 +906,36 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
         if (!TextUtils.isEmpty(overlayPackageJson)) {
             try {
                 JSONObject object = new JSONObject(overlayPackageJson);
+                
+                mAccent1Override = parseColorOverride(object, "_override_accent1");
+                mAccent2Override = parseColorOverride(object, "_override_accent2");
+                mAccent3Override = parseColorOverride(object, "_override_accent3");
+                mNeutral1Override = parseColorOverride(object, "_override_neutral1");
+                mNeutral2Override = parseColorOverride(object, "_override_neutral2");
+
+                mContrast = object.getDouble("_contrast_level");
+                mChromaBoost = object.getDouble("_chroma_boost");
+
+                mIsFidelityEnabled = object.getBoolean("_fidelity_enabled");
+
+                if (DEBUG) {
+                    if (mAccent1Override != null) {
+                        Log.d(TAG, "Accent1 override (processed): #" + Integer.toHexString(mAccent1Override));
+                    }
+                    if (mAccent2Override != null) {
+                        Log.d(TAG, "Accent2 override (processed): #" + Integer.toHexString(mAccent2Override));
+                    }
+                    if (mAccent3Override != null) {
+                        Log.d(TAG, "Accent3 override (processed): #" + Integer.toHexString(mAccent3Override));
+                    }
+                    if (mNeutral1Override != null) {
+                        Log.d(TAG, "Neutral1 override (processed): #" + Integer.toHexString(mNeutral1Override));
+                    }
+                    if (mNeutral2Override != null) {
+                        Log.d(TAG, "Neutral2 override (processed): #" + Integer.toHexString(mNeutral2Override));
+                    }
+                }
+
                 for (String category : ThemeOverlayApplier.THEME_CATEGORIES) {
                     if (object.has(category)) {
                         OverlayIdentifier identifier =
@@ -963,6 +1033,21 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
         mThemeManager.applyCurrentUserOverlays(categoryToPackage, fOverlays, currentUser,
                 managedProfiles, onCompleteCallback);
 
+    }
+
+    private Integer parseColorOverride(JSONObject object, String key) {
+        try {
+            if (object.has(key)) {
+                String colorString = object.getString(key);
+                if (!colorString.startsWith("#")) {
+                    colorString = "#" + colorString;
+                }
+                return Color.parseColor(colorString);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to parse color override for " + key, e);
+        }
+        return null;
     }
 
     @Style.Type
@@ -1082,5 +1167,21 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
         pw.println("mAcceptColorEvents=" + mAcceptColorEvents);
         pw.println("mDeferredThemeEvaluation=" + mDeferredThemeEvaluation);
         pw.println("mThemeStyle=" + mThemeStyle);
+        pw.println("Palette Overrides:");
+        if (mAccent1Override != null) {
+            pw.println("    Accent1: #" + Integer.toHexString(mAccent1Override));
+        }
+        if (mAccent2Override != null) {
+            pw.println("    Accent2: #" + Integer.toHexString(mAccent2Override));
+        }
+        if (mAccent3Override != null) {
+            pw.println("    Accent3: #" + Integer.toHexString(mAccent3Override));
+        }
+        if (mNeutral1Override != null) {
+            pw.println("    Neutral1: #" + Integer.toHexString(mNeutral1Override));
+        }
+        if (mNeutral2Override != null) {
+            pw.println("    Neutral2: #" + Integer.toHexString(mNeutral2Override));
+        }
     }
 }
