@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.android.server.am;
 
 import static com.android.server.am.AxUtils.logger;
@@ -51,10 +52,13 @@ public class UxPerformance implements IUxPerformance {
 
     private static final String DEXOPT_TRACKER_KEY = "ux_dexopt_tracker";
     private static final long DEXOPT_EXPIRY_MS = 15L * 24 * 60 * 60 * 1000;
+
+    private static final String LAST_FULL_RUN_KEY = "ux_dexopt_last_full_run";
+    private static final long FULL_RUN_INTERVAL_MS = 15L * 24 * 60 * 60 * 1000; 
+
     private static final String[] OAT_DIRS = {"/oat/arm64/", "/oat/arm/"};
     private static final String[] FILE_SUFFIXES = {".art", ".odex", ".vdex"};
 
-    private boolean enablePrefetch = true;
     private volatile boolean screenOff;
     private boolean systemReady = false;
 
@@ -73,16 +77,9 @@ public class UxPerformance implements IUxPerformance {
     public UxPerformance() {}
 
     public void systemReady() {
-        if (!enablePrefetch) {
-            logger("UxPerformance disabled: prefetch not supported");
-            return;
-        }
-
         mPackageService = NtServiceInjector.getPm();
         packageManager = AppGlobals.getPackageManager();
         mDexOptHelper = (mPackageService != null) ? mPackageService.getDexOptHelper() : null;
-
-        logger("UxPerformance initialized (enablePrefetch=" + enablePrefetch + ")");
 
         prefetchHandler = createHandler("DexPrefetchHandlerThread");
         pAppsHandler = createHandler("PAppsSpeedHandlerThread");
@@ -93,7 +90,7 @@ public class UxPerformance implements IUxPerformance {
                     t.setDaemon(true);
                     return t;
                 });
-                
+
         systemReady = true;
 
         pAppsHandler.post(this::cleanupDexoptTracker);
@@ -106,7 +103,7 @@ public class UxPerformance implements IUxPerformance {
     }
 
     public int perfIOPrefetchStart(int pid, String packageName, String codePath) {
-        if (!systemReady || !enablePrefetch || codePath == null) return REQUEST_FAILED;
+        if (!systemReady || codePath == null) return REQUEST_FAILED;
         prefetchHandler.post(() -> dexPrefetch(codePath));
         return REQUEST_SUCCEEDED;
     }
@@ -148,7 +145,7 @@ public class UxPerformance implements IUxPerformance {
     }
 
     public void setScreenState(boolean off) {
-        if (!enablePrefetch || !systemReady) return;
+        if (!systemReady) return;
 
         screenOff = off;
         pAppsHandler.removeCallbacksAndMessages(null);
@@ -162,9 +159,19 @@ public class UxPerformance implements IUxPerformance {
     }
 
     private void runPAppsOpt() {
-        if (!enablePrefetch || !systemReady || packageManager == null || mDexOptHelper == null) return;
+        if (!systemReady || packageManager == null || mDexOptHelper == null) return;
 
         try {
+            long lastFullRun = getLastFullRunTime();
+            long timeSinceLastRun = System.currentTimeMillis() - lastFullRun;
+            
+            if (lastFullRun > 0 && timeSinceLastRun < FULL_RUN_INTERVAL_MS) {
+                long daysRemaining = (FULL_RUN_INTERVAL_MS - timeSinceLastRun) / (24 * 60 * 60 * 1000);
+                logger("Skipping dexopt: last full run was " + (timeSinceLastRun / (24 * 60 * 60 * 1000)) + 
+                       " days ago. Next run in " + daysRemaining + " days");
+                return;
+            }
+
             if (packageManager.isStorageLow()) {
                 logger("Skipping dexopt: low storage");
                 return;
@@ -176,72 +183,89 @@ public class UxPerformance implements IUxPerformance {
                 return;
             }
 
+            if (AxExtServiceFactory.getProcessManager().isThermalHigh()) {
+                logger("Skipping dexopt: high device temperature");
+                return;
+            }
+
             allPackages = sortPackagesByUsageStats(allPackages);
 
-            Map<String, Long> trackerSnapshot;
-            synchronized (dexoptLock) {
-                trackerSnapshot = getDexoptTracker();
-            }
+            Map<String, Long> trackerSnapshot = getDexoptTracker();
 
             int total = allPackages.size();
             int processed = 0;
             int skipped = 0;
+            boolean fullRunCompleted = true;
 
             AxExtServiceFactory.getBoostAdjuster().boostInstall(true);
             logger("----- Dexopt started (" + total + " packages) -----");
 
             for (String pkg : allPackages) {
-                if (!screenOff) {
-                    logger("Dexopt cancelled mid-run (screen ON)");
-                    synchronized (dexoptLock) {
-                        saveDexoptTracker(trackerSnapshot);
-                    }
+
+                if (AxExtServiceFactory.getProcessManager().isThermalHigh()) {
+                    logger("Dexopt aborted: device overheating");
+                    fullRunCompleted = false;
                     break;
                 }
+
+                if (!screenOff) {
+                    logger("Dexopt cancelled mid-run (screen ON)");
+                    fullRunCompleted = false;
+                    break;
+                }
+
                 if (shouldSkipDexopt(pkg, trackerSnapshot)) {
                     skipped++;
                     continue;
                 }
 
                 int result = mDexOptHelper.doDexoptPackage(pkg);
+
+                trackerSnapshot.put(pkg, System.currentTimeMillis());
+
                 switch (result) {
                     case PackageDexOptimizer.DEX_OPT_PERFORMED:
-                        trackerSnapshot.put(pkg, System.currentTimeMillis());
                         logger("Dex optimization performed for pkg=" + pkg);
                         break;
 
                     case PackageDexOptimizer.DEX_OPT_SKIPPED:
-                        trackerSnapshot.put(pkg, System.currentTimeMillis());
-                        skipped++;
                         logger("Dex optimization skipped for pkg=" + pkg);
+                        skipped++;
                         break;
 
                     case PackageDexOptimizer.DEX_OPT_CANCELLED:
                         logger("Dex optimization cancelled for pkg=" + pkg);
+                        skipped++;
                         break;
 
                     case PackageDexOptimizer.DEX_OPT_FAILED:
                         logger("Dex optimization FAILED for pkg=" + pkg);
+                        skipped++;
                         break;
 
                     default:
                         logger("Unknown dexopt result (" + result + ") for pkg=" + pkg);
+                        skipped++;
                         break;
                 }
 
                 processed++;
-                
                 int finalTotal = total - skipped;
 
                 if (processed % 20 == 0 || processed == finalTotal)
                     logger("Dexopt progress: " + processed + "/" + finalTotal);
             }
 
-            synchronized (dexoptLock) {
-                saveDexoptTracker(trackerSnapshot);
+            saveDexoptTracker(trackerSnapshot);
+            
+            if (fullRunCompleted) {
+                saveLastFullRunTime(System.currentTimeMillis());
+                logger("----- Dexopt FULL RUN completed (" + processed + "/" + (total - skipped) + 
+                       " processed). Next run in 15 days -----");
+            } else {
+                logger("----- Dexopt incomplete run (" + processed + "/" + (total - skipped) + 
+                       " processed). Will retry on next screen off -----");
             }
-
-            logger("----- Dexopt finished (" + processed + "/" + (total - skipped) + " processed) -----");
 
         } catch (Exception e) {
             logger("Dexopt exception: " + e);
@@ -291,36 +315,36 @@ public class UxPerformance implements IUxPerformance {
     }
 
     private Map<String, Long> getDexoptTracker() {
-        Map<String, Long> map = new HashMap<>();
-        try {
-            Context ctx = NtServiceInjector.getCtx();
-            String json = Settings.Secure.getString(ctx.getContentResolver(), DEXOPT_TRACKER_KEY);
-            if (json == null) return map;
+        return withDexoptLock(() -> {
+            Map<String, Long> map = new HashMap<>();
+            try {
+                Context ctx = NtServiceInjector.getCtx();
+                String json = Settings.Secure.getString(ctx.getContentResolver(), DEXOPT_TRACKER_KEY);
+                if (json == null) return map;
 
-            JSONObject obj = new JSONObject(json);
-            for (Iterator<String> keys = obj.keys(); keys.hasNext(); ) {
-                String key = keys.next();
-                map.put(key, obj.getLong(key));
-            }
-        } catch (Exception ignored) {}
-        return map;
+                JSONObject obj = new JSONObject(json);
+                for (Iterator<String> keys = obj.keys(); keys.hasNext();) {
+                    String key = keys.next();
+                    map.put(key, obj.getLong(key));
+                }
+            } catch (Exception ignored) {}
+            return map;
+        });
     }
 
     private void saveDexoptTracker(Map<String, Long> map) {
-        try {
-            JSONObject obj = new JSONObject(map);
-            Context ctx = NtServiceInjector.getCtx();
-            Settings.Secure.putString(ctx.getContentResolver(), DEXOPT_TRACKER_KEY, obj.toString());
-            logger("saving status. status=" + obj.toString());
-        } catch (Exception ignored) {}
+        withDexoptLock(() -> {
+            try {
+                JSONObject obj = new JSONObject(map);
+                Context ctx = NtServiceInjector.getCtx();
+                Settings.Secure.putString(ctx.getContentResolver(), DEXOPT_TRACKER_KEY, obj.toString());
+                logger("saving status. status=" + obj);
+            } catch (Exception ignored) {}
+        });
     }
 
     private void cleanupDexoptTracker() {
-        Map<String, Long> trackerSnapshot;
-        synchronized (dexoptLock) {
-            trackerSnapshot = getDexoptTracker();
-        }
-
+        Map<String, Long> trackerSnapshot = getDexoptTracker();
         if (trackerSnapshot.isEmpty()) return;
 
         Set<String> installedSet = new HashSet<>(getAllInstalledPackages());
@@ -328,9 +352,7 @@ public class UxPerformance implements IUxPerformance {
         trackerSnapshot.keySet().removeIf(pkg -> !installedSet.contains(pkg));
 
         if (trackerSnapshot.size() < before) {
-            synchronized (dexoptLock) {
-                saveDexoptTracker(trackerSnapshot);
-            }
+            saveDexoptTracker(trackerSnapshot);
             logger("Cleaned dexopt tracker: removed " + (before - trackerSnapshot.size()) + " stale entries");
         }
     }
@@ -349,5 +371,38 @@ public class UxPerformance implements IUxPerformance {
             logger("getAllInstalledPackages failed: " + e);
         }
         return result;
+    }
+
+    private long getLastFullRunTime() {
+        try {
+            Context ctx = NtServiceInjector.getCtx();
+            String value = Settings.Secure.getString(ctx.getContentResolver(), LAST_FULL_RUN_KEY);
+            return value != null ? Long.parseLong(value) : 0L;
+        } catch (Exception e) {
+            logger("getLastFullRunTime failed: " + e);
+            return 0L;
+        }
+    }
+
+    private void saveLastFullRunTime(long timestamp) {
+        try {
+            Context ctx = NtServiceInjector.getCtx();
+            Settings.Secure.putString(ctx.getContentResolver(), LAST_FULL_RUN_KEY, String.valueOf(timestamp));
+            logger("Saved last full run timestamp: " + timestamp);
+        } catch (Exception e) {
+            logger("saveLastFullRunTime failed: " + e);
+        }
+    }
+
+    private void withDexoptLock(Runnable action) {
+        synchronized (dexoptLock) {
+            action.run();
+        }
+    }
+
+    private <T> T withDexoptLock(java.util.function.Supplier<T> action) {
+        synchronized (dexoptLock) {
+            return action.get();
+        }
     }
 }

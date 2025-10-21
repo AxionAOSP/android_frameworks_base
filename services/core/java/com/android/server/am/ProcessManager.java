@@ -58,12 +58,15 @@ public class ProcessManager implements IProcessManager {
 
     private static final long MEMORY_RELEASE_INTERVAL_MS = 1 * 60 * 1000L;
     private long mLastReleaseTime = 0;
+    
+    private volatile int mLastThermalStatus = Temperature.THROTTLING_NONE;
 
     private IThermalService mThermalService;
     private final IThermalEventListener mThermalListener = new IThermalEventListener.Stub() {
         @Override
         public void notifyThrottling(Temperature temperature) {
             int status = temperature.getStatus();
+            mLastThermalStatus = status;
             logger("ProcessManager: Thermal event: " + temperature + " (status=" + status + ")");
             if (status != Temperature.THROTTLING_NONE) {
                 releaseMemory();
@@ -77,6 +80,10 @@ public class ProcessManager implements IProcessManager {
     private static final int MSG_PROCESS_PENDING = 1;
 
     public ProcessManager() {
+    }
+
+    public boolean isThermalHigh() {
+        return mLastThermalStatus >= Temperature.THROTTLING_MODERATE;
     }
 
     private void initHandlerThread() {

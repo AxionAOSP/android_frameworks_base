@@ -30,4 +30,8 @@ public interface IProcessManager {
 
     default void updateTopApp(String topPackageName) {
     }
+    
+    default boolean isThermalHigh() {
+        return false;
+    }
 }
