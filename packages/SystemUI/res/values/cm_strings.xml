@@ -212,4 +212,7 @@
     <string name="ringer_vibrate">Vibrate</string>
     <string name="ringer_normal">Ring</string>
     <string name="widget_unknown">Widget</string>
+
+    <!-- Name of the bluetooth battery level status bar setting. -->
+    <string name="status_bar_bluetooth_battery_level">Bluetooth battery level</string>
 </resources>

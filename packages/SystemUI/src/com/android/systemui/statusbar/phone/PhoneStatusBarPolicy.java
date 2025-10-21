@@ -25,6 +25,7 @@ import android.app.AlarmManager.AlarmClockInfo;
 import android.app.NotificationManager;
 import android.app.admin.DevicePolicyManager;
 import android.content.BroadcastReceiver;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -32,6 +33,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.res.Resources;
+import android.database.ContentObserver;
 import android.media.AudioManager;
 import android.net.ConnectivityManager;
 import android.net.Network;
@@ -43,6 +45,8 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.provider.Settings;
+import android.provider.Settings.System;
 import android.provider.Settings.Global;
 import android.service.notification.ZenModeConfig;
 import android.telecom.TelecomManager;
@@ -53,6 +57,7 @@ import androidx.annotation.NonNull;
 import androidx.lifecycle.Observer;
 
 import com.android.internal.statusbar.StatusBarIcon;
+import com.android.systemui.Dependency;
 import com.android.systemui.broadcast.BroadcastDispatcher;
 import com.android.systemui.dagger.qualifiers.DisplayId;
 import com.android.systemui.dagger.qualifiers.Main;
@@ -86,6 +91,7 @@ import com.android.systemui.statusbar.policy.UserInfoController;
 import com.android.systemui.statusbar.policy.ZenModeController;
 import com.android.systemui.statusbar.policy.domain.interactor.ZenModeInteractor;
 import com.android.systemui.statusbar.policy.domain.model.ZenModeInfo;
+import com.android.systemui.tuner.TunerService;
 import com.android.systemui.util.RingerModeTracker;
 import com.android.systemui.util.kotlin.JavaAdapter;
 import com.android.systemui.util.time.DateFormatUtil;
@@ -186,6 +192,8 @@ public class PhoneStatusBarPolicy
     private AlarmClockInfo mNextAlarm;
 
     private NfcAdapter mAdapter;
+
+    private ContentObserver mBluetoothBatteryLevelObserver;
 
     @Inject
     public PhoneStatusBarPolicy(Context context, StatusBarIconController iconController,
@@ -404,6 +412,17 @@ public class PhoneStatusBarPolicy
 
         mCommandQueue.addCallback(this);
 
+        // Register ContentObserver for Bluetooth battery level setting
+        mBluetoothBatteryLevelObserver = new ContentObserver(mHandler) {
+            @Override
+            public void onChange(boolean selfChange) {
+                updateBluetooth();
+            }
+        };
+        mContext.getContentResolver().registerContentObserver(
+                Settings.System.getUriFor(Settings.System.BLUETOOTH_BATTERY_LEVEL),
+                false, mBluetoothBatteryLevelObserver, UserHandle.USER_CURRENT);
+
         // Get initial user setup state
         onUserSetupChanged();
     }
@@ -575,7 +594,10 @@ public class PhoneStatusBarPolicy
             if (mBluetooth.isBluetoothConnected()
                     && (mBluetooth.isBluetoothAudioActive()
                     || !mBluetooth.isBluetoothAudioProfileOnly())) {
-                int batteryLevel = mBluetooth.getBatteryLevel();
+                // Check if Bluetooth battery level display is enabled
+            boolean showBatteryLevel = Dependency.get(TunerService.class).getValue(
+                    "system:bluetooth_battery_level", 1) != 0;
+            int batteryLevel = showBatteryLevel ? mBluetooth.getBatteryLevel() : -1;
                 if (batteryLevel == 100) {
                     iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_9;
                 } else if (batteryLevel >= 90) {
@@ -759,12 +781,26 @@ public class PhoneStatusBarPolicy
             new UserTracker.Callback() {
                 @Override
                 public void onUserChanging(int newUser, Context userContext) {
-                    mHandler.post(() -> mUserInfoController.reloadUserInfo());
+                    mHandler.post(() -> {
+                        cleanup();
+                        mUserInfoController.reloadUserInfo();
+                    });
                 }
 
                 @Override
                 public void onUserChanged(int newUser, Context userContext) {
                     mHandler.post(() -> {
+                    // Re-register ContentObserver for new user
+                        mBluetoothBatteryLevelObserver = new ContentObserver(mHandler) {
+                            @Override
+                            public void onChange(boolean selfChange) {
+                                updateBluetooth();
+                            }
+                        };
+                        mContext.getContentResolver().registerContentObserver(
+                                Settings.System.getUriFor(Settings.System.BLUETOOTH_BATTERY_LEVEL),
+                                false, mBluetoothBatteryLevelObserver, UserHandle.USER_CURRENT);
+
                         updateAlarm();
                         updateProfileIcon();
                         onUserSetupChanged();
@@ -964,5 +1000,11 @@ public class PhoneStatusBarPolicy
         }
 
         mIconController.setIconVisibility(mSlotConnectedDisplay, visible);
+    }
+        private void cleanup() {
+        if (mBluetoothBatteryLevelObserver != null) {
+            mContext.getContentResolver().unregisterContentObserver(mBluetoothBatteryLevelObserver);
+            mBluetoothBatteryLevelObserver = null;
+        }
     }
 }
