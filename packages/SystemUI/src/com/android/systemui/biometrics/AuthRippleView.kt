@@ -24,6 +24,8 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Point
+import android.os.UserHandle
+import android.provider.Settings
 import android.util.AttributeSet
 import android.view.View
 import android.view.animation.PathInterpolator
@@ -84,6 +86,13 @@ class AuthRippleView(context: Context?, attrs: AttributeSet?) : View(context, at
             rippleShader.setCenter(value.x.toFloat(), value.y.toFloat())
             field = value
         }
+        
+    private val doRipple 
+        get() = Settings.Secure.getIntForUser(
+            context.contentResolver, 
+            "ripple_unlock_enable", 
+            0, 
+            UserHandle.USER_CURRENT) == 1
 
     init {
         rippleShader.rawProgress = 0f
@@ -281,7 +290,7 @@ class AuthRippleView(context: Context?, attrs: AttributeSet?) : View(context, at
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationStart(animation: Animator) {
                     drawRipple = true
-                    visibility = VISIBLE
+                    visibility = if (doRipple) VISIBLE else GONE
                     NTBoosterController.get().acquireRippleAnimationBoost()
                 }
 
