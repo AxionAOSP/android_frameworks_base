@@ -117,8 +117,8 @@ abstract class NTClockView @JvmOverloads constructor(
 
     val dateTextY: Float
         get() = when (config?.position) {
-            ClockConfigs.Position.ABOVE -> clockDateMarginTop + datePaint.textSize
-            else -> height - clockDateMarginTop - datePaint.textSize
+            ClockConfigs.Position.ABOVE -> dateMarginTop + datePaint.textSize
+            else -> height - dateMarginTop - datePaint.textSize
         }
 
     var dateVisible: Boolean = false
