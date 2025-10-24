@@ -913,10 +913,10 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
                 mNeutral1Override = parseColorOverride(object, "_override_neutral1");
                 mNeutral2Override = parseColorOverride(object, "_override_neutral2");
 
-                mContrast = object.getDouble("_contrast_level");
-                mChromaBoost = object.getDouble("_chroma_boost");
+                mContrast = object.optDouble("_contrast_level", 0.0);
+                mChromaBoost = object.optDouble("_chroma_boost", 0.0);
 
-                mIsFidelityEnabled = object.getBoolean("_fidelity_enabled");
+                mIsFidelityEnabled = object.optBoolean("_fidelity_enabled", false);
 
                 if (DEBUG) {
                     if (mAccent1Override != null) {
@@ -1067,7 +1067,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
             try {
                 JSONObject object = new JSONObject(overlayPackageJson);
                 style = Style.valueOf(
-                        object.getString(OVERLAY_CATEGORY_THEME_STYLE));
+                        object.optString(OVERLAY_CATEGORY_THEME_STYLE, Style.name(Style.TONAL_SPOT)));
                 if (!validStyles.contains(style)) {
                     style = Style.TONAL_SPOT;
                 }
