@@ -72,8 +72,6 @@ public class BoostAdjuster implements IBoostAdjuster {
     private static final HashMap<String, String> sConfig = new HashMap<>();
     private static final HashMap<String, String> sBoosts = new HashMap<>();
     private static final HashMap<String, String> sMinFreqs = new HashMap<>();
-    private static final HashMap<String, String> sSfBoostEnabled = new HashMap<>();
-    private static final HashMap<String, String> sSfBoostDisabled = new HashMap<>();
     private static final HashMap<String, String> sRestrictBackgroundOn = new HashMap<>();
     private static final HashMap<String, String> sRestrictBackgroundOff = new HashMap<>();
     private static final HashMap<String, String> sDefaultsCpu = new HashMap<>();
@@ -176,12 +174,6 @@ public class BoostAdjuster implements IBoostAdjuster {
         sMinFreqs.put(data.sMin, data.uSMin);
         sMinFreqs.put(data.bMin, data.uBMin);
         sMinFreqs.put(data.pMin, data.uPMin);
-
-        sSfBoostEnabled.clear();
-        sSfBoostEnabled.put(CPU_DISPLAY, data.allCores);
-
-        sSfBoostDisabled.clear();
-        sSfBoostDisabled.put(CPU_DISPLAY, data.displayCpus);
 
         sRestrictBackgroundOn.clear();
         sRestrictBackgroundOn.put(CPU_BG, data.bgLimit);
@@ -616,7 +608,6 @@ public class BoostAdjuster implements IBoostAdjuster {
         } finally {
             p.recycle();
         }
-        write(enabled ? sSfBoostEnabled : sSfBoostDisabled);
     }
 
     public void write(HashMap<String, String> values) {

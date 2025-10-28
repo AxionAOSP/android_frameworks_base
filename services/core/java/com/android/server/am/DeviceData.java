@@ -89,7 +89,7 @@ public final class DeviceData {
                 s(fBoost), s(fBoostB), s(fBoostP),
                 s(uSMin), s(uBMin), s(uPMin),
                 s(uSMax), s(uBMax), s(uPMax),
-                cData.bgCpus, cData.fgCpus, cData.displayCpus,
+                cData.bgCpus, cData.fgCpus,
                 cData.bgLimit, cData.uiLimit,
                 gGpuBoost, sGpuBoost
         );
@@ -128,7 +128,6 @@ public final class DeviceData {
 
         public final String bgCpus;
         public final String fgCpus;
-        public final String displayCpus;
 
         public final String bgLimit;
         public final String uiLimit;
@@ -165,7 +164,6 @@ public final class DeviceData {
                 String uPMax,
                 String bgCpus,
                 String fgCpus,
-                String displayCpus,
                 String bgLimit,
                 String uiLimit,
                 int gGpuBoost,
@@ -202,7 +200,6 @@ public final class DeviceData {
 
             this.bgCpus = bgCpus;
             this.fgCpus = fgCpus;
-            this.displayCpus = displayCpus;
 
             this.bgLimit = bgLimit;
             this.uiLimit = uiLimit;
@@ -227,7 +224,6 @@ public final class DeviceData {
 
         public final String bgCpus;
         public final String fgCpus;
-        public final String displayCpus;
         public final String bgLimit;
         public final String uiLimit;
         
@@ -238,7 +234,7 @@ public final class DeviceData {
                 String sMin, String bMin, String pMin,
                 String sMax, String bMax, String pMax,
                 String allCores,
-                String bgCpus, String fgCpus, String displayCpus,
+                String bgCpus, String fgCpus,
                 String bgLimit, String uiLimit, 
                 boolean hasPrime
         ) {
@@ -255,7 +251,6 @@ public final class DeviceData {
             this.allCores = allCores;
             this.bgCpus = bgCpus;
             this.fgCpus = fgCpus;
-            this.displayCpus = displayCpus;
             this.bgLimit = bgLimit;
             this.uiLimit = uiLimit;
             this.hasPrime = hasPrime;
@@ -338,7 +333,7 @@ public final class DeviceData {
 
         String bgCpus = rangeTo(sCores, 3);
         String fgCpus = allCores;
-        String displayCpus = joinRanges(smallR, rangeTo(bCores, 2));
+        String audioCpus = joinRanges(smallR, rangeTo(bCores, 2));
         String boostCpus = joinRanges(bigR, primeR);
 
         String bgLimit = rangeTo(sCores, 2);
@@ -350,7 +345,7 @@ public final class DeviceData {
         propSet("cpu_all", allCores);
         propSet("cpu_bg", bgCpus);
         propSet("cpu_fg", fgCpus);
-        propSet("cpu_display", displayCpus);
+        propSet("cpu_audio", audioCpus);
         propSet("cpu_limit_bg", bgLimit);
         propSet("cpu_limit_ui", uiLimit);
         
@@ -364,7 +359,7 @@ public final class DeviceData {
                 " allCores=" + allCores +
                 " bgCpus=" + bgCpus +
                 " fgCpus=" + fgCpus +
-                " displayCpus=" + displayCpus +
+                " audioCpus=" + audioCpus +
                 " cpu_limit_bg=" + bgLimit +
                 " cpu_limit_ui=" + uiLimit +
                 " hasPrime=" + hasPrime);
@@ -374,7 +369,7 @@ public final class DeviceData {
                 sMin, bMin, pMin,
                 sMax, bMax, pMax,
                 allCores,
-                bgCpus, fgCpus, displayCpus,
+                bgCpus, fgCpus,
                 bgLimit, uiLimit, 
                 hasPrime
         );
