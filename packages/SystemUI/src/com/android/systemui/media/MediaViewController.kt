@@ -210,7 +210,6 @@ class MediaViewController @Inject constructor(
         if (showing) {
             cleanupResources()
         }
-        retry()
     }
     
     override fun onKeyguardGoingAwayChanged(goingAway: Boolean) {
@@ -218,7 +217,6 @@ class MediaViewController @Inject constructor(
         if (goingAway) {
             cleanupResources()
         }
-        retry()
     }
     
     override fun onKeyguardFadingAwayChanged(fadingAway: Boolean) {
@@ -226,7 +224,6 @@ class MediaViewController @Inject constructor(
         if (fadingAway) {
             cleanupResources()
         }
-        retry()
     }
 
     override fun onDozingChanged() {
@@ -272,17 +269,6 @@ class MediaViewController @Inject constructor(
         coroutineScope.launch {
             onMediaStateChanged()
         }
-    }
-
-    fun retry() {
-        mediaScrim.postDelayed({
-            coroutineScope.launch {
-                if (shouldShowMediaArt()) {
-                    dismissingKeyguard = false
-                    onMediaStateChanged()
-                }
-            }
-        }, 500)
     }
 
     private suspend fun onMediaStateChanged() {
