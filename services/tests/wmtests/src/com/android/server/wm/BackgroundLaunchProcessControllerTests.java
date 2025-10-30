@@ -142,7 +142,7 @@ public class BackgroundLaunchProcessControllerTests {
                 BackgroundStartPrivileges.ALLOW_BAL);
         BalVerdict balVerdict = mController.areBackgroundActivityStartsAllowed(
                 mPid, mUid, mPackageName,
-                mAppSwitchState, mBalCheckConfiguration, mInPinnedWindoMode,
+                mAppSwitchState, mBalCheckConfiguration,
                 mHasActivityInVisibleTask, mHasBackgroundActivityStartPrivileges,
                 mLastStopAppSwitchesTime, mLastActivityLaunchTime,
                 mLastActivityFinishTime);
@@ -176,7 +176,7 @@ public class BackgroundLaunchProcessControllerTests {
                 BackgroundStartPrivileges.ALLOW_BAL);
         BalVerdict balVerdict = mController.areBackgroundActivityStartsAllowed(
                 mPid, mUid, mPackageName,
-                mAppSwitchState, mBalCheckConfiguration, mInPinnedWindoMode,
+                mAppSwitchState, mBalCheckConfiguration,
                 mHasActivityInVisibleTask, mHasBackgroundActivityStartPrivileges,
                 mLastStopAppSwitchesTime, mLastActivityLaunchTime,
                 mLastActivityFinishTime);
@@ -207,7 +207,7 @@ public class BackgroundLaunchProcessControllerTests {
         mHasActiveVisibleWindow.add(999);
         BalVerdict balVerdict = mController.areBackgroundActivityStartsAllowed(
                 mPid, mUid, mPackageName,
-                mAppSwitchState, mBalCheckConfiguration, mInPinnedWindoMode,
+                mAppSwitchState, mBalCheckConfiguration,
                 mHasActivityInVisibleTask, mHasBackgroundActivityStartPrivileges,
                 mLastStopAppSwitchesTime, mLastActivityLaunchTime,
                 mLastActivityFinishTime);
