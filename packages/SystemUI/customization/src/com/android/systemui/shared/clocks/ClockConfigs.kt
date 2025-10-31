@@ -32,7 +32,8 @@ object ClockConfigs {
         "GeneralClockView" to ClockStyleConfig(
             Position.ABOVE,
             Align.LEFT,
-            customDateMarginTop = R.dimen.clock_general_date_top_margin
+            customDateMarginTop = R.dimen.clock_general_date_top_margin,
+            customHeightRes = R.dimen.clock_general_height
         ),
         "GraphicClockView" to ClockStyleConfig(
             Position.ABOVE,

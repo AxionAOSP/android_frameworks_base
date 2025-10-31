@@ -54,7 +54,7 @@
     <dimen name="clock_date_text_size">18sp</dimen>
     <dimen name="clock_face_stroke">24dp</dimen>
     <dimen name="clock_general_height">188dp</dimen>
-    <dimen name="clock_general_date_top_margin">22dp</dimen>
+    <dimen name="clock_general_date_top_margin">8dp</dimen>
     <dimen name="clock_general_padding_top">20dp</dimen>
     <dimen name="clock_general_container_padding_top">4dp</dimen>
     <dimen name="clock_general_container_padding_bottom">4dp</dimen>
