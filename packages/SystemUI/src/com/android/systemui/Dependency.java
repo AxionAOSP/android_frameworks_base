@@ -29,6 +29,7 @@ import com.android.systemui.assist.AssistManager;
 import com.android.systemui.broadcast.BroadcastDispatcher;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Background;
+import com.android.systemui.doze.DozeScreenStateEx;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.flags.FeatureFlags;
 import com.android.systemui.fragments.FragmentService;
@@ -153,6 +154,7 @@ public class Dependency {
     @Inject Lazy<StatusBarWindowControllerStore> mStatusBarWindowControllerStoreLazy;
     @Inject Lazy<ScrimUtils> mScrimUtils;
     @Inject Lazy<AxTileProvider> mAxTileProvider;
+    @Inject Lazy<DozeScreenStateEx> mDozeScreenStateEx;
 
     @Inject
     public Dependency() {
@@ -202,6 +204,8 @@ public class Dependency {
                 ScrimUtils.class, mScrimUtils::get);
         mProviders.put(
                 AxTileProvider.class, mAxTileProvider::get);
+        mProviders.put(
+                DozeScreenStateEx.class, mDozeScreenStateEx::get);
         Dependency.setInstance(this);
     }
 

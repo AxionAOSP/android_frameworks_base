@@ -2,19 +2,16 @@ package com.android.systemui.util;
 
 import android.app.ActivityManager;
 import android.hardware.display.AmbientDisplayConfiguration;
-import android.hardware.display.DisplayManager;
 
 public class ScreenAnimationController {
 
     private static ScreenAnimationController sInstance;
 
     private AmbientDisplayConfiguration mAmbientDisplayConfiguration = null;
-    private DisplayManager mDisplayManager = null;
 
     private boolean mPanelExpandedWhenScreenOff = false;
     private boolean mLandscapeWhenScreenOff = false;
     private boolean mIsPressSleepButton = false;
-    private boolean mUnlockAnimPlaying = false;
 
     private ScreenAnimationController() {}
 
@@ -31,13 +28,8 @@ public class ScreenAnimationController {
         mIsPressSleepButton = powerButton;
     }
     
-    public void init(AmbientDisplayConfiguration ambientConfig, DisplayManager displayManager) {
+    public void init(AmbientDisplayConfiguration ambientConfig) {
         mAmbientDisplayConfiguration = ambientConfig;
-        mDisplayManager = displayManager;
-    }
-    
-    public void setAnimationPlaying(boolean playing) {
-        mUnlockAnimPlaying = playing;
     }
     
     public boolean isLandscapeScreenOff() {
@@ -46,16 +38,6 @@ public class ScreenAnimationController {
     
     public boolean isPanelExpandedWhenScreenOff() {
         return mPanelExpandedWhenScreenOff;
-    }
-
-   public boolean isUnlockAnimPlaying() {
-        return mUnlockAnimPlaying;
-    }
-    
-    public int getCurDisplayState() {
-        return mDisplayManager != null 
-            ? mDisplayManager.getDisplay(0).getCommittedState()
-            : 0;
     }
 
     public boolean shouldPlayAnimation() {

@@ -88,7 +88,11 @@ constructor(
 
     private var animatorDurationScale = 1f
     private var shouldAnimateInKeyguard = false
-    private var lightRevealAnimationPlaying = false
+    private var lightRevealAnimationPlaying: Boolean = false
+        set(value) {
+            field = value
+            UnlockedScreenOffAnimationControllerExt.isAnimationPlaying = value
+        }
 
     /**
      * The result of our decision whether to play the screen off animation in
@@ -125,6 +129,7 @@ constructor(
                         }
                         centralSurfaces.unlockedScreenOffAnimationCancel()
                         NTBoosterController.get().releaseUnlockedScreenAnimationOffBoost()
+                        UnlockedScreenOffAnimationControllerExt.onAnimationCancel()
                     }
 
                     override fun onAnimationEnd(animation: Animator) {
@@ -146,7 +151,6 @@ constructor(
                             }
                             lightRevealScrim.revealAmount = 1.0f
                         }
-                        ScreenAnimationController.INSTANCE().setAnimationPlaying(false)
                     }
 
                     override fun onAnimationStart(animation: Animator) {
@@ -154,6 +158,7 @@ constructor(
                             notifShadeWindowControllerLazy.get().windowRootView,
                             CUJ_SCREEN_OFF,
                         )
+                        UnlockedScreenOffAnimationControllerExt.onAnimationStart()
                     }
                 }
             )
@@ -286,6 +291,7 @@ constructor(
         }
         lightRevealAnimator.cancel()
         handler.removeCallbacksAndMessages(null)
+        UnlockedScreenOffAnimationControllerExt.onAnimationEnd()
     }
 
     override fun onFinishedWakingUp() {
@@ -338,6 +344,7 @@ constructor(
                         // #animateInKeyguard.
                         shadeLockscreenInteractorLazy.get().showAodUi()
                     }
+                    UnlockedScreenOffAnimationControllerExt.onAnimationEnd()
                 },
                 (ANIMATE_IN_KEYGUARD_DELAY * animatorDurationScale).toLong(),
             )
@@ -404,7 +411,7 @@ constructor(
         // portrait. If we're in another orientation, disable the screen off animation so we don't
         // animate in the keyguard AOD UI sideways or upside down.
         if (
-            keyguardStateController.isKeyguardScreenRotationAllowed &&
+            keyguardStateController.isKeyguardScreenRotationAllowed ||
                 context.display?.rotation == Surface.ROTATION_0
         ) {
             return Settings.Secure.getIntForUser(context.getContentResolver(), 

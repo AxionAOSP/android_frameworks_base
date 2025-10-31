@@ -45,12 +45,16 @@ interface DisplayTracker {
      * This callback will trigger Callback#onDisplayChanged for a display brightness change.
      */
     fun addBrightnessChangeCallback(callback: Callback, executor: Executor)
+    
+    fun addCommittedStateChangeCallback(callback: Callback, executor: Executor)
 
     /** Remove a [Callback] previously added. */
     fun removeCallback(callback: Callback)
 
     /** Gets the Display with the given displayId */
     fun getDisplay(displayId: Int): Display
+    
+    fun getDefaultDisplayCommittedState(): Int
 
     /** Ćallback for notifying of changes. */
     @WeaklyReferencedCallback
