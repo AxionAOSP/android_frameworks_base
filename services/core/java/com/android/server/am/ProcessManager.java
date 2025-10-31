@@ -51,7 +51,8 @@ public class ProcessManager implements IProcessManager {
 
     private final ArrayList<ServiceRecord> mPendingStartQueue = new ArrayList<>();
     private final Set<String> mWhitelistPackages = new HashSet<>(Arrays.asList(
-            "com.android.axion.widgets"
+            "com.android.axion.widgets",
+            "com.android.edge.bar"
     ));
 
     private String mTopAppProcessName = "";
