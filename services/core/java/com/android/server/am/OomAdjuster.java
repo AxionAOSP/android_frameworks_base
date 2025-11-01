@@ -469,8 +469,8 @@ public class OomAdjuster {
             ProcessList.batchSetOomAdj(procsToOomAdj);
         }
 
-        void setOomAdj(int pid, int uid, int adj, int isSystemApp, int isMainProc) {
-            ProcessList.setOomAdj(pid, uid, adj, isSystemApp, isMainProc);
+        void setOomAdj(int pid, int uid, int adj) {
+            ProcessList.setOomAdj(pid, uid, adj);
         }
 
         void setThreadPriority(int tid, int priority) {
@@ -3634,20 +3634,10 @@ public class OomAdjuster {
             } else {
                 boolean isHighOpt = AxExtServiceFactory.getMemoryManager().isEnableOptHighUsed(app);
                 int targetAdj = AxExtServiceFactory.getMemoryManager().getTargetAdj(app);
-                String packageName = app.info.packageName;
-                String processName = app.processName;
-                int isMainProc = 0;
-                int isSystemApp = 0;
-                if (packageName.equals(processName)) {
-                    isMainProc = 1;
-                }
-                if (app.info.isSystemApp()) {
-                    isSystemApp = 1;
-                }
                 if (isHighOpt && state.getCurAdj() > targetAdj && targetAdj != -1) {
-                    mInjector.setOomAdj(app.getPid(), app.uid, targetAdj, isSystemApp, isMainProc);
+                    mInjector.setOomAdj(app.getPid(), app.uid, targetAdj);
                 } else {
-                   mInjector.setOomAdj(app.getPid(), app.uid, app.mState.getCurAdj(), isSystemApp, isMainProc);
+                    mInjector.setOomAdj(app.getPid(), app.uid, state.getCurAdj());
                 }
             }
 

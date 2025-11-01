@@ -1555,7 +1555,7 @@ public final class ProcessList {
      *
      * {@hide}
      */
-    public static void setOomAdj(int pid, int uid, int amt, int isSystemApp, int isMainProc) {
+    public static void setOomAdj(int pid, int uid, int amt) {
         // This indicates that the process is not started yet and so no need to proceed further.
         if (pid <= 0) {
             return;
@@ -1564,13 +1564,11 @@ public final class ProcessList {
             return;
 
         long start = SystemClock.elapsedRealtime();
-        ByteBuffer buf = ByteBuffer.allocate(4 * 6);
+        ByteBuffer buf = ByteBuffer.allocate(4 * 4);
         buf.putInt(LMK_PROCPRIO);
         buf.putInt(pid);
         buf.putInt(uid);
         buf.putInt(amt);
-        buf.putInt(isSystemApp);
-        buf.putInt(isMainProc);
         writeLmkd(buf, null);
         long now = SystemClock.elapsedRealtime();
         if ((now-start) > 250) {
@@ -1584,7 +1582,7 @@ public final class ProcessList {
     private static final int MAX_PROCS_PRIO_PACKET_SIZE = 3;
 
     // (4 bytes per field * 4 fields * 3 processes per batch) + 4 bytes for the LMKD cmd
-    private static final int MAX_OOM_ADJ_BATCH_LENGTH = ((4 * 6) * MAX_PROCS_PRIO_PACKET_SIZE) + 4;
+    private static final int MAX_OOM_ADJ_BATCH_LENGTH = ((4 * 4) * MAX_PROCS_PRIO_PACKET_SIZE) + 4;
 
     /**
      * Set the out-of-memory badness adjustment for a list of processes.
@@ -1619,21 +1617,9 @@ public final class ProcessList {
                 buf.allocate(MAX_OOM_ADJ_BATCH_LENGTH);
                 buf.putInt(LMK_PROCS_PRIO);
             }
-            String packageName = apps.get(i).info.packageName;
-            String processName = apps.get(i).processName;
-            int isMainProc = 0;
-            int isSystemApp = 0;
-            if (packageName.equals(processName)) {
-                isMainProc = 1;
-            }
-            if (apps.get(i).info.isSystemApp()) {
-                isSystemApp = 1;
-            }
             buf.putInt(pid);
             buf.putInt(uid);
             buf.putInt(amt);
-            buf.putInt(isSystemApp);
-            buf.putInt(isMainProc);
             buf.putInt(0);  // Default proc type to PROC_TYPE_APP
             total_procs_in_buf++;
         }
