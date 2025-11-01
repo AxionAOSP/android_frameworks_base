@@ -95,7 +95,6 @@ import com.android.systemui.util.settings.SystemSettings;
 
 import com.google.ux.material.libmonet.dynamiccolor.DynamicColor;
 import com.google.ux.material.libmonet.dynamiccolor.MaterialDynamicColors;
-import com.google.ux.material.libmonet.hct.Cam16;
 
 import kotlinx.coroutines.flow.Flow;
 import kotlinx.coroutines.flow.StateFlow;
@@ -134,12 +133,6 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
     protected static final String TAG = "ThemeOverlayController";
     private static final boolean DEBUG = true;
     
-    private Integer mAccent1Override = null;
-    private Integer mAccent2Override = null;
-    private Integer mAccent3Override = null;
-    private Integer mNeutral1Override = null;
-    private Integer mNeutral2Override = null;
-
     private final ThemeOverlayApplier mThemeManager;
     private final UserManager mUserManager;
     private final BroadcastDispatcher mBroadcastDispatcher;
@@ -759,50 +752,21 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
 
     protected FabricatedOverlay createNeutralOverlay() {
         FabricatedOverlay overlay = newFabricatedOverlay("neutral");
-        
-        TonalPalette neutral1 = (mNeutral1Override != null)
-            ? createTonalPaletteFromColor(mNeutral1Override)
-            : mColorScheme.getNeutral1();
-        
-        TonalPalette neutral2 = (mNeutral2Override != null)
-            ? createTonalPaletteFromColor(mNeutral2Override)
-            : mColorScheme.getNeutral2();
-        
-        assignTonalPaletteToOverlay("neutral1", overlay, neutral1);
-        assignTonalPaletteToOverlay("neutral2", overlay, neutral2);
-        
+
+        assignTonalPaletteToOverlay("neutral1", overlay, mColorScheme.getNeutral1());
+        assignTonalPaletteToOverlay("neutral2", overlay, mColorScheme.getNeutral2());
+
         return overlay;
     }
 
     protected FabricatedOverlay createAccentOverlay() {
         FabricatedOverlay overlay = newFabricatedOverlay("accent");
-        
-        TonalPalette accent1 = (mAccent1Override != null) 
-            ? createTonalPaletteFromColor(mAccent1Override)
-            : mColorScheme.getAccent1();
-        
-        TonalPalette accent2 = (mAccent2Override != null)
-            ? createTonalPaletteFromColor(mAccent2Override)
-            : mColorScheme.getAccent2();
-        
-        TonalPalette accent3 = (mAccent3Override != null)
-            ? createTonalPaletteFromColor(mAccent3Override)
-            : mColorScheme.getAccent3();
-        
-        assignTonalPaletteToOverlay("accent1", overlay, accent1);
-        assignTonalPaletteToOverlay("accent2", overlay, accent2);
-        assignTonalPaletteToOverlay("accent3", overlay, accent3);
-        
+
+        assignTonalPaletteToOverlay("accent1", overlay, mColorScheme.getAccent1());
+        assignTonalPaletteToOverlay("accent2", overlay, mColorScheme.getAccent2());
+        assignTonalPaletteToOverlay("accent3", overlay, mColorScheme.getAccent3());
+
         return overlay;
-    }
-
-    private TonalPalette createTonalPaletteFromColor(int processedColor) {
-        Cam16 cam = Cam16.fromInt(processedColor);
-
-        com.google.ux.material.libmonet.palettes.TonalPalette materialPalette =
-                com.google.ux.material.libmonet.palettes.TonalPalette.fromHueAndChroma(cam.getHue(), cam.getChroma());
-
-        return new TonalPalette(materialPalette);
     }
 
     private void assignTonalPaletteToOverlay(String name, FabricatedOverlay overlay,
@@ -907,34 +871,10 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
             try {
                 JSONObject object = new JSONObject(overlayPackageJson);
                 
-                mAccent1Override = parseColorOverride(object, "_override_accent1");
-                mAccent2Override = parseColorOverride(object, "_override_accent2");
-                mAccent3Override = parseColorOverride(object, "_override_accent3");
-                mNeutral1Override = parseColorOverride(object, "_override_neutral1");
-                mNeutral2Override = parseColorOverride(object, "_override_neutral2");
-
                 mContrast = object.optDouble("_contrast_level", 0.0);
                 mChromaBoost = object.optDouble("_chroma_boost", 0.0);
 
                 mIsFidelityEnabled = object.optBoolean("_fidelity_enabled", false);
-
-                if (DEBUG) {
-                    if (mAccent1Override != null) {
-                        Log.d(TAG, "Accent1 override (processed): #" + Integer.toHexString(mAccent1Override));
-                    }
-                    if (mAccent2Override != null) {
-                        Log.d(TAG, "Accent2 override (processed): #" + Integer.toHexString(mAccent2Override));
-                    }
-                    if (mAccent3Override != null) {
-                        Log.d(TAG, "Accent3 override (processed): #" + Integer.toHexString(mAccent3Override));
-                    }
-                    if (mNeutral1Override != null) {
-                        Log.d(TAG, "Neutral1 override (processed): #" + Integer.toHexString(mNeutral1Override));
-                    }
-                    if (mNeutral2Override != null) {
-                        Log.d(TAG, "Neutral2 override (processed): #" + Integer.toHexString(mNeutral2Override));
-                    }
-                }
 
                 for (String category : ThemeOverlayApplier.THEME_CATEGORIES) {
                     if (object.has(category)) {
@@ -1167,21 +1107,5 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
         pw.println("mAcceptColorEvents=" + mAcceptColorEvents);
         pw.println("mDeferredThemeEvaluation=" + mDeferredThemeEvaluation);
         pw.println("mThemeStyle=" + mThemeStyle);
-        pw.println("Palette Overrides:");
-        if (mAccent1Override != null) {
-            pw.println("    Accent1: #" + Integer.toHexString(mAccent1Override));
-        }
-        if (mAccent2Override != null) {
-            pw.println("    Accent2: #" + Integer.toHexString(mAccent2Override));
-        }
-        if (mAccent3Override != null) {
-            pw.println("    Accent3: #" + Integer.toHexString(mAccent3Override));
-        }
-        if (mNeutral1Override != null) {
-            pw.println("    Neutral1: #" + Integer.toHexString(mNeutral1Override));
-        }
-        if (mNeutral2Override != null) {
-            pw.println("    Neutral2: #" + Integer.toHexString(mNeutral2Override));
-        }
     }
 }
