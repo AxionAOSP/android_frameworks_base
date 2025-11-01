@@ -247,33 +247,61 @@ public class AxUtils {
         }
     }
 
-    public static long getPhysicalMemory() {
+    private static long parseMemTotalKb() {
         try (BufferedReader reader = new BufferedReader(new FileReader("/proc/meminfo"))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.startsWith("MemTotal:")) {
-                    long memTotal = Long.parseLong(
+                    return Long.parseLong(
                         line.substring(line.indexOf(":") + 1, line.indexOf("kB")).trim());
-
-                    long physicalMem = MEM_6GB;
-                    if (memTotal > MEM_12GB) {
-                        physicalMem = MEM_16GB;
-                    } else if (memTotal > MEM_10GB) {
-                        physicalMem = MEM_12GB;
-                    } else if (memTotal > MEM_8GB) {
-                        physicalMem = MEM_10GB;
-                    } else if (memTotal > MEM_6GB) {
-                        physicalMem = MEM_8GB;
-                    }
-
-                    logger("Total: " + memTotal + ", Physical: " + physicalMem);
-                    return physicalMem;
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            logger("parseMemTotalKb failed: " + e);
         }
         return -1;
+    }
+
+    public static long getPhysicalMemory() {
+        long memTotal = parseMemTotalKb();
+        if (memTotal <= 0) return -1;
+
+        long physicalMem = MEM_6GB;
+        if (memTotal > MEM_12GB) {
+            physicalMem = MEM_16GB;
+        } else if (memTotal > MEM_10GB) {
+            physicalMem = MEM_12GB;
+        } else if (memTotal > MEM_8GB) {
+            physicalMem = MEM_10GB;
+        } else if (memTotal > MEM_6GB) {
+            physicalMem = MEM_8GB;
+        }
+
+        logger("getPhysicalMemory: MemTotal=" + memTotal + "KB, Physical=" + physicalMem);
+        return physicalMem;
+    }
+
+    public static int getMemTotal() {
+        long memTotalKb = parseMemTotalKb();
+        if (memTotalKb <= 0) return -1;
+
+        float usableGb = memTotalKb / 1024f / 1024f;
+
+        // common factor - here, we assume that memtotal reprorts 
+        // at least 93.5 % of the total memory size due to reserved memory 
+        // for gpu and other stuffs
+        float factor = 0.935f;  
+
+        float estimatedGb = usableGb / factor;
+
+        // i have nver seen a marketed ram size for android with odd number except for 1 gb
+        int memGb = (int) Math.ceil(estimatedGb);
+        if (memGb % 2 != 0) memGb++;
+
+        logger("getMemTotal: MemTotal=" + memTotalKb + "KB, usable=" + usableGb
+               + "GB → estimated=" + estimatedGb + "GB → reported=" + memGb + "GB (even)");
+
+        return memGb;
     }
 
     public static boolean isPreferredAppsSupported() {

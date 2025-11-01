@@ -57,6 +57,7 @@ public final class DeviceData {
         mContext = NtServiceInjector.get().getContext();
         cData = initCpuProps();
         initGpuData();
+        initDeviceMemoryData();
     }
 
     public BoostData getData() {
@@ -392,6 +393,13 @@ public final class DeviceData {
         propSet("gpu_levels", String.valueOf(gpuAvailableFreqs.length));
         logger("initGpuData: GPU available freqs=" + String.join(",", gpuAvailableFreqs) +
                 " gpu_levels=" + gpuAvailableFreqs.length);
+    }
+    
+    private void initDeviceMemoryData() {
+        int memGb = AxUtils.getMemTotal();
+        if (memGb <= 0) return;
+        AxUtils.propSetF("persist.sys.device_ram_size", String.valueOf(memGb));
+        AxUtils.logger("initDeviceMemoryData: RAM size data: " + memGb + "GB");
     }
 
     public void boostGpu(int level) {
