@@ -68,7 +68,6 @@ import android.util.Slog;
 import com.android.internal.logging.MetricsLogger;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.internal.util.IndentingPrintWriter;
-import com.android.server.AxExtServiceFactory;
 import com.android.server.LocalManagerRegistry;
 import com.android.server.LocalServices;
 import com.android.server.art.ArtManagerLocal;
@@ -362,21 +361,6 @@ public final class DexOptHelper {
         ArrayList<PackageStateInternal> sortTemp = new ArrayList<>(remainingPkgSettings.size());
 
         final Computer snapshot = packageManagerService.snapshotComputer();
-
-        Log.i("PackageManager", "[OTADexopt]: getPackagesForOtaDexopt para topN = " + topN);
-        if (topN > 0) {
-            final ArrayList<String> topUsedApps = new ArrayList<>();
-            topUsedApps.addAll(AxExtServiceFactory.getAppUsageManager().getHighUsedPackageList(false));
-            topUsedApps.addAll(AxExtServiceFactory.getAppUsageManager().getGeneralUsedPackageList(false));
-            for (int index = topUsedApps.size() - 1; index >= topN; index--) {
-                topUsedApps.remove(index);
-            }
-            applyPackageFilter(snapshot, pkgSetting -> topUsedApps.contains(pkgSetting.getPackageName()), result, remainingPkgSettings, sortTemp, packageManagerService);
-        }
-        if (debug) {
-            Log.i("PackageManager", "[OTADexopt]dexopt topUsedApps size: " + result.size());
-            Log.i("PackageManager", "[OTADexopt]topUsedApps added to important pkgs: " + packagesToString(result));
-        }
 
         // Give priority to core apps.
         applyPackageFilter(snapshot, pkgSetting -> pkgSetting.getPkg().isCoreApp(), result,

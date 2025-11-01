@@ -20,7 +20,6 @@ import android.content.Context;
 import com.android.server.am.*;
 import com.android.server.pm.*;
 import com.android.server.wm.WindowManagerService;
-import com.android.server.INtAppUsageManager;
 
 public class AxExtServiceFactory {
     private static AxExtServiceFactory sInstance = null;
@@ -28,7 +27,6 @@ public class AxExtServiceFactory {
     private static final Object sLock = new Object();
 
     private static volatile INtMemoryManager sNtMemoryManager;
-    private static volatile INtAppUsageManager sNtAppUsageManager;
     private static volatile IBoostAdjuster sBoostAdjuster;
     private static volatile IProcessManager sProcessManager;
     private static volatile IUxPerformance sUxPerformance;
@@ -78,17 +76,6 @@ public class AxExtServiceFactory {
                 instance = sNtMemoryManager;
                 break;
 
-            case NT_APP_USAGE_MANAGER:
-                if (sNtAppUsageManager == null) {
-                    synchronized (sLock) {
-                        if (sNtAppUsageManager == null) {
-                            sNtAppUsageManager = new NtAppUsageManagerImpl();
-                        }
-                    }
-                }
-                instance = sNtAppUsageManager;
-                break;
-
             case BOOST_ADJUSTER:
                 if (sBoostAdjuster == null) {
                     synchronized (sLock) {
@@ -131,7 +118,6 @@ public class AxExtServiceFactory {
 
     public static void systemReady() {
         getProcessManager().systemReady();
-        getAppUsageManager().systemReady();
     }
     
     public static void onLateSystemReady() {
@@ -142,10 +128,6 @@ public class AxExtServiceFactory {
 
     public static INtMemoryManager getMemoryManager() {
         return getOrCreate(IAxExtServiceFactory.ExtType.NT_MEMORY_MANAGER);
-    }
-
-    public static INtAppUsageManager getAppUsageManager() {
-        return getOrCreate(IAxExtServiceFactory.ExtType.NT_APP_USAGE_MANAGER);
     }
 
     public static IBoostAdjuster getBoostAdjuster() {

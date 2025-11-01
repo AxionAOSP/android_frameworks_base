@@ -100,7 +100,6 @@ import com.android.internal.util.FastPrintWriter;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.internal.util.MemInfoReader;
 import com.android.internal.util.QuickSelect;
-import com.android.server.AxExtServiceFactory;
 import com.android.server.am.LowMemDetector.MemFactor;
 import com.android.server.power.stats.BatteryStatsImpl;
 import com.android.server.utils.PriorityDump;
@@ -930,7 +929,6 @@ public class AppProfiler {
             profile.setInitialIdlePssOrRss(pss);
         }
         profile.setLastPss(pss);
-        AxExtServiceFactory.getAppUsageManager().setLastCachedPss(proc.processName, pss);
         profile.setLastSwapPss(swapPss);
         if (procState >= ActivityManager.PROCESS_STATE_HOME) {
             profile.setLastCachedPss(pss);

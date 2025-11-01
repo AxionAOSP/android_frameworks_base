@@ -3301,71 +3301,6 @@ public class ActivityManagerService extends IActivityManager.Stub
         return mActivityTaskManager.startActivityFromRecents(taskId, bOptions);
     }
 
-    public int startActivityAsUserEmpty(Bundle options) {
-        final boolean DEBUG_NMM = NtMemoryManagerImpl.DEBUG;
-        ArrayList<String> pApps = options.getStringArrayList("start_empty_apps");
-        boolean isFromHighUsage = options.getBoolean("fork_high", false);
-        if (DEBUG_NMM) Slog.d("NtMemoryManager", "prefork attempt pApps= " + pApps + " isFromHighUsage=" + isFromHighUsage);
-        if (pApps != null && pApps.size() > 0) {
-            Iterator<String> apps_itr = pApps.iterator();
-            while (apps_itr.hasNext()) {
-                ProcessRecord empty_app = null;
-                String app_str = apps_itr.next();
-                if (app_str == null) {
-                    if (DEBUG_NMM) Slog.d("NtMemoryManager", "app is null. skipping pre-fork");
-                    continue;
-                }
-                synchronized (this) {
-                    Intent intent_l = null;
-                    try {
-                        intent_l = mContext.getPackageManager().getLaunchIntentForPackage(app_str);
-                        if (intent_l == null) {
-                            if (DEBUG_NMM) Slog.d("NtMemoryManager", "intent null. skipping pre-fork");
-                            continue;
-                        }
-                        ActivityInfo aInfo = mActivityTaskManager.mTaskSupervisor.resolveActivity(intent_l, null,
-                                                                          0, null, 0, 0, Binder.getCallingPid());
-                        if (aInfo == null) {
-                            if (DEBUG_NMM) Slog.d("NtMemoryManager", "aiInfo is null. skipping pre-fork");
-                            continue;
-                        }
-                        if (isFromHighUsage) {
-                            ProcessRecord pr = mProcessList.getProcessRecordLocked(
-                                    app_str, aInfo.applicationInfo.uid);
-                            if (pr != null) {
-                                if (DEBUG_NMM) Slog.d("NtMemoryManager", pr.processName + " already exist, don't need to pre-fork");
-                                continue;
-                            }
-                        }
-                        if (isFromHighUsage || AxExtServiceFactory.getMemoryManager().isEnablePreFork(mAppProfiler.getLastMemoryLevelLocked())) {
-                            if (DEBUG_NMM) Slog.d("NtMemoryManager", "Start pre fork for " + app_str);
-                            empty_app = startProcessLocked(
-                                app_str,
-                                aInfo.applicationInfo,
-                                false /* knownToBeDead */,
-                                0 /* intentFlags */,
-                               sNullHostingRecord /* hostingRecord */,
-                               ZYGOTE_POLICY_FLAG_EMPTY /* zygotePolicyFlags */,
-                               false /* allowWhileBooting */,
-                               false /* isolated */);
-                            if (empty_app != null) {
-                                updateOomAdjLocked(empty_app, OOM_ADJ_REASON_SYSTEM_INIT);
-                                if (isFromHighUsage) {
-                                    empty_app.isForkedFromHighUsed = true;
-                                    if (DEBUG_NMM) Slog.d("NtMemoryManager", "start high used after booting: " + app_str);
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        if (DEBUG_PROCESSES)
-                            Slog.w(TAG, "Exception raised trying to start app as empty " + e);
-                    }
-                }
-            }
-        }
-        return 1;
-    }
-
     /**
      * This is the internal entry point for handling Activity.finish().
      *
@@ -3543,9 +3478,6 @@ public class ActivityManagerService extends IActivityManager.Stub
                         + ProcessList.makeOomAdjString(setAdj, true) + " "
                         + ProcessList.makeProcStateString(setProcState), app.info.uid);
                 mAppProfiler.setAllowLowerMemLevelLocked(true);
-                if (app.mState.hasShownUi() && AxExtServiceFactory.getAppUsageManager().isHighUsedPackages(app.info.packageName)) {
-                    AxExtServiceFactory.getAppUsageManager().appDied(app);
-                }
             } else {
                 // Note that we always want to do oom adj to update our state with the
                 // new number of procs.
@@ -17147,7 +17079,6 @@ public class ActivityManagerService extends IActivityManager.Stub
                             && !pr.mState.hasStartedServices()) {
                         pr.killLocked("remove task", ApplicationExitInfo.REASON_USER_REQUESTED,
                                 ApplicationExitInfo.SUBREASON_REMOVE_TASK, true);
-                        AxExtServiceFactory.getAppUsageManager().setRemoveTaskTime(pr.info.packageName);
                     } else {
                         // We delay killing processes that are not in the background or running a
                         // receiver.

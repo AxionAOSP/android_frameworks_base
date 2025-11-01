@@ -16,24 +16,9 @@
 package com.android.server.am;
 
 import android.content.Context;
-import com.android.server.wm.WindowManagerService;
 
 public interface INtMemoryManager {
     default void systemReady() {
-    }
-
-    default void setForkProcAdj(ProcessRecord app) {
-    }
-
-    default boolean isEnableOptHighUsed(ProcessRecord app) {
-        return false;
-    }
-
-    default boolean isEnableOptHighUsed() {
-        return false;
-    }
-
-    default void setOptAdj(ProcessRecord app) {
     }
 
     default void boostCamera(boolean isColdStart) {
@@ -45,34 +30,10 @@ public interface INtMemoryManager {
     default void loadProcessMemory(String packageName) {
     }
 
-    default int getTargetAdj(ProcessRecord p) {
-        return -1;
-    }
-
-    default int[] getOptiAdjs() {
-        return null;
-    }
-
-    default boolean isEnablePreFork(int memoryLevel) {
-        return true;
-    }
-
-    default void setHighPressureScene(String pkgName) {
-    }
-    
-    default void scheduleForkHighUsedApps() {
-    }
-    
     default void releaseMemory(int i, int i2, boolean b, boolean b2) {
     }
     
     default long getPhysicalMemory() {
         return 8388608;
-    }
-    
-    default void addForkedHighUsageProcess(ProcessRecord app) {
-    }
-    
-    default void tuneLmkdParam(String str) {
     }
 }

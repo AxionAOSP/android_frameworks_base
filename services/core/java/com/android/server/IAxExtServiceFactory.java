@@ -20,7 +20,6 @@ import com.android.server.am.*;
 public interface IAxExtServiceFactory {
     enum ExtType {
         NT_MEMORY_MANAGER(INtMemoryManager.class),
-        NT_APP_USAGE_MANAGER(INtAppUsageManager.class),
         BOOST_ADJUSTER(IBoostAdjuster.class),
         PROCESS_MANAGER(IProcessManager.class),
         UX_PERFORMANCE(IUxPerformance.class);

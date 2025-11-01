@@ -157,7 +157,6 @@ import com.android.server.AppSchedulingModuleThread;
 import com.android.server.AppStateTracker;
 import com.android.server.AppStateTrackerImpl;
 import com.android.server.AppStateTrackerImpl.Listener;
-import com.android.server.AxExtServiceFactory;
 import com.android.server.DeviceIdleInternal;
 import com.android.server.EventLogTags;
 import com.android.server.LocalServices;
@@ -2877,7 +2876,6 @@ public class AlarmManagerService extends SystemService {
             // of confidence, but since the time should come either from apps working on behalf of
             // the user or a developer, confidence is assumed "high".
             final int timeConfidence = TIME_CONFIDENCE_HIGH;
-            AxExtServiceFactory.getAppUsageManager().cleanAllData(millis);
             return setTimeImpl(millis, timeConfidence, "AlarmManager.setTime() called");
         }
 
