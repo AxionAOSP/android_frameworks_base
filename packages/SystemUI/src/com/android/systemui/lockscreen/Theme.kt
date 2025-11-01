@@ -22,6 +22,7 @@ import android.content.Context
 import android.content.res.Resources
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.media.AudioManager
 import androidx.core.content.ContextCompat
 import com.android.systemui.res.R
 import androidx.compose.foundation.*
@@ -44,7 +45,7 @@ class Theme(val night: Boolean) {
 
     val activeBg @Composable get() = if (night) a100 else a600
     val neutralBg @Composable get() = if (night) n900 else n50
-    val activeIcon @Composable get() = if (night) a600 else a100
+    val activeIcon @Composable get() = if (night) n900 else n50
     val neutralIcon @Composable get() = if (night) n50 else n900
 }
 
@@ -55,7 +56,11 @@ fun rememberTheme(): Theme {
 }
 
 @Composable
-fun WidgetIcon(action: WidgetAction, isActive: Boolean): ImageVector {
+fun WidgetIcon(
+    action: WidgetAction, 
+    isActive: Boolean, 
+    ctrl: LockScreenWidgetsController? = null
+): ImageVector {
     return when (action) {
         WidgetAction.WIFI ->
             if (isActive) Icons.Filled.Wifi else Icons.Filled.WifiOff
@@ -69,8 +74,14 @@ fun WidgetIcon(action: WidgetAction, isActive: Boolean): ImageVector {
         WidgetAction.TORCH ->
             if (isActive) Icons.Filled.FlashlightOn else Icons.Filled.FlashlightOff
 
-        WidgetAction.RINGER ->
-            if (isActive) Icons.Filled.Vibration else Icons.Filled.VolumeUp
+        WidgetAction.RINGER -> {
+            val mode = ctrl?.states?.getRingerMode() ?: AudioManager.RINGER_MODE_NORMAL
+            when (mode) {
+                AudioManager.RINGER_MODE_VIBRATE -> Icons.Filled.Vibration
+                AudioManager.RINGER_MODE_SILENT -> Icons.Filled.VolumeOff
+                else -> Icons.Filled.VolumeUp
+            }
+        }
 
         WidgetAction.HOTSPOT ->
             if (isActive) Icons.Filled.WifiTethering else Icons.Filled.WifiTetheringOff

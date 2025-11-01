@@ -60,7 +60,7 @@ fun WidgetSmall(
             ),
         contentAlignment = Alignment.Center
     ) {
-        WidgetIcon(spec, iconTint, theme, active, dimens)
+        WidgetIcon(spec, iconTint, theme, active, dimens, ctrl)
     }
 }
 
@@ -73,8 +73,14 @@ fun WidgetPill(
     theme: Theme,
     dimens: Dimens,
     ctrl: LockScreenWidgetsController,
-    active: Boolean
+    active: Boolean,
+    isDozing: Boolean
 ) {
+    if (spec.action == WidgetAction.RINGER) {
+        RingerSliderWidget(spec, bgColor, border, iconTint, theme, dimens, ctrl, active, isDozing)
+        return
+    }
+    
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(dimens.spacingDp),
@@ -90,7 +96,7 @@ fun WidgetPill(
             )
             .padding(horizontal = dimens.labelStartDp)
     ) {
-        WidgetIcon(spec, iconTint, theme, active, dimens)
+        WidgetIcon(spec, iconTint, theme, active, dimens, ctrl)
         WidgetLabel(
             action = spec.action,
             tintColor = iconTint,
@@ -107,9 +113,10 @@ fun WidgetIcon(
     tintColor: Color,
     theme: Theme,
     active: Boolean,
-    dimens: Dimens
+    dimens: Dimens,
+    ctrl: LockScreenWidgetsController
 ) {
-    val iconVector = WidgetIcon(spec.action, active)
+    val iconVector = WidgetIcon(spec.action, active, ctrl) 
     Icon(
         imageVector = iconVector,
         contentDescription = stringResource(spec.action.labelRes),

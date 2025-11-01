@@ -59,10 +59,13 @@ enum class WidgetAction(
         labelRes = R.string.widget_ringer,
         onClick = { ctrl ->
             val current = ctrl.audioManager.ringerMode
-            val next = if (current == AudioManager.RINGER_MODE_NORMAL)
-                AudioManager.RINGER_MODE_VIBRATE else AudioManager.RINGER_MODE_NORMAL
-            ctrl.audioManager.ringerMode = next
-            ctrl.states.setActive(RINGER, next == AudioManager.RINGER_MODE_VIBRATE)
+            val next = when (current) {
+                AudioManager.RINGER_MODE_NORMAL -> AudioManager.RINGER_MODE_VIBRATE
+                AudioManager.RINGER_MODE_VIBRATE -> AudioManager.RINGER_MODE_SILENT
+                else -> AudioManager.RINGER_MODE_NORMAL
+            }
+            ctrl.audioManager.ringerModeInternal = next
+            ctrl.states.setRingerMode(next)
         },
         registerCallback = {
             runCatching {
@@ -79,8 +82,11 @@ enum class WidgetAction(
         },
         activeLabel = { ctrl ->
             stringResource(
-                if (ctrl.audioManager.ringerMode == AudioManager.RINGER_MODE_VIBRATE)
-                    R.string.ringer_vibrate else R.string.ringer_normal
+                when (ctrl.states.getRingerMode()) {
+                    AudioManager.RINGER_MODE_VIBRATE -> R.string.ringer_vibrate
+                    AudioManager.RINGER_MODE_SILENT -> R.string.ringer_silent
+                    else -> R.string.ringer_normal
+                }
             )
         }
     ),

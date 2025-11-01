@@ -62,8 +62,8 @@ class LsWidgetsCallbacksController(private val ctrl: LockScreenWidgetsController
 
     val ringerModeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            val isVibrate = ctrl.audioManager.ringerMode == AudioManager.RINGER_MODE_VIBRATE
-            ctrl.states.setActive(WidgetAction.RINGER, isVibrate)
+            val mode = ctrl.audioManager.ringerMode
+            ctrl.states.setRingerMode(mode)
         }
     }
 

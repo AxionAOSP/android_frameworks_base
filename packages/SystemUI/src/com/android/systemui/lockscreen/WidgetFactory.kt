@@ -197,6 +197,6 @@ class WidgetFactory(
             else Modifier
         }
 
-        spec.type.content(spec, bgColor, border, iconTint, theme, dimens, ctrl, isActive)
+        spec.type.content(spec, bgColor, border, iconTint, theme, dimens, ctrl, isActive, dozing)
     }
 }

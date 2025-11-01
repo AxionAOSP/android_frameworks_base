@@ -50,19 +50,20 @@ enum class WidgetType(
         theme: Theme,
         dimens: Dimens,
         ctrl: LockScreenWidgetsController,
-        active: Boolean
+        active: Boolean,
+        isDozing: Boolean
     ) -> Unit
 ) {
     SMALL(
         span = 1,
-        content = { spec, bg, border, tint, theme, dimens, ctrl, active ->
+        content = { spec, bg, border, tint, theme, dimens, ctrl, active, isDozing ->
             WidgetSmall(spec, bg, border, tint, theme, dimens, ctrl, active)
         }
     ),
     PILL(
         span = 2,
-        content = { spec, bg, border, tint, theme, dimens, ctrl, active ->
-            WidgetPill(spec, bg, border, tint, theme, dimens, ctrl, active)
+        content = { spec, bg, border, tint, theme, dimens, ctrl, active, isDozing ->
+            WidgetPill(spec, bg, border, tint, theme, dimens, ctrl, active, isDozing)
         }
     );
     

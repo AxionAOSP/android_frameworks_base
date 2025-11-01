@@ -15,14 +15,18 @@
  */
 package com.android.systemui.lockscreen
 
+import android.media.AudioManager
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableIntStateOf
 
 class WidgetStates {
     private val _activeStates: SnapshotStateMap<WidgetAction, MutableState<Boolean>> =
         mutableStateMapOf()
+    
+    private val _ringerMode = mutableIntStateOf(AudioManager.RINGER_MODE_NORMAL)
 
     fun setActive(action: WidgetAction, active: Boolean) {
         val state = _activeStates.getOrPut(action) { mutableStateOf(active) }
@@ -31,8 +35,22 @@ class WidgetStates {
         }
     }
 
-    fun isActive(action: WidgetAction): Boolean = _activeStates[action]?.value ?: false
+    fun isActive(action: WidgetAction): Boolean {
+        if (action == WidgetAction.RINGER) {
+            return _ringerMode.intValue != AudioManager.RINGER_MODE_NORMAL
+        }
+        return _activeStates[action]?.value ?: false
+    }
 
     fun getState(action: WidgetAction): MutableState<Boolean> =
         _activeStates.getOrPut(action) { mutableStateOf(false) }
+
+    fun setRingerMode(mode: Int) {
+        if (_ringerMode.intValue != mode) {
+            _ringerMode.intValue = mode
+            setActive(WidgetAction.RINGER, mode != AudioManager.RINGER_MODE_NORMAL)
+        }
+    }
+
+    fun getRingerMode(): Int = _ringerMode.intValue
 }

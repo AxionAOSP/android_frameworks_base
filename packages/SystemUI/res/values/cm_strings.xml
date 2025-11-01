@@ -210,7 +210,8 @@
     <string name="widget_bluetooth">Bluetooth</string>
     <string name="widget_ringer">Ringer</string>
     <string name="ringer_vibrate">Vibrate</string>
-    <string name="ringer_normal">Ring</string>
+    <string name="ringer_silent">Silent</string>
+    <string name="ringer_normal">Sound</string>
     <string name="widget_unknown">Widget</string>
 
     <!-- Name of the bluetooth battery level status bar setting. -->
