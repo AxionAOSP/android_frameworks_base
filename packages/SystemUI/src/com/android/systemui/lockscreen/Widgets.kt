@@ -77,7 +77,7 @@ fun WidgetPill(
     isDozing: Boolean
 ) {
     if (spec.action == WidgetAction.RINGER) {
-        RingerSliderWidget(spec, bgColor, border, iconTint, theme, dimens, ctrl, active, isDozing)
+        LockscreenRingerSliderWidget(spec, border, theme, dimens, ctrl, isDozing)
         return
     }
     
