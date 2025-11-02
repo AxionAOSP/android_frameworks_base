@@ -98,8 +98,6 @@ import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleRegistry;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.app.IGameSpaceCallback;
-import com.android.internal.app.IGameSpaceService;
 import com.android.internal.colorextraction.ColorExtractor;
 import com.android.internal.logging.MetricsLogger;
 import com.android.internal.logging.UiEvent;
@@ -539,11 +537,6 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
     protected boolean mDozing;
     boolean mCloseQsBeforeScreenOff;
     
-    private boolean mSuppressFullscreenIntent = false;
-    private static final long RETRY_INTERVAL_MS = 2000;
-    private final Handler mHandler = new Handler(Looper.getMainLooper());
-    private boolean mGameSpaceRegistered = false;
-
     private final NotificationMediaManager mMediaManager;
     private final NotificationLockscreenUserManager mLockscreenUserManager;
     private final NotificationRemoteInputManager mRemoteInputManager;
@@ -576,20 +569,6 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
     protected final PowerInteractor mPowerInteractor;
 
     private final CommunalInteractor mCommunalInteractor;
-
-    private final IGameSpaceCallback mGameSpaceCallback = new IGameSpaceCallback.Stub() {
-        @Override
-        public void shouldSuppressFullScreenIntent(boolean suppress) {
-            mSuppressFullscreenIntent = suppress;
-        }
-        @Override
-        public void onGameStart(String packageName) {
-        }
-        @Override
-        public void onGameLeave() {
-            mSuppressFullscreenIntent = false;
-        }
-    };
 
     /**
      * True if the device is showing the glanceable hub. See
@@ -1527,12 +1506,16 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
         filter.addAction(Intent.ACTION_SCREEN_OFF);
         filter.addAction(lineageos.content.Intent.ACTION_SCREEN_CAMERA_GESTURE);
         mBroadcastDispatcher.registerReceiver(mBroadcastReceiver, filter, null, UserHandle.ALL);
-        registerGameSpace();
     }
 
     @Override
     public boolean shouldSuppressFullScreenIntent() {
-        return mSuppressFullscreenIntent;
+        return Settings.System.getIntForUser(
+                mContext.getContentResolver(),
+                "gamespace_suppress_fullscreen_intent_status",
+                0,
+                UserHandle.USER_CURRENT
+            ) == 1;
     }
 
     protected QS createDefaultQSFragment() {
@@ -3422,32 +3405,6 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
     public ActivityTransitionAnimator.Controller getAnimatorControllerFromNotification(
             ExpandableNotificationRow associatedView) {
         return mNotificationAnimationProvider.getAnimatorController(associatedView);
-    }
-
-    private void registerGameSpace() {
-        if (mGameSpaceRegistered) return;
-
-        IBinder binder = ServiceManager.getService("game_space");
-        if (binder != null) {
-            try {
-                IGameSpaceService service = IGameSpaceService.Stub.asInterface(binder);
-                service.registerCallback(mGameSpaceCallback);
-                mGameSpaceRegistered = true;
-                Log.d(TAG, "GameSpace callback successfully registered");
-            } catch (RemoteException e) {
-                Log.e(TAG, "Failed to register GameSpace callback", e);
-                scheduleRetry();
-            }
-        } else {
-            Log.w(TAG, "GameSpace service not found, retrying...");
-            scheduleRetry();
-        }
-    }
-
-    private void scheduleRetry() {
-        if (!mGameSpaceRegistered) {
-            mHandler.postDelayed(this::registerGameSpace, RETRY_INTERVAL_MS);
-        }
     }
     
     @Override

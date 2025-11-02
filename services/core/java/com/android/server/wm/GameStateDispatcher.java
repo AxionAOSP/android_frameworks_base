@@ -44,32 +44,12 @@ class GameStateDispatcher {
     private static final String PROPERTY_PERSIST_PERFORMANCE_MODE =
             "persist.sys.power_mode_perf";
 
-    private boolean mBound = false;
-
     GameStateDispatcher(Context context,
                         List<IGameSpaceCallback> callbacks,
                         ActivityManagerService am) {
         this.mContext = context;
         this.mCallbacks = callbacks;
         this.mAm = am;
-    }
-
-    private final ServiceConnection mConnection = new ServiceConnection() {
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service) {
-            mBound = true;
-            Slog.i(TAG, "Overlay service connected: " + name);
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-            mBound = false;
-            Slog.w(TAG, "Overlay service disconnected: " + name);
-        }
-    };
-
-    boolean isServiceAlive() {
-        return mBound;
     }
 
     void dispatchGameState(boolean isActive, String activeGame) {
@@ -79,8 +59,16 @@ class GameStateDispatcher {
                 0,
                 UserHandle.USER_CURRENT
         ) == 1;
+        
+        int suppressStatus = suppress && isActive ? 1 : 0;
 
-        notifySuppressFullScreenIntent(suppress && isActive);
+        Settings.System.putIntForUser(
+                mContext.getContentResolver(),
+                "gamespace_suppress_fullscreen_intent_status",
+                suppressStatus,
+                UserHandle.USER_CURRENT
+        );
+
         notifyDispatchGameState(isActive, activeGame);
     }
 
@@ -96,49 +84,6 @@ class GameStateDispatcher {
                 Slog.w(TAG, "Removing dead callback", e);
                 mCallbacks.remove(callback);
             }
-        }
-    }
-
-    private void notifySuppressFullScreenIntent(boolean suppress) {
-        for (IGameSpaceCallback callback : new ArrayList<>(mCallbacks)) {
-            try {
-                callback.shouldSuppressFullScreenIntent(suppress);
-            } catch (Exception e) {
-                Slog.w(TAG, "Removing dead callback", e);
-                mCallbacks.remove(callback);
-            }
-        }
-    }
-
-    public void startService(String activeGame) {
-        Intent intent = new Intent();
-        intent.setComponent(ComponentName.unflattenFromString(SERVICE_COMPONENT));
-        intent.setAction("game_start");
-        intent.putExtra("package_name", activeGame);
-
-        try {
-            mAm.forceStopPackage(GAMESPACE_PACKAGE, UserHandle.USER_SYSTEM);
-            mContext.startServiceAsUser(intent, UserHandle.CURRENT);
-            mContext.bindServiceAsUser(
-                    intent,
-                    mConnection,
-                    Context.BIND_AUTO_CREATE,
-                    UserHandle.CURRENT
-            );
-            Slog.i(TAG, "Force-stopped and restarted overlay service for: " + activeGame);
-        } catch (Exception e) {
-            Slog.e(TAG, "Failed to restart/bind overlay service", e);
-        }
-    }
-
-    public void stopService() {
-        if (mBound) {
-            try {
-                mContext.unbindService(mConnection);
-            } catch (Exception e) {
-                Slog.w(TAG, "Failed to unbind overlay service", e);
-            }
-            mBound = false;
         }
     }
 

@@ -89,11 +89,6 @@ public class GameSpaceService extends IGameSpaceService.Stub implements IWindowE
         if (currentGame == null) return;
 
         mBgHandler.post(() -> {
-            if (!mGameStateDispatcher.isServiceAlive()) {
-                if (DEBUG) Slog.d(TAG, "Overlay service dead, force-restarting!");
-                mGameStateDispatcher.startService(currentGame);
-            }
-
             if (mPendingBoost != null) {
                 mBgHandler.removeCallbacks(mPendingBoost);
             }
@@ -117,7 +112,6 @@ public class GameSpaceService extends IGameSpaceService.Stub implements IWindowE
             UiThread.getHandler().post(
                     () -> mGameStateDispatcher.dispatchGameState(false, null));
             mGameStateDispatcher.boostGame(false);
-            mGameStateDispatcher.stopService();
         });
     }
 
