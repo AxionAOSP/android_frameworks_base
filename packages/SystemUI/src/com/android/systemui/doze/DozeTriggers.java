@@ -378,17 +378,6 @@ public class DozeTriggers implements DozeMachine.Part {
         
         int user = mSelectedUserInteractor.getSelectedUserId();
 
-        boolean isTapGesture = (reason == DozeLog.REASON_SENSOR_DOUBLE_TAP
-                                || reason == DozeLog.REASON_SENSOR_TAP);
-        boolean isAodOn = (state == DozeMachine.State.DOZE_PULSING
-                                  || state == DozeMachine.State.DOZE_PULSING_BRIGHT
-                                  || state == DozeMachine.State.DOZE_AOD);
-
-        // no need for pulse on tap gestures when AOD screen is active, allow wake-up
-        if (isTapGesture && isAodOn) {
-            return false;
-        }
-
         switch (reason) {
             case DozeLog.REASON_SENSOR_PICKUP:
                 return mConfig.shouldPulsePickSensorEvent(user);
