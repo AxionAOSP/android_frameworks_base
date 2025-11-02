@@ -535,6 +535,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     // Double-tap-to-doze
     private boolean mDoubleTapToWake;
+    private boolean mDoubleTapToWakeNative;
     private boolean mDoubleTapToDoze;
     private boolean mNativeDoubleTapToDozeAvailable;
 
@@ -2684,7 +2685,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 res.getBoolean(com.android.internal.R.bool.config_wakeOnDpadKeyPress);
 
         // Double-tap-to-doze
-        mNativeDoubleTapToDozeAvailable = !android.text.TextUtils.isEmpty(
+        mNativeDoubleTapToDozeAvailable = !TextUtils.isEmpty(
                 mContext.getResources().getString(R.string.config_dozeDoubleTapSensorType));
 
         // Init display burn-in protection
@@ -3504,6 +3505,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         final boolean kidsModeEnabled;
         
         // Double-tap-to-doze
+        mDoubleTapToWakeNative = Settings.Secure.getIntForUser(resolver,
+                Settings.Secure.DOZE_DOUBLE_TAP_GESTURE, 0, UserHandle.USER_CURRENT) == 1;
         mDoubleTapToWake = Settings.Secure.getIntForUser(resolver,
                 Settings.Secure.DOUBLE_TAP_TO_WAKE, 0, UserHandle.USER_CURRENT) == 1;
         mDoubleTapToDoze = Settings.Secure.getIntForUser(resolver,
@@ -6288,7 +6291,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         KeyGestureEvent.KEY_GESTURE_TYPE_WAKEUP);
                 result &= ~ACTION_PASS_TO_USER;
                 // Double-tap-to-doze
-                 if (mDoubleTapToWake && mDoubleTapToDoze && !mNativeDoubleTapToDozeAvailable) {
+                 if ((mDoubleTapToWake || mDoubleTapToWakeNative) && mDoubleTapToDoze && mNativeDoubleTapToDozeAvailable) {
                     isWakeKey = false;
                     if (!down) {
                         Intent intent = new Intent("com.android.systemui.doze.pulse");
