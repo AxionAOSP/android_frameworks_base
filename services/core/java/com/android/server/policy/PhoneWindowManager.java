@@ -1146,8 +1146,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             resolver.registerContentObserver(Settings.Secure.getUriFor(
                     "shake_gestures_action"), false, this,
                     UserHandle.USER_ALL);
-            resolver.registerContentObserver(Settings.System.getUriFor(
-                    "doze_trigger_doubletap"), false, this,
+            resolver.registerContentObserver(Settings.Secure.getUriFor(
+                    "doze_pulse_on_double_tap_ext"), false, this,
                     UserHandle.USER_ALL);
             updateSettings();
         }
@@ -3506,8 +3506,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         // Double-tap-to-doze
         mDoubleTapToWake = Settings.Secure.getIntForUser(resolver,
                 Settings.Secure.DOUBLE_TAP_TO_WAKE, 0, UserHandle.USER_CURRENT) == 1;
-        mDoubleTapToDoze = Settings.System.getIntForUser(resolver,
-                "doze_trigger_doubletap", 0, UserHandle.USER_CURRENT) == 1;
+        mDoubleTapToDoze = Settings.Secure.getIntForUser(resolver,
+                "doze_pulse_on_double_tap_ext", 0, UserHandle.USER_CURRENT) == 1;
 
         int mDeviceHardwareWakeKeys = mContext.getResources().getInteger(
                 org.lineageos.platform.internal.R.integer.config_deviceHardwareWakeKeys);
