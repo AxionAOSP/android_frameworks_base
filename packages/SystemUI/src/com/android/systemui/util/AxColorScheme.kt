@@ -19,6 +19,7 @@ import android.content.Context
 import android.content.res.Resources
 import android.os.SystemProperties
 import android.provider.Settings
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -32,6 +33,7 @@ import com.android.settingslib.Utils
 @Immutable
 data class AxColorScheme(
     val primary: Color,
+    val primarySurface: Color,
     val secondary: Color,
     val onPrimary: Color,
     val onSurface: Color,
@@ -85,11 +87,14 @@ data class AxColorScheme(
                 else colorResource(R.color.shade_tile_color_fallback)
 
             val primary = MaterialTheme.colorScheme.primary
+            val primarySurface = if (isSystemInDarkTheme()) colorResource(android.R.color.system_accent1_200)
+                else colorResource(android.R.color.system_accent1_700)
             val onPrimary = MaterialTheme.colorScheme.onPrimary
             val onSurface = MaterialTheme.colorScheme.onSurface
 
             return AxColorScheme(
                 primary = primary,
+                primarySurface = primarySurface,
                 secondary = secondary,
                 onPrimary = onPrimary,
                 onSurface = onSurface,
@@ -100,6 +105,11 @@ data class AxColorScheme(
             @Composable
             @ReadOnlyComposable
             get() = current().primary
+
+        val primarySurface: Color
+            @Composable
+            @ReadOnlyComposable
+            get() = current().primarySurface
 
         val secondary: Color
             @Composable

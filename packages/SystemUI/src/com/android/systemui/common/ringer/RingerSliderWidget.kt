@@ -164,7 +164,7 @@ fun RingerSliderWidget(
                         if (isDozing)
                             Modifier.border(theme.dozeStroke, Color.White, CircleShape)
                         else
-                            Modifier.border(2.dp, theme.activeBg, CircleShape)
+                            Modifier.border(2.dp, Color.Transparent, CircleShape)
                     ),
                 contentAlignment = Alignment.Center
             ) {
