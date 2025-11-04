@@ -89,23 +89,19 @@ class FlashlightStrengthController @Inject constructor(
             executor.execute {
                 torchId?.let { id ->
                     if (lvl == 0) {
-                        runCatching { cm.setTorchMode(id, false) }
-                            .onSuccess {
-                                _torchLevel = 0
-                                _notifyLevelChanged(0)
-                                _notifyStatusChanged(0)
-                            }
+                        torchOn = false
+                        _notifyLevelChanged(0)
                     } else {
                         runCatching {
+                            torchOn = true
                             cm.turnOnTorchWithStrengthLevel(id, lvl)
                             _torchLevel = lvl
                             _notifyLevelChanged(lvl)
-                            _notifyStatusChanged(1)
                         }.onFailure { e ->
                             Log.w(TAG, "Failed to change torch level: $e")
                             _torchLevel = 0
                             _notifyLevelChanged(0)
-                            _notifyStatusChanged(0)
+                            torchOn = false
                         }
                     }
                 }

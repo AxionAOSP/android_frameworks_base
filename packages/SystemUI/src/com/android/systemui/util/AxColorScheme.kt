@@ -87,8 +87,7 @@ data class AxColorScheme(
                 else colorResource(R.color.shade_tile_color_fallback)
 
             val primary = MaterialTheme.colorScheme.primary
-            val primarySurface = if (isSystemInDarkTheme()) colorResource(android.R.color.system_accent1_200)
-                else colorResource(android.R.color.system_accent1_700)
+            val primarySurface = primary.copy(alpha = 0.8f)
             val onPrimary = MaterialTheme.colorScheme.onPrimary
             val onSurface = MaterialTheme.colorScheme.onSurface
 

@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.android.systemui.util.AxColorScheme
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
@@ -47,10 +48,15 @@ fun LevelSliderWidget(
     isDozing: Boolean = false,
     border: Modifier = Modifier
 ) {
-    val level by interactor.level.collectAsState(initial = interactor.getCurrentLevel())
+    val level by interactor.level
+        .distinctUntilChanged { old, new ->
+            (old * 100).toInt() == (new * 100).toInt()
+        }
+        .collectAsState(initial = interactor.getCurrentLevel())
 
     var dragLevel by remember { mutableFloatStateOf(level) }
     var isDragging by remember { mutableStateOf(false) }
+    var isEnabled by remember { mutableStateOf(false) }
 
     val animatedLevel by animateFloatAsState(
         targetValue = if (isDragging) dragLevel else level,
@@ -61,21 +67,27 @@ fun LevelSliderWidget(
     val density = LocalDensity.current
 
     val activeContentColor = if (isDozing) Color.White else AxColorScheme.onPrimary
-    val progressFillColor = if (isDozing) Color.Transparent else AxColorScheme.primary
+    val progressFillColor = if (isDozing || !isEnabled) Color.Transparent else AxColorScheme.primary
     val trackBgColor = if (isDozing) Color.Transparent else AxColorScheme.primarySurface
-    val disabledContentColor = if (isDozing) Color.Transparent else AxColorScheme.onSurface
+    val disabledContentColor = if (isDozing) Color.Transparent else AxColorScheme.onSurface 
     val disabledBgColor = if (isDozing) Color.Transparent else AxColorScheme.secondary
 
     val animatedTrackColor by animateColorAsState(
-        targetValue = if (level == 0f) disabledBgColor else trackBgColor,
+        targetValue = if (level == 0f || !isEnabled) disabledBgColor else trackBgColor,
         animationSpec = tween(durationMillis = 300, easing = LinearOutSlowInEasing),
         label = "track_color_animation"
     )
 
     val animatedContentColor by animateColorAsState(
-        targetValue = if (level == 0f) disabledContentColor else activeContentColor,
+        targetValue = if (level == 0f || !isEnabled) disabledContentColor else activeContentColor,
         animationSpec = tween(durationMillis = 300, easing = LinearOutSlowInEasing),
         label = "content_color_animation"
+    )
+
+    val enabledScale by animateFloatAsState(
+        targetValue = if (isEnabled) 1.05f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "enabled_scale"
     )
 
     LaunchedEffect(level) {
@@ -85,27 +97,33 @@ fun LevelSliderWidget(
     BoxWithConstraints(
         modifier = modifier
             .height(dimens.height)
+            .scale(enabledScale)
             .clip(CircleShape)
             .then(if (isDozing) Modifier.border(theme.dozeStroke, Color.White, CircleShape) else border)
+            .then(
+                if (isEnabled) Modifier.border(2.dp, AxColorScheme.primary.copy(alpha = 0.6f), CircleShape)
+                else Modifier
+            )
             .pointerInput(Unit) {
                 detectTapGestures { tapOffset ->
-                    val newLevel = (tapOffset.x / size.width).coerceIn(0f, 1f)
-                    dragLevel = newLevel
-                    interactor.setLevel(newLevel)
+                    isEnabled = !isEnabled
+                    (interactor as? TapHandlingInteractor)?.onTap(isEnabled)
                 }
             }
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures(
-                    onDragStart = { isDragging = true },
-                    onDragEnd = {
-                        isDragging = false
-                    },
-                    onDragCancel = { isDragging = false }
-                ) { change, dragAmount ->
-                    change.consume()
-                    val delta = dragAmount / size.width
-                    dragLevel = (dragLevel + delta).coerceIn(0f, 1f)
-                    interactor.setLevel(dragLevel)
+            .pointerInput(isEnabled) {
+                if (isEnabled) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { isDragging = true },
+                        onDragEnd = {
+                            isDragging = false
+                        },
+                        onDragCancel = { isDragging = false }
+                    ) { change, dragAmount ->
+                        change.consume()
+                        val delta = dragAmount / size.width
+                        dragLevel = (dragLevel + delta).coerceIn(0f, 1f)
+                        interactor.setLevel(dragLevel)
+                    }
                 }
             }
     ) {
@@ -150,4 +168,8 @@ fun LevelSliderWidget(
             )
         }
     }
+}
+
+interface TapHandlingInteractor {
+    fun onTap(enabled: Boolean)
 }
