@@ -23,6 +23,7 @@ import android.app.role.RoleManager;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.database.ContentObserver;
+import android.hardware.power.Mode;
 import android.net.Uri;
 import android.os.*;
 import android.os.Process;
@@ -100,6 +101,8 @@ public class BoostAdjuster implements IBoostAdjuster {
     private int mSysGpuBoost = 1;
     
     private String mResumedPackage = null;
+    
+    private boolean mKernelSupportsBoosts = true;
 
     static {
         sFileCache.put(CPU_BG, new File(CPU_BG));
@@ -142,10 +145,24 @@ public class BoostAdjuster implements IBoostAdjuster {
         procList = NtServiceInjector.getAm().mProcessList;
         mDeviceData = new DeviceData();
         BoostSettingsRepository repo = new BoostSettingsRepository(mDeviceData, mHandler);
-        repo.setOnSettingsChangeListener(data -> {
-            updateConfigs(data);
-        });
+
+        repo.setOnSettingsChangeListener(this::updateConfigs);
+
+        String kernelVersion = SystemProperties.get("ro.kernel.version", "");
+        mKernelSupportsBoosts = verifyKernel(kernelVersion);
+
         mSystemReady = true;
+    }
+
+    private boolean verifyKernel(String kernelVersion) {
+        try {
+            String[] parts = kernelVersion.split("\\.");
+            int major = Integer.parseInt(parts[0]);
+            int minor = (parts.length > 1) ? Integer.parseInt(parts[1]) : 0;
+            return (major > 5) || (major == 5 && minor >= 0);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private void updateConfigs(DeviceData.BoostData data) {
@@ -221,6 +238,7 @@ public class BoostAdjuster implements IBoostAdjuster {
     }
 
     private void boostPid(int pid, int enable) {
+        if (!mKernelSupportsBoosts) return;
         logger("restricted pid = " + pid + ", enable = " + enable);
         if (enable == 1) {
             try {
@@ -309,6 +327,7 @@ public class BoostAdjuster implements IBoostAdjuster {
     }
 
     public void animationBoost(int pid, int renderTid, long duration) {
+        if (!mKernelSupportsBoosts) return;
         logger("animationboost: pid = " + pid + " renderTid = " + renderTid + ", duration = " + duration);
         try {
             int threadPriority = Process.getThreadPriority(pid);
@@ -530,6 +549,8 @@ public class BoostAdjuster implements IBoostAdjuster {
         mFlags.setFlag(BOOST_PF, boost);
         mHandler.post(() -> {
             write(boost ? sBoosts : sMinFreqs);
+            NtServiceInjector.getAm().mLocalPowerManager.setPowerMode(
+                    Mode.LAUNCH, boost);
         });
     }
 
@@ -576,6 +597,7 @@ public class BoostAdjuster implements IBoostAdjuster {
     }
 
     private void boostAnimRes(boolean enabled) {
+        if (!mKernelSupportsBoosts) return;
         if (gameActive()) return;
         boostSF(enabled);
         boostGpuInternal(enabled ? mSysGpuBoost : 0);
@@ -589,6 +611,7 @@ public class BoostAdjuster implements IBoostAdjuster {
     }
 
     private void boostSF(boolean enabled) {
+        if (!mKernelSupportsBoosts) return;
         if (!mSfBoost) { 
             if (!mFlags.isActive(BOOST_SF)) return;
             enabled = false;
@@ -621,6 +644,7 @@ public class BoostAdjuster implements IBoostAdjuster {
     }
     
     public void getProcessesAndFrozen(String packageName) {
+        if (!mKernelSupportsBoosts) return;
         if (mFreezeHandler == null || packageName == null) {
             return;
         }
@@ -637,6 +661,7 @@ public class BoostAdjuster implements IBoostAdjuster {
     }
     
     private void setFrozen(int pid, int uid, boolean frozen) {
+        if (!mKernelSupportsBoosts) return;
         try {
             Process.setProcessFrozen(pid, uid, frozen);
         } catch (Exception e) {
