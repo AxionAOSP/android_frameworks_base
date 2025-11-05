@@ -497,6 +497,16 @@ constructor(
                     clock?.smallClock?.events?.onDozeChanged(isDozing)
                     clock?.largeClock?.events?.onDozeChanged(isDozing)
                 }
+                
+                override fun onDozeAmountChanged(linear: Float, eased: Float) {
+                    clock?.smallClock?.events?.onDozeAmountChanged(linear, eased)
+                    clock?.largeClock?.events?.onDozeAmountChanged(linear, eased)
+                }
+                
+                override fun onPulsingChanged(pulsing: Boolean) {
+                    clock?.smallClock?.events?.onPulsingChanged(pulsing)
+                    clock?.largeClock?.events?.onPulsingChanged(pulsing)
+                }
             }
 
     private fun handleZenMode(zen: Int) {

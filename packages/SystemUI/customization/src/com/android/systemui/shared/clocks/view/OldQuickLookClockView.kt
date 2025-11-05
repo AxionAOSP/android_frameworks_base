@@ -41,8 +41,6 @@ class OldQuickLookClockView @JvmOverloads constructor(
     private val datePattern = context.getString(R.string.system_ui_aod_date_pattern)
 
     private var lastText: String? = null
-    private var calendarData: CalendarSimpleData? = null
-    private var weatherData: NTWeatherData? = null
     private var isDarkTheme: Boolean? = null
 
     private val clockTextView get() = findViewById<TextView>(R.id.clock_text_view)
@@ -69,7 +67,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
     private val bottomMarginValue get() = context.scaledDimenInt(R.dimen.old_clock_text_margin_bottom)
     private val infoPadding get() = context.scaledDimenInt(R.dimen.old_clock_info_text_padding)
     private val weatherPadding get() = context.scaledDimenInt(R.dimen.old_clock_weather_info_text_padding)
-    private val iconSize get() = context.scaledDimenInt(R.dimen.old_clock_icon_primary_size)
+    private val oldQlIconSize get() = context.scaledDimenInt(R.dimen.old_clock_icon_primary_size)
     private val alarmIconSize get() = context.scaledDimenInt(R.dimen.old_clock_alarm_icon_primary_size)
     private val primaryTextSize get() = context.scaledDimen(R.dimen.old_clock_primary_text_size)
     private val secondaryTextSize get() = context.scaledDimen(R.dimen.old_clock_secondary_text_size)
@@ -94,7 +92,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
             weatherTextView, calendarTitleTextView, calendarInfoTextView, alarmInfoTextView
         ).forEach { it?.setTextColor(color) }
 
-        listOf(alarmIconView, weatherIconView).forEach {
+        listOf(npIconView, alarmIconView, weatherIconView).forEach {
             it?.colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN)
         }
 
@@ -149,16 +147,16 @@ class OldQuickLookClockView @JvmOverloads constructor(
 
         weatherIconView?.apply {
             (layoutParams as? LinearLayout.LayoutParams)?.apply {
-                width = iconSize
-                height = iconSize
+                width = oldQlIconSize
+                height = oldQlIconSize
                 marginEnd = weatherPadding
             }
         }
 
         npIconView?.apply {
             (layoutParams as? LinearLayout.LayoutParams)?.apply {
-                width = iconSize
-                height = iconSize
+                width = oldQlIconSize
+                height = oldQlIconSize
                 marginEnd = weatherPadding
             }
             setBottomMargin(infoPadding)
@@ -336,12 +334,12 @@ class OldQuickLookClockView @JvmOverloads constructor(
     }
 
     override fun onNTWeatherDataChanged(data: NTWeatherData) {
-        weatherData = data
+        super.onNTWeatherDataChanged(data)
         refreshInfo(calendarData, weatherData)
     }
 
     override fun onCalendarDataChanged(data: CalendarSimpleData) {
-        calendarData = data
+        super.onCalendarDataChanged(data)
         refreshInfo(calendarData, weatherData)
     }
 

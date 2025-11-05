@@ -20,15 +20,21 @@ import android.text.format.DateFormat
 import android.util.AttributeSet
 import android.util.Log
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import com.android.systemui.customization.R
 import com.android.systemui.log.core.MessageBuffer
 import com.android.systemui.plugins.clocks.*
 import com.android.systemui.shared.clocks.ClockConfigs
 import com.android.systemui.shared.clocks.extensions.*
+import com.android.systemui.shared.clocks.CalendarUtils
+import com.android.systemui.shared.clocks.WeatherUtils
+import com.android.systemui.shared.clocks.NowPlayingIconBinder
 import kotlinx.coroutines.*
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
+import kotlin.math.absoluteValue
 
 abstract class NTClockView @JvmOverloads constructor(
     context: Context,
@@ -59,6 +65,8 @@ abstract class NTClockView @JvmOverloads constructor(
     var artistName: String = ""
     var nowPlayingText: String = ""
     var nextAlarm: String = ""
+    var weatherData: NTWeatherData? = null
+    var calendarData: CalendarSimpleData? = null
 
     val nowPlayingAvailable get() = nowPlayingText.isNotBlank()
     val isNowPlaying get() = isPlaying
@@ -70,6 +78,8 @@ abstract class NTClockView @JvmOverloads constructor(
     val clockDateTextSize get() = context.scaledDimen(R.dimen.clock_date_text_size)
     val clockDateMarginTop get() = context.scaledDimen(R.dimen.clock_date_margin_top)
     val scaleRatio get() = context.scaleRatio
+    val iconSize get() = context.scaledDimenInt(R.dimen.clock_icon_secondary_size)
+    val elementSpacing get() = context.scaledDimen(R.dimen.clock_date_element_spacing)
 
     protected val config: ClockConfigs.ClockStyleConfig?
         get() {
@@ -139,6 +149,21 @@ abstract class NTClockView @JvmOverloads constructor(
             }
         }
 
+    private val iconPaint: Paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    private enum class DisplayMode {
+        CALENDAR,
+        NOW_PLAYING,
+        WEATHER,
+        DATE_ONLY
+    }
+
+    private var displayMode: DisplayMode = DisplayMode.DATE_ONLY
+    private var displayText: String = ""
+    private var displayIcon: Bitmap? = null
+    private var displaySecondaryText: String = ""
+    private var displaySecondaryIcon: Bitmap? = null
+
     init {
         setWillNotDraw(false)
         initDatePaintAndPosition()
@@ -148,9 +173,20 @@ abstract class NTClockView @JvmOverloads constructor(
     abstract override fun getTag(): String
 
     open fun onAlarmDataChanged(data: AlarmData) {}
-    open fun onCalendarDataChanged(data: CalendarSimpleData) {}
-    open fun onDateChanged() {}
-    open fun onNTWeatherDataChanged(data: NTWeatherData) {}
+
+    open fun onCalendarDataChanged(data: CalendarSimpleData) {
+        calendarData = data
+        updateDisplayContent()
+    }
+
+    open fun onDateChanged() {
+        invalidate()
+    }
+
+    open fun onNTWeatherDataChanged(data: NTWeatherData) {
+        weatherData = data
+        updateDisplayContent()
+    }
 
     open fun onThemeChanged(isDarkTheme: Boolean) {
         refreshColor()
@@ -160,16 +196,19 @@ abstract class NTClockView @JvmOverloads constructor(
     open fun onPlaybackStateChanged(playing: Boolean) {
         if (isPlaying != playing) {
             isPlaying = playing
+            updateDisplayContent()
         }
     }
 
     open fun onMetadataChanged(track: String, artist: String) {
         trackTitle = track
         artistName = artist
+        updateDisplayContent()
     }
 
     open fun onNowPlayingUpdate(npText: String) {
         nowPlayingText = npText
+        updateDisplayContent()
     }
 
     fun setMessageBuffer(buffer: MessageBuffer) {}
@@ -179,6 +218,14 @@ abstract class NTClockView @JvmOverloads constructor(
             isDoze = doze
             refreshColor()
         }
+    }
+    
+    open fun onPulsingChanged(doze: Boolean) {
+        refreshColor()
+    }
+
+    fun onDozeAmountChanged(linear: Float, eased: Float) {
+        invalidate()
     }
 
     fun onStartedWakingUp() {
@@ -207,6 +254,7 @@ abstract class NTClockView @JvmOverloads constructor(
     }
     
     open fun onFontSettingChanged() {
+        invalidate()
     }
 
     open fun onTimeZoneChanged(timeZone: TimeZone) {
@@ -235,6 +283,7 @@ abstract class NTClockView @JvmOverloads constructor(
         if (timeStr != newTime) {
             timeStr = newTime
             contentDescription = talkBackContent
+            updateDisplayContent()
             invalidate()
         }
     }
@@ -244,14 +293,179 @@ abstract class NTClockView @JvmOverloads constructor(
         dateStr = dateFormat.format(calendar.time)
     }
 
+    private fun updateDisplayContent() {
+        val isCenterAligned = config?.align == ClockConfigs.Align.CENTER
+        
+        if (!isCenterAligned) {
+            displayMode = DisplayMode.DATE_ONLY
+            displayText = dateStr
+            displayIcon = null
+            displaySecondaryText = ""
+            displaySecondaryIcon = null
+            invalidate()
+            return
+        }
+
+        val isEventVisible = calendarData?.isEventVisible() == true
+        val calendarTitle = calendarData?.title ?: ""
+        val hasCalendarData = calendarData != null && 
+                              calendarData != CalendarSimpleData.EMPTY &&
+                              isEventVisible && 
+                              calendarTitle.isNotEmpty()
+
+        if (hasCalendarData) {
+            displayMode = DisplayMode.CALENDAR
+            displayText = CalendarUtils.getCalendarDescription(context, calendarData!!)
+            displayIcon = loadCalendarIcon()
+            displaySecondaryText = ""
+            displaySecondaryIcon = null
+            invalidate()
+            return
+        }
+
+        if (isNowPlaying && trackTitle.isNotEmpty()) {
+            displayMode = DisplayMode.NOW_PLAYING
+            displayText = if (artistName.isNotEmpty()) {
+                "$trackTitle - $artistName"
+            } else {
+                trackTitle
+            }
+            displayIcon = loadNowPlayingIcon()
+            displaySecondaryText = ""
+            displaySecondaryIcon = null
+            invalidate()
+            return
+        }
+
+        if (nowPlayingAvailable) {
+            displayMode = DisplayMode.NOW_PLAYING
+            displayText = nowPlayingText
+            displayIcon = loadNowPlayingIcon()
+            displaySecondaryText = ""
+            displaySecondaryIcon = null
+            invalidate()
+            return
+        }
+
+        val hasValidWeather = weatherData != null && 
+                              weatherData != NTWeatherData.EMPTY &&
+                              (weatherData?.temp?.isNotEmpty() == true) &&
+                              (weatherData?.conditionCode ?: 0) != 0
+        
+        if (hasValidWeather) {
+            displayMode = DisplayMode.WEATHER
+            displayText = dateStr
+            displayIcon = loadWeatherIcon()
+            displaySecondaryText = "${weatherData?.temp}°"
+            displaySecondaryIcon = null
+            invalidate()
+            return
+        }
+        
+        displayMode = DisplayMode.DATE_ONLY
+        displayText = dateStr
+        displayIcon = null
+        displaySecondaryText = ""
+        displaySecondaryIcon = null
+        invalidate()
+    }
+
+    private fun loadCalendarIcon(): Bitmap? {
+        return try {
+            ContextCompat.getDrawable(context, R.drawable.old_quick_look_alarm_icon)
+                ?.toBitmap(iconSize, iconSize, Bitmap.Config.ARGB_8888)
+        } catch (e: Exception) {
+            Log.e(tag, "Error loading calendar icon", e)
+            null
+        }
+    }
+
+    private fun loadNowPlayingIcon(): Bitmap? {
+        return try {
+            ContextCompat.getDrawable(context, R.drawable.ic_music_note)
+                ?.toBitmap(iconSize, iconSize, Bitmap.Config.ARGB_8888)
+        } catch (e: Exception) {
+            Log.e(tag, "Error loading now playing icon", e)
+            null
+        }
+    }
+
+    private fun loadWeatherIcon(): Bitmap? {
+        val conditionCode = weatherData?.conditionCode ?: 0
+        if (conditionCode == 0) return null
+
+        return try {
+            WeatherUtils.getWeatherIcon(context, conditionCode)
+                ?.toBitmap(iconSize, iconSize, Bitmap.Config.ARGB_8888)
+        } catch (e: Exception) {
+            Log.e(tag, "Error loading weather icon", e)
+            null
+        }
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         canvas.drawFilter = antiAliasFilter
-        if (dateVisible && dateStr.isNotEmpty()) {
-            canvas.drawText(dateStr, dateTextX, dateTextY, datePaint)
+
+        if (dateVisible && displayText.isNotEmpty()) {
+            drawEnhancedDateArea(canvas)
         }
-        Log.d(tag, " onDraw: $isRegionDark")
         drawClock(canvas)
+    }
+
+    private fun drawEnhancedDateArea(canvas: Canvas) {
+        val baseY = dateTextY
+        val centerX = width / 2f
+
+        when (displayMode) {
+            DisplayMode.DATE_ONLY -> {
+                canvas.drawText(displayText, dateTextX, baseY, datePaint)
+            }
+
+            DisplayMode.CALENDAR, DisplayMode.NOW_PLAYING -> {
+                val icon = displayIcon
+                if (icon != null) {
+                    val textWidth = datePaint.measureText(displayText)
+                    val totalWidth = icon.width + elementSpacing + textWidth
+                    
+                    val startX = centerX - (totalWidth / 2f)
+                    val iconY = baseY - datePaint.textSize + (datePaint.textSize - icon.height) / 2f
+                    
+                    iconPaint.colorFilter = PorterDuffColorFilter(clockColor, PorterDuff.Mode.SRC_IN)
+                    canvas.drawBitmap(icon, startX, iconY, iconPaint)
+                    
+                    val textPaint = Paint(datePaint).apply { textAlign = Paint.Align.LEFT }
+                    canvas.drawText(displayText, startX + icon.width + elementSpacing, baseY, textPaint)
+                } else {
+                    canvas.drawText(displayText, centerX, baseY, datePaint)
+                }
+            }
+
+            DisplayMode.WEATHER -> {
+                val icon = displayIcon
+                if (icon != null && displaySecondaryText.isNotEmpty()) {
+                    val dateWidth = datePaint.measureText(dateStr)
+                    val tempWidth = datePaint.measureText(displaySecondaryText)
+                    val totalWidth = dateWidth + elementSpacing + icon.width + elementSpacing + tempWidth
+                    
+                    val startX = centerX - (totalWidth / 2f)
+                    var currentX = startX
+                    
+                    val textPaint = Paint(datePaint).apply { textAlign = Paint.Align.LEFT }
+                    canvas.drawText(dateStr, currentX, baseY, textPaint)
+                    currentX += dateWidth + elementSpacing
+                    
+                    val iconY = baseY - datePaint.textSize + (datePaint.textSize - icon.height) / 2f
+                    iconPaint.colorFilter = PorterDuffColorFilter(clockColor, PorterDuff.Mode.SRC_IN)
+                    canvas.drawBitmap(icon, currentX, iconY, iconPaint)
+                    currentX += icon.width + elementSpacing
+                    
+                    canvas.drawText(displaySecondaryText, currentX, baseY, textPaint)
+                } else {
+                    canvas.drawText(displayText, centerX, baseY, datePaint)
+                }
+            }
+        }
     }
 
     private fun initDatePaintAndPosition() {
@@ -282,6 +496,7 @@ abstract class NTClockView @JvmOverloads constructor(
         super.onAttachedToWindow()
         Log.d(tag, " onAttachedToWindow:")
         uiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+        updateDisplayContent()
     }
 
     override fun onDetachedFromWindow() {
@@ -300,10 +515,13 @@ abstract class NTClockView @JvmOverloads constructor(
             }
         }
         initDatePaintAndPosition()
+        updateDisplayContent()
     }
 
     protected open fun refreshColor() {
         datePaint.color = clockColor
+        iconPaint.colorFilter = PorterDuffColorFilter(clockColor, PorterDuff.Mode.SRC_IN)
+        updateDisplayContent()
         invalidate()
     }
 

@@ -35,8 +35,6 @@ class GeneralClockView @JvmOverloads constructor(
     override fun getTag(): String = "GeneralClockView"
 
     val paint = Paint()
-    var weatherData: NTWeatherData? = null
-    var calendarData: CalendarSimpleData? = null
     var alarmText: String = ""
     var alarmActive: Boolean = false
 
@@ -63,7 +61,6 @@ class GeneralClockView @JvmOverloads constructor(
     val containerBottomPadding get() = context.scaledDimenInt(R.dimen.clock_general_container_padding_bottom)
     val dotSize get() = context.scaledDimen(R.dimen.dot_small_size)
     val dotMargin get() = context.scaledDimen(R.dimen.dot_margin)
-    val iconSize get() = context.scaledDimenInt(R.dimen.clock_icon_secondary_size)
     val contentSecondaryPadding get() = context.scaledDimenInt(R.dimen.clock_content_secondary_padding)
     val contentPrimaryPadding get() = context.scaledDimenInt(R.dimen.clock_content_primary_padding)
     val textPrimarySize get() = context.scaledDimen(R.dimen.clock_text_primary_size)
@@ -148,7 +145,7 @@ class GeneralClockView @JvmOverloads constructor(
     }
 
     override fun onCalendarDataChanged(data: CalendarSimpleData) {
-        calendarData = data
+        super.onCalendarDataChanged(data)
         refreshInfo(calendarData, weatherData)
     }
 
@@ -187,7 +184,7 @@ class GeneralClockView @JvmOverloads constructor(
     }
 
     override fun onNTWeatherDataChanged(data: NTWeatherData) {
-        weatherData = data
+        super.onNTWeatherDataChanged(data)
         refreshInfo(calendarData, weatherData)
     }
 

@@ -99,4 +99,7 @@
     <dimen name="polyline_clock_padding">5dp</dimen>
     <dimen name="bitmap_digit_clocks_top_margin">38dp</dimen>
     <dimen name="bitmap_digit_clocks_height">138dp</dimen>
+    <dimen name="clock_date_icon_size">16dp</dimen>
+    <dimen name="clock_date_icon_margin">6dp</dimen>
+    <dimen name="clock_date_element_spacing">8dp</dimen>
 </resources>

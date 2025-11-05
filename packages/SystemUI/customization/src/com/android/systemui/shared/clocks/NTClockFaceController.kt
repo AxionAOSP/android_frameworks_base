@@ -56,6 +56,14 @@ class NTClockFaceController(
                 view.onDozeChanged(dozing)
             }
 
+            override fun onDozeAmountChanged(linear: Float, eased: Float) {
+                view.onDozeAmountChanged(linear, eased)
+            }
+            
+            override fun onPulsingChanged(pulsing: Boolean) {
+                view.onPulsingChanged(pulsing)
+            }
+
             override fun onScreenOff(screenOff: Boolean) {
                 view.onScreenOff(screenOff)
             }
