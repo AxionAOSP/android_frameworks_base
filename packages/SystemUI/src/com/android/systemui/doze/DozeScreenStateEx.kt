@@ -45,6 +45,7 @@ class DozeScreenStateEx @Inject constructor(
         private const val TAG = "DozeScreenStateEx"
         @JvmField
         val SUSPEND_DELAY_TIME = SystemProperties.getInt("persist.sys.doze_suspend_duration", 3000)
+        val NEEDS_DOZE_FIX = SystemProperties.getBoolean("persist.sys.enable_doze_fix", false)
 
         @JvmStatic
         fun get(): DozeScreenStateEx {
@@ -65,7 +66,8 @@ class DozeScreenStateEx @Inject constructor(
         override fun onAnimationEnd() {
             unlockAnimPlaying = false
             Log.d(TAG, "ScreenOffAnimation animationEnd: $curState, display state: $curDisplayState")
-            if (curState == DozeMachine.State.DOZE_AOD || curState == DozeMachine.State.DOZE_AOD_PAUSING) {
+            if (NEEDS_DOZE_FIX && (curState == DozeMachine.State.DOZE_AOD 
+                    || curState == DozeMachine.State.DOZE_AOD_PAUSING)) {
                 screenStateConsumer?.accept(Display.STATE_DOZE)
             }
         }
