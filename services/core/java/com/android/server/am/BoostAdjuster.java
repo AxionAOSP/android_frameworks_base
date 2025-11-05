@@ -18,6 +18,9 @@ package com.android.server.am;
 import static com.android.server.am.DeviceData.*;
 import static com.android.server.am.BoostFlagsManager.*;
 import static com.android.server.am.AxUtils.*;
+import static android.os.Process.SCHED_FIFO;
+import static android.os.Process.SCHED_RR;
+import static android.os.Process.SCHED_RESET_ON_FORK;
 
 import android.app.role.RoleManager;
 import android.content.ContentResolver;
@@ -38,9 +41,6 @@ import java.util.HashMap;
 
 public class BoostAdjuster implements IBoostAdjuster {
 
-    private static final String RES_PROCS = "/dev/cpuctl/restricted/cgroup.procs";
-    private static final String ROOT_PROCS = "/dev/cpuctl/cgroup.procs";
-
     private static final String TAG = "BoostAdjuster";
 
     private static final int MSG_CPU_UPDATE_BACKGROUND = 100;
@@ -54,6 +54,8 @@ public class BoostAdjuster implements IBoostAdjuster {
     private static final int MSG_DISABLE_BOOST_HINT = 108;
     private static final int MSG_BOOST_HINT = 109;
     private static final int MSG_GAME_BOOST = 110;
+    
+    private static final long INPUT_BOOST_DURATION = 800L;
 
     private static final HashMap<String, File> sFileCache = new HashMap<>();
     private static final HashMap<String, Integer> sCpuUpdateMessages = new HashMap<>();
@@ -79,13 +81,15 @@ public class BoostAdjuster implements IBoostAdjuster {
     
     private ProcessList procList;
     private Context mContext;
-    private Handler mHandler;
+    private final Handler mHandler;
+    private final HandlerThread mBoostHandlerThread;
+    private final HandlerThread mFreezeHandlerThread;
 
     private DeviceData.BoostData mData;
     private DeviceData mDeviceData;
     private BoostFlagsManager mFlags;
 
-    private boolean isNotLimited = true;
+    private boolean mBackgroundBoosted = false;
     private final Runnable inputReset = new InputBoostResetRunnable();
 
     private Handler mFreezeHandler;
@@ -131,13 +135,18 @@ public class BoostAdjuster implements IBoostAdjuster {
     }
 
     public BoostAdjuster() {
-        HandlerThread handlerThread = new HandlerThread("BoostAdjusterThread");
-        handlerThread.start();
-        mHandler = new BoostAdjusterHandler(handlerThread.getLooper());
-        HandlerThread thread = new HandlerThread("FreezeHandlerThread", -2);
-        thread.start();
-        mFreezeHandler = new FreezerHandler(thread.getLooper());
+        mBoostHandlerThread = new HandlerThread("BoostAdjusterThread", -2);
+        mBoostHandlerThread.start();
+        mHandler = new BoostAdjusterHandler(mBoostHandlerThread.getLooper());
+
+        mFreezeHandlerThread = new HandlerThread("FreezeHandlerThread", -2);
+        mFreezeHandlerThread.start();
+        mFreezeHandler = new FreezerHandler(mFreezeHandlerThread.getLooper());
+
         mFlags = new BoostFlagsManager();
+
+        Process.setThreadScheduler(mBoostHandlerThread.getThreadId(), SCHED_RR | SCHED_RESET_ON_FORK, 1);
+        Process.setThreadScheduler(mFreezeHandlerThread.getThreadId(), SCHED_RR | SCHED_RESET_ON_FORK, 1);
     }
 
     public void systemReady() {
@@ -224,7 +233,7 @@ public class BoostAdjuster implements IBoostAdjuster {
         }
     }
 
-    private void boostUtil(int pid, int enable) {
+    private void boostRestricted(int pid, int enable) {
         Message msg = mHandler.obtainMessage(MSG_RESTRICTED_COUNTER_UPDATE);
         msg.arg1 = pid;
         msg.arg2 = enable;
@@ -238,41 +247,30 @@ public class BoostAdjuster implements IBoostAdjuster {
     }
 
     private void boostPid(int pid, int enable) {
-        if (!mKernelSupportsBoosts) return;
+        if (!mKernelSupportsBoosts || mData == null) return;
         logger("restricted pid = " + pid + ", enable = " + enable);
         if (enable == 1) {
             try {
-                FileUtils.stringToFile(RES_PROCS, String.valueOf(pid));
-                try {
-                    FileUtils.stringToFile(RESTRICTED_UC_MIN, String.valueOf(100));
-                    FileUtils.stringToFile(RESTRICTED_UC_MAX, String.valueOf(100));
-                    adjustCpusetCpus(CPU_RESTRICTED, mData.boostCpus, 0L);
-                    return;
-                } catch (Exception e) {
-                    Slog.w(TAG, "Failed to set restricted cpuctl node\n" + e);
-                    return;
-                }
-            } catch (Exception e2) {
-                Slog.w(TAG, "Failed to set pid to restricted cpuctl node\n" + e2);
-                return;
+                Process.setThreadGroupAndCpuset(pid, Process.THREAD_GROUP_TOP_APP);
+                Process.setProcessGroup(pid, THREAD_GROUP_RESTRICTED);
+                FileUtils.stringToFile(RESTRICTED_UC_MIN, String.valueOf(100));
+                FileUtils.stringToFile(RESTRICTED_UC_MAX, String.valueOf(100));
+                adjustCpusetCpus(CPU_RESTRICTED, mData.boostCpus, 0L);
+            } catch (Exception e) {
+                Slog.w(TAG, "Failed to set restricted cpuctl node\n" + e);
             }
-        }
-        if (enable != 0) {
-            Slog.w(TAG, "Unknown restricted Cpuctl Boost control value: " + String.valueOf(enable) + "\n");
+            return;
         }
         try {
-            FileUtils.stringToFile(ROOT_PROCS, String.valueOf(pid));
-            try {
-                if (isNeedBoostOff()) {
-                    FileUtils.stringToFile(RESTRICTED_UC_MIN, String.valueOf(0));
-                    FileUtils.stringToFile(RESTRICTED_UC_MAX, String.valueOf(100));
-                    if (mData != null) adjustCpusetCpus(CPU_RESTRICTED, mData.allCores, 0L);
-                }
-            } catch (Exception e3) {
-                Slog.w(TAG, "Failed to set restricted cpuctl node\n" + e3);
+            if (isNeedBoostOff()) {
+                Process.setThreadGroupAndCpuset(pid, Process.THREAD_GROUP_TOP_APP);
+                Process.setProcessGroup(pid, Process.THREAD_GROUP_TOP_APP);
+                FileUtils.stringToFile(RESTRICTED_UC_MIN, String.valueOf(0));
+                FileUtils.stringToFile(RESTRICTED_UC_MAX, String.valueOf(100));
+                adjustCpusetCpus(CPU_RESTRICTED, mData.allCores, 0L);
             }
-        } catch (Exception e4) {
-            Slog.w(TAG, "Failed to set pid to root cpuctl node\n" + e4);
+        } catch (Exception e) {
+            Slog.w(TAG, "Failed to set pid to root cpuctl node\n" + e);
         }
     }
 
@@ -327,16 +325,18 @@ public class BoostAdjuster implements IBoostAdjuster {
     }
 
     public void animationBoost(int pid, int renderTid, long duration) {
-        if (!mKernelSupportsBoosts) return;
+        if (!mKernelSupportsBoosts || pid <= 0) return;
         logger("animationboost: pid = " + pid + " renderTid = " + renderTid + ", duration = " + duration);
         try {
             int threadPriority = Process.getThreadPriority(pid);
 
-            if (duration > 0) {
-                Process.setThreadScheduler(pid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 1);
-                if (renderTid > 0) Process.setThreadScheduler(renderTid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 10);
-                boostUtil(pid, 1);
-                boostAnimRes(true);
+            if (duration >= 0) {
+                Process.setThreadScheduler(pid, SCHED_FIFO | SCHED_RESET_ON_FORK, 99);
+                if (renderTid > 0) Process.setThreadScheduler(renderTid, SCHED_FIFO | SCHED_RESET_ON_FORK, 99);
+                boostRestricted(pid, 1);
+                boostRestricted(renderTid, 1);
+                boostAnimationExt(true);
+                if (duration == 0) return; 
                 Message m = mHandler.obtainMessage(pid);
                 m.setCallback(new PrioBoostResetRunnable(pid, threadPriority, renderTid));
                 mHandler.removeMessages(pid);
@@ -344,20 +344,15 @@ public class BoostAdjuster implements IBoostAdjuster {
                 return;
             }
 
-            if (duration == 0) {
-                Process.setThreadScheduler(pid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 1);
-                if (renderTid > 0) Process.setThreadScheduler(renderTid, Process.SCHED_FIFO | Process.SCHED_RESET_ON_FORK, 10);
-                boostUtil(pid, 1);
-                boostAnimRes(true);
-                return;
-            }
-
             if (duration == -1) {
                 Process.setThreadScheduler(pid, 0, 0);
-                Process.setThreadPriority(threadPriority);
-                Process.setThreadScheduler(renderTid, 0, 0);
-                boostUtil(pid, 0);
-                boostAnimRes(false);
+                Process.setThreadPriority(pid, threadPriority);
+                boostRestricted(pid, 0);
+                if (renderTid > 0) {
+                    Process.setThreadScheduler(renderTid, 0, 0);
+                    boostRestricted(renderTid, 0);
+                }
+                boostAnimationExt(false);
             }
         } catch (Exception e) {
             Slog.w(TAG, "Failed to set/restore scheduling policy\n" + e);
@@ -366,25 +361,28 @@ public class BoostAdjuster implements IBoostAdjuster {
 
     public void inputBoost() {
         if (mData == null || gameActive()) return;
-        if (!isNotLimited) {
+        if (!mBackgroundBoosted) {
             UiThread.getHandler().removeCallbacks(inputReset);
-            UiThread.getHandler().postDelayed(inputReset, 800L);
-            return;
+            UiThread.getHandler().postDelayed(inputReset, INPUT_BOOST_DURATION);
+        } else {
+            if (mInputBoost) enablePerformanceMode(true);
+            adjustBackground(true);
+            UiThread.getHandler().postDelayed(inputReset, INPUT_BOOST_DURATION);
         }
-        adjustCpusetCpus(CPU_NT_FG, mData.uiLimit, 0L);
-        adjustCpusetCpus(CPU_DEX2OAT, mData.bgLimit, 0L);
-        adjustCpusetCpus(CPU_BG, mData.bgLimit, 0L);
-        if (mInputBoost) enablePerformanceMode(true);
-        UiThread.getHandler().postDelayed(inputReset, 800L);
-        isNotLimited = false;
+    }
+    
+    private void adjustBackground(boolean limit) {
+        if (mData == null) return;
+        final long duration = limit ? 0L : -1L;
+        final String bgLimit = limit ? mData.bgLimit : mData.allCores;
+        final String ntFgLimit = limit ? mData.uiLimit : mData.allCores;
+        adjustCpusetCpus(CPU_NT_FG, ntFgLimit, duration);
+        adjustCpusetCpus(CPU_DEX2OAT, bgLimit, duration);
+        adjustCpusetCpus(CPU_BG, bgLimit, duration);
+        mBackgroundBoosted = !limit;
     }
 
     public void setThreadAffinity(int pid, int affinity) {
-        if (affinity == 0) {
-            Process.setThreadGroupAndCpuset(pid, Process.THREAD_GROUP_TOP_APP);
-        } else {
-            Process.setThreadGroupAndCpuset(pid, Process.THREAD_GROUP_FOREGROUND);
-        }
         Process.setThreadAffinity(pid, affinity);
     }
 
@@ -394,16 +392,10 @@ public class BoostAdjuster implements IBoostAdjuster {
     }
 
     private class InputBoostResetRunnable implements Runnable {
-        InputBoostResetRunnable() {}
-
         @Override
         public void run() {
-            if (mData == null) return;
-            adjustCpusetCpus(CPU_DEX2OAT, mData.allCores, -1L);
-            adjustCpusetCpus(CPU_NT_FG, mData.allCores, -1L);
-            adjustCpusetCpus(CPU_BG, mData.bgCpus, -1L);
+            adjustBackground(false);
             if (mInputBoost) enablePerformanceMode(false);
-            isNotLimited = true;
         }
     }
 
@@ -424,8 +416,8 @@ public class BoostAdjuster implements IBoostAdjuster {
                 Process.setThreadScheduler(pid, 0, 0);
                 Process.setThreadPriority(prio);
                 Process.setThreadScheduler(rtid, 0, 0);
-                boostUtil(pid, 0);
-                boostAnimRes(false);
+                boostRestricted(pid, 0);
+                boostAnimationExt(false);
             } catch (Exception e) {
                 Slog.w(TAG, "Failed to restore scheduling policy\n" + e);
             }
@@ -510,7 +502,7 @@ public class BoostAdjuster implements IBoostAdjuster {
                 case MSG_GAME_BOOST:
                     final boolean boost = msg.arg1 == 1;
                     boostGpuInternal(boost ? mGameGpuBoost : 0);
-                    boostTopApp(boost);
+                    backgroundLoadLimit(boost);
                     enablePerformanceMode(boost);
                     break;
                 default:
@@ -520,23 +512,12 @@ public class BoostAdjuster implements IBoostAdjuster {
         }
     }
 
-    private void boostTopApp(boolean boost) {
+    private void backgroundLoadLimit(boolean limitBg) {
         if (mData == null) return;
-        dex2oatCpusetOverrides.remove(Integer.valueOf(Process.myUid()));
-        ntFgCpusetOverrides.remove(Integer.valueOf(Process.myUid()));
-        bgCpusetOverrides.remove(Integer.valueOf(Process.myUid()));
-        if (!boost) {
-            restoreCpuset(CPU_NT_FG, mData.allCores);
-            restoreCpuset(CPU_DEX2OAT, mData.allCores);
-            restoreCpuset(CPU_BG, mData.bgCpus);
-            isNotLimited = true;
-            return;
+        if (limitBg) {
+            UiThread.getHandler().removeCallbacks(inputReset);
         }
-        isNotLimited = false;
-        UiThread.getHandler().removeCallbacks(inputReset);
-        adjustCpusetCpus(CPU_NT_FG, mData.uiLimit, 0L);
-        adjustCpusetCpus(CPU_DEX2OAT, mData.bgLimit, 0L);
-        adjustCpusetCpus(CPU_BG, mData.bgLimit, 0L);
+        adjustBackground(limitBg);
     }
     
     public void enablePerformanceMode(boolean enabled) {
@@ -579,9 +560,9 @@ public class BoostAdjuster implements IBoostAdjuster {
         if (!mFlags.isNewState(BOOST_HT, enabled)) return;
         mFlags.setFlag(BOOST_HT, enabled);
         enablePerformanceMode(enabled);
-        boostSF(enabled);
+        sfBindCoreControll(enabled);
         boostGpuInternal(enabled ? mSysGpuBoost : 0);
-        boostTopApp(enabled);
+        backgroundLoadLimit(enabled);
         getProcessesAndFrozen(mResumedPackage);
     }
     
@@ -596,12 +577,12 @@ public class BoostAdjuster implements IBoostAdjuster {
         mHandler.sendMessage(mHandler.obtainMessage(MSG_GAME_BOOST, enabled ? 1 : 0));
     }
 
-    private void boostAnimRes(boolean enabled) {
+    private void boostAnimationExt(boolean enabled) {
         if (!mKernelSupportsBoosts) return;
         if (gameActive()) return;
-        boostSF(enabled);
+        sfBindCoreControll(enabled);
         boostGpuInternal(enabled ? mSysGpuBoost : 0);
-        boostTopApp(enabled);
+        backgroundLoadLimit(enabled);
         getProcessesAndFrozen(mResumedPackage);
     }
     
@@ -610,7 +591,7 @@ public class BoostAdjuster implements IBoostAdjuster {
         mDeviceData.boostGpu(boost);
     }
 
-    private void boostSF(boolean enabled) {
+    private void sfBindCoreControll(boolean enabled) {
         if (!mKernelSupportsBoosts) return;
         if (!mSfBoost) { 
             if (!mFlags.isActive(BOOST_SF)) return;
@@ -626,7 +607,7 @@ public class BoostAdjuster implements IBoostAdjuster {
             p.writeInt(enabled ? 1 : 0);
             b.transact(1048, p, null, 0);
         } catch (Exception e) {
-            logger("boostSF transact failed: " + e);
+            logger("sfBindCoreControll transact failed: " + e);
             mFlags.setFlag(BOOST_SF, false);
         } finally {
             p.recycle();

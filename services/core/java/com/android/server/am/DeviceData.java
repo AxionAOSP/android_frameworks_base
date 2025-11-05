@@ -334,7 +334,6 @@ public final class DeviceData {
 
         String bgCpus = rangeTo(sCores, 3);
         String fgCpus = allCores;
-        String audioCpus = joinRanges(smallR, rangeTo(bCores, 2));
         String boostCpus = joinRanges(bigR, primeR);
 
         String bgLimit = rangeTo(sCores, 2);
@@ -346,7 +345,6 @@ public final class DeviceData {
         propSet("cpu_all", allCores);
         propSet("cpu_bg", bgCpus);
         propSet("cpu_fg", fgCpus);
-        propSet("cpu_audio", audioCpus);
         propSet("cpu_limit_bg", bgLimit);
         propSet("cpu_limit_ui", uiLimit);
         
@@ -360,7 +358,6 @@ public final class DeviceData {
                 " allCores=" + allCores +
                 " bgCpus=" + bgCpus +
                 " fgCpus=" + fgCpus +
-                " audioCpus=" + audioCpus +
                 " cpu_limit_bg=" + bgLimit +
                 " cpu_limit_ui=" + uiLimit +
                 " hasPrime=" + hasPrime);

@@ -552,6 +552,7 @@ public class OomAdjuster {
                 || AxUtils.isCamera(processName) && (group == THREAD_GROUP_TOP_APP 
                     || group == THREAD_GROUP_RESTRICTED)) {
                 Slog.d(TAG, pid + ": target set cpuset: " + group);
+                Process.setThreadGroupAndCpuset(pid, group);
                 Process.setProcessGroup(pid, THREAD_GROUP_RESTRICTED);
             } else {
                 Process.setProcessGroup(pid, group);
