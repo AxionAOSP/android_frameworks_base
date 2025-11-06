@@ -1506,16 +1506,6 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
         mBroadcastDispatcher.registerReceiver(mBroadcastReceiver, filter, null, UserHandle.ALL);
     }
 
-    @Override
-    public boolean shouldSuppressFullScreenIntent() {
-        return Settings.System.getIntForUser(
-                mContext.getContentResolver(),
-                "gamespace_suppress_fullscreen_intent_status",
-                0,
-                UserHandle.USER_CURRENT
-            ) == 1;
-    }
-
     protected QS createDefaultQSFragment() {
         Class<? extends QS> klass;
         if (QSComposeFragment.isEnabled()) {
