@@ -32,6 +32,8 @@
 #include <android-base/properties.h>
 #include <android-base/unique_fd.h>
 
+#include "ax_process_utils.h"
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -67,6 +69,7 @@
 #define GUARD_THREAD_PRIORITY 0
 
 using namespace android;
+using namespace axion::process;
 
 static constexpr bool kDebugPolicy = false;
 static constexpr bool kDebugProc = false;
@@ -443,41 +446,9 @@ static void get_cpuset_cores_for_policy(SchedPolicy policy, cpu_set_t *cpu_set)
 }
 
 void android_os_Process_setThreadAffinity(JNIEnv* env, jobject clazz, int tid, jint grp) {
-    cpu_set_t target_cpu_set;
-    CPU_ZERO(&target_cpu_set);
-
-    std::string cpuset_str;
-    const char* group_name = nullptr;
-
-    if (grp == 1) {
-        cpuset_str = android::base::GetProperty("persist.sys.axion_cpu_small", "0,1,2,3");
-        group_name = "small cores";
-    } else if (grp == 0) {
-        std::string big = android::base::GetProperty("persist.sys.axion_cpu_big", "4,5,6,7");
-        std::string prime = android::base::GetProperty("persist.sys.axion_cpu_prime", "");
-        cpuset_str = prime.empty() ? big : big + "," + prime;
-        group_name = "big cores";
-    } else if (grp == 2) {
-        int max_cpus = sysconf(_SC_NPROCESSORS_ONLN);
-        for (int i = 0; i < max_cpus; ++i) {
-            CPU_SET(i, &target_cpu_set);
-        }
-        group_name = "all cores";
-    } else {
-        ALOGV("Invalid group %d for thread %d", grp, tid);
-        return;
-    }
-
-    if (grp == 0 || grp == 1) {
-        std::vector<char> cpus_buf(cpuset_str.begin(), cpuset_str.end());
-        cpus_buf.push_back('\0');
-        parse_cpuset_cpus(cpus_buf.data(), &target_cpu_set);
-    }
-
-    if (sched_setaffinity(tid, sizeof(cpu_set_t), &target_cpu_set) == -1) {
-        ALOGV("Failed to set CPU affinity for thread %d to %s: %s", tid, group_name, strerror(errno));
-    } else {
-        ALOGV("Successfully set affinity for thread %d to %s", tid, group_name);
+    bool success = SetThreadAffinity(tid, grp);
+    if (!success) {
+        ALOGE("Failed to set CPU affinity for thread %d (group %d)", tid, grp);
     }
 }
 
