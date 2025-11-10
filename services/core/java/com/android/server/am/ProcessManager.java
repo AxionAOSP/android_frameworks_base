@@ -169,11 +169,12 @@ public class ProcessManager implements IProcessManager {
                 & ApplicationInfo.FLAG_PERSISTENT) != 0;
 
         ProcessRecord pRec = r.app;
-        boolean isVisible = false;
-        if (pRec != null && pRec.mProfile != null) {
-            isVisible = (pRec.mProfile.getCurRawAdj() == ProcessList.VISIBLE_APP_ADJ) 
+        if (pRec == null || pRec.mProfile != null) return false;
+
+        if (!AxUtils.isRestrictedNeedSelfControll(pRec)) return false;
+
+        boolean isVisible = (pRec.mProfile.getCurRawAdj() == ProcessList.VISIBLE_APP_ADJ) 
                 || pRec.hasActivities();
-        }
 
         boolean result = !(isPersistent ||
                  r.isForeground ||
