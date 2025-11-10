@@ -168,7 +168,7 @@ public class BoostAdjuster implements IBoostAdjuster {
             String[] parts = kernelVersion.split("\\.");
             int major = Integer.parseInt(parts[0]);
             int minor = (parts.length > 1) ? Integer.parseInt(parts[1]) : 0;
-            return (major > 5) || (major == 5 && minor >= 0);
+            return (major > 4) || (major == 4 && minor >= 19);
         } catch (Exception e) {
             return false;
         }
