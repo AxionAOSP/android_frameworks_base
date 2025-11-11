@@ -1058,6 +1058,8 @@ interface IActivityManager {
 
     void inputBoost();
     
+    void boostThread(int tid);
+    
     /**
      * Force full screen
      */

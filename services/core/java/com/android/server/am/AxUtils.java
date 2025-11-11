@@ -46,6 +46,7 @@ public class AxUtils {
     public static final ArrayList<String> sAppWhiteList = new ArrayList<>();
     public static final ArrayList<String> sAppPerfList = new ArrayList<>();
     public static final ArrayList<String> sCameraList = new ArrayList<>();
+    public static final ArrayList<String> sPerfBlackList = new ArrayList<>();
 
     static {
         sAppWhiteList.add("com.google.android.providers.media.module");
@@ -56,6 +57,15 @@ public class AxUtils {
         sCameraList.add("com.google.android.GoogleCamera");
         sCameraList.add("org.lineageos.aperture");
         sCameraList.add("com.oplus.camera");
+        // processes that should never be scheduled on high energy cores but still needs resources
+        sPerfBlackList.add("com.google.pixel.camera.services");
+        sPerfBlackList.add("com.android.qns");
+        sPerfBlackList.add("com.google.android.iwlan");
+        sPerfBlackList.add("com.android.axion.widgets");
+        sPerfBlackList.add("org.lineage.settings");
+        sPerfBlackList.add("co.aospa.sense");
+        sPerfBlackList.add("io.chaldeaprjkt.gamespace");
+        sPerfBlackList.add("com.android.edge.bar");
     }
 
     AxUtils() {
@@ -99,6 +109,14 @@ public class AxUtils {
 
     public static boolean isCamera(String processName) {
         return processName != null && sCameraList.contains(processName);
+    }
+
+    public static boolean isInPerfBlackList(String processName) {
+        return processName != null && sPerfBlackList.contains(processName);
+    }
+
+    public static boolean isInLowPrioList(String processName) {
+        return processName != null && processName.contains("google");
     }
 
     public static void boostCamera(boolean boost) {

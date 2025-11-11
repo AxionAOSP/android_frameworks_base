@@ -32,4 +32,8 @@ public class WindowEventHelper {
     public static void removeTask(Task task, String reason) {
         WindowEventDispatcher.get().notifyTaskRemoved(task, reason);
     }
+    
+    public static int getFocusedPid() {
+        return WindowEventDispatcher.get().getFocusedPid();
+    }
 }

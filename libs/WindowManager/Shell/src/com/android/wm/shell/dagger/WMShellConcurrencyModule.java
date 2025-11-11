@@ -31,6 +31,8 @@ import android.view.Choreographer;
 
 import androidx.annotation.Nullable;
 
+import com.android.internal.util.BoostHelper;
+
 import com.android.wm.shell.R;
 import com.android.wm.shell.common.HandlerExecutor;
 import com.android.wm.shell.common.ShellExecutor;
@@ -118,10 +120,14 @@ public abstract class WMShellConcurrencyModule {
                 mainThread = createShellMainThread();
                 mainThread.start();
             }
+            BoostHelper.boostThread(mainThread.getThreadId());
             if (Build.IS_DEBUGGABLE) {
                 mainThread.getLooper().setTraceTag(Trace.TRACE_TAG_WINDOW_MANAGER);
                 mainThread.getLooper().setSlowLogThresholdMs(MSGQ_SLOW_DISPATCH_THRESHOLD_MS,
                         MSGQ_SLOW_DELIVERY_THRESHOLD_MS);
+            } else {
+                mainThread.getLooper().setTraceTag(32L);
+                mainThread.getLooper().setSlowLogThresholdMs(50L, 50L);
             }
             return Handler.createAsync(mainThread.getLooper());
         }
@@ -169,6 +175,8 @@ public abstract class WMShellConcurrencyModule {
     public static Handler provideShellAnimationHandler() {
         HandlerThread animThread = new HandlerThread("wmshell.anim", THREAD_PRIORITY_URGENT_DISPLAY);
         animThread.start();
+        int threadId = animThread.getThreadId();
+        if (threadId > 0) BoostHelper.boostThread(threadId);
         if (Build.IS_DEBUGGABLE) {
             animThread.getLooper().setTraceTag(Trace.TRACE_TAG_WINDOW_MANAGER);
             animThread.getLooper().setSlowLogThresholdMs(MSGQ_SLOW_DISPATCH_THRESHOLD_MS,
@@ -198,6 +206,8 @@ public abstract class WMShellConcurrencyModule {
     public static ShellExecutor provideSplashScreenExecutor() {
         HandlerThread shellSplashscreenThread = new HandlerThread("wmshell.splashscreen",
                 THREAD_PRIORITY_TOP_APP_BOOST);
+        int threadId = shellSplashscreenThread.getThreadId();
+        if (threadId > 0) BoostHelper.boostThread(threadId);
         shellSplashscreenThread.start();
         return new HandlerExecutor(shellSplashscreenThread.getThreadHandler());
     }

@@ -63,4 +63,12 @@ public class BoostHelper {
             Log.w(TAG, method + " failed", e);
         }
     }
+    
+    public static void boostThread(int tid) {
+        try {
+            ActivityManager.getService().boostThread(tid);
+        } catch (Exception e) {
+            logException("boostThread", e);
+        }
+    }
 }

@@ -452,6 +452,13 @@ void android_os_Process_setThreadAffinity(JNIEnv* env, jobject clazz, int tid, j
     }
 }
 
+void android_os_Process_setThreadAffinityLimited(JNIEnv* env, jobject clazz, int tid, jint grp, jint length) {
+    bool success = SetThreadAffinity(tid, grp, length);
+    if (!success) {
+        ALOGE("Failed to set CPU affinity for thread %d (group %d)", tid, grp);
+    }
+}
+
 void android_os_Process_setTaskProfiles(JNIEnv* env, jobject clazz, jint tid, jobjectArray profilesArray) {
     if (profilesArray == nullptr) return;
 
@@ -1431,6 +1438,7 @@ static const JNINativeMethod methods[] = {
         {"setThreadGroup", "(II)V", (void*)android_os_Process_setThreadGroup},
         {"setThreadGroupAndCpuset", "(II)V", (void*)android_os_Process_setThreadGroupAndCpuset},
         {"setThreadAffinity", "(II)V", (void*)android_os_Process_setThreadAffinity},
+        {"setThreadAffinityLimited", "(III)V", (void*)android_os_Process_setThreadAffinityLimited},
         {"setTaskProfiles", "(I[Ljava/lang/String;)V", (void*)android_os_Process_setTaskProfiles},
         {"setProcessGroup", "(II)V", (void*)android_os_Process_setProcessGroup},
         {"getProcessGroup", "(I)I", (void*)android_os_Process_getProcessGroup},

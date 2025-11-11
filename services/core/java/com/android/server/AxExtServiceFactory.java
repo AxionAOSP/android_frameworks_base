@@ -30,6 +30,8 @@ public class AxExtServiceFactory {
     private static volatile IBoostAdjuster sBoostAdjuster;
     private static volatile IProcessManager sProcessManager;
     private static volatile IUxPerformance sUxPerformance;
+    
+    private static final TaskProfiler mTaskProfiler = new TaskProfiler();
 
     private AxExtServiceFactory(Context context) {
         NtServiceInjector.get().setCtx(context);
@@ -125,6 +127,7 @@ public class AxExtServiceFactory {
         getMemoryManager().systemReady();
         getUxPerformance().systemReady();
         OnlineConfigObserver.systemReady();
+        mTaskProfiler.initTaskProfiles();
     }
 
     public static INtMemoryManager getMemoryManager() {

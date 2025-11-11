@@ -166,6 +166,7 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.ServiceThread;
 import com.android.server.am.PlatformCompatCache.CachedCompatChangeId;
+import com.android.server.wm.AxScheduler;
 import com.android.server.wm.ActivityServiceConnectionsHolder;
 import com.android.server.wm.WindowProcessController;
 
@@ -545,15 +546,8 @@ public class OomAdjuster {
                     + processName + " to " + group);
         }
         try {
-            if (AxUtils.isInPerfList(processName)) {
-                Slog.d(TAG, "set group = " + group);
-            }
-            if (AxUtils.isInPerfList(processName) && !AxUtils.isCamera(processName) 
-                || AxUtils.isCamera(processName) && (group == THREAD_GROUP_TOP_APP 
-                    || group == THREAD_GROUP_RESTRICTED)) {
-                Slog.d(TAG, pid + ": target set cpuset: " + group);
-                Process.setThreadGroupAndCpuset(pid, group);
-                Process.setProcessGroup(pid, THREAD_GROUP_RESTRICTED);
+            if (AxScheduler.isSupported()) {
+                AxScheduler.scheduleOpt(pid, group, processName);
             } else {
                 Process.setProcessGroup(pid, group);
             }
