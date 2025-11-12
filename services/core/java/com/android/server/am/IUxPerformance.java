@@ -18,5 +18,5 @@ package com.android.server.am;
 public interface IUxPerformance {
     default void systemReady() {}
     default void setScreenState(boolean off) {}
-    default int perfIOPrefetchStart(int pid, String packageName, String codePath) { return -1; }
+    default void perfIOPrefetchStart(int pid, String packageName, String codePath) {}
 }

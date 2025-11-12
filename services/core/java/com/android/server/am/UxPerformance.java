@@ -26,6 +26,7 @@ import android.content.pm.IPackageManager;
 import android.content.pm.PackageInfo;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.StrictMode;
 import android.provider.Settings;
 import android.text.TextUtils;
 
@@ -38,17 +39,17 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.lang.ref.WeakReference;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 public class UxPerformance implements IUxPerformance {
 
-    public static final int REQUEST_FAILED = -1;
-    public static final int REQUEST_SUCCEEDED = 0;
+    private static final String TAG = "UxPerformance: ";
 
     private static final String DEXOPT_TRACKER_KEY = "ux_dexopt_tracker";
     private static final long DEXOPT_EXPIRY_MS = 15L * 24 * 60 * 60 * 1000;
@@ -59,6 +60,8 @@ public class UxPerformance implements IUxPerformance {
     private static final String[] OAT_DIRS = {"/oat/arm64/", "/oat/arm/"};
     private static final String[] FILE_SUFFIXES = {".art", ".odex", ".vdex"};
 
+    private final ConcurrentHashMap<File, WeakReference<MappedByteBuffer>> mappedDexBuffers = new ConcurrentHashMap<>();
+
     private volatile boolean screenOff;
     private boolean systemReady = false;
 
@@ -66,11 +69,11 @@ public class UxPerformance implements IUxPerformance {
     private PackageManagerService mPackageService;
     private DexOptHelper mDexOptHelper;
 
-    private Handler prefetchHandler;
+    private Handler dexPreloadHandler;
     private Handler pAppsHandler;
 
     private final Object dexoptLock = new Object();
-    private final Object prefetchLock = new Object();
+    private final Object preloadLock = new Object();
 
     private ExecutorService prefetchExecutor;
 
@@ -81,7 +84,7 @@ public class UxPerformance implements IUxPerformance {
         packageManager = AppGlobals.getPackageManager();
         mDexOptHelper = (mPackageService != null) ? mPackageService.getDexOptHelper() : null;
 
-        prefetchHandler = createHandler("DexPrefetchHandlerThread");
+        dexPreloadHandler = createHandler("DexPrefetchHandlerThread");
         pAppsHandler = createHandler("PAppsSpeedHandlerThread");
 
         prefetchExecutor = Executors.newFixedThreadPool(
@@ -102,10 +105,16 @@ public class UxPerformance implements IUxPerformance {
         return new Handler(thread.getLooper());
     }
 
-    public int perfIOPrefetchStart(int pid, String packageName, String codePath) {
-        if (!systemReady || codePath == null) return REQUEST_FAILED;
-        prefetchHandler.post(() -> dexPrefetch(codePath));
-        return REQUEST_SUCCEEDED;
+    public void perfIOPrefetchStart(int pid, String packageName, String codePath) {
+        if (!systemReady || codePath == null) return;
+
+        dexPreloadHandler.post(() -> {
+            try {
+                dexPrefetch(codePath);
+            } catch (Exception e) {
+                logger(TAG + "dexPreload failed: " + e);
+            }
+        });
     }
 
     private void dexPrefetch(String codePath) {
@@ -113,34 +122,44 @@ public class UxPerformance implements IUxPerformance {
 
         for (String dirSuffix : OAT_DIRS) {
             File dir = new File(codePath + dirSuffix);
-            if (dir.exists()) {
-                String baseName = codePath.startsWith("/data")
-                        ? "base"
-                        : codePath.substring(codePath.lastIndexOf('/') + 1);
+            if (!dir.exists()) continue;
 
-                for (String suffix : FILE_SUFFIXES) {
-                    File f = new File(dir, baseName + suffix);
-                    if (f.exists()) filesToLoad.add(f);
-                    logger("Scheduled dex prefetch for file: " + f.getAbsolutePath());
-                }
-                break;
+            String baseName = codePath.startsWith("/data")
+                    ? "base"
+                    : codePath.substring(codePath.lastIndexOf('/') + 1);
+
+            for (String suffix : FILE_SUFFIXES) {
+                File f = new File(dir, baseName + suffix);
+                if (f.exists()) filesToLoad.add(f);
             }
+            break;
         }
 
         for (File f : filesToLoad) {
-            prefetchExecutor.submit(() -> loadFileLocked(f));
+            prefetchExecutor.submit(() -> preloadFile(f));
         }
     }
 
-    private void loadFileLocked(File file) {
-        synchronized (prefetchLock) {
-            try (FileChannel channel = new RandomAccessFile(file, "r").getChannel()) {
-                MappedByteBuffer buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
-                buffer.load();
-                logger("Dex prefetch completed: " + file.getAbsolutePath());
-            } catch (IOException e) {
-                logger("Dex prefetch failed for file: " + file.getAbsolutePath() + " - " + e);
+    private void preloadFile(File file) {
+        try {
+            WeakReference<MappedByteBuffer> ref = mappedDexBuffers.get(file);
+            MappedByteBuffer buffer = ref != null ? ref.get() : null;
+
+            if (buffer != null) {
+                logger(TAG + "Dex already mapped in memory: " + file.getAbsolutePath());
+                return;
             }
+
+            try (FileChannel channel = new RandomAccessFile(file, "r").getChannel()) {
+                buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
+                buffer.load();
+            }
+
+            mappedDexBuffers.put(file, new WeakReference<>(buffer));
+
+            logger(TAG + "Dex prefetch completed: " + file.getAbsolutePath());
+        } catch (IOException e) {
+            logger(TAG + "Dex prefetch failed: " + file.getAbsolutePath() + " - " + e);
         }
     }
 
