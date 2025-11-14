@@ -281,6 +281,14 @@ public class AxUtils {
         return physicalMem;
     }
 
+    public static String getRamKey() {
+        long memSize = AxUtils.getPhysicalMemory();
+        if (memSize == MEM_12GB || memSize == MEM_16GB) return "12GB";
+        if (memSize == MEM_8GB || memSize == MEM_10GB) return "8GB";
+        if (memSize == MEM_6GB) return "6GB";
+        return null;
+    }
+
     public static int getMemTotal() {
         long memTotalKb = parseMemTotalKb();
         if (memTotalKb <= 0) return -1;

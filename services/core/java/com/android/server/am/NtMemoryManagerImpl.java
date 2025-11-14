@@ -36,6 +36,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+import com.android.server.OnlineConfigObserver;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 public class NtMemoryManagerImpl implements INtMemoryManager {
 
     private static final int MSG_TUNE_EXTRA_FREE = 0;
@@ -48,6 +52,8 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
 
     private static final String TAG = "NtMemoryManager";
     private static final boolean DEBUG = SystemProperties.getBoolean("persist.sys.nmm.debug", false);
+    
+    private volatile JSONObject mCurrentConfig = null;
 
     private static final List<String> DEFAULT_RELEASE_WHITELIST = List.of(
                 "com.google.android.googlequicksearchbox:search", 
@@ -57,7 +63,7 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
                 "com.android.edge.bar"
         );
 
-    private final List<String> mReleaseProcessWhiteList = DEFAULT_RELEASE_WHITELIST;
+    private final List<String> mReleaseProcessWhiteList = new ArrayList<>(DEFAULT_RELEASE_WHITELIST);
 
     private Context mContext;
     private ActivityManagerService mService;
@@ -75,6 +81,7 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
     private long mReleaseMemoryDuration = 3600000L;
     private float mWeight = 10f;
     private int mReleaseMemoryKillCount = 5;
+    private int mReleaseAdj = 900;
 
     private final ArrayList<String> mWhiteListForCameraStart = new ArrayList<>();
     private volatile boolean mSystemReady = false;
@@ -114,7 +121,7 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
                     break;
                 case MSG_BOOST_CAMERA_START_WARM:
                     SystemProperties.set("persist.sys.nmm.boost.camera", "1");
-                    releaseMemory(950, mKillProcessCountWarmStart, true, mWhiteListForCameraStart);
+                    releaseMemory(mReleaseAdj, mKillProcessCountWarmStart, true, mWhiteListForCameraStart);
                     break;
                 case MSG_BOOST_CAMERA_RESET_WARM:
                     mIsBoostingCameraWarm = false;
@@ -123,7 +130,7 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
                 case MSG_RELEASE_MEMORY_SCREEN_ON:
                     if (DEBUG) Slog.d(TAG, "Start to kill process to release memory on screen on");
                     SystemProperties.set("persist.sys.nmm.boost.camera", "1");
-                    releaseMemory(950, mReleaseMemoryKillCount, false, mReleaseProcessWhiteList);
+                    releaseMemory(mReleaseAdj, mReleaseMemoryKillCount, false, mReleaseProcessWhiteList);
                     break;
                 case MSG_LOAD_PROCESS_MEMORY:
                     String loadPkg = message.getData() != null
@@ -133,7 +140,7 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
                     break;
                 case MSG_CAMERA_MEMORY_RELEASE:
                     SystemProperties.set("persist.sys.nmm.boost.camera", "1");
-                    releaseMemory(950, mKillProcessCount, true, mWhiteListForCameraStart);
+                    releaseMemory(mReleaseAdj, mKillProcessCount, true, mWhiteListForCameraStart);
                     break;
                 case MSG_BOOST_CAMERA_COLD_RESET:
                     mIsBoostingCameraCold = false;
@@ -375,6 +382,12 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
         loadReleaseMemoryConfig();
         loadBoostCamera();
         tuneExtraFree();
+        
+        OnlineConfigObserver.addConfigObserver(config -> {
+            if (DEBUG) Slog.d(TAG, "Config update received");
+            applyConfig(config);
+        });
+        
         mSystemReady = true;
     }
 
@@ -383,6 +396,71 @@ public class NtMemoryManagerImpl implements INtMemoryManager {
             mHandler.sendMessage(mHandler.obtainMessage(MSG_TUNE_EXTRA_FREE));
         } else if (DEBUG) {
             Slog.d(TAG, "Handler not initialized yet for tuneExtraFree");
+        }
+    }
+    
+    private void applyConfig(JSONObject config) {
+        if (config == null) return;
+        
+        try {
+            JSONObject nmm = config.optJSONObject("NtMemoryManager");
+            if (nmm == null) {
+                if (DEBUG) Slog.d(TAG, "No NtMemoryManager config found");
+                return;
+            }
+            
+            mBoostCameraDuration = nmm.optLong("boostCameraDuration", mBoostCameraDuration);
+            mReleaseMemoryDuration = nmm.optLong("releaseMemoryDuration", mReleaseMemoryDuration);
+            mWeight = (float) nmm.optDouble("weight", 10.0);
+            
+            mReleaseAdj = nmm.optInt("releaseAdj", mReleaseAdj);
+            
+            JSONArray whitelistArray = nmm.optJSONArray("releaseWhitelist");
+            if (whitelistArray != null && whitelistArray.length() > 0) {
+                mReleaseProcessWhiteList.clear();
+                for (int i = 0; i < whitelistArray.length(); i++) {
+                    String processName = whitelistArray.optString(i);
+                    if (processName != null && !processName.isEmpty()) {
+                        mReleaseProcessWhiteList.add(processName);
+                    }
+                }
+                if (DEBUG) Slog.d(TAG, "Updated whitelist with " + mReleaseProcessWhiteList.size() + " entries");
+            }
+            
+            String ramKey = AxUtils.getRamKey();
+            
+            JSONObject ramConfigs = nmm.optJSONObject("ramConfigs");
+            if (ramConfigs != null && ramKey != null) {
+                JSONObject ramConfig = ramConfigs.optJSONObject(ramKey);
+                if (ramConfig != null) {
+                    mKillProcessCount = ramConfig.optInt("killProcessCount", mKillProcessCount);
+                    mKillProcessCountWarmStart = ramConfig.optInt("killProcessCountWarmStart", mKillProcessCountWarmStart);
+                    mReleaseMemoryKillCount = ramConfig.optInt("releaseMemoryKillCount", mReleaseMemoryKillCount);
+                    
+                    if (ramConfig.has("releaseAdj")) {
+                        mReleaseAdj = ramConfig.optInt("releaseAdj", mReleaseAdj);
+                    }
+                }
+            }
+            
+            mKillProcessCount = nmm.optInt("killProcessCount", mKillProcessCount);
+            mKillProcessCountWarmStart = nmm.optInt("killProcessCountWarmStart", mKillProcessCountWarmStart);
+            mReleaseMemoryKillCount = nmm.optInt("releaseMemoryKillCount", mReleaseMemoryKillCount);
+            
+            if (DEBUG) {
+                Slog.d(TAG, "Config applied - RAM:" + ramKey 
+                    + " boostDuration:" + mBoostCameraDuration
+                    + " killCount:" + mKillProcessCount
+                    + " warmStart:" + mKillProcessCountWarmStart
+                    + " releaseKill:" + mReleaseMemoryKillCount
+                    + " releaseAdj:" + mReleaseAdj
+                    + " weight:" + mWeight
+                    + " whitelistSize:" + mReleaseProcessWhiteList.size());
+            }
+            
+            mCurrentConfig = config;
+        } catch (Exception e) {
+            Slog.e(TAG, "Failed to apply config", e);
         }
     }
 }
