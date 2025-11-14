@@ -124,6 +124,7 @@ public class AxExtServiceFactory {
         getBoostAdjuster().systemReady();
         getMemoryManager().systemReady();
         getUxPerformance().systemReady();
+        OnlineConfigObserver.systemReady();
     }
 
     public static INtMemoryManager getMemoryManager() {
