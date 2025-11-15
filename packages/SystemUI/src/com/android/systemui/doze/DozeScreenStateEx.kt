@@ -30,6 +30,8 @@ import com.android.systemui.doze.DozeMachine
 import com.android.systemui.settings.DisplayTracker
 import com.android.systemui.statusbar.phone.UnlockedScreenOffAnimationControllerExt
 import com.android.systemui.statusbar.phone.ScreenOffAnimationCallback
+import com.android.systemui.statusbar.StatusBarState.KEYGUARD
+import com.android.systemui.util.ScrimUtils
 import java.util.concurrent.Executor
 import java.util.function.Consumer
 import javax.inject.Inject
@@ -63,6 +65,10 @@ class DozeScreenStateEx @Inject constructor(
     private var screenStateConsumer: Consumer<Int>? = null
 
     private val screenOffAnimationCallback = object : ScreenOffAnimationCallback() {
+        override fun onAnimationStart() {
+            ScrimUtils.get().setBarState(KEYGUARD)
+            ScrimUtils.get().onDozingChanged(true)
+        }
         override fun onAnimationEnd() {
             unlockAnimPlaying = false
             Log.d(TAG, "ScreenOffAnimation animationEnd: $curState, display state: $curDisplayState")
