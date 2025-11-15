@@ -30,6 +30,8 @@ class LondonUGClockView @JvmOverloads constructor(
 ) : BitmapDigitClockView(context, attrs, defStyleAttr, defStyleRes) {
 
     override val tagName = "LondonUGClockView"
+    
+    override val topMargin get() = context.scaledDimen(R.dimen.bitmap_digit_clocks_margin_top_v2)
 
     override val digitResIds = intArrayOf(
         R.drawable.london_ug_0,

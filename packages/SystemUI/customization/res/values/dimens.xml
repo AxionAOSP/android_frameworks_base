@@ -102,4 +102,7 @@
     <dimen name="clock_date_icon_size">16dp</dimen>
     <dimen name="clock_date_icon_margin">6dp</dimen>
     <dimen name="clock_date_element_spacing">8dp</dimen>
+    <dimen name="bitmap_digit_clocks_height_v2">136dp</dimen>
+    <dimen name="bitmap_digit_clocks_date_top_margin_v2">28dp</dimen>
+    <dimen name="bitmap_digit_clocks_margin_top_v2">36dp</dimen>
 </resources>

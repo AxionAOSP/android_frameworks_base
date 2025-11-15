@@ -14,27 +14,21 @@
 package com.android.systemui.shared.clocks.view
 
 import android.content.Context
-import android.graphics.*
-import android.text.TextUtils
+import android.graphics.Color
 import android.util.AttributeSet
 import com.android.systemui.customization.R
 import com.android.systemui.shared.clocks.extensions.*
-import kotlin.LazyThreadSafetyMode
-import kotlin.math.min
 
 class NDotClockView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0,
     defStyleRes: Int = 0
-) : NTClockView(context, attrs, defStyleAttr, defStyleRes) {
+) : BitmapDigitClockView(context, attrs, defStyleAttr, defStyleRes) {
 
-    private val tagName = "NDotClockView"
-    override fun getTag() = tagName
+    override val tagName = "NDotClockView"
 
-    private val paint = Paint()
-
-    private val digitResIds = mapOf(
+    override val digitResIdPairs = mapOf(
         '0' to (R.drawable.ndot_0 to R.drawable.ndot_0_light),
         '1' to (R.drawable.ndot_1 to R.drawable.ndot_1_light),
         '2' to (R.drawable.ndot_2 to R.drawable.ndot_2_light),
@@ -47,94 +41,54 @@ class NDotClockView @JvmOverloads constructor(
         '9' to (R.drawable.ndot_9 to R.drawable.ndot_9_light)
     )
 
-    private var digitBitmaps: Map<Char, Pair<Lazy<Bitmap?>, Lazy<Bitmap?>>> = createDigitBitmaps()
-
     private val clockPadding get() = context.scaledDimen(R.dimen.clock_padding)
     private val overlapPadding get() = context.scaledDimen(R.dimen.overlap_padding)
-    private val topMargin get() = context.scaledDimen(R.dimen.clock_center_date_margin_top)
-    private val yOffset get() = context.scaledDimen(R.dimen.ndot_clock_offset)
+    override val topMargin get() = context.scaledDimen(R.dimen.bitmap_digit_clocks_margin_top_v2)
+    override val clockOffset get() = context.scaledDimen(R.dimen.ndot_clock_offset)
 
-    private fun createDigitBitmaps(): Map<Char, Pair<Lazy<Bitmap?>, Lazy<Bitmap?>>> {
-        val mode = LazyThreadSafetyMode.NONE
-        return digitResIds.mapValues { (_, resPair) ->
-            val (normalBmp, lightBmp) = createBitmaps(context, intArrayOf(resPair.first, resPair.second))
-            lazy(mode) { normalBmp } to lazy(mode) { lightBmp }
-        }
-    }
-
-    private fun getDigitBitmap(char: Char, isDoze: Boolean, isLight: Boolean): Bitmap? {
-        val (normal, light) = digitBitmaps[char] ?: return null
-        return if (isLight) light.value else normal.value
-    }
-
-    override fun drawClock(canvas: Canvas) {
-        if (timeStr.isEmpty() || !TextUtils.isDigitsOnly(timeStr)) return
-
+    override fun clockColor(): Int {
         val isDozeOrOff = isDoze || isScreenOff
         val isDarkRegion = isRegionDark ?: true
-        val length = timeStr.length
+        return if (isDarkRegion || isDozeOrOff) Color.WHITE else Color.BLACK
+    }
 
-        val drawMask = when (length) {
-            3 -> booleanArrayOf(false, true, true)
-            4 -> booleanArrayOf(false, false, true, true)
-            else -> return
-        }
-
-        val spacing = calculateSpacing(timeStr, clockPadding, overlapPadding)
-
-        var totalWidth = 0f
-        for (i in timeStr.indices) {
-            val bmp = getDigitBitmap(timeStr[i], isDozeOrOff, drawMask[i]) ?: continue
-            totalWidth += bmp.width * context.scaleRatio
-            if (i < spacing.size) totalWidth += spacing[i]
-        }
-
-        if (totalWidth <= 0f) return
-
-        val availableWidth = min(width.toFloat(), totalWidth)
-        val startX = (width - availableWidth) / 2f
-
-        paint.colorFilter = PorterDuffColorFilter(
-            if (isDarkRegion || isDozeOrOff) Color.WHITE else Color.BLACK,
-            PorterDuff.Mode.SRC_IN
-        )
-
-        var x = startX
-        for (i in timeStr.indices) {
-            val bmp = getDigitBitmap(timeStr[i], isDozeOrOff, drawMask[i]) ?: continue
-            val scale = context.scaleRatio
-            val y = (height - bmp.height * scale) / 2f - yOffset + topMargin
-            val matrix = Matrix().apply {
-                postScale(scale, scale)
-                postTranslate(x, y)
-            }
-            canvas.drawBitmap(bmp, matrix, paint)
-            x += bmp.width * scale + if (i < spacing.size) spacing[i] else 0f
+    override fun shouldUseLightVariant(time: String, index: Int): Boolean {
+        val isDozeOrOff = isDoze || isScreenOff
+        if (isDozeOrOff) return false
+        return when (time.length) {
+            3 -> index >= 1 
+            4 -> index >= 2
+            else -> false
         }
     }
 
-    private fun calculateSpacing(timeStr: String, padding: Float, overlap: Float): FloatArray {
-        return when (timeStr.length) {
+    override fun getCustomSpacing(time: String, index: Int): Float {
+        return when (time.length) {
             3 -> {
-                val secondHalf = timeStr.substring(1)
-                floatArrayOf(padding, if ('1' !in secondHalf) overlap else padding)
+                when (index) {
+                    0 -> clockPadding
+                    1 -> {
+                        val secondHalf = time.substring(1)
+                        if ('1' !in secondHalf) overlapPadding else clockPadding
+                    }
+                    else -> 0f
+                }
             }
             4 -> {
-                val firstHalf = timeStr.substring(0, 2)
-                val secondHalf = timeStr.substring(2)
-                floatArrayOf(
-                    if ('1' in firstHalf) padding else overlap,
-                    padding,
-                    if ('1' !in secondHalf) overlap else padding
-                )
+                when (index) {
+                    0 -> {
+                        val firstHalf = time.substring(0, 2)
+                        if ('1' in firstHalf) clockPadding else overlapPadding
+                    }
+                    1 -> clockPadding
+                    2 -> {
+                        val secondHalf = time.substring(2)
+                        if ('1' !in secondHalf) overlapPadding else clockPadding
+                    }
+                    else -> 0f
+                }
             }
-            else -> floatArrayOf()
+            else -> 0f
         }
-    }
-
-    override fun onFontSettingChanged() {
-        super.onFontSettingChanged()
-        digitBitmaps = createDigitBitmaps()
-        invalidate()
     }
 }

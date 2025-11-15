@@ -43,17 +43,20 @@ object ClockConfigs {
         "LondonUGClockView" to ClockStyleConfig(
             Position.ABOVE,
             Align.CENTER,
-            customHeightRes = R.dimen.center_clock_height
+            customHeightRes = R.dimen.bitmap_digit_clocks_height_v2,
+            customDateMarginTop = R.dimen.bitmap_digit_clocks_date_top_margin_v2
         ),
         "NDotClockView" to ClockStyleConfig(
             Position.ABOVE,
             Align.CENTER,
-            customHeightRes = R.dimen.center_clock_height
+            customHeightRes = R.dimen.bitmap_digit_clocks_height_v2,
+            customDateMarginTop = R.dimen.bitmap_digit_clocks_date_top_margin_v2
         ),
         "NTypeClockView" to ClockStyleConfig(
             Position.ABOVE,
             Align.CENTER,
-            customHeightRes = R.dimen.center_clock_height
+            customHeightRes = R.dimen.bitmap_digit_clocks_height_v2,
+            customDateMarginTop = R.dimen.bitmap_digit_clocks_date_top_margin_v2
         ),
         "OldQuickLookClockView" to ClockStyleConfig(
             Position.ABOVE,
