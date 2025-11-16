@@ -29,6 +29,7 @@ import com.android.systemui.keyguard.KeyguardSliceProvider;
 import com.android.systemui.keyguard.MistouchPreventionWindowController;
 import com.android.systemui.media.MediaViewController;
 import com.android.systemui.people.PeopleProvider;
+import com.android.systemui.qs.tiles.impl.AxTileProvider;
 import com.android.systemui.startable.Dependencies;
 import com.android.systemui.statusbar.NotificationInsetsModule;
 import com.android.systemui.statusbar.NTForbiddenSwipeDownQSController;
@@ -206,6 +207,9 @@ public interface SysUIComponent {
 
     @SysUISingleton
     EdgeLightViewController edgeLightViewController();
+    
+    @SysUISingleton
+    AxTileProvider axTileProvider();
 
     /**
      * Member injection into the supplied argument.

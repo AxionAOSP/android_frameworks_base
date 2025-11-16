@@ -41,7 +41,6 @@ import com.android.systemui.plugins.DarkIconDispatcher;
 import com.android.systemui.plugins.PluginManager;
 import com.android.systemui.plugins.VolumeDialogController;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
-import com.android.systemui.qs.tiles.impl.AxTileProvider;
 import com.android.systemui.recents.LauncherProxyService;
 import com.android.systemui.settings.UserTracker;
 import com.android.systemui.statusbar.CommandQueue;
@@ -151,7 +150,6 @@ public class Dependency {
     @Inject Lazy<DialogTransitionAnimator> mDialogTransitionAnimatorLazy;
     @Inject Lazy<UserTracker> mUserTrackerLazy;
     @Inject Lazy<StatusBarWindowControllerStore> mStatusBarWindowControllerStoreLazy;
-    @Inject Lazy<AxTileProvider> mAxTileProvider;
     @Inject Lazy<DozeScreenStateEx> mDozeScreenStateEx;
 
     @Inject
@@ -198,8 +196,6 @@ public class Dependency {
         mProviders.put(UserTracker.class, mUserTrackerLazy::get);
         mProviders.put(
                 StatusBarWindowControllerStore.class, mStatusBarWindowControllerStoreLazy::get);
-        mProviders.put(
-                AxTileProvider.class, mAxTileProvider::get);
         mProviders.put(
                 DozeScreenStateEx.class, mDozeScreenStateEx::get);
         Dependency.setInstance(this);

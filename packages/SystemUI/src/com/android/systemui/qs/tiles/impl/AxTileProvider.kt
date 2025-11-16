@@ -36,6 +36,7 @@ import com.android.systemui.common.slider.LevelSliderTheme
 import com.android.systemui.common.slider.LevelSliderDimens
 import com.android.systemui.common.slider.VolumeInteractor
 import com.android.systemui.common.slider.TorchLevelInteractor
+import com.android.systemui.SystemUIApplication
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileHeight
 import com.android.systemui.statusbar.policy.FlashlightStrengthController
@@ -88,8 +89,9 @@ class AxTileProvider @Inject constructor(
 
     companion object {
         @JvmStatic
-        fun get(): AxTileProvider {
-            return Dependency.get(AxTileProvider::class.java)
+        fun get(context: Context): AxTileProvider {
+            val app = context.applicationContext as SystemUIApplication
+            return app.sysUIComponent.axTileProvider()
         }
     }
 

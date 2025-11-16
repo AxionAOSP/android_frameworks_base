@@ -172,8 +172,10 @@ fun Tile(
             rememberViewModel(traceName = "TileHapticsViewModel") {
                 tileHapticsViewModelFactoryProvider.getHapticsViewModelFactory()?.create(tile)
             }
+            
+        val context = LocalContext.current
 
-        if (!iconOnly && AxTileProvider.get().provideAxTile(tile.spec.spec)) {
+        if (!iconOnly && AxTileProvider.get(context).provideAxTile(tile.spec.spec)) {
             return@trace
         }
 
