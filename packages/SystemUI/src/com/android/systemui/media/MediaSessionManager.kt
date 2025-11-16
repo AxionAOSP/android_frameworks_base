@@ -55,16 +55,16 @@ class MediaSessionManager private constructor() {
     fun onPlaybackStateChanged(state: Int) {
         val isPlaying = state == PlaybackState.STATE_PLAYING
         if (_isMediaPlaying.getAndSet(isPlaying) != isPlaying) {
-            listenerManager.notify { it.onPlaybackStateChanged(state) }
+            listenerManager.notifyOnBackground { it.onPlaybackStateChanged(state) }
         }
     }
 
     fun onAlbumArtChanged(drawable: Drawable) {
-        listenerManager.notify { it.onAlbumArtChanged(drawable) }
+        listenerManager.notifyOnBackground { it.onAlbumArtChanged(drawable) }
     }
 
     fun onMediaColorsChanged(color: Int) {
-        listenerManager.notify { it.onMediaColorsChanged(color) }
+        listenerManager.notifyOnBackground { it.onMediaColorsChanged(color) }
     }
 
     fun onMetadataChanged(metadata: MediaMetadata) {
@@ -73,7 +73,7 @@ class MediaSessionManager private constructor() {
         if (_trackTitle != newTitle || _artist != newArtist) {
             _trackTitle = newTitle
             _artist = newArtist
-            listenerManager.notify { it.onMetadataChanged(_trackTitle, _artist) }
+            listenerManager.notifyOnBackground { it.onMetadataChanged(_trackTitle, _artist) }
         }
     }
 
