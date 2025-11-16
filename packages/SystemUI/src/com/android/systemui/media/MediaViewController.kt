@@ -24,29 +24,19 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.LayerDrawable
-import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
 import android.os.UserHandle
 import android.provider.Settings
-import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import com.android.internal.graphics.ColorUtils
 import com.android.systemui.SystemUIApplication
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.media.MediaScrimState.STATE_SCRIM_HIDDEN
-import com.android.systemui.media.MediaScrimState.STATE_SCRIM_VISIBLE
 import com.android.systemui.util.ScrimUtils
 import kotlinx.coroutines.*
-import kotlin.math.*
 import javax.inject.Inject
-
-enum class MediaScrimState {
-    STATE_SCRIM_VISIBLE,
-    STATE_SCRIM_HIDDEN
-}
 
 @SysUISingleton
 class MediaViewController @Inject constructor(
@@ -55,13 +45,17 @@ class MediaViewController @Inject constructor(
 
     private val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
     
-    private var scrimState = STATE_SCRIM_HIDDEN
-    
+    private var isScrimVisible = false
     private var listening = false
     private var featureEnabled = false
     private var artworkDrawable: Drawable? = null
-    private var isMediaPlaying = false
     private var bouncerShowingOrKeyguardDismissing = false
+    private var dismissingKeyguard = false
+    
+    private val isMediaPlaying 
+        get() = MediaSessionManager.get().isMediaPlaying
+    private val isKeyguardShowing 
+        get() = ScrimUtils.get().isKeyguardShowing()
 
     private val settingsObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean) {
@@ -78,9 +72,7 @@ class MediaViewController @Inject constructor(
     }
 
     private var mediaArtJob: Job? = null
-    private var isAlbumArtVisible = false
-    private val mediaFadeLevel = 40
-    private var dismissingKeyguard = false
+    private var stateUpdateJob: Job? = null
 
     init {        
         context.contentResolver.registerContentObserver(
@@ -88,7 +80,6 @@ class MediaViewController @Inject constructor(
             false,
             settingsObserver
         )
-
         updateSettings()
     }
 
@@ -101,7 +92,6 @@ class MediaViewController @Inject constructor(
         ) == 1
 
         if (featureEnabled && !listening) {
-            MediaSessionManager.get().addListener(this)
             ScrimUtils.get().addListener(this)
             listening = true
         } else if (!featureEnabled && listening) {
@@ -111,29 +101,28 @@ class MediaViewController @Inject constructor(
         }
     }
 
-    private suspend fun shouldShowMediaArt(): Boolean {
+    private fun shouldShowMediaArt(): Boolean {
+        if (!isKeyguardShowing) return false
+        
         val isPortrait = context.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
-        val isKeyguard = ScrimUtils.get().isKeyguardShowing()
-        val isDozing = ScrimUtils.get().isDozing()
-        val isPanelFullyCollapsed = ScrimUtils.get().isPanelFullyCollapsed()
-
-        val shouldShow = featureEnabled && !isDozing &&
-            isPortrait && isKeyguard &&
-            isMediaPlaying && isPanelFullyCollapsed &&
-            !bouncerShowingOrKeyguardDismissing
-
-        return shouldShow
+        
+        return featureEnabled && 
+               !ScrimUtils.get().isDozing() &&
+               isPortrait && 
+               isMediaPlaying && 
+               ScrimUtils.get().isPanelFullyCollapsed() &&
+               !bouncerShowingOrKeyguardDismissing
     }
 
     private fun showMediaArt() {
-        if (dismissingKeyguard) {
-            return
-        }
+        if (dismissingKeyguard) return
+
         updateMediaArt()
+
         mediaScrim.apply {
             alpha = 0f
             visibility = View.VISIBLE
-            scrimState = STATE_SCRIM_VISIBLE
+            isScrimVisible = true
             animate()
                 .alpha(1f)
                 .setDuration(300)
@@ -145,28 +134,20 @@ class MediaViewController @Inject constructor(
     private fun updateMediaArt() {
         mediaArtJob?.cancel()
         mediaArtJob = coroutineScope.launch {
-            processArtwork().let { drawable ->
-                mediaScrim.setImageDrawable(drawable)
-            }
+            mediaScrim.setImageDrawable(processArtwork())
         }
     }
 
-    private suspend fun processArtwork(): LayerDrawable {
+    private fun processArtwork(): LayerDrawable {
         val drawable = artworkDrawable ?: return LayerDrawable(arrayOf())
 
-        val drawableWidth = drawable.intrinsicWidth
-        val drawableHeight = drawable.intrinsicHeight
-
-        val fadeColor = ColorUtils.blendARGB(
-            Color.TRANSPARENT,
-            Color.BLACK,
-            mediaFadeLevel / 100f
-        )
-        val fadeOverlay = ColorDrawable(fadeColor)
-        fadeOverlay.setBounds(0, 0, drawableWidth, drawableHeight)
+        val fadeColor = ColorUtils.blendARGB(Color.TRANSPARENT, Color.BLACK, 0.4f)
+        val fadeOverlay = ColorDrawable(fadeColor).apply {
+            setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
+        }
 
         return LayerDrawable(arrayOf(drawable, fadeOverlay)).apply {
-            setBounds(0, 0, drawableWidth, drawableHeight)
+            setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
         }
     }
 
@@ -174,6 +155,8 @@ class MediaViewController @Inject constructor(
         if (dismissingKeyguard) return
         dismissingKeyguard = true
         mediaArtJob?.cancel()
+        stateUpdateJob?.cancel()
+        
         mediaScrim.animate()
             .alpha(0f)
             .setDuration(100)
@@ -181,83 +164,75 @@ class MediaViewController @Inject constructor(
                 override fun onAnimationEnd(animation: Animator) {
                     mediaScrim.setImageDrawable(null)
                     mediaScrim.visibility = View.GONE
-                    scrimState = STATE_SCRIM_HIDDEN
+                    isScrimVisible = false
                     dismissingKeyguard = false
                 }
             })
             .start()
     }
 
-    override fun onAlbumArtChanged(drawable: Drawable) {
-        coroutineScope.launch {
-            artworkDrawable = drawable
+    private fun scheduleStateUpdate() {
+        if (!isKeyguardShowing) return
+        
+        stateUpdateJob?.cancel()
+        stateUpdateJob = coroutineScope.launch {
             onMediaStateChanged()
-            if (scrimState == STATE_SCRIM_VISIBLE) {
-                updateMediaArt()
-            }
+        }
+    }
+
+    override fun onAlbumArtChanged(drawable: Drawable) {
+        if (!isKeyguardShowing) return
+        
+        artworkDrawable = drawable
+        scheduleStateUpdate()
+        if (isScrimVisible) {
+            updateMediaArt()
         }
     }
     
     override fun onPlaybackStateChanged(state: Int) {
-        isMediaPlaying = state == PlaybackState.STATE_PLAYING 
-        coroutineScope.launch {
-            onMediaStateChanged()
-        }
+        scheduleStateUpdate()
     }
 
     override fun onPrimaryBouncerShowingChanged(showing: Boolean) {
         bouncerShowingOrKeyguardDismissing = showing
-        if (showing) {
-            cleanupResources()
-        }
+        if (showing) cleanupResources()
     }
     
     override fun onKeyguardGoingAwayChanged(goingAway: Boolean) {
         bouncerShowingOrKeyguardDismissing = goingAway
-        if (goingAway) {
-            cleanupResources()
-        }
+        if (goingAway) cleanupResources()
     }
     
     override fun onKeyguardFadingAwayChanged(fadingAway: Boolean) {
         bouncerShowingOrKeyguardDismissing = fadingAway
-        if (fadingAway) {
-            cleanupResources()
-        }
+        if (fadingAway) cleanupResources()
     }
 
     override fun onDozingChanged() {
-        coroutineScope.launch {
-            onMediaStateChanged()
-        }
+        scheduleStateUpdate()
     }
     
     override fun onExpandedFractionChanged(expandedFraction: Float) {
-        coroutineScope.launch {
-            onMediaStateChanged()
-        }
+        scheduleStateUpdate()
     }
     
     override fun onBarStateChanged(state: Int) {
-        coroutineScope.launch {
-            onMediaStateChanged()
-        }
+        scheduleStateUpdate()
     }
     
     override fun onQsVisibilityChanged(visible: Boolean) {
-        coroutineScope.launch {
-            onMediaStateChanged()
-        }
+        scheduleStateUpdate()
     }
 
     override fun onKeyguardShowingChanged(showing: Boolean) {
         if (showing) {
             dismissingKeyguard = false
+            MediaSessionManager.get().addListener(this)
+            scheduleStateUpdate()
         } else {
             cleanupResources()
-        }
-        coroutineScope.launch {
-            onMediaStateChanged()
+            MediaSessionManager.get().removeListener(this)
         }
     }
 
@@ -266,17 +241,14 @@ class MediaViewController @Inject constructor(
     }
     
     override fun onStartedWakingUp() {
-        coroutineScope.launch {
-            onMediaStateChanged()
-        }
+        scheduleStateUpdate()
     }
 
     private suspend fun onMediaStateChanged() {
-        val show = shouldShowMediaArt()
-        if (show && scrimState == STATE_SCRIM_HIDDEN) {
-            showMediaArt()
-        } else if (!show && scrimState == STATE_SCRIM_VISIBLE){
-            cleanupResources()
+        val shouldShow = shouldShowMediaArt()
+        when {
+            shouldShow && !isScrimVisible -> showMediaArt()
+            !shouldShow && isScrimVisible -> cleanupResources()
         }
     }
 
@@ -284,7 +256,7 @@ class MediaViewController @Inject constructor(
 
     companion object {
         private const val LS_MEDIA_ART_ENABLED = "ls_media_art_enabled"
-        private const val TAG = "MediaViewController"
+        
         @JvmStatic
         fun get(context: Context): MediaViewController {
             val app = context.applicationContext as SystemUIApplication
