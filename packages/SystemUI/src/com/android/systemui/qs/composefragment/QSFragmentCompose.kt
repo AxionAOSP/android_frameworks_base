@@ -55,6 +55,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -118,6 +119,7 @@ import com.android.systemui.Flags
 import com.android.systemui.Flags.notificationShadeBlur
 import com.android.systemui.brightness.ui.compose.BrightnessSliderContainer
 import com.android.systemui.brightness.ui.compose.ContainerColors
+import com.android.systemui.brightness.ui.viewmodel.BrightnessSliderViewModel
 import com.android.systemui.compose.modifiers.sysuiResTag
 import com.android.systemui.dump.DumpManager
 import com.android.systemui.keyboard.shortcut.ui.composable.InteractionsConfig
@@ -157,6 +159,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -1332,97 +1335,109 @@ fun spacerLayout(height: Dp) {
     )
 }
 
-@Composable
-@VisibleForTesting
-fun DragHandle(
-    vm: QSFragmentComposeViewModel,
-    enable: Boolean
-) {
-    val translationY = with(LocalDensity.current) { 100.dp.toPx() }
-    val qqsMin = 0.01f
-    val qqsMax = 0.4f
-    val expansionProgress = vm.expansionState.progress
-    val progress = run {
-        val range = expansionProgress.coerceIn(qqsMin, qqsMax)
-        ((qqsMax - range) / (qqsMax - qqsMin)).coerceIn(0f, 1f)
+@Composable 
+@VisibleForTesting 
+fun DragHandle( 
+    vm: QSFragmentComposeViewModel, 
+    enable: Boolean 
+) { 
+    val density = LocalDensity.current
+    val translationYPx = remember(density) { 
+        with(density) { 100.dp.toPx() } 
     }
-    val expansionAlpha = progress
-    val offsetY = translationY * (1f - progress)
     
-    Box(
-        modifier = Modifier
-            .offset { IntOffset(0, offsetY.roundToInt()) }
-            .alpha(expansionAlpha)
-            .systemGestureExclusionInShade(enabled = { enable })
-            .fillMaxWidth(),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(width = 56.dp, height = 4.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                    shape = RoundedCornerShape(2.dp)
-                )
-        )
+    val expansionProgress = vm.expansionState.progress
+    
+    LaunchedEffect(expansionProgress, translationYPx) {
+        vm.updateAnimationStates(expansionProgress, translationYPx)
     }
+    
+    val animationState by vm.dragHandleAnimationState.collectAsState()
+     
+    Box( 
+        modifier = Modifier 
+            .graphicsLayer {
+                this.translationY = animationState.offsetY
+                this.alpha = animationState.alpha
+            }
+            .systemGestureExclusionInShade(enabled = { enable }) 
+            .fillMaxWidth(), 
+        contentAlignment = Alignment.Center 
+    ) { 
+        DragHandleContent()
+    } 
 }
 
 @Composable
-@VisibleForTesting
-fun BrightnessLayout(
-    location: String,
-    enable: Boolean,
-    vm: QSFragmentComposeViewModel
-) {
-    val cvm = vm.containerViewModel
-    val translationY = with(LocalDensity.current) { 100.dp.toPx() }
-    val qqsMin = 0.01f
-    val qqsMax = 0.4f
-    val qsMin = 0.6f
-    val qsMax = 1.0f
+private fun DragHandleContent() {
+    Box( 
+        modifier = Modifier 
+            .size(width = 56.dp, height = 4.dp) 
+            .background( 
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f), 
+                shape = RoundedCornerShape(2.dp) 
+            ) 
+    ) 
+}
+ 
+@Composable 
+@VisibleForTesting 
+fun BrightnessLayout( 
+    location: String, 
+    enable: Boolean, 
+    vm: QSFragmentComposeViewModel 
+) { 
+    val cvm = vm.containerViewModel 
+    val density = LocalDensity.current
+    val translationYPx = remember(density) { 
+        with(density) { 100.dp.toPx() } 
+    }
     
     val expansionProgress = vm.expansionState.progress
-    val progress = when (location) {
-        "QQS" -> {
-            val qqsRange = expansionProgress.coerceIn(qqsMin, qqsMax)
-            val qqsProgress = (qqsMax - qqsRange) / (qqsMax - qqsMin)
-            qqsProgress.coerceIn(0f, 1f)
-        }
-        "QS" -> {
-            val qsRange = expansionProgress.coerceIn(qsMin, qsMax)
-            val qsProgress = (qsRange - qsMin) / (qsMax - qsMin)
-            qsProgress.coerceIn(0f, 1f)
-        }
-        else -> 0f
-    }
-    val expansionAlpha = progress
-    val offsetY = when (location) {
-        "QQS" -> translationY * (1f - progress)
-        "QS" -> -translationY * (1f - progress)
-        else -> 0f
+    
+    LaunchedEffect(expansionProgress, translationYPx) {
+        vm.updateAnimationStates(expansionProgress, translationYPx)
     }
     
-    Box(
-        modifier = Modifier
-            .offset { IntOffset(0, offsetY.roundToInt()) }
-            .alpha(expansionAlpha)
-            .systemGestureExclusionInShade(enabled = { enable })
-            .fillMaxWidth()
-    ) {
-        AlwaysDarkMode {
-            BrightnessSliderContainer(
-                viewModel = cvm.brightnessSliderViewModel,
-                containerColors = ContainerColors(
-                    Color.Transparent,
-                    ContainerColors.defaultContainerColor
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = QuickSettingsShade.Dimensions.InnerPadding)
-            )
+    val animationState by remember(location) {
+        when (location) {
+            "QQS" -> vm.qqsBrightnessAnimationState
+            "QS" -> vm.qsBrightnessAnimationState
+            else -> flowOf(QSFragmentComposeViewModel.AnimationState(0f, 0f))
         }
-    }
+    }.collectAsState(initial = QSFragmentComposeViewModel.AnimationState(0f, 0f))
+     
+    Box( 
+        modifier = Modifier 
+            .graphicsLayer {
+                this.translationY = animationState.offsetY
+                this.alpha = animationState.alpha
+            }
+            .systemGestureExclusionInShade(enabled = { enable }) 
+            .fillMaxWidth() 
+    ) { 
+        BrightnessContent(
+            viewModel = cvm.brightnessSliderViewModel
+        )
+    } 
+}
+
+@Composable
+private fun BrightnessContent(
+    viewModel: BrightnessSliderViewModel
+) {
+    AlwaysDarkMode { 
+        BrightnessSliderContainer( 
+            viewModel = viewModel, 
+            containerColors = ContainerColors( 
+                Color.Transparent, 
+                ContainerColors.defaultContainerColor 
+            ), 
+            modifier = Modifier 
+                .fillMaxWidth() 
+                .padding(horizontal = QuickSettingsShade.Dimensions.InnerPadding) 
+        ) 
+    } 
 }
 
 private object ResIdTags {

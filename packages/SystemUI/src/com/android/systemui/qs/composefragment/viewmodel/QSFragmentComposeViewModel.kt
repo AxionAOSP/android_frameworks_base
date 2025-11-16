@@ -34,6 +34,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.LifecycleCoroutineScope
 import com.android.app.animation.Interpolators
 import com.android.app.tracing.coroutines.launchTraced as launch
+import com.android.compose.animation.scene.SceneKey
 import com.android.internal.logging.UiEventLogger
 import com.android.keyguard.BouncerPanelExpansionCalculator
 import com.android.systemui.Dumpable
@@ -89,11 +90,15 @@ import javax.inject.Named
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.StateFlow
 
 class QSFragmentComposeViewModel
 @AssistedInject
@@ -608,6 +613,45 @@ constructor(
             launch {
                 snapshotFlow { qsMediaInRow }.collect { qsMediaHost.applyDisappearParameters(it) }
             }
+        }
+    }
+
+    private val _dragHandleAnimationState = MutableStateFlow(AnimationState(0f, 1f))
+    val dragHandleAnimationState: StateFlow<AnimationState> = _dragHandleAnimationState.asStateFlow()
+    
+    private val _qqsBrightnessAnimationState = MutableStateFlow(AnimationState(0f, 1f))
+    val qqsBrightnessAnimationState: StateFlow<AnimationState> = _qqsBrightnessAnimationState.asStateFlow()
+    
+    private val _qsBrightnessAnimationState = MutableStateFlow(AnimationState(0f, 1f))
+    val qsBrightnessAnimationState: StateFlow<AnimationState> = _qsBrightnessAnimationState.asStateFlow()
+    
+    data class AnimationState(
+        val offsetY: Float,
+        val alpha: Float
+    )
+    
+    fun updateAnimationStates(expansionProgress: Float, translationYPx: Float) {
+        lifecycleScope.launch {
+            val qqsMin = 0.01f
+            val qqsMax = 0.4f
+            val qsMin = 0.6f
+            val qsMax = 1.0f
+            
+            val dragHandleRange = expansionProgress.coerceIn(qqsMin, qqsMax)
+            val dragHandleProgress = ((qqsMax - dragHandleRange) / (qqsMax - qqsMin)).coerceIn(0f, 1f)
+            val dragHandleOffsetY = translationYPx * (1f - dragHandleProgress)
+            
+            val qqsRange = expansionProgress.coerceIn(qqsMin, qqsMax)
+            val qqsProgress = ((qqsMax - qqsRange) / (qqsMax - qqsMin)).coerceIn(0f, 1f)
+            val qqsOffsetY = translationYPx * (1f - qqsProgress)
+            
+            val qsRange = expansionProgress.coerceIn(qsMin, qsMax)
+            val qsProgress = ((qsRange - qsMin) / (qsMax - qsMin)).coerceIn(0f, 1f)
+            val qsOffsetY = -translationYPx * (1f - qsProgress)
+            
+            _dragHandleAnimationState.value = AnimationState(dragHandleOffsetY, dragHandleProgress)
+            _qqsBrightnessAnimationState.value = AnimationState(qqsOffsetY, qqsProgress)
+            _qsBrightnessAnimationState.value = AnimationState(qsOffsetY, qsProgress)
         }
     }
 
