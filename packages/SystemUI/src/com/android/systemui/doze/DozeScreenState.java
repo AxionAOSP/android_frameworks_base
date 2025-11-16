@@ -24,6 +24,7 @@ import static com.android.systemui.doze.DozeMachine.State.DOZE_AOD_PAUSED;
 import static com.android.systemui.doze.DozeMachine.State.DOZE_AOD_PAUSING;
 import static com.android.systemui.doze.DozeMachine.State.DOZE_PULSE_DONE;
 
+import android.content.Context;
 import android.hardware.biometrics.BiometricAuthenticator;
 import android.os.Handler;
 import android.util.Log;
@@ -33,6 +34,7 @@ import androidx.annotation.Nullable;
 
 import com.android.systemui.biometrics.AuthController;
 import com.android.systemui.biometrics.UdfpsController;
+import com.android.systemui.dagger.qualifiers.Application;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.doze.dagger.DozeScope;
 import com.android.systemui.doze.dagger.WrappedService;
@@ -96,9 +98,11 @@ public class DozeScreenState implements DozeMachine.Part {
     private int mPendingScreenState = Display.STATE_UNKNOWN;
     private SettableWakeLock mWakeLock;
     private boolean mIsLandscapeScreenOff = false;
+    private final Context mContext;
 
     @Inject
     public DozeScreenState(
+            @Application Context context,
             @WrappedService DozeMachine.Service service,
             @Main Handler handler,
             DozeHost host,
@@ -123,12 +127,13 @@ public class DozeScreenState implements DozeMachine.Part {
         mSelectedUserInteractor = selectedUserInteractor;
         mDozeInteractor = dozeInteractor;
         mSystemSettings = systemSettings;
+        mContext = context;
 
         updateUdfpsController();
         if (mUdfpsController == null) {
             mAuthController.addCallback(mAuthControllerCallback);
         }
-        DozeScreenStateEx.get().init(state -> applyScreenState(state));
+        DozeScreenStateEx.get(mContext).init(state -> applyScreenState(state));
     }
 
     private void updateUdfpsController() {
@@ -147,7 +152,7 @@ public class DozeScreenState implements DozeMachine.Part {
     @Override
     public void transitionTo(DozeMachine.State oldState, DozeMachine.State newState) {
         int screenState = newState.screenState(mParameters);
-        DozeScreenStateEx.get().transitionTo(oldState, newState);
+        DozeScreenStateEx.get(mContext).transitionTo(oldState, newState);
         mDozeHost.cancelGentleSleep();
 
         if (newState == DozeMachine.State.FINISH) {
@@ -212,7 +217,7 @@ public class DozeScreenState implements DozeMachine.Part {
             }
 
             if (shouldDelayTransitionEnteringDoze) {
-                if (!DozeScreenStateEx.get().isUnlockAnimPlaying()) {
+                if (!DozeScreenStateEx.get(mContext).isUnlockAnimPlaying()) {
                     if (justInitialized) {
                         applyScreenState(Display.STATE_ON);
                         mPendingScreenState = screenState;
@@ -271,7 +276,7 @@ public class DozeScreenState implements DozeMachine.Part {
     private void applyScreenState(int screenState) {
         if (screenState != Display.STATE_UNKNOWN) {
             if (screenState == Display.STATE_DOZE_SUSPEND 
-                && DozeScreenStateEx.get().getCurDisplay() != Display.STATE_DOZE) {
+                && DozeScreenStateEx.get(mContext).getCurDisplay() != Display.STATE_DOZE) {
                 mDozeService.setDozeScreenState(Display.STATE_DOZE);
                 mHandler.postDelayed(mApplyPendingScreenState, DozeScreenStateEx.SUSPEND_DELAY_TIME);
                 return;

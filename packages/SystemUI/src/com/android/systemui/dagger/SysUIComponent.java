@@ -23,6 +23,7 @@ import com.android.systemui.InitController;
 import com.android.systemui.SystemUIAppComponentFactoryBase;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.dagger.qualifiers.PerUser;
+import com.android.systemui.doze.DozeScreenStateEx;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.edgelight.EdgeLightViewController;
 import com.android.systemui.keyguard.KeyguardSliceProvider;
@@ -210,6 +211,9 @@ public interface SysUIComponent {
     
     @SysUISingleton
     AxTileProvider axTileProvider();
+
+    @SysUISingleton
+    DozeScreenStateEx dozeScreenStateEx();
 
     /**
      * Member injection into the supplied argument.

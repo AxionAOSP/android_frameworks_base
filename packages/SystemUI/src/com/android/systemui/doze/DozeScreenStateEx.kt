@@ -31,6 +31,7 @@ import com.android.systemui.settings.DisplayTracker
 import com.android.systemui.statusbar.phone.UnlockedScreenOffAnimationControllerExt
 import com.android.systemui.statusbar.phone.ScreenOffAnimationCallback
 import com.android.systemui.statusbar.StatusBarState.KEYGUARD
+import com.android.systemui.SystemUIApplication
 import com.android.systemui.util.ScrimUtils
 import java.util.concurrent.Executor
 import java.util.function.Consumer
@@ -50,8 +51,9 @@ class DozeScreenStateEx @Inject constructor(
         val NEEDS_DOZE_FIX = SystemProperties.getBoolean("persist.sys.enable_doze_fix", false)
 
         @JvmStatic
-        fun get(): DozeScreenStateEx {
-            return Dependency.get(DozeScreenStateEx::class.java)
+        fun get(context: Context): DozeScreenStateEx {
+            val app = context.applicationContext as SystemUIApplication
+            return app.sysUIComponent.dozeScreenStateEx()
         }
     }
 
