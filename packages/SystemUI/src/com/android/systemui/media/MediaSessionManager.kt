@@ -19,7 +19,6 @@ import android.graphics.drawable.Drawable
 import android.media.MediaMetadata
 import android.media.session.PlaybackState
 import com.android.systemui.util.WeakListenerManager
-import java.util.concurrent.atomic.AtomicBoolean
 
 class MediaSessionManager private constructor() {
 
@@ -31,49 +30,65 @@ class MediaSessionManager private constructor() {
     }
 
     private val listenerManager = WeakListenerManager<MediaDataListener>()
-
-    private val _isMediaPlaying = AtomicBoolean(false)
-    var isMediaPlaying: Boolean
-        get() = _isMediaPlaying.get()
-        private set(value) = _isMediaPlaying.set(value)
-
+    
     @Volatile
-    private var _trackTitle: String = "Unknown"
-
+    private var currentPlaybackState: Int = PlaybackState.STATE_NONE
+    
     @Volatile
-    private var _artist: String = "Unknown"
+    private var currentAlbumArt: Drawable? = null
+    
+    @Volatile
+    private var currentMediaColor: Int? = null
+    
+    @Volatile
+    var trackTitle: String = "Unknown"
+    
+    @Volatile
+    var artist: String = "Unknown"
 
-    val trackTitle: String
-        get() = _trackTitle
+    val isMediaPlaying: Boolean
+        get() = currentPlaybackState == PlaybackState.STATE_PLAYING
 
-    val artist: String
-        get() = _artist
+    fun addListener(listener: MediaDataListener) {
+        listenerManager.addListener(listener)
+        
+        listenerManager.notifyOnBackground {
+            if (it === listener) {
+                it.onPlaybackStateChanged(currentPlaybackState)
+                it.onMetadataChanged(trackTitle, artist)
+                currentAlbumArt?.let { art -> it.onAlbumArtChanged(art) }
+                currentMediaColor?.let { color -> it.onMediaColorsChanged(color) }
+            }
+        }
+    }
 
-    fun addListener(listener: MediaDataListener) = listenerManager.addListener(listener)
     fun removeListener(listener: MediaDataListener) = listenerManager.removeListener(listener)
 
     fun onPlaybackStateChanged(state: Int) {
-        val isPlaying = state == PlaybackState.STATE_PLAYING
-        if (_isMediaPlaying.getAndSet(isPlaying) != isPlaying) {
+        if (currentPlaybackState != state) {
+            currentPlaybackState = state
             listenerManager.notifyOnBackground { it.onPlaybackStateChanged(state) }
         }
     }
 
     fun onAlbumArtChanged(drawable: Drawable) {
+        currentAlbumArt = drawable
         listenerManager.notifyOnBackground { it.onAlbumArtChanged(drawable) }
     }
 
     fun onMediaColorsChanged(color: Int) {
+        currentMediaColor = color
         listenerManager.notifyOnBackground { it.onMediaColorsChanged(color) }
     }
 
     fun onMetadataChanged(metadata: MediaMetadata) {
         val newTitle = metadata.getString(MediaMetadata.METADATA_KEY_TITLE) ?: "Unknown"
         val newArtist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: "Unknown"
-        if (_trackTitle != newTitle || _artist != newArtist) {
-            _trackTitle = newTitle
-            _artist = newArtist
-            listenerManager.notifyOnBackground { it.onMetadataChanged(_trackTitle, _artist) }
+        
+        if (trackTitle != newTitle || artist != newArtist) {
+            trackTitle = newTitle
+            artist = newArtist
+            listenerManager.notifyOnBackground { it.onMetadataChanged(trackTitle, artist) }
         }
     }
 
