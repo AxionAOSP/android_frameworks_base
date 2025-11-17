@@ -129,11 +129,7 @@ public class FlashlightTile extends QSTileImpl<BooleanState> implements
             return;
         }
         boolean newState = !mState.value;
-        if (mStrengthController.getSupported()) {
-            mStrengthController.expandDialog(expandable);
-        } else {
-            mFlashlightController.setFlashlight(newState);
-        }
+        mFlashlightController.setFlashlight(newState);
         refreshState(newState);
     }
 
