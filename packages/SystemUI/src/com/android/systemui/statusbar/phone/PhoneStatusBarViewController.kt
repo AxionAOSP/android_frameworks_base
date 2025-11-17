@@ -16,8 +16,11 @@
 package com.android.systemui.statusbar.phone
 
 import android.app.StatusBarManager.WINDOW_STATUS_BAR
+import android.database.ContentObserver
 import android.graphics.Point
+import android.os.UserHandle
 import android.util.Log
+import android.util.TypedValue
 import android.view.Display.DEFAULT_DISPLAY
 import android.view.InputDevice
 import android.view.MotionEvent
@@ -55,6 +58,7 @@ import com.android.systemui.unfold.util.ScopedUnfoldTransitionProgressProvider
 import com.android.systemui.user.ui.viewmodel.StatusBarUserChipViewModel
 import com.android.systemui.util.ViewController
 import com.android.systemui.util.kotlin.getOrNull
+import com.android.systemui.util.settings.SystemSettings
 import com.android.systemui.util.view.ViewUtil
 import dagger.Lazy
 import java.util.Optional
@@ -85,7 +89,32 @@ private constructor(
     private val darkIconDispatcher: DarkIconDispatcher,
     private val statusBarContentInsetsProviderStore: StatusBarContentInsetsProviderStore,
     private val lazyStatusBarShadeDisplayPolicy: Lazy<StatusBarTouchShadeDisplayPolicy>,
+    private val systemSettings: SystemSettings
 ) : ViewController<PhoneStatusBarView>(view) {
+
+    private val paddingObserver = object : ContentObserver(null) {
+        override fun onChange(selfChange: Boolean) {
+            mView.post {
+                val start = systemSettings.getInt(
+                    "statusbar_extra_padding_start",
+                    0,
+                )
+                val top = systemSettings.getInt(
+                    "statusbar_extra_padding_top",
+                    0,
+                )
+                val end = systemSettings.getInt(
+                    "statusbar_extra_padding_end",
+                    0,
+                )
+                Log.d(TAG, "status bar padding update: start=$start top=$top end=$end")
+                mView.mStatusBarPaddingStart = start.dip()
+                mView.mStatusBarPaddingTop = top.dip()
+                mView.mStatusBarPaddingEnd = end.dip()
+                mView.updateResources()
+            }
+        }
+    }
 
     private lateinit var battery: BatteryMeterView
     val clockController by lazy { ClockController(context, mView) }
@@ -142,6 +171,14 @@ private constructor(
 
         progressProvider?.setReadyToHandleTransition(true)
         configurationController.addCallback(configurationListener)
+        
+        systemSettings.registerContentObserverForUserSync(
+            "statusbar_extra_padding_start", false, paddingObserver, UserHandle.USER_ALL)
+        systemSettings.registerContentObserverForUserSync(
+            "statusbar_extra_padding_top", false, paddingObserver, UserHandle.USER_ALL)
+        systemSettings.registerContentObserverForUserSync(
+            "statusbar_extra_padding_end", false, paddingObserver, UserHandle.USER_ALL)
+        paddingObserver.onChange(true)
 
         if (moveFromCenterAnimationController == null) return
 
@@ -196,6 +233,15 @@ private constructor(
         moveFromCenterAnimationController?.onViewDetached()
         configurationController.removeCallback(configurationListener)
         clockController.onStatusBarViewDetached()
+        systemSettings.unregisterContentObserverSync(paddingObserver)
+    }
+
+    fun Int.dip(): Int {
+        return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            this.toFloat(),
+            context.resources.displayMetrics
+        ).toInt()
     }
 
     init {
@@ -379,6 +425,7 @@ private constructor(
         @DisplaySpecific private val darkIconDispatcher: DarkIconDispatcher,
         private val statusBarContentInsetsProviderStore: StatusBarContentInsetsProviderStore,
         private val lazyStatusBarShadeDisplayPolicy: Lazy<StatusBarTouchShadeDisplayPolicy>,
+        private val systemSettings: SystemSettings
     ) {
         fun create(view: PhoneStatusBarView): PhoneStatusBarViewController {
             val statusBarMoveFromCenterAnimationController =
@@ -407,6 +454,7 @@ private constructor(
                 darkIconDispatcher,
                 statusBarContentInsetsProviderStore,
                 lazyStatusBarShadeDisplayPolicy,
+                systemSettings
             )
         }
     }

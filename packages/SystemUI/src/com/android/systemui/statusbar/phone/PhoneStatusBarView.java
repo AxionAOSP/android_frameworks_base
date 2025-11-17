@@ -25,10 +25,8 @@ import android.graphics.Rect;
 import android.inputmethodservice.InputMethodService;
 import android.os.IBinder;
 import android.os.RemoteException;
-import android.provider.Settings;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.util.TypedValue;
 import android.view.ContextThemeWrapper;
 import android.view.Display;
 import android.view.DisplayCutout;
@@ -60,21 +58,13 @@ import com.android.systemui.statusbar.CommandQueue.Callbacks;
 import com.android.systemui.statusbar.phone.userswitcher.StatusBarUserSwitcherContainer;
 import com.android.systemui.statusbar.policy.Offset;
 import com.android.systemui.statusbar.window.StatusBarWindowControllerStore;
-import com.android.systemui.tuner.TunerService;
 import com.android.systemui.user.ui.binder.StatusBarUserChipViewBinder;
 import com.android.systemui.user.ui.viewmodel.StatusBarUserChipViewModel;
 import com.android.systemui.util.leak.RotationUtils;
 
 import java.util.Objects;
 
-public class PhoneStatusBarView extends FrameLayout implements Callbacks, TunerService.Tunable {
-
-    private static final String STATUSBAR_EXTRA_PADDING_START =
-            "system:statusbar_extra_padding_start";
-    private static final String STATUSBAR_EXTRA_PADDING_TOP =
-            "system:statusbar_extra_padding_top";
-    private static final String STATUSBAR_EXTRA_PADDING_END =
-            "system:statusbar_extra_padding_end";
+public class PhoneStatusBarView extends FrameLayout implements Callbacks {
 
     private static final String TAG = "PhoneStatusBarView";
     private final CommandQueue mCommandQueue;
@@ -99,14 +89,12 @@ public class PhoneStatusBarView extends FrameLayout implements Callbacks, TunerS
     private float mFontScale;
     private StatusBarLongPressGestureDetector mStatusBarLongPressGestureDetector;
     
-    private final TunerService mTunerService;
-
-    private int mStatusBarPaddingStart = 0;
-    private int mStatusBarPaddingTop = 0;
-    private int mStatusBarPaddingEnd = 0;
-
     @Nullable
     private ViewGroup mStatusBarContents = null;
+
+    int mStatusBarPaddingStart = 0;
+    int mStatusBarPaddingTop = 0;
+    int mStatusBarPaddingEnd = 0;
 
     /**
      * Draw this many pixels into the left/right side of the cutout to optimally use the space
@@ -146,7 +134,6 @@ public class PhoneStatusBarView extends FrameLayout implements Callbacks, TunerS
                     () -> getDisplay().getRotation());
             mRotationButtonController.setRotationButton(floatingRotationButton, null);
         }
-        mTunerService = Dependency.get(TunerService.class);
     }
 
     @Override
@@ -211,9 +198,6 @@ public class PhoneStatusBarView extends FrameLayout implements Callbacks, TunerS
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        mTunerService.addTunable(this, STATUSBAR_EXTRA_PADDING_START);
-        mTunerService.addTunable(this, STATUSBAR_EXTRA_PADDING_TOP);
-        mTunerService.addTunable(this, STATUSBAR_EXTRA_PADDING_END);
         if (updateDisplayParameters()) {
             updateLayoutForCutout();
             updateWindowHeight();
@@ -227,7 +211,6 @@ public class PhoneStatusBarView extends FrameLayout implements Callbacks, TunerS
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        mTunerService.removeTunable(this);
         mDisplayCutout = null;
 
         if (mRotationButtonController != null) {
@@ -258,33 +241,6 @@ public class PhoneStatusBarView extends FrameLayout implements Callbacks, TunerS
             requestLayout();
         }
         return super.onApplyWindowInsets(insets);
-    }
-
-    @Override
-    public void onTuningChanged(String key, String newValue) {
-        switch (key) {
-            case STATUSBAR_EXTRA_PADDING_START:
-                mStatusBarPaddingStart = convertToDip(TunerService.parseInteger(newValue, 0));
-                updateResources();
-                break;
-            case STATUSBAR_EXTRA_PADDING_TOP:
-                mStatusBarPaddingTop = convertToDip(TunerService.parseInteger(newValue, 0));
-                updateResources();
-                break;
-            case STATUSBAR_EXTRA_PADDING_END:
-                mStatusBarPaddingEnd = convertToDip(TunerService.parseInteger(newValue, 0));
-                updateResources();
-                break;
-            default:
-                break;
-         }
-    }
-
-    private int convertToDip(int padding) {
-        return (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                padding,
-                mContext.getResources().getDisplayMetrics());
     }
 
     /**

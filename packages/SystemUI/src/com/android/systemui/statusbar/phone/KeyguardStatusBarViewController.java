@@ -88,10 +88,10 @@ import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.statusbar.policy.UserInfoController;
 import com.android.systemui.statusbar.ui.binder.KeyguardStatusBarViewBinder;
 import com.android.systemui.statusbar.ui.viewmodel.KeyguardStatusBarViewModel;
-import com.android.systemui.tuner.TunerService;
 import com.android.systemui.user.ui.viewmodel.StatusBarUserChipViewModel;
 import com.android.systemui.util.ViewController;
 import com.android.systemui.util.settings.SecureSettings;
+import com.android.systemui.util.settings.SystemSettings;
 
 import kotlin.Unit;
 
@@ -106,15 +106,7 @@ import java.util.function.Consumer;
 import javax.inject.Inject;
 
 /** View Controller for {@link com.android.systemui.statusbar.phone.KeyguardStatusBarView}. */
-public class KeyguardStatusBarViewController extends ViewController<KeyguardStatusBarView>
-        implements TunerService.Tunable {
-
-    private static final String STATUSBAR_EXTRA_PADDING_START =
-            "system:statusbar_extra_padding_start";
-    private static final String STATUSBAR_EXTRA_PADDING_TOP =
-            "system:statusbar_extra_padding_top";
-    private static final String STATUSBAR_EXTRA_PADDING_END =
-            "system:statusbar_extra_padding_end";
+public class KeyguardStatusBarViewController extends ViewController<KeyguardStatusBarView> {
 
     private static final String TAG = "KeyguardStatusBarViewController";
     private static final AnimationProperties KEYGUARD_HUN_PROPERTIES =
@@ -154,6 +146,7 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
     private final UserManager mUserManager;
     private final StatusBarUserChipViewModel mStatusBarUserChipViewModel;
     private final SecureSettings mSecureSettings;
+    private final SystemSettings mSystemSettings;
     private final CommandQueue mCommandQueue;
     private final Executor mMainExecutor;
     private final Executor mBackgroundExecutor;
@@ -162,7 +155,6 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
     private final CommunalSceneInteractor mCommunalSceneInteractor;
     private final GlanceableHubToLockscreenTransitionViewModel mHubToLockscreenTransitionViewModel;
     private final LockscreenToGlanceableHubTransitionViewModel mLockscreenToHubTransitionViewModel;
-    private final TunerService mTunerService;
 
     private ViewGroup mSystemIconsContainer;
     private final StatusOverlayHoverListenerFactory mStatusOverlayHoverListenerFactory;
@@ -358,6 +350,7 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
             UserManager userManager,
             StatusBarUserChipViewModel userChipViewModel,
             SecureSettings secureSettings,
+            SystemSettings systemSettings,
             CommandQueue commandQueue,
             @Main Executor mainExecutor,
             @Background Executor backgroundExecutor,
@@ -367,8 +360,7 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
             GlanceableHubToLockscreenTransitionViewModel
                     glanceableHubToLockscreenTransitionViewModel,
             LockscreenToGlanceableHubTransitionViewModel
-                    lockscreenToGlanceableHubTransitionViewModel,
-            TunerService tunerService
+                    lockscreenToGlanceableHubTransitionViewModel
     ) {
         super(view);
         mCoroutineDispatcher = dispatcher;
@@ -393,6 +385,7 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
         mUserManager = userManager;
         mStatusBarUserChipViewModel = userChipViewModel;
         mSecureSettings = secureSettings;
+        mSystemSettings = systemSettings;
         mCommandQueue = commandQueue;
         mMainExecutor = mainExecutor;
         mBackgroundExecutor = backgroundExecutor;
@@ -400,7 +393,6 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
         mCommunalSceneInteractor = communalSceneInteractor;
         mHubToLockscreenTransitionViewModel = glanceableHubToLockscreenTransitionViewModel;
         mLockscreenToHubTransitionViewModel = lockscreenToGlanceableHubTransitionViewModel;
-        mTunerService = tunerService;
 
         mFirstBypassAttempt = mKeyguardBypassController.getBypassEnabled();
         mKeyguardStateController.addCallback(
@@ -487,9 +479,21 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
                 false,
                 mVolumeSettingObserver,
                 UserHandle.USER_ALL);
-        mTunerService.addTunable(this, STATUSBAR_EXTRA_PADDING_START);
-        mTunerService.addTunable(this, STATUSBAR_EXTRA_PADDING_TOP);
-        mTunerService.addTunable(this, STATUSBAR_EXTRA_PADDING_END);
+        mSystemSettings.registerContentObserverForUserSync(
+                "statusbar_extra_padding_start",
+                 false,
+                 mPaddingObserver,
+                 UserHandle.USER_ALL);
+        mSystemSettings.registerContentObserverForUserSync(
+                "statusbar_extra_padding_top", 
+                false, 
+                mPaddingObserver, 
+                UserHandle.USER_ALL);
+        mSystemSettings.registerContentObserverForUserSync(
+                "statusbar_extra_padding_end", 
+                false, 
+                mPaddingObserver, 
+                UserHandle.USER_ALL);
         updateUserSwitcher();
         onThemeChanged();
         if (!Flags.glanceableHubV2()) {
@@ -521,24 +525,10 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
         mKeyguardUpdateMonitor.removeCallback(mKeyguardUpdateMonitorCallback);
         mDisableStateTracker.stopTracking(mCommandQueue);
         mSecureSettings.unregisterContentObserverSync(mVolumeSettingObserver);
-        mTunerService.removeTunable(this);
+        mSystemSettings.unregisterContentObserverSync(mPaddingObserver);
         if (mTintedIconManager != null) {
             mStatusBarIconController.removeIconGroup(mTintedIconManager);
         }
-    }
-
-    @Override
-    public void onTuningChanged(String key, String newValue) {
-        switch (key) {
-            case STATUSBAR_EXTRA_PADDING_START:
-            case STATUSBAR_EXTRA_PADDING_TOP:
-            case STATUSBAR_EXTRA_PADDING_END:
-                mView.loadDimens();
-                mView.updatePaddings();
-                break;
-            default:
-                break;
-         }
     }
 
     /** Should be called when the theme changes. */
@@ -842,6 +832,16 @@ public class KeyguardStatusBarViewController extends ViewController<KeyguardStat
         @Override
         public void onChange(boolean selfChange) {
             updateBlockedIcons();
+        }
+    };
+    
+    private final ContentObserver mPaddingObserver = new ContentObserver(null) {
+        @Override
+        public void onChange(boolean selfChange) {
+            mView.post(() -> {
+                mView.loadDimens();
+                mView.updatePaddings();
+            });
         }
     };
 
