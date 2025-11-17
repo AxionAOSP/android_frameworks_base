@@ -40,6 +40,7 @@ import com.android.systemui.statusbar.pipeline.shared.data.model.ConnectivitySlo
 import com.android.systemui.statusbar.pipeline.shared.data.repository.ConnectivityRepository
 import com.android.systemui.statusbar.policy.data.repository.UserSetupRepository
 import com.android.systemui.util.CarrierConfigTracker
+import com.android.systemui.util.settings.SystemSettings
 import java.lang.ref.WeakReference
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -164,6 +165,7 @@ constructor(
     commonImsRepo: CommonImsRepository,
     private val context: Context,
     private val featureFlagsClassic: FeatureFlagsClassic,
+    private val systemSettings: SystemSettings
 ) : MobileIconsInteractor {
 
     // Weak reference lookup for created interactors
@@ -471,6 +473,7 @@ constructor(
                 isVoWifiForceHidden,
                 mobileConnectionsRepo.getRepoForSubId(subId),
                 context,
+                systemSettings,
             )
             .also { reuseCache[subId] = WeakReference(it) }
 

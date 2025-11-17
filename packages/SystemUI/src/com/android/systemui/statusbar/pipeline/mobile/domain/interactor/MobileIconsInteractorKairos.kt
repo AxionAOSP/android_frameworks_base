@@ -25,6 +25,7 @@ import com.android.systemui.Flags
 import com.android.systemui.KairosActivatable
 import com.android.systemui.KairosBuilder
 import com.android.systemui.activated
+import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.flags.FeatureFlagsClassic
 import com.android.systemui.flags.Flags.FILTER_PROVISIONING_NETWORK_SUBSCRIPTIONS
@@ -56,12 +57,14 @@ import com.android.systemui.statusbar.pipeline.shared.data.model.ConnectivitySlo
 import com.android.systemui.statusbar.pipeline.shared.data.repository.ConnectivityRepository
 import com.android.systemui.statusbar.policy.data.repository.UserSetupRepository
 import com.android.systemui.util.CarrierConfigTracker
+import com.android.systemui.util.settings.SystemSettings
 import dagger.Binds
 import dagger.Provides
 import dagger.multibindings.ElementsIntoSet
 import javax.inject.Inject
 import javax.inject.Provider
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 
 /**
@@ -154,6 +157,8 @@ constructor(
     private val context: Context,
     commonImsRepo: CommonImsRepository,
     private val featureFlagsClassic: FeatureFlagsClassic,
+    private val systemSettings: SystemSettings,
+    @Background private val scope: CoroutineScope,
 ) : MobileIconsInteractorKairos, KairosBuilder by kairosBuilder() {
 
     override val mobileIsDefault: State<Boolean> =
@@ -453,6 +458,8 @@ constructor(
             isVoWifiForceHidden,
             repo,
             context,
+            systemSettings,
+            scope,
         )
     }
 

@@ -17,6 +17,7 @@
 package com.android.systemui.statusbar.pipeline.mobile.domain.interactor
 
 import android.content.Context
+import android.database.ContentObserver
 import android.provider.Settings
 import com.android.systemui.Dependency
 import com.android.internal.telephony.flags.Flags
@@ -25,7 +26,6 @@ import com.android.settingslib.graph.SignalDrawable
 import com.android.settingslib.mobile.MobileIconCarrierIdOverrides
 import com.android.settingslib.mobile.MobileIconCarrierIdOverridesImpl
 import com.android.systemui.KairosBuilder
-import com.android.systemui.tuner.TunerService
 import com.android.systemui.kairos.ExperimentalKairosApi
 import com.android.systemui.kairos.State
 import com.android.systemui.kairos.combine
@@ -34,6 +34,7 @@ import com.android.systemui.kairos.map
 import com.android.systemui.kairosBuilder
 import com.android.systemui.log.table.TableLogBuffer
 import com.android.systemui.log.table.logDiffsForTable
+import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.statusbar.pipeline.mobile.data.model.DataConnectionState.Connected
 import com.android.systemui.statusbar.pipeline.mobile.data.model.NetworkNameModel
 import com.android.systemui.statusbar.pipeline.mobile.data.model.ResolvedNetworkType
@@ -45,8 +46,10 @@ import com.android.systemui.statusbar.pipeline.mobile.domain.model.NetworkTypeIc
 import com.android.systemui.statusbar.pipeline.mobile.domain.model.SignalIconModel
 import com.android.systemui.statusbar.pipeline.satellite.ui.model.SatelliteIconModel
 import com.android.systemui.statusbar.pipeline.shared.data.model.DataActivityModel
+import com.android.systemui.util.settings.SystemSettings
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.*
 
 @ExperimentalKairosApi
 interface MobileIconInteractorKairos {
@@ -171,6 +174,8 @@ class MobileIconInteractorKairosImpl(
     override val isVoWifiForceHidden: State<Boolean>,
     private val connectionRepository: MobileConnectionRepositoryKairos,
     private val context: Context,
+    private val systemSettings: SystemSettings,
+    @Background private val scope: CoroutineScope,
     private val carrierIdOverrides: MobileIconCarrierIdOverrides =
         MobileIconCarrierIdOverridesImpl(),
 ) : MobileIconInteractorKairos, KairosBuilder by kairosBuilder() {
@@ -400,24 +405,41 @@ class MobileIconInteractorKairosImpl(
     override val isVoWifi: State<Boolean> =
         connectionRepository.imsState.map { it.isVoWifiAvailable() }
 
-    private val SHOW_FOURG_ICON: String =
-            "system:" + Settings.System.SHOW_FOURG_ICON
+    private fun mobileSettingsFlow(
+        key: String,
+        defaultValue: Boolean
+    ): StateFlow<Boolean> = callbackFlow {
+        val uri = systemSettings.getUriFor(key)
+        val observer = object : ContentObserver(null) {
+            override fun onChange(selfChange: Boolean) {
+                val value = systemSettings.getInt(
+                    key,
+                    if (defaultValue) 1 else 0,
+                ) == 1
+                trySend(value)
+            }
+        }
+
+        val initialValue = systemSettings.getInt(
+            key,
+            if (defaultValue) 1 else 0
+        ) == 1
+
+        trySend(initialValue)
+
+        systemSettings.registerContentObserverAsync(uri, false, observer)
+
+        awaitClose {
+            systemSettings.unregisterContentObserverAsync(observer)
+        }
+    }.stateIn(
+        scope,
+        started = SharingStarted.WhileSubscribed(),
+        initialValue = defaultValue
+    )
 
     override val shouldShowFourgIcon: State<Boolean> = buildState {
-        callbackFlow {
-                val callback =
-                    object : TunerService.Tunable {
-                        override fun onTuningChanged(key: String, newValue: String?) {
-                            when (key) {
-                                SHOW_FOURG_ICON ->
-                                    trySend(TunerService.parseIntegerSwitch(newValue, false))
-                            }
-                        }
-                    }
-                Dependency.get(TunerService::class.java).addTunable(callback, SHOW_FOURG_ICON)
-
-                awaitClose { Dependency.get(TunerService::class.java).removeTunable(callback) }
-            }
+        mobileSettingsFlow(Settings.System.SHOW_FOURG_ICON, defaultValue = false)
             .toState(initialValue = false)
     }
 }
