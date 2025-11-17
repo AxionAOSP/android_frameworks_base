@@ -16,7 +16,6 @@
 package com.android.systemui.keyguard
 
 import android.content.*
-import android.database.ContentObserver
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -33,6 +32,7 @@ import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.phone.BiometricUnlockController
 import com.android.systemui.statusbar.policy.KeyguardStateController
+import com.android.systemui.util.ScrimUtils
 import javax.inject.Inject
 
 @SysUISingleton
@@ -41,20 +41,15 @@ class MistouchPreventionWindowController @Inject constructor(
     private val keyguardStateController: KeyguardStateController,
     private val keyguardUpdateMonitor: KeyguardUpdateMonitor,
     private val biometricUnlockController: BiometricUnlockController,
-): MistouchInteractor.MistouchEvents {
+): MistouchInteractor.MistouchEvents, ScrimUtils.ScrimEventListener {
 
     companion object {
         private const val TAG = "MistouchPreventionWindowController"
         private const val POCKET_SENSOR = Sensor.TYPE_PROXIMITY
         private const val DELAY_DISABLE_TP_DURATION = 200L
         private const val DISABLE_DURATION = 5000L
-        private const val TALKBACK_SERVICE = "com.google.android.marvin.talkback.TalkBackService"
         private const val KEY_MISTOUCH_PREVENTION = "nt_mistouch_prevention_enable"
-        private const val KEY_TALKBACK = "enabled_accessibility_services"
 
-        private val URI_MISTOUCH_PREVENTION: Uri = Settings.Secure.getUriFor(KEY_MISTOUCH_PREVENTION)
-        private val URI_TALKBACK: Uri = Settings.Secure.getUriFor(KEY_TALKBACK)
-        
         @JvmStatic
         fun get(context: Context): MistouchPreventionWindowController {
             val app = context.applicationContext as SystemUIApplication
@@ -72,32 +67,18 @@ class MistouchPreventionWindowController @Inject constructor(
 
     private var registered = false
     private var windowAdded = false
-    private var talkbackEnabled = false
-    private var mistouchPreventionEnabled = false
     private var disableEventInMillis = 0L
     private var sensorNearWhenSleep = false
-    private var keyguardVisible = false
+
+    private val mistouchPreventionEnabled get() = Settings.Secure.getIntForUser(
+                        contentResolver, KEY_MISTOUCH_PREVENTION, 1, UserHandle.USER_CURRENT
+                    ) == 1
+    private val keyguardShowing get() = ScrimUtils.get().isKeyguardShowing()
+    private val dozing get() = ScrimUtils.get().isDozing()
 
     private val volumeKeyCallback = object : MistouchPreventionView.VolumeKeyCallback {
         override fun onVolumeUpPressed() {
             disable()
-        }
-    }
-
-    private val contentObserver = object : ContentObserver(Handler()) {
-        override fun onChange(selfChange: Boolean, uri: Uri?) {
-            when (uri) {
-                URI_MISTOUCH_PREVENTION -> {
-                    mistouchPreventionEnabled = Settings.Secure.getIntForUser(
-                        contentResolver, KEY_MISTOUCH_PREVENTION, 1, UserHandle.USER_CURRENT
-                    ) == 1
-                }
-                URI_TALKBACK -> {
-                    val services = Settings.Secure.getStringForUser(contentResolver, KEY_TALKBACK, UserHandle.USER_CURRENT)
-                    talkbackEnabled = services?.contains(TALKBACK_SERVICE) == true
-                    if (talkbackEnabled) disable()
-                }
-            }
         }
     }
 
@@ -114,43 +95,13 @@ class MistouchPreventionWindowController @Inject constructor(
     }
 
     private val keyguardCallback = object : KeyguardUpdateMonitorCallback() {
-        override fun onKeyguardVisibilityChanged(visible: Boolean) {
-            keyguardVisible = visible
-            val occluded = keyguardStateController.isOccluded ?: false
-
-            if (visible && keyguardUpdateMonitor.isDeviceInteractive == true) {
-                enable()
-            } else if (!visible && !occluded) {
-                disable()
-            } else if (occluded && System.currentTimeMillis() - disableEventInMillis < DISABLE_DURATION) {
-                disable()
-            }
-        }
-
-        override fun onStartedWakingUp() {
-            val isVisible = keyguardUpdateMonitor.isKeyguardVisible ?: false
-            val isWakeAndUnlock = biometricUnlockController.isWakeAndUnlock() ?: false
-
-            if (isVisible && !isWakeAndUnlock) {
-                enable()
-            }
-            sensorNearWhenSleep = false
-        }
-
-        override fun onStartedGoingToSleep(why: Int) {
-            sensorNearWhenSleep = windowAdded
-            disable()
-        }
-
         override fun onUserSwitching(userId: Int) {
             sensorNearWhenSleep = false
             disable()
         }
 
         override fun onUserSwitchComplete(userId: Int) {
-            contentObserver.onChange(true, URI_MISTOUCH_PREVENTION)
-            contentObserver.onChange(true, URI_TALKBACK)
-            if (mistouchPreventionEnabled && !talkbackEnabled && keyguardUpdateMonitor.isKeyguardVisible == true) {
+            if (mistouchPreventionEnabled && keyguardShowing) {
                 enable()
             }
         }
@@ -159,23 +110,17 @@ class MistouchPreventionWindowController @Inject constructor(
     fun init() {
         preventionView.setVisibility(View.INVISIBLE)
         preventionView.addCallback(volumeKeyCallback)
-        registerListeners()
-    }
 
-    private fun registerListeners() {
         if (proximitySensor != null) {
             keyguardUpdateMonitor.registerCallback(keyguardCallback)
+            ScrimUtils.get().addListener(this)
         }
-        contentResolver.registerContentObserver(URI_MISTOUCH_PREVENTION, true, contentObserver, UserHandle.USER_ALL)
-        contentResolver.registerContentObserver(URI_TALKBACK, true, contentObserver, UserHandle.USER_ALL)
-        contentObserver.onChange(true, URI_MISTOUCH_PREVENTION)
-        contentObserver.onChange(true, URI_TALKBACK)
     }
 
     private fun enable() {
         if (proximitySensor == null) return
 
-        if (!mistouchPreventionEnabled || talkbackEnabled || registered) return
+        if (!mistouchPreventionEnabled || registered) return
 
         MistouchInteractor.get().removeListener(this)
         sensorManager?.registerListener(proximityListener, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL)
@@ -239,20 +184,49 @@ class MistouchPreventionWindowController @Inject constructor(
     }
 
     override fun onDoubleTapPowerGesture() {
-        if (keyguardVisible) {
+        if (keyguardShowing) {
             disableEventInMillis = System.currentTimeMillis()
         }
     }
 
     override fun onAffordanceLongClick() {
-        if (keyguardVisible) {
+        if (keyguardShowing) {
             disableEventInMillis = System.currentTimeMillis()
         }
     }
 
     override fun onEmergencyButtonClick() {
-        if (keyguardVisible) {
+        if (keyguardShowing) {
             disableEventInMillis = System.currentTimeMillis()
         }
+    }
+    
+    override fun onDozingChanged() {
+        if (dozing) enable()
+    }
+
+    override fun onKeyguardShowingChanged(showing: Boolean) {
+        val occluded = keyguardStateController.isOccluded == true
+
+        if (showing) {
+            enable()
+        } else if (!showing && !occluded) {
+            disable()
+        } else if (occluded && System.currentTimeMillis() - disableEventInMillis < DISABLE_DURATION) {
+            disable()
+        }
+    }
+
+    override fun onStartedWakingUp() {
+        val isWakeAndUnlock = biometricUnlockController.isWakeAndUnlock() == true
+        if (keyguardShowing && !isWakeAndUnlock) {
+            enable()
+        }
+        sensorNearWhenSleep = false
+    }
+
+    override fun onScreenTurnedOff() {
+        sensorNearWhenSleep = windowAdded
+        disable()
     }
 }
