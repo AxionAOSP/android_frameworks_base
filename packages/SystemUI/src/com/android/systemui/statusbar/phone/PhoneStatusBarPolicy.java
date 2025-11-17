@@ -25,7 +25,6 @@ import android.app.AlarmManager.AlarmClockInfo;
 import android.app.NotificationManager;
 import android.app.admin.DevicePolicyManager;
 import android.content.BroadcastReceiver;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -45,8 +44,6 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.provider.Settings;
-import android.provider.Settings.System;
 import android.provider.Settings.Global;
 import android.service.notification.ZenModeConfig;
 import android.telecom.TelecomManager;
@@ -57,7 +54,6 @@ import androidx.annotation.NonNull;
 import androidx.lifecycle.Observer;
 
 import com.android.internal.statusbar.StatusBarIcon;
-import com.android.systemui.Dependency;
 import com.android.systemui.broadcast.BroadcastDispatcher;
 import com.android.systemui.dagger.qualifiers.DisplayId;
 import com.android.systemui.dagger.qualifiers.Main;
@@ -94,6 +90,7 @@ import com.android.systemui.statusbar.policy.domain.model.ZenModeInfo;
 import com.android.systemui.tuner.TunerService;
 import com.android.systemui.util.RingerModeTracker;
 import com.android.systemui.util.kotlin.JavaAdapter;
+import com.android.systemui.util.settings.SecureSettings;
 import com.android.systemui.util.time.DateFormatUtil;
 
 import java.io.PrintWriter;
@@ -177,6 +174,7 @@ public class PhoneStatusBarPolicy
     private final PrivacyLogger mPrivacyLogger;
     private final ZenModeInteractor mZenModeInteractor;
     private final ConnectivityManager mConnectivityManager;
+    private final SecureSettings mSecureSettings;
 
     private boolean mZenVisible;
     private boolean mVibrateVisible;
@@ -192,9 +190,9 @@ public class PhoneStatusBarPolicy
     private AlarmClockInfo mNextAlarm;
 
     private NfcAdapter mAdapter;
-
+    
     private ContentObserver mBluetoothBatteryLevelObserver;
-
+    
     @Inject
     public PhoneStatusBarPolicy(Context context, StatusBarIconController iconController,
             CommandQueue commandQueue, BroadcastDispatcher broadcastDispatcher,
@@ -217,7 +215,8 @@ public class PhoneStatusBarPolicy
             PrivacyLogger privacyLogger,
             ConnectedDisplayInteractor connectedDisplayInteractor,
             ZenModeInteractor zenModeInteractor,
-            JavaAdapter javaAdapter
+            JavaAdapter javaAdapter,
+            SecureSettings secureSettings
     ) {
         mContext = context;
         mIconController = iconController;
@@ -278,6 +277,7 @@ public class PhoneStatusBarPolicy
         mDisplayId = displayId;
         mSharedPreferences = sharedPreferences;
         mDateFormatUtil = dateFormatUtil;
+        mSecureSettings = secureSettings;
     }
 
     /** Initialize the object after construction. */
@@ -412,21 +412,20 @@ public class PhoneStatusBarPolicy
 
         mCommandQueue.addCallback(this);
 
-        // Register ContentObserver for Bluetooth battery level setting
         mBluetoothBatteryLevelObserver = new ContentObserver(mHandler) {
             @Override
             public void onChange(boolean selfChange) {
                 updateBluetooth();
             }
         };
-        mContext.getContentResolver().registerContentObserver(
-                Settings.System.getUriFor(Settings.System.BLUETOOTH_BATTERY_LEVEL),
-                false, mBluetoothBatteryLevelObserver, UserHandle.USER_CURRENT);
+        mSecureSettings.registerContentObserverSync(
+                "bluetooth_battery_level", 
+                mBluetoothBatteryLevelObserver);
 
         // Get initial user setup state
         onUserSetupChanged();
     }
-
+    
     private String getManagedProfileAccessibilityString() {
         return mDevicePolicyManager.getResources().getString(
                 STATUS_BAR_WORK_ICON_ACCESSIBILITY,
@@ -594,9 +593,8 @@ public class PhoneStatusBarPolicy
             if (mBluetooth.isBluetoothConnected()
                     && (mBluetooth.isBluetoothAudioActive()
                     || !mBluetooth.isBluetoothAudioProfileOnly())) {
-                // Check if Bluetooth battery level display is enabled
-            boolean showBatteryLevel = Dependency.get(TunerService.class).getValue(
-                    "system:bluetooth_battery_level", 1) != 0;
+            boolean showBatteryLevel = mSecureSettings.getInt(
+                    "bluetooth_battery_level", 1) != 0;
             int batteryLevel = showBatteryLevel ? mBluetooth.getBatteryLevel() : -1;
                 if (batteryLevel == 100) {
                     iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_9;
@@ -781,26 +779,13 @@ public class PhoneStatusBarPolicy
             new UserTracker.Callback() {
                 @Override
                 public void onUserChanging(int newUser, Context userContext) {
-                    mHandler.post(() -> {
-                        cleanup();
-                        mUserInfoController.reloadUserInfo();
-                    });
+                    mHandler.post(() -> mUserInfoController.reloadUserInfo());
                 }
 
                 @Override
                 public void onUserChanged(int newUser, Context userContext) {
                     mHandler.post(() -> {
-                    // Re-register ContentObserver for new user
-                        mBluetoothBatteryLevelObserver = new ContentObserver(mHandler) {
-                            @Override
-                            public void onChange(boolean selfChange) {
-                                updateBluetooth();
-                            }
-                        };
-                        mContext.getContentResolver().registerContentObserver(
-                                Settings.System.getUriFor(Settings.System.BLUETOOTH_BATTERY_LEVEL),
-                                false, mBluetoothBatteryLevelObserver, UserHandle.USER_CURRENT);
-
+                        updateBluetooth();
                         updateAlarm();
                         updateProfileIcon();
                         onUserSetupChanged();
@@ -1000,11 +985,5 @@ public class PhoneStatusBarPolicy
         }
 
         mIconController.setIconVisibility(mSlotConnectedDisplay, visible);
-    }
-        private void cleanup() {
-        if (mBluetoothBatteryLevelObserver != null) {
-            mContext.getContentResolver().unregisterContentObserver(mBluetoothBatteryLevelObserver);
-            mBluetoothBatteryLevelObserver = null;
-        }
     }
 }

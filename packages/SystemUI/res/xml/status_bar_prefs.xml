@@ -64,7 +64,7 @@
 
     <com.android.systemui.tuner.TunerSwitch
         android:icon="@*android:drawable/ic_qs_bluetooth"
-        android:key="system:bluetooth_battery_level"
+        android:key="bluetooth_battery_level"
         android:title="@string/status_bar_bluetooth_battery_level"
         sysui:defValue="true" />
 
