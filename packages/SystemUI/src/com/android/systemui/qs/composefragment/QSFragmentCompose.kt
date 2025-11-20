@@ -321,6 +321,9 @@ constructor(
             }
         }
         val transitionToCookie = remember { mutableMapOf<TransitionState.Transition, Int>() }
+        
+        val lastScene = remember { mutableStateOf<SceneKey?>(null) }
+
         val sceneState =
             rememberMutableSceneTransitionLayoutState(
                 initialScene = remember { viewModel.expansionState.toIdleSceneKey() },
@@ -328,6 +331,7 @@ constructor(
                     transitions {
                         from(QuickQuickSettings, QuickSettings) {
                             quickQuickSettingsToQuickSettings(
+                                shouldFadeQqsTiles = lastScene.value == QuickSettings,
                                 animateTilesExpansion = viewModel::animateTilesExpansion::get,
                                 animateBrightnessLayout = { 
                                     viewModel.isQsBrightnessSliderEnabled && viewModel.isQQSBrightnessSliderEnabled 
@@ -354,6 +358,10 @@ constructor(
                     )
                 },
             )
+
+        LaunchedEffect(sceneState.currentScene) {
+            lastScene.value = sceneState.currentScene
+        }
 
         LaunchedEffect(Unit) {
             synchronizeQsState(
