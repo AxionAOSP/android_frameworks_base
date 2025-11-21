@@ -209,6 +209,7 @@ import android.view.Display;
 import android.view.HapticFeedbackConstants;
 import android.view.IDisplayFoldListener;
 import android.view.InputDevice;
+import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.KeyboardShortcutGroup;
 import android.view.MotionEvent;
@@ -3772,114 +3773,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         switch (keyCode) {
             case KeyEvent.KEYCODE_HOME:
                 return handleHomeShortcuts(focusedToken, event);
-            case KeyEvent.KEYCODE_MENU:
-                if (virtualKey || keyguardOn) {
-                    // Let the app handle the key
-                    return false;
-                }
-
-                if (down) {
-                    if (mMenuPressAction == Action.APP_SWITCH
-                            || mMenuLongPressAction == Action.APP_SWITCH) {
-                        preloadRecentApps();
-                    }
-                    if (repeatCount == 0) {
-                        mMenuPressed = true;
-                    } else if (longPress) {
-                        if (!keyguardOn && mMenuLongPressAction != Action.NOTHING) {
-                            if (mMenuLongPressAction != Action.APP_SWITCH) {
-                                cancelPreloadRecentApps();
-                            }
-                            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS,
-                                    "Menu - Long Press");
-                            performKeyAction(mMenuLongPressAction, event);
-                            mMenuPressed = false;
-                            return true;
-                        }
-                    }
-                }
-
-                if (!down && mMenuPressed) {
-                    if (mMenuPressAction != Action.APP_SWITCH) {
-                        cancelPreloadRecentApps();
-                    }
-                    mMenuPressed = false;
-                    if (!canceled) {
-                        performKeyAction(mMenuPressAction, event);
-                    }
-                }
-
-                return true;
-            case KeyEvent.KEYCODE_APP_SWITCH:
-                if (!keyguardOn) {
-                    if (down) {
-                        if (mAppSwitchPressAction == Action.APP_SWITCH
-                                || mAppSwitchLongPressAction == Action.APP_SWITCH) {
-                            preloadRecentApps();
-                        }
-                        if (repeatCount == 0) {
-                            mAppSwitchLongPressed = false;
-                        } else if (longPress) {
-                            if (!keyguardOn && mAppSwitchLongPressAction != Action.NOTHING) {
-                                if (mAppSwitchLongPressAction != Action.APP_SWITCH) {
-                                    cancelPreloadRecentApps();
-                                }
-                                performHapticFeedback(HapticFeedbackConstants.LONG_PRESS,
-                                        "Recents - Long Press");
-                                performKeyAction(mAppSwitchLongPressAction, event);
-                                mAppSwitchLongPressed = true;
-                            }
-                        }
-                    } else {
-                        if (mAppSwitchLongPressed) {
-                            mAppSwitchLongPressed = false;
-                        } else {
-                            if (mAppSwitchPressAction != Action.APP_SWITCH) {
-                                cancelPreloadRecentApps();
-                            }
-                            if (!canceled) {
-                                performKeyAction(mAppSwitchPressAction, event);
-                            }
-                        }
-                    }
-                }
-                return true;
-            case KeyEvent.KEYCODE_ASSIST:
-                if (keyguardOn) {
-                    break;
-                }
-                if (down) {
-                    if (mAssistPressAction == Action.APP_SWITCH
-                            || mAssistLongPressAction == Action.APP_SWITCH) {
-                        preloadRecentApps();
-                    }
-                    if (repeatCount == 0) {
-                        mAssistPressed = true;
-                    } else if (longPress) {
-                        if (mAssistLongPressAction != Action.NOTHING) {
-                            if (mAssistLongPressAction != Action.APP_SWITCH) {
-                                cancelPreloadRecentApps();
-                            }
-                            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS,
-                                    "Assist - Long Press");
-                            performKeyAction(mAssistLongPressAction, event,
-                                    AssistUtils.INVOCATION_TYPE_ASSIST_BUTTON);
-                            mAssistPressed = false;
-                        }
-                    }
-                } else {
-                    if (mAssistPressed) {
-                        if (mAssistPressAction != Action.APP_SWITCH) {
-                            cancelPreloadRecentApps();
-                        }
-                        mAssistPressed = false;
-                        if (!canceled) {
-                            performKeyAction(mAssistPressAction, event,
-                                    AssistUtils.INVOCATION_TYPE_ASSIST_BUTTON);
-                        }
-                    }
-                }
-                return true;
             case KeyEvent.KEYCODE_VOLUME_UP:
             case KeyEvent.KEYCODE_VOLUME_DOWN:
             case KeyEvent.KEYCODE_VOLUME_MUTE:
