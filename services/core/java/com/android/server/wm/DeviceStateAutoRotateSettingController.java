@@ -364,7 +364,7 @@ public class DeviceStateAutoRotateSettingController {
                 userRotation = isCurrentRotationAllowed(mContext)
                         || useCurrentRotationOnRotationLockChange(mContext)
                         ? USE_CURRENT_ROTATION
-                        : getNaturalRotation;
+                        : getNaturalRotation();
             }
         }
         synchronized (mWm.mRoot.mService.mGlobalLock) {

@@ -197,7 +197,7 @@ public final class RotationPolicy {
         return false;
     }
 
-    private static boolean isCurrentRotationAllowed(Context context) {
+    public static boolean isCurrentRotationAllowed(Context context) {
         int userRotationAngles = Settings.System.getIntForUser(context.getContentResolver(),
                 Settings.System.ACCELEROMETER_ROTATION_ANGLES, -1, UserHandle.USER_CURRENT);
         boolean allowAllRotations = context.getResources().getBoolean(
