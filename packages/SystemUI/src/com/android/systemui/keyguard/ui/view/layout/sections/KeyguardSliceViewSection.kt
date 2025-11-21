@@ -25,6 +25,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import com.android.keyguard.KeyguardSliceView
 import com.android.keyguard.KeyguardSliceViewController
+import com.android.systemui.customization.clocks.R as clocksR
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.dump.DumpManager
@@ -91,8 +92,8 @@ constructor(
                 ConstraintSet.START,
                 ConstraintSet.PARENT_ID,
                 ConstraintSet.START,
-                context.resources.getDimensionPixelSize(customR.dimen.clock_padding_start) +
-                    context.resources.getDimensionPixelSize(customR.dimen.status_view_margin_horizontal),
+                context.resources.getDimensionPixelSize(clocksR.dimen.clock_padding_start) +
+                    context.resources.getDimensionPixelSize(clocksR.dimen.status_view_margin_horizontal),
             )
             connect(
                 R.id.keyguard_slice_view,
