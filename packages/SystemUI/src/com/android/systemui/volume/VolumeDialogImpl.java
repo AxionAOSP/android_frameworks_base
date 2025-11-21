@@ -2118,7 +2118,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
                                         // the volume of the tinted row. The tint was set before
                                         // already, but setting the active row cancels ongoing
                                         // animations.
-                                        mController.setActiveStream(activeRow.stream);
+                                        mController.setActiveStream(activeRow.stream, false);
                                     }
                                 }
                             });
