@@ -197,14 +197,15 @@ public final class PowerManagerService extends SystemService
 
     // Message: Sent when the policy want to release all timeout override wake locks.
     private static final int MSG_RELEASE_ALL_OVERRIDE_WAKE_LOCKS = 6;
-    // Message: Sent when waking up with proximity check.
-    private static final int MSG_WAKE_UP = 7;
 
     // Message: Sent when the processes frozen state changes
     private static final int MSG_PROCESS_FROZEN_STATE_CHANGED = 7;
 
     // Message: Sent when the policy wants to force disable wakelocks.
     private static final int MSG_FORCE_DISABLE_WAKELOCKS = 8;
+
+    // Message: Sent when waking up with proximity check.
+    private static final int MSG_WAKE_UP = 9;
 
     // Dirty bit: mWakeLocks changed
     private static final int DIRTY_WAKE_LOCKS = 1 << 0;
