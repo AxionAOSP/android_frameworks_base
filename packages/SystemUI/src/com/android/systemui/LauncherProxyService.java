@@ -376,8 +376,8 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
         @Override
         public void injectPress(int keyCode) throws RemoteException {
             verifyCallerAndClearCallingIdentityPostMain("pressInjected", () -> {
-                sendEvent(KeyEvent.ACTION_DOWN, keyCode);
-                sendEvent(KeyEvent.ACTION_UP, keyCode);
+                sendEvent(KeyEvent.ACTION_DOWN, keyCode, INVALID_DISPLAY);
+                sendEvent(KeyEvent.ACTION_UP, keyCode, INVALID_DISPLAY);
             });
         }
 
