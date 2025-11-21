@@ -93,14 +93,14 @@ public class ClockController {
 
     private void updateActiveClock() {
         mContext.getMainExecutor().execute(() -> {
-            mActiveClock.setClockVisibleByUser(false);
+            mActiveClock.setVisibility(View.GONE);
             removeDarkReceiver();
             mActiveClock = getClock();
-            mActiveClock.setClockVisibleByUser(true);
+            mActiveClock.setVisibility(View.VISIBLE);
             addDarkReceiver();
 
             // Override any previous setting
-            mActiveClock.setClockVisibleByUser(!mDenyListed);
+            mActiveClock.setVisibility(mDenyListed ? View.GONE : View.VISIBLE);
         });
     }
 
