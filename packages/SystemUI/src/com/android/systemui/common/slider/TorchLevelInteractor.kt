@@ -28,11 +28,13 @@ import kotlin.math.roundToInt
 
 class TorchLevelInteractor(
     private val ctrl: FlashlightStrengthController
-) : LevelSliderInteractor, TapHandlingInteractor {
+) : LevelSliderInteractor {
 
     companion object {
         private const val DEFAULT_PERCENT: Int = 50
     }
+    
+    override val spec: String = "torch"
 
     var lastPercent: Int
         get() = ctrl.lastPercent
@@ -95,6 +97,10 @@ class TorchLevelInteractor(
         } else {
             ctrl.torchOn = false
         }
+    }
+
+    override fun isActive(): Boolean {
+        return ctrl.torchOn
     }
 
     @Composable

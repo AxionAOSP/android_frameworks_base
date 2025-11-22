@@ -25,7 +25,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.android.systemui.Dependency
 import com.android.systemui.common.ringer.RingerModeInteractorImpl
 import com.android.systemui.common.ringer.RingerSliderWidget
 import com.android.systemui.common.ringer.RingerSliderTheme
@@ -43,45 +42,6 @@ import com.android.systemui.statusbar.policy.FlashlightStrengthController
 import com.android.systemui.util.AxColorScheme
 import javax.inject.Inject
 
-class AxTileTheme : RingerSliderTheme, LevelSliderTheme {
-    override val activeBg: Color
-        @Composable get() = AxColorScheme.primary
-    
-    override val neutralBg: Color
-        @Composable get() = AxColorScheme.secondary
-    
-    override val activeIcon: Color
-        @Composable get() = AxColorScheme.onPrimary
-    
-    override val neutralIcon: Color
-        @Composable get() = AxColorScheme.onSurface
-    
-    override val labelColor: Color
-        @Composable get() = AxColorScheme.onSurface
-    
-    override val dozeStroke: Dp = 2.dp
-}
-
-class AxTileRingerDimens(
-    private val tileHeight: Dp
-) : RingerSliderDimens {
-    override val totalWidth: Dp? = null
-    override val thumbSize: Dp = tileHeight
-    override val iconSize: Dp = 24.dp
-    override val thumbPadding: Dp = 8.dp
-    override val dotSize: Dp = 6.dp
-}
-
-class AxTileLevelDimens(
-    private val tileHeight: Dp
-) : LevelSliderDimens {
-    override val totalWidth: Dp? = null
-    override val height: Dp = tileHeight
-    override val iconSize: Dp = 24.dp
-    override val horizontalPadding: Dp = 16.dp
-    override val labelPadding: Dp = 12.dp
-}
-
 @SysUISingleton
 class AxTileProvider @Inject constructor(
     private val flashlightController: FlashlightStrengthController
@@ -92,6 +52,31 @@ class AxTileProvider @Inject constructor(
         fun get(context: Context): AxTileProvider {
             val app = context.applicationContext as SystemUIApplication
             return app.sysUIComponent.axTileProvider()
+        }
+    }
+    
+    private object InteractorFactory {
+        @Volatile
+        private var torchInteractor: TorchLevelInteractor? = null
+        
+        @Volatile
+        private var volumeInteractor: VolumeInteractor? = null
+        
+        fun getTorchInteractor(ctrl: FlashlightStrengthController): TorchLevelInteractor {
+            return torchInteractor ?: synchronized(this) {
+                torchInteractor ?: TorchLevelInteractor(ctrl).also { torchInteractor = it }
+            }
+        }
+        
+        fun getVolumeInteractor(
+            context: Context,
+            audioManager: AudioManager,
+            streamType: Int
+        ): VolumeInteractor {
+            return volumeInteractor ?: synchronized(this) {
+                volumeInteractor ?: VolumeInteractor(context, audioManager, streamType)
+                    .also { volumeInteractor = it }
+            }
         }
     }
 
@@ -144,22 +129,16 @@ class AxTileProvider @Inject constructor(
     
     @Composable
     private fun VolumeSlider(border: Modifier = Modifier) {
-        val streamType = AudioManager.STREAM_MUSIC
         val context = LocalContext.current
-        
-        val interactor = remember(streamType) {
-            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            VolumeInteractor(context, audioManager, streamType)
-        }
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val interactor = InteractorFactory.getVolumeInteractor(context, audioManager, AudioManager.STREAM_MUSIC)
         
         LevelSliderTile(interactor = interactor, border = border)
     }
     
     @Composable
     private fun TorchSlider(border: Modifier = Modifier) {
-        val interactor = remember {
-            TorchLevelInteractor(flashlightController)
-        }
+        val interactor = InteractorFactory.getTorchInteractor(flashlightController)
         
         LevelSliderTile(interactor = interactor, border = border)
     }
@@ -182,4 +161,43 @@ class AxTileProvider @Inject constructor(
             border = border
         )
     }
+}
+
+class AxTileTheme : RingerSliderTheme, LevelSliderTheme {
+    override val activeBg: Color
+        @Composable get() = AxColorScheme.primary
+    
+    override val neutralBg: Color
+        @Composable get() = AxColorScheme.secondary
+    
+    override val activeIcon: Color
+        @Composable get() = AxColorScheme.onPrimary
+    
+    override val neutralIcon: Color
+        @Composable get() = AxColorScheme.onSurface
+    
+    override val labelColor: Color
+        @Composable get() = AxColorScheme.onSurface
+    
+    override val dozeStroke: Dp = 2.dp
+}
+
+class AxTileRingerDimens(
+    private val tileHeight: Dp
+) : RingerSliderDimens {
+    override val totalWidth: Dp? = null
+    override val thumbSize: Dp = tileHeight
+    override val iconSize: Dp = 24.dp
+    override val thumbPadding: Dp = 8.dp
+    override val dotSize: Dp = 6.dp
+}
+
+class AxTileLevelDimens(
+    private val tileHeight: Dp
+) : LevelSliderDimens {
+    override val totalWidth: Dp? = null
+    override val height: Dp = tileHeight
+    override val iconSize: Dp = 24.dp
+    override val horizontalPadding: Dp = 16.dp
+    override val labelPadding: Dp = 12.dp
 }

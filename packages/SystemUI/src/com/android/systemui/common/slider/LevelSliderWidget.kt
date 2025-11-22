@@ -30,11 +30,13 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.android.systemui.Prefs
 import com.android.systemui.util.AxColorScheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -48,6 +50,8 @@ fun LevelSliderWidget(
     isDozing: Boolean = false,
     border: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    
     val level by interactor.level
         .distinctUntilChanged { old, new ->
             (old * 100).toInt() == (new * 100).toInt()
@@ -56,7 +60,32 @@ fun LevelSliderWidget(
 
     var dragLevel by remember { mutableFloatStateOf(level) }
     var isDragging by remember { mutableStateOf(false) }
-    var isEnabled by remember { mutableStateOf(false) }
+    
+    val interactorEnabled = remember {
+        val key = interactor.spec
+        if (key != null) {
+            Prefs.getBoolean(context, "slider_enabled_$key", interactor.isActive())
+        } else {
+            interactor.isActive()
+        }
+    }
+    var isEnabled by remember { mutableStateOf(interactorEnabled) }
+    
+    LaunchedEffect(level) {
+        if (!isDragging) {
+            val shouldBeEnabled = interactor.isActive()
+            if (shouldBeEnabled != isEnabled) {
+                isEnabled = shouldBeEnabled
+            }
+        }
+    }
+    
+    LaunchedEffect(isEnabled) {
+        val key = interactor.spec
+        if (key != null) {
+            Prefs.putBoolean(context, "slider_enabled_$key", isEnabled)
+        }
+    }
 
     val animatedLevel by animateFloatAsState(
         targetValue = if (isDragging) dragLevel else level,
@@ -107,7 +136,7 @@ fun LevelSliderWidget(
             .pointerInput(Unit) {
                 detectTapGestures { tapOffset ->
                     isEnabled = !isEnabled
-                    (interactor as? TapHandlingInteractor)?.onTap(isEnabled)
+                    interactor.onTap(isEnabled)
                 }
             }
             .pointerInput(isEnabled) {
@@ -168,8 +197,4 @@ fun LevelSliderWidget(
             )
         }
     }
-}
-
-interface TapHandlingInteractor {
-    fun onTap(enabled: Boolean)
 }

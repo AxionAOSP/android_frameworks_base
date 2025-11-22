@@ -60,4 +60,10 @@ interface LevelSliderInteractor {
     
     @Composable
     fun getLabel(level: Float): String
+    
+    fun onTap(enabled: Boolean) {}
+    
+    fun isActive(): Boolean = false
+    
+    val spec: String? get() = null
 }

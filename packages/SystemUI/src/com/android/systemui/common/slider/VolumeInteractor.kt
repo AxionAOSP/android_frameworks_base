@@ -25,7 +25,9 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlin.math.roundToInt
 
 class VolumeInteractor(
@@ -35,8 +37,11 @@ class VolumeInteractor(
 ) : LevelSliderInteractor {
 
     private val maxVolume = audioManager.getStreamMaxVolume(streamType)
+    
+    var enabled = false
+    
+    override val spec: String = "volume"
 
-    private val _currentLevel = MutableStateFlow(getCurrentVolume())
     override val level: Flow<Float> = callbackFlow {
         trySend(getCurrentVolume())
 
@@ -45,8 +50,7 @@ class VolumeInteractor(
                 if (intent?.action == "android.media.VOLUME_CHANGED_ACTION") {
                     val stream = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
                     if (stream == streamType) {
-                        val newLevel = getCurrentVolume()
-                        trySend(newLevel)
+                        trySend(getCurrentVolume())
                     }
                 }
             }
@@ -58,17 +62,21 @@ class VolumeInteractor(
         awaitClose {
             context.unregisterReceiver(receiver)
         }
-    }
-        .distinctUntilChanged()
-        .onEach { newLevel -> _currentLevel.value = newLevel }
-        .shareIn(scope = kotlinx.coroutines.GlobalScope, started = SharingStarted.Eagerly, replay = 1)
+    }.distinctUntilChanged()
 
-    override fun getCurrentLevel(): Float = _currentLevel.value
+    override fun getCurrentLevel(): Float = getCurrentVolume()
 
     override fun setLevel(level: Float) {
         val volume = (level * maxVolume).roundToInt().coerceIn(0, maxVolume)
         audioManager.setStreamVolume(streamType, volume, 0)
-        _currentLevel.value = level
+    }
+
+    override fun isActive(): Boolean {
+        return enabled
+    }
+
+    override fun onTap(enabled: Boolean) {
+        this.enabled = enabled
     }
 
     @Composable
