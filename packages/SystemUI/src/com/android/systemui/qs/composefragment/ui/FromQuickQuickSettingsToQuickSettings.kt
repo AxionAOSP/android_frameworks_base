@@ -17,6 +17,7 @@
 package com.android.systemui.qs.composefragment.ui
 
 import com.android.compose.animation.scene.TransitionBuilder
+import androidx.compose.ui.unit.dp
 import com.android.systemui.qs.composefragment.SceneKeys
 import com.android.systemui.qs.shared.ui.ElementKeys
 
@@ -26,7 +27,7 @@ fun TransitionBuilder.quickQuickSettingsToQuickSettings(
     animateBrightnessLayout: () -> Boolean = { true }
 ) {
 
-    fractionRange(start = 0.5f) { fade(ElementKeys.QuickSettingsContent) }
+    fractionRange(start = 0.43f) { fade(ElementKeys.QuickSettingsContent) }
 
     fractionRange(start = 0.9f) { fade(ElementKeys.FooterActions) }
 
@@ -34,13 +35,18 @@ fun TransitionBuilder.quickQuickSettingsToQuickSettings(
 
     sharedElement(ElementKeys.TileElementMatcher, enabled = animateTilesExpansion())
     sharedElement(ElementKeys.BrightnessLayout, enabled = animateBrightnessLayout())
-    
+
+    fractionRange(start = 0.01f, end = 0.2f) {
+        fade(ElementKeys.DragHandle)
+        translate(ElementKeys.DragHandle, y = 50.dp)
+    }
+
     if (shouldFadeQqsTiles) {
-        // This will animate between 0f (QQS) and 0.6, fading in the QQS tiles when coming back
-        // from non first page QS. The QS content ends fading out at 0.5f, so there's a brief
+        // This will animate between 0f (QQS) and 0.5, fading in the QQS tiles when coming back
+        // from non first page QS. The QS content ends fading out at 0.43f, so there's a brief
         // overlap, but because they are really faint, it looks better than complete black without
         // overlap.
-        fractionRange(end = 0.6f) { fade(SceneKeys.QqsTileElementMatcher) }
+        fractionRange(end = 0.5f) { fade(SceneKeys.QqsTileElementMatcher) }
     }
     anchoredTranslate(SceneKeys.QqsTileElementMatcher, ElementKeys.GridAnchor)
 }

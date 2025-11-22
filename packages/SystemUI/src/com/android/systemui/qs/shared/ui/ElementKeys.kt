@@ -29,8 +29,11 @@ object ElementKeys {
         ElementKey(this.spec, TileIdentity(this, positionInGrid))
 
     val TileElementMatcher = ElementKey.withIdentity { it is TileIdentity }
-    
+
     val BrightnessLayout = ElementKey("BrightnessLayout")
+    val QqsBrightnessOnly = ElementKey("QqsBrightnessOnly")
+    val QsBrightnessOnly = ElementKey("QsBrightnessOnly")
+    val DragHandle = ElementKey("DragHandle")
 }
 
 private data class TileIdentity(val spec: TileSpec, val position: Int)

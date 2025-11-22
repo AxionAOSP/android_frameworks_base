@@ -368,6 +368,9 @@ constructor(
 
     val animateTilesExpansion: Boolean
         get() = inFirstPage && !mediaSuddenlyAppearingInLandscape
+        
+    val animateBrightnessLayout: Boolean
+        get() = isQsBrightnessSliderEnabled && isQQSBrightnessSliderEnabled
 
     val isEditing by
         hydrator.hydratedStateOf(
@@ -613,45 +616,6 @@ constructor(
             launch {
                 snapshotFlow { qsMediaInRow }.collect { qsMediaHost.applyDisappearParameters(it) }
             }
-        }
-    }
-
-    private val _dragHandleAnimationState = MutableStateFlow(AnimationState(0f, 1f))
-    val dragHandleAnimationState: StateFlow<AnimationState> = _dragHandleAnimationState.asStateFlow()
-    
-    private val _qqsBrightnessAnimationState = MutableStateFlow(AnimationState(0f, 1f))
-    val qqsBrightnessAnimationState: StateFlow<AnimationState> = _qqsBrightnessAnimationState.asStateFlow()
-    
-    private val _qsBrightnessAnimationState = MutableStateFlow(AnimationState(0f, 1f))
-    val qsBrightnessAnimationState: StateFlow<AnimationState> = _qsBrightnessAnimationState.asStateFlow()
-    
-    data class AnimationState(
-        val offsetY: Float,
-        val alpha: Float
-    )
-    
-    fun updateAnimationStates(expansionProgress: Float, translationYPx: Float) {
-        lifecycleScope.launch {
-            val qqsMin = 0.01f
-            val qqsMax = 0.4f
-            val qsMin = 0.6f
-            val qsMax = 1.0f
-            
-            val dragHandleRange = expansionProgress.coerceIn(qqsMin, qqsMax)
-            val dragHandleProgress = ((qqsMax - dragHandleRange) / (qqsMax - qqsMin)).coerceIn(0f, 1f)
-            val dragHandleOffsetY = translationYPx * (1f - dragHandleProgress)
-            
-            val qqsRange = expansionProgress.coerceIn(qqsMin, qqsMax)
-            val qqsProgress = ((qqsMax - qqsRange) / (qqsMax - qqsMin)).coerceIn(0f, 1f)
-            val qqsOffsetY = translationYPx * (1f - qqsProgress)
-            
-            val qsRange = expansionProgress.coerceIn(qsMin, qsMax)
-            val qsProgress = ((qsRange - qsMin) / (qsMax - qsMin)).coerceIn(0f, 1f)
-            val qsOffsetY = -translationYPx * (1f - qsProgress)
-            
-            _dragHandleAnimationState.value = AnimationState(dragHandleOffsetY, dragHandleProgress)
-            _qqsBrightnessAnimationState.value = AnimationState(qqsOffsetY, qqsProgress)
-            _qsBrightnessAnimationState.value = AnimationState(qsOffsetY, qsProgress)
         }
     }
 

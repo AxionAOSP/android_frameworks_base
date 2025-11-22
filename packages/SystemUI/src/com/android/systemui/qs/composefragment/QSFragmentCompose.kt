@@ -333,9 +333,7 @@ constructor(
                             quickQuickSettingsToQuickSettings(
                                 shouldFadeQqsTiles = lastScene.value == QuickSettings,
                                 animateTilesExpansion = viewModel::animateTilesExpansion::get,
-                                animateBrightnessLayout = { 
-                                    viewModel.isQsBrightnessSliderEnabled && viewModel.isQQSBrightnessSliderEnabled 
-                                }
+                                animateBrightnessLayout = viewModel::animateBrightnessLayout::get
                             )
                         }
                         to(SceneKeys.EditMode) {
@@ -670,16 +668,11 @@ constructor(
                 val enabled = layoutState.transitionState is TransitionState.Idle &&
                              viewModel.isNotTransitioning
                 val BrightnessSlider: @Composable () -> Unit = {
-                    Element(
-                        key = ElementKeys.BrightnessLayout,
-                        modifier = Modifier
-                    ) {
-                        BrightnessLayout(
-                            location = "QQS",
-                            enable = enabled,
-                            vm = viewModel
-                        )
-                    }
+                    BrightnessLayout(
+                        location = "QQS",
+                        enable = enabled,
+                        vm = viewModel
+                    )
                 }
                 val Tiles =
                     @Composable {
@@ -713,10 +706,15 @@ constructor(
                         }
                     }
                 val DragHandle: @Composable () -> Unit = {
-                        DragHandle(
-                            enable = enabled,
-                            vm = viewModel
-                        )
+                        Element(
+                            key = ElementKeys.DragHandle,
+                            modifier = Modifier
+                        ) {
+                            DragHandle(
+                                enable = enabled,
+                                vm = viewModel
+                            )
+                        }
                     }
                 if (viewModel.isQsEnabled) {
                     Box(
@@ -794,16 +792,11 @@ constructor(
                         val enabled = layoutState.transitionState is TransitionState.Idle &&
                                      viewModel.isNotTransitioning
                         val BrightnessSlider: @Composable () -> Unit = {
-                            Element(
-                                key = ElementKeys.BrightnessLayout,
-                                modifier = Modifier
-                            ) {
-                                BrightnessLayout(
-                                    location = "QS",
-                                    enable = enabled,
-                                    vm = viewModel
-                                )
-                            }
+                            BrightnessLayout(
+                                location = "QS",
+                                enable = enabled,
+                                vm = viewModel
+                            )
                         }
                         val TileGrid =
                             @Composable {
@@ -1358,25 +1351,8 @@ fun DragHandle(
     vm: QSFragmentComposeViewModel, 
     enable: Boolean 
 ) { 
-    val density = LocalDensity.current
-    val translationYPx = remember(density) { 
-        with(density) { 100.dp.toPx() } 
-    }
-    
-    val expansionProgress = vm.expansionState.progress
-    
-    LaunchedEffect(expansionProgress, translationYPx) {
-        vm.updateAnimationStates(expansionProgress, translationYPx)
-    }
-    
-    val animationState by vm.dragHandleAnimationState.collectAsState()
-     
     Box( 
         modifier = Modifier 
-            .graphicsLayer {
-                this.translationY = animationState.offsetY
-                this.alpha = animationState.alpha
-            }
             .systemGestureExclusionInShade(enabled = { enable }) 
             .fillMaxWidth(), 
         contentAlignment = Alignment.Center 
@@ -1399,7 +1375,7 @@ private fun DragHandleContent() {
  
 @Composable
 @VisibleForTesting
-fun BrightnessLayout(
+fun ContentScope.BrightnessLayout(
     location: String,
     enable: Boolean,
     vm: QSFragmentComposeViewModel
@@ -1416,35 +1392,21 @@ fun BrightnessLayout(
     val cvm = vm.containerViewModel
     val bothVis = isQSBrightnessEnabled && isQQSBrightnessEnabled
 
-    val density = LocalDensity.current
-    val translationYPx = remember(density) { with(density) { 100.dp.toPx() } }
-
-    LaunchedEffect(vm.expansionState.progress, translationYPx) {
-        vm.updateAnimationStates(vm.expansionState.progress, translationYPx)
+    val elementKey = when {
+        bothVis -> ElementKeys.BrightnessLayout
+        location == "QQS" -> ElementKeys.QqsBrightnessOnly
+        location == "QS" -> ElementKeys.QsBrightnessOnly
+        else -> ElementKeys.BrightnessLayout
     }
 
-    val animationState by when (location) {
-        "QS" -> vm.qsBrightnessAnimationState.collectAsState(
-            initial = QSFragmentComposeViewModel.AnimationState(0f, 0f)
-        )
-        "QQS" -> vm.qqsBrightnessAnimationState.collectAsState(
-            initial = QSFragmentComposeViewModel.AnimationState(0f, 0f)
-        )
-        else -> mutableStateOf(QSFragmentComposeViewModel.AnimationState(0f, 0f))
-    }
-
-    Box(
-        modifier = Modifier
-            .graphicsLayer {
-                if (!bothVis) {
-                    translationY = animationState.offsetY
-                    alpha = animationState.alpha
-                }
-            }
-            .systemGestureExclusionInShade(enabled = { enable })
-            .fillMaxWidth()
-    ) {
-        BrightnessContent(viewModel = cvm.brightnessSliderViewModel)
+    Element(key = elementKey, modifier = Modifier) {
+        Box(
+            modifier = Modifier
+                .systemGestureExclusionInShade(enabled = { enable })
+                .fillMaxWidth()
+        ) {
+            BrightnessContent(viewModel = cvm.brightnessSliderViewModel)
+        }
     }
 }
 
