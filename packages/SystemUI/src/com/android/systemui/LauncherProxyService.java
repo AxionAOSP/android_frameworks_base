@@ -362,12 +362,13 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
 
         @Override
         public void injectLongPress(int keyCode) throws RemoteException {
+            final int displayId = mContext.getDisplayId();
             verifyCallerAndClearCallingIdentityPostMain("longPressInjected", () -> {
-                sendEvent(KeyEvent.ACTION_DOWN, keyCode, INVALID_DISPLAY, 0, 0);
+                sendEvent(KeyEvent.ACTION_DOWN, keyCode, displayId, 0, 0);
                 mHandler.postDelayed(() -> {
-                    sendEvent(KeyEvent.ACTION_DOWN, keyCode, INVALID_DISPLAY, 1,
+                    sendEvent(KeyEvent.ACTION_DOWN, keyCode, displayId, 1,
                             KeyEvent.FLAG_LONG_PRESS);
-                    sendEvent(KeyEvent.ACTION_UP, keyCode, INVALID_DISPLAY, 0,
+                    sendEvent(KeyEvent.ACTION_UP, keyCode, displayId, 0,
                             KeyEvent.FLAG_CANCELED);
                 }, ViewConfiguration.getLongPressTimeout());
             });
