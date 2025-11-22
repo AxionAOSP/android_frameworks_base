@@ -30,25 +30,6 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlin.math.roundToInt
 
-interface RingerModeInteractor {
-    val ringerMode: Flow<Int>
-    val targetPositionFlow: Flow<Float>
-
-    fun getCurrentMode(): Int
-    fun setRingerMode(mode: Int)
-    fun getAvailableRingerModes(): List<RingerModeOption>
-    fun getNumberOfModes(): Int
-    fun getMaxOffset(): Float
-    fun getTargetPosition(currentMode: Int): Float
-    fun snapMode(offset: Float): Int
-}
-
-data class RingerModeOption(
-    val mode: Int,
-    val icon: ImageVector,
-    val label: String
-)
-
 class RingerModeInteractorImpl(
     private val context: Context,
     private val audioManager: AudioManager
@@ -58,12 +39,12 @@ class RingerModeInteractorImpl(
     private val hasVibrator: Boolean = vibrator?.hasVibrator() == true
 
     override val ringerMode: Flow<Int> = callbackFlow {
-        trySend(audioManager.ringerMode)
+        trySend(audioManager.ringerModeInternal)
 
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action == AudioManager.RINGER_MODE_CHANGED_ACTION) {
-                    trySend(audioManager.ringerMode)
+                    trySend(audioManager.ringerModeInternal)
                 }
             }
         }
@@ -112,3 +93,22 @@ class RingerModeInteractorImpl(
     override val targetPositionFlow: Flow<Float> =
         ringerMode.map { getTargetPosition(it) }.distinctUntilChanged()
 }
+
+interface RingerModeInteractor {
+    val ringerMode: Flow<Int>
+    val targetPositionFlow: Flow<Float>
+
+    fun getCurrentMode(): Int
+    fun setRingerMode(mode: Int)
+    fun getAvailableRingerModes(): List<RingerModeOption>
+    fun getNumberOfModes(): Int
+    fun getMaxOffset(): Float
+    fun getTargetPosition(currentMode: Int): Float
+    fun snapMode(offset: Float): Int
+}
+
+data class RingerModeOption(
+    val mode: Int,
+    val icon: ImageVector,
+    val label: String
+)

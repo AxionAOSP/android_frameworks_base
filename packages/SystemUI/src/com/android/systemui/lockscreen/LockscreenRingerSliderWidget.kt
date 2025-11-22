@@ -21,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.width
 import com.android.systemui.common.ringer.RingerSliderWidget
-import com.android.systemui.common.ringer.RingerModeInteractorImpl
 
 @Composable
 fun LockscreenRingerSliderWidget(
@@ -35,12 +34,8 @@ fun LockscreenRingerSliderWidget(
     val context = LocalContext.current
     val ringerDimens = LockscreenRingerDimens(spec, dimens)
     
-    val interactor = remember {
-        RingerModeInteractorImpl(context, ctrl.audioManager)
-    }
-    
     RingerSliderWidget(
-        interactor = interactor,
+        interactor = ctrl.ringerInteractor,
         theme = LockscreenRingerTheme(theme, dimens),
         dimens = ringerDimens,
         modifier = Modifier.width(ringerDimens.totalWidth),

@@ -44,6 +44,7 @@ import javax.inject.Inject
 
 @SysUISingleton
 class AxTileProvider @Inject constructor(
+    private val context: Context,
     private val flashlightController: FlashlightStrengthController
 ) {
 
@@ -55,31 +56,14 @@ class AxTileProvider @Inject constructor(
         }
     }
     
-    private object InteractorFactory {
-        @Volatile
-        private var torchInteractor: TorchLevelInteractor? = null
-        
-        @Volatile
-        private var volumeInteractor: VolumeInteractor? = null
-        
-        fun getTorchInteractor(ctrl: FlashlightStrengthController): TorchLevelInteractor {
-            return torchInteractor ?: synchronized(this) {
-                torchInteractor ?: TorchLevelInteractor(ctrl).also { torchInteractor = it }
-            }
-        }
-        
-        fun getVolumeInteractor(
-            context: Context,
-            audioManager: AudioManager,
-            streamType: Int
-        ): VolumeInteractor {
-            return volumeInteractor ?: synchronized(this) {
-                volumeInteractor ?: VolumeInteractor(context, audioManager, streamType)
-                    .also { volumeInteractor = it }
-            }
-        }
-    }
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
+    private val torchInteractor: TorchLevelInteractor = TorchLevelInteractor(flashlightController) 
+
+    private val volumeInteractor: VolumeInteractor = VolumeInteractor(context, audioManager, AudioManager.STREAM_MUSIC)
+    
+    private val ringerInteractor: RingerModeInteractorImpl = RingerModeInteractorImpl(context, audioManager) 
+    
     @Composable
     fun provideAxTile(
         spec: String,
@@ -112,13 +96,8 @@ class AxTileProvider @Inject constructor(
         val tileHeight = context.TileHeight
         val modifier = Modifier.fillMaxWidth(0.9f)
         
-        val interactor = remember {
-            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            RingerModeInteractorImpl(context, audioManager)
-        }
-        
         RingerSliderWidget(
-            interactor = interactor,
+            interactor = ringerInteractor,
             theme = AxTileTheme(),
             dimens = AxTileRingerDimens(tileHeight),
             modifier = modifier,
@@ -129,18 +108,12 @@ class AxTileProvider @Inject constructor(
     
     @Composable
     private fun VolumeSlider(border: Modifier = Modifier) {
-        val context = LocalContext.current
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        val interactor = InteractorFactory.getVolumeInteractor(context, audioManager, AudioManager.STREAM_MUSIC)
-        
-        LevelSliderTile(interactor = interactor, border = border)
+        LevelSliderTile(interactor = volumeInteractor, border = border)
     }
     
     @Composable
     private fun TorchSlider(border: Modifier = Modifier) {
-        val interactor = InteractorFactory.getTorchInteractor(flashlightController)
-        
-        LevelSliderTile(interactor = interactor, border = border)
+        LevelSliderTile(interactor = torchInteractor, border = border)
     }
 
     @Composable

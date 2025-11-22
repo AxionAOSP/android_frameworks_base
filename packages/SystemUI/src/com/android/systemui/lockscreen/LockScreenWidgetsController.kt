@@ -22,6 +22,7 @@ import android.os.Handler
 import android.view.View
 import android.view.ViewGroup
 import com.android.systemui.bluetooth.qsdialog.BluetoothDetailsContentViewModel
+import com.android.systemui.common.ringer.RingerModeInteractorImpl
 import com.android.systemui.qs.tiles.dialog.InternetDialogManager
 import com.android.systemui.statusbar.connectivity.AccessPointController
 import com.android.systemui.statusbar.connectivity.NetworkController
@@ -46,6 +47,8 @@ class LockScreenWidgetsController(
 
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     val dataController = networkController.mobileDataController
+
+    val ringerInteractor: RingerModeInteractorImpl = RingerModeInteractorImpl(context, audioManager)
 
     val states = WidgetStates()
     val factory = WidgetFactory(context, this)
