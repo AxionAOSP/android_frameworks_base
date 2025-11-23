@@ -209,6 +209,7 @@ import android.view.Display;
 import android.view.HapticFeedbackConstants;
 import android.view.IDisplayFoldListener;
 import android.view.InputDevice;
+import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.KeyboardShortcutGroup;
 import android.view.MotionEvent;
@@ -3766,6 +3767,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     // {@link handleKeyGesture()}
     private boolean interceptSystemKeysAndShortcuts(IBinder focusedToken, KeyEvent event) {
         final int keyCode = event.getKeyCode();
+        final int repeatCount = event.getRepeatCount();
+        final boolean canceled = event.isCanceled();
+        final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
+        final boolean keyguardOn = keyguardOn();
         final boolean longPress = (event.getFlags() & KeyEvent.FLAG_LONG_PRESS) != 0;
         final boolean virtualKey = event.getDeviceId() == KeyCharacterMap.VIRTUAL_KEYBOARD;
 
