@@ -66,6 +66,26 @@ public class Process {
     private static final String LOG_TAG = "Process";
 
     /**
+     * @hide
+     */
+    public static final int AFFINITY_BIG = 0;
+    
+    /**
+     * @hide
+     */
+    public static final int AFFINITY_LITTLE = 1;
+    
+    /**
+     * @hide
+     */
+    public static final int AFFINITY_ALL = 2;
+    
+    /**
+     * @hide
+     */
+    public static final int AFFINITY_BALANCED = 3;
+
+    /**
      * An invalid UID value.
      */
     public static final int INVALID_UID = -1;
@@ -1183,6 +1203,12 @@ public class Process {
      * priority.
      */
     public static final native void setThreadGroupAndCpuset(int tid, int group)
+            throws IllegalArgumentException, SecurityException;
+
+    /**
+     * @hide
+     */
+    public static final native void setThreadAffinity(int tid, int group)
             throws IllegalArgumentException, SecurityException;
 
     /**
