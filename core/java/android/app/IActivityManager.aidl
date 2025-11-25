@@ -1042,4 +1042,21 @@ interface IActivityManager {
      */
     @EnforcePermission("INTERACT_ACROSS_USERS_FULL")
     IBinder refreshIntentCreatorToken(in Intent intent);
+    
+    /**
+     * Boost framework
+     */
+    void boostHint(String reason, long duration);
+
+    void adjustCpusetCpus(String group, String cpus, long duration);
+
+    void animationBoost(int pid, long duration);
+
+    void enablePerformanceMode(boolean enabled);
+
+    void getProcessesAndFrozen(String resumePackageName);
+
+    void inputBoost();
+    
+    void boostThread(int tid);
 }

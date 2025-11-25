@@ -25,6 +25,8 @@ public class AxExtServiceFactory {
     private static AxExtServiceFactory sInstance = null;
 
     private static final Object sLock = new Object();
+    
+    private static volatile IBoostAdjuster sBoostAdjuster;
 
     private AxExtServiceFactory(Context context) {
         NtServiceInjector.get().setCtx(context);
@@ -60,6 +62,17 @@ public class AxExtServiceFactory {
     public static <T> T getOrCreate(IAxExtServiceFactory.ExtType type) {
         Object instance;
         switch (type) {
+            case BOOST_ADJUSTER:
+                if (sBoostAdjuster == null) {
+                    synchronized (sLock) {
+                        if (sBoostAdjuster == null) {
+                            sBoostAdjuster = new BoostAdjuster();
+                        }
+                    }
+                }
+                instance = sBoostAdjuster;
+                break;
+
             default:
                 throw new IllegalArgumentException("Unknown ExtType: " + type);
         }
@@ -72,5 +85,10 @@ public class AxExtServiceFactory {
     
     public static void onLateSystemReady() {
         OnlineConfigObserver.systemReady();
+        getBoostAdjuster().systemReady();
+    }
+    
+    public static IBoostAdjuster getBoostAdjuster() {
+        return getOrCreate(IAxExtServiceFactory.ExtType.BOOST_ADJUSTER);
     }
 }
