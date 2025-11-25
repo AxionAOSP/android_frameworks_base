@@ -7505,6 +7505,7 @@ public class ActivityManagerService extends IActivityManager.Stub
                 mProcessStateController.setWakefulness(wakefulness);
 
                 updateOomAdjLocked(OOM_ADJ_REASON_UI_VISIBILITY);
+                AxExtServiceFactory.getBoostAdjuster().onWakefulnessChanged(isAwake);
             }
         }
     }
@@ -17694,6 +17695,9 @@ public class ActivityManagerService extends IActivityManager.Stub
         public void startProcess(String processName, ApplicationInfo info, boolean knownToBeDead,
                 boolean isTop, String hostingType, ComponentName hostingName) {
             try {
+                if (isTop) {
+                    AxExtServiceFactory.getBoostAdjuster().boostHint("launch", 2000);
+                }
                 if (Trace.isTagEnabled(Trace.TRACE_TAG_ACTIVITY_MANAGER)) {
                     Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "startProcess:"
                             + processName);
@@ -19713,5 +19717,46 @@ public class ActivityManagerService extends IActivityManager.Stub
             return null;
         }
         return curProc;
+    }
+    
+    @Override
+    public void adjustCpusetCpus(String group, String cpus, long duration) {
+        AxExtServiceFactory.getBoostAdjuster().adjustCpusetCpus(group, cpus, duration);
+    }
+
+    @Override
+    public void animationBoost(int pid, long duration) {
+        if (pid <= 0) return;
+        ProcessRecord curProc = getProcessRecordByPid(pid);
+        if (curProc == null) {
+            Slog.d("ActivityManager", "pid: " + pid + " is not exist, return!");
+            return;
+        }
+        AxExtServiceFactory.getBoostAdjuster().animationBoost(pid, curProc.getRenderThreadTid(), duration);
+    }
+
+    @Override
+    public void enablePerformanceMode(boolean enabled) {
+       AxExtServiceFactory.getBoostAdjuster().enablePerformanceMode(enabled);
+    }
+
+    @Override
+    public void boostHint(final String reason, final long duration) {
+        AxExtServiceFactory.getBoostAdjuster().boostHint(reason, duration);
+    }
+
+    @Override
+    public void inputBoost() {
+        AxExtServiceFactory.getBoostAdjuster().inputBoost();
+    }
+
+    @Override
+    public void getProcessesAndFrozen(String currentResumePackage) {
+        AxExtServiceFactory.getBoostAdjuster().getProcessesAndFrozen(currentResumePackage);
+    }
+    
+    @Override
+    public void boostThread(int tid) {
+        AxExtServiceFactory.getBoostAdjuster().boostThread(tid);
     }
 }

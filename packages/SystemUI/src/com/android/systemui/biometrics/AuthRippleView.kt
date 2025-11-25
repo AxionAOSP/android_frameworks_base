@@ -31,6 +31,7 @@ import com.android.internal.graphics.ColorUtils
 import com.android.app.animation.Interpolators
 import com.android.settingslib.Utils
 import com.android.systemui.surfaceeffects.ripple.RippleShader
+import com.android.systemui.util.NTBoosterController
 
 private const val RIPPLE_SPARKLE_STRENGTH: Float = 0.3f
 
@@ -281,6 +282,7 @@ class AuthRippleView(context: Context?, attrs: AttributeSet?) : View(context, at
                 override fun onAnimationStart(animation: Animator) {
                     drawRipple = true
                     visibility = VISIBLE
+                    NTBoosterController.get().acquireRippleAnimationBoost()
                 }
 
                 override fun onAnimationEnd(animation: Animator) {
@@ -288,6 +290,7 @@ class AuthRippleView(context: Context?, attrs: AttributeSet?) : View(context, at
                     drawRipple = false
                     visibility = GONE
                     unlockedRippleAnimator = null
+                    NTBoosterController.get().releaseRippleAnimationBoost()
                 }
             })
         }

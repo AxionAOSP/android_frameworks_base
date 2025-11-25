@@ -19,6 +19,7 @@ import com.android.server.am.*;
 
 public interface IAxExtServiceFactory {
     enum ExtType {
+        BOOST_ADJUSTER(IBoostAdjuster.class);
         private final Class<?> clazz;
 
         ExtType(Class<?> clazz) {

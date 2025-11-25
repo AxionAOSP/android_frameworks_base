@@ -175,6 +175,7 @@ import com.android.internal.pm.pkg.component.ParsedPermissionGroup;
 import com.android.internal.pm.pkg.parsing.ParsingPackageUtils;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.CollectionUtils;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.EventLogTags;
 import com.android.server.SystemConfig;
 import com.android.server.criticalevents.CriticalEventLog;
@@ -1644,6 +1645,7 @@ final class InstallPackageHelper {
                     // on the device; we should replace it.
                     replace = true;
                     if (DEBUG_INSTALL) Slog.d(TAG, "Replace existing package: " + pkgName);
+                    AxExtServiceFactory.getBoostAdjuster().boostInstall(true);
                 }
                 if (replace) {
                     // Prevent apps opting out from runtime permissions
@@ -2242,6 +2244,7 @@ final class InstallPackageHelper {
                                         + " without first uninstalling.");
                     }
                 }
+                AxExtServiceFactory.getBoostAdjuster().boostInstall(true);
             }
             // we're passing the freezer back to be closed in a later phase of install
             shouldCloseFreezerBeforeReturn = false;
@@ -2558,6 +2561,9 @@ final class InstallPackageHelper {
             return;
         }
         final List<UserInfo> activeUsers = Settings.getActiveUsers(mPm.mUserManager);
+        if (pkgName != null) {
+            AxExtServiceFactory.getBoostAdjuster().boostInstall(true);
+        }
         synchronized (mPm.mLock) {
             // For system-bundled packages, we assume that installing an upgraded version
             // of the package implies that the user actually wants to run that new code,
