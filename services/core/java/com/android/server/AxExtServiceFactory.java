@@ -28,6 +28,7 @@ public class AxExtServiceFactory {
     
     private static volatile IBoostAdjuster sBoostAdjuster;
     private static volatile INtMemoryManager sNtMemoryManager;
+    private static volatile IUxPerformance sUxPerformance;
 
     private AxExtServiceFactory(Context context) {
         NtServiceInjector.get().setCtx(context);
@@ -84,6 +85,17 @@ public class AxExtServiceFactory {
                 }
                 instance = sNtMemoryManager;
                 break;
+                
+            case UX_PERFORMANCE:
+                if (sUxPerformance == null) {
+                    synchronized (sLock) {
+                        if (sUxPerformance == null) {
+                            sUxPerformance = new UxPerformance();
+                        }
+                    }
+                }
+                instance = sUxPerformance;
+                break;
 
             default:
                 throw new IllegalArgumentException("Unknown ExtType: " + type);
@@ -99,6 +111,7 @@ public class AxExtServiceFactory {
         OnlineConfigObserver.systemReady();
         getBoostAdjuster().systemReady();
         getMemoryManager().systemReady();
+        getUxPerformance().systemReady();
     }
     
     public static IBoostAdjuster getBoostAdjuster() {
@@ -107,5 +120,9 @@ public class AxExtServiceFactory {
     
     public static INtMemoryManager getMemoryManager() {
         return getOrCreate(IAxExtServiceFactory.ExtType.NT_MEMORY_MANAGER);
+    }
+    
+    public static IUxPerformance getUxPerformance() {
+        return getOrCreate(IAxExtServiceFactory.ExtType.UX_PERFORMANCE);
     }
 }

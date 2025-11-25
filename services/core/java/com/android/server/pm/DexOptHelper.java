@@ -268,6 +268,30 @@ public final class DexOptHelper {
         }
     }
 
+    public int doDexoptPackage(String pkg) {
+        try {
+            int flags = DexoptOptions.DEXOPT_CHECK_FOR_PROFILES_UPDATES
+                    | DexoptOptions.DEXOPT_FORCE
+                    | DexoptOptions.DEXOPT_BOOT_COMPLETE
+                    | DexoptOptions.DEXOPT_AS_SHARED_LIBRARY;
+            try (PackageManagerLocal.FilteredSnapshot snapshot =
+                            getPackageManagerLocal().withFilteredSnapshot()) {
+                DexoptParams params = new DexoptParams.Builder(pkg, flags)
+                        .setCompilerFilter("speed-profile")
+                        .setPriorityClass(40)
+                        .setSplitName((String) null)
+                        .build();
+                getArtManagerLocal().deleteDexoptArtifacts(snapshot, pkg);
+                getArtManagerLocal().clearAppProfiles(snapshot, pkg);
+                DexoptResult result =
+                        getArtManagerLocal().dexoptPackage(snapshot, pkg, params, new android.os.CancellationSignal());
+                return convertToDexOptResult(result);
+            }
+        } catch (Exception e) {
+            return PackageDexOptimizer.DEX_OPT_FAILED;
+        }
+    }
+
     public boolean performDexOptMode(@NonNull Computer snapshot, String packageName,
             String targetCompilerFilter, boolean force, boolean bootComplete, String splitName) {
         if (!PackageManagerServiceUtils.isSystemOrRootOrShell()
