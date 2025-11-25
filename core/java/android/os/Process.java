@@ -1144,6 +1144,12 @@ public class Process {
             throws IllegalArgumentException, SecurityException;
 
     /**
+     * @hide
+     */
+    public static final native void setThreadAffinity(int tid, int group)
+            throws IllegalArgumentException, SecurityException;
+
+    /**
      * Sets the scheduling group for a process and all child threads
      * @hide
      * @param pid The identifier of the process to change.

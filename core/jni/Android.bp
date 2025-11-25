@@ -293,6 +293,7 @@ cc_library_shared_for_libandroid_runtime {
                 "libscrypt_static",
                 "libstatssocket_lazy",
                 "libskia",
+                "ax_process_utils",
             ],
 
             shared_libs: [
