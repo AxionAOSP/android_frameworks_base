@@ -13,23 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.server;
+package com.android.server.am;
 
-import com.android.server.am.*;
+import android.content.Context;
 
-public interface IAxExtServiceFactory {
-    enum ExtType {
-        BOOST_ADJUSTER(IBoostAdjuster.class),
-        NT_MEMORY_MANAGER(INtMemoryManager.class);
+public interface INtMemoryManager {
+    default void systemReady() {
+    }
 
-        private final Class<?> clazz;
+    default void boostCamera(boolean isColdStart) {
+    }
 
-        ExtType(Class<?> clazz) {
-            this.clazz = clazz;
-        }
+    default void releaseMemoryAtScreenOn() {
+    }
 
-        public Class<?> getClazz() {
-            return clazz;
-        }
+    default void loadProcessMemory(String packageName) {
+    }
+
+    default void releaseMemory(int i, int i2, boolean b, boolean b2) {
+    }
+    
+    default long getPhysicalMemory() {
+        return 8388608;
     }
 }

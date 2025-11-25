@@ -243,6 +243,7 @@ import com.android.internal.policy.TransitionAnimation;
 import com.android.internal.statusbar.IStatusBarService;
 import com.android.internal.widget.LockPatternUtils;
 import com.android.server.AccessibilityManagerInternal;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.DockObserverInternal;
 import com.android.server.ExtconStateObserver;
 import com.android.server.ExtconUEventObserver;
@@ -6047,6 +6048,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             return;
         }
         EventLogTags.writeScreenToggled(1);
+        
+        AxExtServiceFactory.getMemoryManager().releaseMemoryAtScreenOn();
+        AxExtServiceFactory.getMemoryManager().loadProcessMemory("com.android.systemui");
+        AxExtServiceFactory.getMemoryManager().loadProcessMemory("com.android.launcher3");
 
         mIsGoingToSleepDefaultDisplay = false;
         mDefaultDisplayPolicy.setAwake(true);
