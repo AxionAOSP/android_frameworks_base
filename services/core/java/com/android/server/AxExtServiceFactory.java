@@ -27,6 +27,7 @@ public class AxExtServiceFactory {
     private static final Object sLock = new Object();
     
     private static volatile IBoostAdjuster sBoostAdjuster;
+    private static volatile INtMemoryManager sNtMemoryManager;
 
     private AxExtServiceFactory(Context context) {
         NtServiceInjector.get().setCtx(context);
@@ -73,6 +74,17 @@ public class AxExtServiceFactory {
                 instance = sBoostAdjuster;
                 break;
 
+            case NT_MEMORY_MANAGER:
+                if (sNtMemoryManager == null) {
+                    synchronized (sLock) {
+                        if (sNtMemoryManager == null) {
+                            sNtMemoryManager = new NtMemoryManagerImpl();
+                        }
+                    }
+                }
+                instance = sNtMemoryManager;
+                break;
+
             default:
                 throw new IllegalArgumentException("Unknown ExtType: " + type);
         }
@@ -86,9 +98,14 @@ public class AxExtServiceFactory {
     public static void onLateSystemReady() {
         OnlineConfigObserver.systemReady();
         getBoostAdjuster().systemReady();
+        getMemoryManager().systemReady();
     }
     
     public static IBoostAdjuster getBoostAdjuster() {
         return getOrCreate(IAxExtServiceFactory.ExtType.BOOST_ADJUSTER);
+    }
+    
+    public static INtMemoryManager getMemoryManager() {
+        return getOrCreate(IAxExtServiceFactory.ExtType.NT_MEMORY_MANAGER);
     }
 }

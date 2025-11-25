@@ -17698,6 +17698,9 @@ public class ActivityManagerService extends IActivityManager.Stub
                 if (isTop) {
                     AxExtServiceFactory.getBoostAdjuster().boostHint("launch", 2000);
                 }
+                if (AxUtils.isCamera(processName)) {
+                    AxExtServiceFactory.getMemoryManager().boostCamera(true);
+                }
                 if (Trace.isTagEnabled(Trace.TRACE_TAG_ACTIVITY_MANAGER)) {
                     Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "startProcess:"
                             + processName);
@@ -19758,5 +19761,13 @@ public class ActivityManagerService extends IActivityManager.Stub
     @Override
     public void boostThread(int tid) {
         AxExtServiceFactory.getBoostAdjuster().boostThread(tid);
+    }
+    
+    @Override
+    public void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera) {
+        mHandler.post(() -> {
+            AxExtServiceFactory.getMemoryManager().releaseMemory(
+                minAdj, maxKillCount, includeUIProcesses, skipCamera);
+        });
     }
 }
