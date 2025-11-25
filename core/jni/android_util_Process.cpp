@@ -32,6 +32,8 @@
 #include <android-base/unique_fd.h>
 #include <cutils/misc.h>
 
+#include "ax_process_utils.h"
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -67,6 +69,7 @@
 #define GUARD_THREAD_PRIORITY 0
 
 using namespace android;
+using namespace axion::process;
 
 static constexpr bool kDebugPolicy = false;
 static constexpr bool kDebugProc = false;
@@ -232,6 +235,13 @@ void android_os_Process_setThreadGroupAndCpuset(JNIEnv* env, jobject clazz, int 
 
     if (res != NO_ERROR) {
         signalExceptionForGroupError(env, -res, tid);
+    }
+}
+
+void android_os_Process_setThreadAffinity(JNIEnv* env, jobject clazz, int tid, jint grp) {
+    bool success = SetThreadAffinity(tid, grp);
+    if (!success) {
+        ALOGE("Failed to set CPU affinity for thread %d (group %d)", tid, grp);
     }
 }
 
@@ -1410,6 +1420,7 @@ static const JNINativeMethod methods[] = {
         {"getThreadScheduler", "(I)I", (void*)android_os_Process_getThreadScheduler},
         {"setThreadGroup", "(II)V", (void*)android_os_Process_setThreadGroup},
         {"setThreadGroupAndCpuset", "(II)V", (void*)android_os_Process_setThreadGroupAndCpuset},
+        {"setThreadAffinity", "(II)V", (void*)android_os_Process_setThreadAffinity},
         {"setProcessGroup", "(II)V", (void*)android_os_Process_setProcessGroup},
         {"getProcessGroup", "(I)I", (void*)android_os_Process_getProcessGroup},
         {"createProcessGroup", "(II)I", (void*)android_os_Process_createProcessGroup},
