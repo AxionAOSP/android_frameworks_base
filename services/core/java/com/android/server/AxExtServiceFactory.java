@@ -71,5 +71,6 @@ public class AxExtServiceFactory {
     }
     
     public static void onLateSystemReady() {
+        OnlineConfigObserver.systemReady();
     }
 }
