@@ -430,10 +430,24 @@ static void get_cpuset_cores_for_policy(SchedPolicy policy, cpu_set_t *cpu_set)
             }
             break;
         case SP_FOREGROUND:
-        case SP_AUDIO_APP:
-        case SP_AUDIO_SYS:
         case SP_RT_APP:
             if (!CgroupGetAttributePath("HighCapacityCPUs", &filename)) {
+                return;
+            }
+            break;
+        case SP_AUDIO_APP:
+        case SP_AUDIO_SYS:
+            if (!CgroupGetAttributePath("AudioCPUs", &filename)) {
+                return;
+            }
+            break;
+        case SP_NT_FOREGROUND:
+            if (!CgroupGetAttributePath("NtFgCPUs", &filename)) {
+                return;
+            }
+            break;
+        case SP_SVP:
+            if (!CgroupGetAttributePath("SvpCPUs", &filename)) {
                 return;
             }
             break;
