@@ -29,6 +29,7 @@ public class AxExtServiceFactory {
     private static volatile IBoostAdjuster sBoostAdjuster;
     private static volatile INtMemoryManager sNtMemoryManager;
     private static volatile IUxPerformance sUxPerformance;
+    private static volatile IProcessManager sProcessManager;
 
     private AxExtServiceFactory(Context context) {
         NtServiceInjector.get().setCtx(context);
@@ -96,6 +97,17 @@ public class AxExtServiceFactory {
                 }
                 instance = sUxPerformance;
                 break;
+                
+            case PROCESS_MANAGER:
+                if (sProcessManager == null) {
+                    synchronized (sLock) {
+                        if (sProcessManager == null) {
+                            sProcessManager = new ProcessManager();
+                        }
+                    }
+                }
+                instance = sProcessManager;
+                break;
 
             default:
                 throw new IllegalArgumentException("Unknown ExtType: " + type);
@@ -105,6 +117,7 @@ public class AxExtServiceFactory {
     }
 
     public static void systemReady() {
+        getProcessManager().systemReady();
     }
     
     public static void onLateSystemReady() {
@@ -124,5 +137,9 @@ public class AxExtServiceFactory {
     
     public static IUxPerformance getUxPerformance() {
         return getOrCreate(IAxExtServiceFactory.ExtType.UX_PERFORMANCE);
+    }
+    
+    public static IProcessManager getProcessManager() {
+        return getOrCreate(IAxExtServiceFactory.ExtType.PROCESS_MANAGER);
     }
 }

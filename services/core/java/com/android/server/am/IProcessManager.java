@@ -13,25 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.server;
+package com.android.server.am;
 
-import com.android.server.am.*;
+import android.content.Context;
 
-public interface IAxExtServiceFactory {
-    enum ExtType {
-        BOOST_ADJUSTER(IBoostAdjuster.class),
-        NT_MEMORY_MANAGER(INtMemoryManager.class),
-        UX_PERFORMANCE(IUxPerformance.class),
-        PROCESS_MANAGER(IProcessManager.class);
+public interface IProcessManager {
+    void systemReady();
+    
+    default long getDelayRestartDuration(ServiceRecord sr) {
+        return 1000L;
+    }
 
-        private final Class<?> clazz;
+    default boolean checkDelayRestartService(ServiceRecord sr) {
+        return false;
+    }
 
-        ExtType(Class<?> clazz) {
-            this.clazz = clazz;
-        }
-
-        public Class<?> getClazz() {
-            return clazz;
-        }
+    default void updateTopApp(String topPackageName) {
+    }
+    
+    default boolean isThermalHigh() {
+        return false;
     }
 }
