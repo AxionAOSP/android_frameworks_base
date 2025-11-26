@@ -103,6 +103,7 @@ import android.window.TaskFragmentOrganizerToken;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.ToBooleanFunction;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.am.HostingRecord;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.window.flags.Flags;
@@ -1540,6 +1541,8 @@ class TaskFragment extends WindowContainer<WindowContainer> {
                     + "(dontWaitForPause) %s", next);
             return true;
         }
+
+        AxExtServiceFactory.getProcessManager().updateTopApp(next.packageName);
 
         // If the most recent activity was noHistory but was only stopped rather
         // than stopped+finished because the device went to sleep, we need to make
