@@ -17,5 +17,5 @@
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="#FFFFFFFF" />
-    <corners android:radius="@dimen/notification_corner_radius"/>
+    <corners android:radius="@dimen/media_notification_corner_radius"/>
 </shape>

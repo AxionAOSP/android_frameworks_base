@@ -17,4 +17,4 @@
 <com.android.systemui.media.controls.ui.drawable.IlluminationDrawable
     xmlns:systemui="http://schemas.android.com/apk/res-auto"
     systemui:highlight="15"
-    systemui:cornerRadius="@dimen/notification_corner_radius" />
+    systemui:cornerRadius="@dimen/media_notification_corner_radius" />
