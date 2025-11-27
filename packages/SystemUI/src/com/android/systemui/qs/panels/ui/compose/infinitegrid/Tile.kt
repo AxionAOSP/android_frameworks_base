@@ -92,6 +92,7 @@ import com.android.systemui.qs.panels.ui.compose.BounceableInfo
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.InactiveCornerRadius
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileHeight
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.longPressLabel
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.rememberAxTileProvider
 import com.android.systemui.qs.panels.ui.viewmodel.AccessibilityUiState
 import com.android.systemui.qs.panels.ui.viewmodel.DetailsViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.IconProvider
@@ -175,6 +176,62 @@ fun ContentScope.Tile(
         val tileShape by TileDefaults.animateTileShapeAsState(uiState.state)
         val animatedColor by animateColorAsState(colors.background, label = "QSTileBackgroundColor")
         val isDualTarget = uiState.handlesSecondaryClick
+
+        val axTileProvider = rememberAxTileProvider(coroutineScope, squishiness)
+        
+        if (iconOnly) {
+            axTileProvider.IconTile(
+                iconProvider = { getTileIcon(icon = icon) },
+                iconColor = colors.icon,
+                backgroundColor = animatedColor,
+                isClickable = isClickable,
+                onClick = {
+                    if (QsDetailedView.isEnabled && detailsViewModel?.onTileClicked(tile.spec) == true) return@IconTile
+                    if (isDualTarget) tile.toggleClick() else tile.mainClick(null)
+                    hapticsViewModel?.setTileInteractionState(TileHapticsViewModel.TileInteractionState.CLICKED)
+                    if (uiState.isToggleable) requestToggleTextFeedback(tile.spec)
+                },
+                onLongClick = {
+                    hapticsViewModel?.setTileInteractionState(TileHapticsViewModel.TileInteractionState.LONG_CLICKED)
+                    if (isDualTarget && isClickable) tile.mainClick(null) else tile.settingsClick(null)
+                }.takeIf { uiState.handlesLongClick || (isDualTarget && isClickable) },
+                onBounce = { currentBounceableInfo.bounceable.animateContainerBounce() },
+                modifier = modifier.sysuiResTag(TEST_TAG_SMALL),
+            )
+            return@trace
+        }
+        
+        axTileProvider.LargeTile(
+            tileSpec = tile.spec.spec,
+            label = uiState.label,
+            secondaryLabel = uiState.secondaryLabel,
+            iconProvider = { getTileIcon(icon = icon) },
+            colors = colors,
+            shape = tileShape,
+            isClickable = isClickable,
+            onClick = {
+                if (QsDetailedView.isEnabled && detailsViewModel?.onTileClicked(tile.spec) == true) return@LargeTile
+                tile.mainClick(null)
+                hapticsViewModel?.setTileInteractionState(TileHapticsViewModel.TileInteractionState.CLICKED)
+            },
+            onLongClick = {
+                hapticsViewModel?.setTileInteractionState(TileHapticsViewModel.TileInteractionState.LONG_CLICKED)
+                tile.settingsClick(null)
+            }.takeIf { uiState.handlesLongClick },
+            onToggleClick = {
+                hapticsViewModel?.setTileInteractionState(TileHapticsViewModel.TileInteractionState.CLICKED)
+                tile.toggleClick()
+            }.takeIf { isDualTarget },
+            onBounce = {
+                if (uiState.isToggleable && !isDualTarget) {
+                    currentBounceableInfo.bounceable.animateContainerBounce()
+                } else {
+                    currentBounceableInfo.bounceable.animateContentBounce(false)
+                }
+            },
+            modifier = modifier.sysuiResTag(TEST_TAG_LARGE),
+        )
+        return@trace
 
         TileExpandable(
             color = { animatedColor },
@@ -500,7 +557,8 @@ private object TileDefaults {
     fun getColorForState(uiState: TileUiState, iconOnly: Boolean): TileColors {
         return when (uiState.state) {
             STATE_ACTIVE -> {
-                if (uiState.handlesSecondaryClick && !iconOnly) {
+                if (uiState.handlesSecondaryClick && !iconOnly 
+                        && !AxTileProvider.Flags.useAxProvider) {
                     activeDualTargetTileColors()
                 } else {
                     activeTileColors()
@@ -508,13 +566,13 @@ private object TileDefaults {
             }
 
             STATE_INACTIVE -> {
-                if (uiState.handlesSecondaryClick && !iconOnly) {
+                if (uiState.handlesSecondaryClick && !iconOnly 
+                        && !AxTileProvider.Flags.useAxProvider) {
                     inactiveDualTargetTileColors()
                 } else {
                     inactiveTileColors()
                 }
             }
-
             else -> unavailableTileColors()
         }
     }
@@ -546,7 +604,7 @@ private object TileDefaults {
         val animatedCornerRadius by
             animateDpAsState(
                 targetValue =
-                    if (state == STATE_ACTIVE) {
+                    if (state == STATE_ACTIVE && !AxTileProvider.Flags.useAxProvider) {
                         activeCornerRadius
                     } else {
                         InactiveCornerRadius
