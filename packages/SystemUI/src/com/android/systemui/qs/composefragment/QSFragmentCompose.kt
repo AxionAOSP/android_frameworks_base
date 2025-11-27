@@ -33,6 +33,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.annotation.VisibleForTesting
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement.spacedBy
@@ -46,8 +47,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -61,10 +64,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.Stable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
@@ -748,11 +753,20 @@ constructor(
                                 modifier = Modifier.requiredHeightIn(max = Dp.Infinity),
                                 mediaHost = viewModel.qqsMediaHost,
                                 mediaLogger = mediaLogger,
+                                squishiness = squishiness,
                             )
                         }
                     }
 
                 if (viewModel.isQsEnabled) {
+                    val DragHandle: @Composable () -> Unit = {
+                            Element(
+                                key = ElementKeys.DragHandle,
+                                modifier = Modifier
+                            ) {
+                                DragHandle()
+                            }
+                        }
                     Box(
                         modifier =
                             Modifier.collapseExpandSemanticAction(
@@ -765,6 +779,7 @@ constructor(
                         QuickQuickSettingsLayout(
                             tiles = Tiles,
                             media = Media,
+                            draghandle = DragHandle,
                             mediaInRow = viewModel.qqsMediaInRow,
                         )
                     }
@@ -777,7 +792,7 @@ constructor(
     @Composable
     private fun ContentScope.QuickSettingsElement(modifier: Modifier = Modifier) {
         val qqsPadding = viewModel.qqsHeaderHeight
-        val qsExtraPadding = dimensionResource(R.dimen.qs_panel_padding_top)
+        val qsExtraPaddingTop = viewModel.qsExtraPaddingTop
         Column(
             modifier =
                 modifier.collapseExpandSemanticAction(
@@ -831,7 +846,7 @@ constructor(
                     ) {
                         val containerViewModel = viewModel.containerViewModel
                         Spacer(
-                            modifier = Modifier.height { qqsPadding + qsExtraPadding.roundToPx() }
+                            modifier = Modifier.height { qqsPadding + qsExtraPaddingTop }
                         )
                         val BrightnessSlider =
                             @Composable {
@@ -860,7 +875,10 @@ constructor(
                                                     Color.Transparent,
                                                     ContainerColors.defaultContainerColor,
                                                 ),
-                                            modifier = Modifier.fillMaxWidth(),
+                                            modifier = Modifier.fillMaxWidth()
+                                                .padding(
+                                                        horizontal = qsBrightnessSidePadding()
+                                                    ),
                                         )
                                     }
                                 }
@@ -1384,9 +1402,17 @@ private fun MediaObject(
     mediaHost: MediaHost,
     modifier: Modifier = Modifier,
     mediaLogger: MediaViewLogger,
+    squishiness: Float = 1f,
     update: UniqueObjectHostView.() -> Unit = {},
 ) {
-    Box {
+    Box(
+        modifier =
+            Modifier.graphicsLayer {
+                    scaleX = squishiness
+                    scaleY = squishiness
+                    transformOrigin = TransformOrigin(0.5f, 0.5f)
+                }
+    ) {
         AndroidView(
             modifier = modifier,
             factory = {
@@ -1425,20 +1451,24 @@ private fun MediaObject(
 fun QuickQuickSettingsLayout(
     tiles: @Composable () -> Unit,
     media: @Composable () -> Unit,
+    draghandle: @Composable () -> Unit,
     mediaInRow: Boolean,
 ) {
     if (mediaInRow) {
         Row(
-            horizontalArrangement = spacedBy(dimensionResource(R.dimen.qs_tile_margin_vertical)),
+            horizontalArrangement = spacedBy(qsMarginVertical()),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(modifier = Modifier.weight(1f)) { tiles() }
             Box(modifier = Modifier.weight(1f)) { media() }
         }
     } else {
-        Column(verticalArrangement = spacedBy(dimensionResource(R.dimen.qs_tile_margin_vertical))) {
+        Column(verticalArrangement = spacedBy(qsMarginVertical())) {
+            space(qqsTopExtra())
             tiles()
             media()
+            space(DragHandleSpace)
+            draghandle()
         }
     }
 }
@@ -1468,14 +1498,49 @@ fun QuickSettingsLayout(
         }
     } else {
         Column(
-            verticalArrangement = spacedBy(QuickSettingsShade.Dimensions.Padding),
+            verticalArrangement = spacedBy(qsPanelSpacing()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            brightness()
             tiles()
+            brightness()
             media()
         }
     }
+}
+
+@Stable
+@Composable 
+@VisibleForTesting 
+fun DragHandle() { 
+    Box( 
+        modifier = Modifier 
+            .fillMaxWidth(), 
+        contentAlignment = Alignment.Center 
+    ) { 
+        DragHandleContent()
+    } 
+}
+
+@Stable
+@Composable
+private fun DragHandleContent() {
+    Box( 
+        modifier = Modifier 
+            .size(width = 56.dp, height = 4.dp) 
+            .background( 
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f), 
+                shape = RoundedCornerShape(2.dp) 
+            ) 
+    ) 
+}
+
+@Stable
+@Composable
+@VisibleForTesting
+fun space(height: Dp) {
+    Spacer(
+        modifier = Modifier.height { height.roundToPx() }
+    )
 }
 
 private object ResIdTags {
@@ -1486,6 +1551,12 @@ private object ResIdTags {
 }
 
 @Composable private fun qsHorizontalMargin() = dimensionResource(id = R.dimen.qs_horizontal_margin)
+@Composable private fun qsMediaHorizontalMargin() = dimensionResource(id = R.dimen.qs_media_horizontal_margin)
+@Composable private fun qsPanelSpacing() = dimensionResource(id = R.dimen.qs_panel_spacing)
+@Composable private fun qqsTopExtra() = dimensionResource(id = R.dimen.qqs_tiles_margin_top_extra)
+@Composable private fun qsMarginVertical() = dimensionResource(id = R.dimen.qs_tile_margin_vertical)
+@Composable private fun qsBrightnessSidePadding() = dimensionResource(id = R.dimen.qs_brightness_side_padding)
+private val DragHandleSpace = 4.dp
 
 @Composable
 private fun interactionsConfig() =

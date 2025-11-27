@@ -345,7 +345,7 @@
     <dimen name="notification_min_interaction_height">40dp</dimen>
 
     <!-- Radius for notifications corners without adjacent notifications -->
-    <dimen name="notification_corner_radius">28dp</dimen>
+    <dimen name="notification_corner_radius">16dp</dimen>
 
     <!-- Stroke width for notifications focus state overlay, see id/notification_focus_outline -->
     <dimen name="notification_focus_stroke_width">3dp</dimen>
@@ -730,8 +730,8 @@
     <dimen name="qs_brightness_margin_top">8dp</dimen>
     <dimen name="qs_brightness_margin_bottom">16dp</dimen>
     <dimen name="qqs_layout_margin_top">16dp</dimen>
-    <dimen name="qqs_layout_padding_bottom">24dp</dimen>
-    <item name="qqs_expand_clock_scale" format="float" type="dimen">2.57</item>
+    <dimen name="qqs_layout_padding_bottom">0dp</dimen>
+    <item name="qqs_expand_clock_scale" format="float" type="dimen">2</item>
 
     <!-- Most of the time it should be the same as notification_side_paddings as it's vertically
          aligned with notifications. The exception is split shade when this value becomes
@@ -909,7 +909,7 @@
     <!-- The amount to translate lockscreen elements on the GONE->AOD transition, on device fold -->
     <dimen name="keyguard_enter_from_side_translation_x">-100dp</dimen>
 
-    <dimen name="notification_scrim_corner_radius">32dp</dimen>
+    <dimen name="notification_scrim_corner_radius">0dp</dimen>
 
     <!-- The minimum amount the user needs to swipe to go to the camera / phone. -->
     <dimen name="keyguard_min_swipe_amount">110dp</dimen>

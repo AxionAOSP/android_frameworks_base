@@ -17,6 +17,7 @@ package com.android.systemui.qs.panels.ui.compose.infinitegrid
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Typeface
 import androidx.compose.*
 import androidx.compose.animation.*
@@ -400,14 +401,22 @@ fun rememberTileSpacing(): TileSpacing {
 
 @Composable
 fun rememberTileColumns(): Int {
-    val screenWidthDp = LocalConfiguration.current.screenWidthDp.dp
+    val config = LocalConfiguration.current
     val spacing = rememberTileSpacing()
 
-    return remember(screenWidthDp, spacing) {
-        if (screenWidthDp < TileGridDefaults.SmallScreenThreshold) {
+    val isLandscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    val effectiveWidthDp = if (isLandscape) {
+        (config.screenHeightDp.dp / 2)
+    } else {
+        config.screenWidthDp.dp
+    }
+
+    return remember(effectiveWidthDp, spacing, isLandscape) {
+        if (effectiveWidthDp < TileGridDefaults.SmallScreenThreshold) {
             TileGridDefaults.FixedColumnsForSmallScreen
         } else {
-            val availableWidth = screenWidthDp - (spacing.horizontalMargin * 2)
+            val availableWidth = effectiveWidthDp - (spacing.horizontalMargin * 2)
             ((availableWidth + spacing.tileSpacing) / (TileHeight + spacing.tileSpacing))
                 .toInt()
                 .coerceAtLeast(TileGridDefaults.FixedColumnsForSmallScreen)
