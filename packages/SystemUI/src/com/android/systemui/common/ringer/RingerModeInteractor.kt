@@ -1,0 +1,117 @@
+/*
+ * Copyright (C) 2025 AxionOS
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.android.systemui.common.ringer
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.media.AudioManager
+import android.os.Vibrator
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.runtime.Stable
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.android.systemui.dagger.SysUISingleton
+import kotlinx.coroutines.flow.*
+import javax.inject.Inject
+import kotlin.math.roundToInt
+
+@Stable
+@SysUISingleton
+class RingerModeInteractorImpl @Inject constructor(
+    private val context: Context
+) : RingerModeInteractor {
+
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+    private val hasVibrator: Boolean = vibrator?.hasVibrator() == true
+
+    private val _ringerMode = MutableStateFlow(audioManager.ringerModeInternal)
+
+    private val receiver = object : BroadcastReceiver() {
+        override fun onReceive(ctx: Context?, intent: Intent?) {
+            if (intent?.action == AudioManager.RINGER_MODE_CHANGED_ACTION) {
+                _ringerMode.value = audioManager.ringerModeInternal
+            }
+        }
+    }
+
+    init {
+        val filter = IntentFilter(AudioManager.RINGER_MODE_CHANGED_ACTION)
+        context.registerReceiver(receiver, filter)
+    }
+
+    override val ringerMode: Flow<Int> = _ringerMode.asStateFlow()
+
+    override fun getCurrentMode(): Int = audioManager.ringerModeInternal
+
+    override fun setRingerMode(mode: Int) {
+        audioManager.ringerModeInternal = mode
+        _ringerMode.value = mode
+    }
+
+    override fun getAvailableRingerModes(): List<RingerModeOption> {
+        val modes = mutableListOf(
+            RingerModeOption(AudioManager.RINGER_MODE_NORMAL, Icons.Filled.VolumeUp, "Normal"),
+            RingerModeOption(AudioManager.RINGER_MODE_SILENT, Icons.Filled.VolumeOff, "Silent")
+        )
+        if (hasVibrator) {
+            modes.add(1, RingerModeOption(AudioManager.RINGER_MODE_VIBRATE, Icons.Filled.Vibration, "Vibrate"))
+        }
+        return modes
+    }
+
+    override fun getNumberOfModes(): Int = getAvailableRingerModes().size
+
+    override fun getMaxOffset(): Float = (getNumberOfModes() - 1).coerceAtLeast(1).toFloat()
+
+    override fun getTargetPosition(currentMode: Int): Float {
+        val modes = getAvailableRingerModes()
+        val idx = modes.indexOfFirst { it.mode == currentMode }.takeIf { it >= 0 } ?: 0
+        return idx.toFloat()
+    }
+
+    override fun snapMode(offset: Float): Int {
+        val modes = getAvailableRingerModes()
+        val maxIndex = (modes.size - 1).coerceAtLeast(0)
+        val snappedIndex = offset.roundToInt().coerceIn(0, maxIndex)
+        return modes[snappedIndex].mode
+    }
+
+    override val targetPositionFlow: Flow<Float> =
+        ringerMode.map { getTargetPosition(it) }.distinctUntilChanged()
+}
+
+interface RingerModeInteractor {
+    val ringerMode: Flow<Int>
+    val targetPositionFlow: Flow<Float>
+    fun getCurrentMode(): Int
+    fun setRingerMode(mode: Int)
+    fun getAvailableRingerModes(): List<RingerModeOption>
+    fun getNumberOfModes(): Int
+    fun getMaxOffset(): Float
+    fun getTargetPosition(currentMode: Int): Float
+    fun snapMode(offset: Float): Int
+}
+
+data class RingerModeOption(
+    val mode: Int,
+    val icon: ImageVector,
+    val label: String
+)

@@ -177,6 +177,15 @@ fun ContentScope.Tile(
         val animatedColor by animateColorAsState(colors.background, label = "QSTileBackgroundColor")
         val isDualTarget = uiState.handlesSecondaryClick
 
+        if (!iconOnly && AxWidgetTileProvider.get().provideAxTile(
+                spec = tile.spec.spec,
+                shape = tileShape,
+                squishinessProvider = squishiness,
+                modifier = modifier.sysuiResTag(TEST_TAG_LARGE)
+            )) {
+            return@trace
+        }
+
         val axTileProvider = rememberAxTileProvider(coroutineScope, squishiness)
         
         if (iconOnly) {
