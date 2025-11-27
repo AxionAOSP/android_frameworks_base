@@ -30,7 +30,9 @@ import com.android.compose.animation.scene.ContentScope
 import com.android.systemui.compose.modifiers.sysuiResTag
 import com.android.systemui.grid.ui.compose.VerticalSpannedGrid
 import com.android.systemui.qs.composefragment.ui.GridAnchor
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.rememberTileColumns
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.Tile
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.TileGridDefaults.VerticalPadding
 import com.android.systemui.qs.panels.ui.viewmodel.BounceableTileViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.QuickQuickSettingsViewModel
 import com.android.systemui.qs.shared.ui.ElementKeys.toElementKey
@@ -51,13 +53,13 @@ fun ContentScope.QuickQuickSettings(
 
     val spans by remember(sizedTiles) { derivedStateOf { sizedTiles.fastMap { it.width } } }
 
-    val columns = viewModel.columns
+    val columns = rememberTileColumns()
     Box(modifier = modifier) {
         GridAnchor()
         VerticalSpannedGrid(
             columns = columns,
             columnSpacing = dimensionResource(R.dimen.qs_tile_margin_horizontal),
-            rowSpacing = dimensionResource(R.dimen.qs_tile_margin_vertical),
+            rowSpacing = VerticalPadding,
             spans = spans,
             modifier = Modifier.sysuiResTag("qqs_tile_layout"),
             keys = { sizedTiles[it].tile.spec },

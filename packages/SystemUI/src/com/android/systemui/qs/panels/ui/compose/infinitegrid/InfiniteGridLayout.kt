@@ -42,6 +42,8 @@ import com.android.systemui.qs.panels.ui.compose.EditTileListState
 import com.android.systemui.qs.panels.ui.compose.PaginatableGridLayout
 import com.android.systemui.qs.panels.ui.compose.TileListener
 import com.android.systemui.qs.panels.ui.compose.bounceableInfo
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.rememberTileColumns
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.TileGridDefaults.VerticalPadding
 import com.android.systemui.qs.panels.ui.viewmodel.BounceableTileViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.DetailsViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.EditTileViewModel
@@ -84,7 +86,7 @@ constructor(
                 textFeedbackContentViewModelFactory.create(context)
             }
 
-        val columns = viewModel.columnsWithMediaViewModel.columns
+        val columns = rememberTileColumns()
         val largeTilesSpan = viewModel.columnsWithMediaViewModel.largeSpan
         val largeTiles by viewModel.iconTilesViewModel.largeTilesState
         // Tiles or largeTiles may be updated while this is composed, so listen to any changes
@@ -108,7 +110,7 @@ constructor(
         VerticalSpannedGrid(
             columns = columns,
             columnSpacing = dimensionResource(R.dimen.qs_tile_margin_horizontal),
-            rowSpacing = dimensionResource(R.dimen.qs_tile_margin_vertical),
+            rowSpacing = VerticalPadding,
             spans = spans,
             keys = { sizedTiles[it].tile.spec },
             modifier = modifier,
@@ -186,7 +188,8 @@ constructor(
                     coroutineScope.launch { scrollState.animateScrollTo(0) }
                 }
             }
-        val columns = columnsViewModel.columns
+
+        val columns = rememberTileColumns()
         val largeTilesSpan = columnsViewModel.largeSpan
         val largeTiles by viewModel.iconTilesViewModel.largeTilesState
 
