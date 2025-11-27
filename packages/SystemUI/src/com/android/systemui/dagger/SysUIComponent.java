@@ -26,6 +26,7 @@ import com.android.systemui.dagger.qualifiers.PerUser;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.keyguard.KeyguardSliceProvider;
 import com.android.systemui.people.PeopleProvider;
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.AxWidgetTileProvider;
 import com.android.systemui.startable.Dependencies;
 import com.android.systemui.statusbar.NotificationInsetsModule;
 import com.android.systemui.statusbar.QsFrameTranslateModule;
@@ -167,6 +168,9 @@ public interface SysUIComponent {
      */
     @SysUISingleton
     InitController getInitController();
+    
+    @SysUISingleton
+    AxWidgetTileProvider getAxWidgetTileProvider();
 
     /**
      * Returns {@link CoreStartable}s that should be started with the application.
