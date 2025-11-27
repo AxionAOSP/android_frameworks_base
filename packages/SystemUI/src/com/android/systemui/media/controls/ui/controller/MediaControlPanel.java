@@ -1376,7 +1376,7 @@ public class MediaControlPanel {
                     @Override
                     protected float getCurrentTopCornerRadius() {
                         return mContext.getResources().getDimension(
-                                R.dimen.notification_corner_radius);
+                                R.dimen.media_notification_corner_radius);
                     }
 
                     @Override
