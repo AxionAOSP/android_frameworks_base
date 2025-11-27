@@ -16,4 +16,16 @@
 */
 -->
 <resources>
+    <!-- QuickSettings -->
+    <dimen name="qs_status_bar_margin_end">16dp</dimen>
+    <dimen name="qs_status_bar_margin_start">16dp</dimen>
+    <dimen name="qs_status_bar_margin_top">38dp</dimen>
+    <dimen name="qs_status_bar_data_margin_top">-7dp</dimen>
+    <dimen name="qqs_status_bar_margin_top">34dp</dimen>
+    <dimen name="qqs_status_bar_text_size">15dp</dimen>
+    <dimen name="qqs_tiles_margin_top_extra">34dp</dimen>
+    <dimen name="qs_brightness_side_padding">8dp</dimen>
+    <dimen name="qs_panel_spacing">10dp</dimen>
+    <dimen name="nt_qs_panel_padding_top">58dp</dimen>
+    <dimen name="qs_media_horizontal_margin">8dp</dimen>
 </resources>

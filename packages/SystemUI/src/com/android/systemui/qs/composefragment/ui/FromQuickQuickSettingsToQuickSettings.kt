@@ -19,6 +19,7 @@ package com.android.systemui.qs.composefragment.ui
 import com.android.compose.animation.scene.TransitionBuilder
 import com.android.systemui.qs.composefragment.SceneKeys
 import com.android.systemui.qs.shared.ui.ElementKeys
+import androidx.compose.ui.unit.dp
 
 fun TransitionBuilder.quickQuickSettingsToQuickSettings(
     animateTilesExpansion: () -> Boolean = { true }
@@ -31,6 +32,11 @@ fun TransitionBuilder.quickQuickSettingsToQuickSettings(
     anchoredTranslate(ElementKeys.QuickSettingsContent, ElementKeys.GridAnchor)
 
     sharedElement(ElementKeys.TileElementMatcher, enabled = animateTilesExpansion())
+
+    fractionRange(start = 0.01f, end = 0.2f) {
+        fade(ElementKeys.DragHandle)
+        translate(ElementKeys.DragHandle, y = 50.dp)
+    }
 
     // This will animate between 0f (QQS) and 0.5, fading in the QQS tiles when coming back
     // from non first page QS. The QS content ends fading out at 0.43f, so there's a brief

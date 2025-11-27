@@ -29,6 +29,7 @@ object ElementKeys {
         ElementKey(this.spec, TileIdentity(this, positionInGrid))
 
     val TileElementMatcher = ElementKey.withIdentity { it is TileIdentity }
+    val DragHandle = ElementKey("DragHandle")
 }
 
 private data class TileIdentity(val spec: TileSpec, val position: Int)
