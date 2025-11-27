@@ -97,7 +97,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/qs_media_info_spacing"
-        android:layout_marginBottom="@dimen/qs_media_padding"
+        android:layout_marginBottom="0dp"
         android:layout_marginTop="0dp"
         app:layout_constraintStart_toStartOf="@id/header_title"
         app:layout_constraintEnd_toStartOf="@id/header_artist"
@@ -109,7 +109,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/qs_media_padding"
-        android:layout_marginBottom="@dimen/qs_media_padding"
+        android:layout_marginBottom="0dp"
         android:layout_marginTop="0dp"
         app:layout_constrainedWidth="true"
         app:layout_constraintEnd_toStartOf="@id/actionPlayPause"
@@ -122,11 +122,11 @@
     <Constraint
         android:id="@+id/actionPlayPause"
         android:layout_width="@dimen/qs_media_action_play_pause_width"
-        android:layout_height="48dp"
+        android:layout_height="@dimen/qs_media_action_48"
         android:layout_marginStart="@dimen/qs_media_padding"
         android:layout_marginEnd="0dp"
         app:layout_goneMarginEnd="@dimen/qs_media_padding"
-        android:layout_marginBottom="@dimen/qs_media_padding"
+        android:layout_marginBottom="0dp"
         app:layout_constraintEnd_toStartOf="@id/page_right"
         app:layout_constraintBottom_toTopOf="@id/media_action_barrier_top" />
 

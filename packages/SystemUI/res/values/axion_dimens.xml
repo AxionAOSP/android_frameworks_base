@@ -16,4 +16,8 @@
 */
 -->
 <resources>
+    <!-- Size of media cards in the QSPanel carousel -->
+    <dimen name="qs_media_session_enabled_seekbar_vertical_padding_bottom">9.2989dp</dimen>
+    <dimen name="qs_media_text_size_12">9.2989dp</dimen>
+    <dimen name="qs_media_action_48">37.1956dp</dimen>
 </resources>

@@ -129,7 +129,7 @@
         android:layout_width="@dimen/qs_media_app_icon_size"
         android:layout_height="@dimen/qs_media_app_icon_size"
         android:layout_marginStart="@dimen/qs_media_padding"
-        android:layout_marginTop="@dimen/qs_media_padding"
+        android:layout_marginTop="16dp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
@@ -203,7 +203,7 @@
         android:id="@+id/media_seamless"
         android:orientation="horizontal"
         android:gravity="top|end"
-        android:paddingTop="@dimen/qs_media_padding"
+        android:paddingTop="16dp"
         android:paddingEnd="@dimen/qs_media_padding"
         android:background="@drawable/qs_media_light_source"
         android:forceHasOverlappingRendering="false"
@@ -245,8 +245,8 @@
                 android:singleLine="true"
                 android:text="@*android:string/ext_media_seamless_action"
                 android:textDirection="locale"
-                android:textSize="12sp"
-                android:lineHeight="16sp" />
+                android:textSize="12dp"
+                android:lineHeight="16dp" />
         </com.android.systemui.animation.view.LaunchableLinearLayout>
     </LinearLayout>
 
@@ -255,7 +255,7 @@
         android:id="@+id/header_title"
         android:fontFamily="@*android:string/config_headlineFontFamilyMedium"
         android:singleLine="true"
-        android:textSize="16sp"
+        android:textSize="16dp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
 
@@ -273,7 +273,7 @@
         android:fontFamily="@*android:string/config_headlineFontFamily"
         android:singleLine="true"
         style="@style/MediaPlayer.Subtitle"
-        android:textSize="14sp"
+        android:textSize="14dp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
 
