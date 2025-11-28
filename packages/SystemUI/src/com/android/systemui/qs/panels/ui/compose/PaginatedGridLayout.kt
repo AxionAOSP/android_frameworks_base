@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import com.android.compose.animation.scene.ContentScope
 import com.android.compose.animation.scene.content.state.TransitionState
 import com.android.compose.modifiers.padding
+import com.android.compose.theme.LocalAndroidColorScheme
 import com.android.systemui.common.ui.compose.PagerDots
 import com.android.systemui.compose.modifiers.sysuiResTag
 import com.android.systemui.development.ui.compose.BuildNumber
@@ -193,8 +194,8 @@ private fun FooterBar(
         }
         PagerDots(
             pagerState = pagerState,
-            activeColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            nonActiveColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .5f),
+            activeColor = MaterialTheme.colorScheme.primary,
+            nonActiveColor = LocalAndroidColorScheme.current.surfaceEffect1,
             modifier = Modifier.wrapContentWidth(),
         )
         Row(Modifier.weight(1f)) {
