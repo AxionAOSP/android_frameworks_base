@@ -28,7 +28,6 @@ public class WindowEventDispatcher {
     private final ExecutorService mNotifierExecutor = Executors.newSingleThreadExecutor();
 
     private volatile String mFocusedPackageName;
-    private volatile int mFocusedPid = -1;
 
     private WindowEventDispatcher() {}
 
@@ -53,7 +52,6 @@ public class WindowEventDispatcher {
 
     public void notifyAppFocusChanged(final ActivityRecord r, final Task task) {
         mFocusedPackageName = (r != null && r.packageName != null) ? r.packageName : null;
-        mFocusedPid = r != null ? r.getPid() : -1;
         for (final IWindowEventListener listener : mListeners) {
             mNotifierExecutor.execute(() -> listener.onAppFocusChanged(r, task));
         }
@@ -79,9 +77,5 @@ public class WindowEventDispatcher {
 
     public String getFocusedPackageName() {
         return mFocusedPackageName;
-    }
-    
-    public int getFocusedPid() {
-        return mFocusedPid;
     }
 }

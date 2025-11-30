@@ -141,7 +141,6 @@ import com.android.server.ServiceThread;
 import com.android.server.SystemService;
 import com.android.server.UiThread;
 import com.android.server.Watchdog;
-import com.android.server.am.ActivityManagerService;
 import com.android.server.am.BatteryStatsService;
 import com.android.server.display.feature.DeviceConfigParameterProvider;
 import com.android.server.lights.LightsManager;

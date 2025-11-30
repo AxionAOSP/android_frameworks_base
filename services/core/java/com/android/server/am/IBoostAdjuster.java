@@ -51,10 +51,4 @@ public interface IBoostAdjuster {
     
     default void boostInstall(boolean boost) {
     }
-    
-    default void boostThread(int tid) {
-    }
-    
-    default void boostThreadLimited(int tid) {
-    }
 }

@@ -1152,12 +1152,6 @@ public class Process {
     /**
      * @hide
      */
-    public static final native void setThreadAffinityLimited(int tid, int group, int length)
-            throws IllegalArgumentException, SecurityException;
-
-    /**
-     * @hide
-     */
     public static final native void setTaskProfiles(int tid, String[] profiles)
             throws IllegalArgumentException, SecurityException;
 

@@ -15,13 +15,14 @@
  */
 package com.android.server.am;
 
-import static com.android.server.am.ActivityManagerService.MY_PID;
-
 import android.os.Process;
 import android.os.StrictMode;
 import android.util.Slog;
 
-import com.android.server.AxExtServiceFactory;
+import com.android.server.AnimationThread;
+import com.android.server.DisplayThread;
+import com.android.server.UiThread;
+import com.android.server.wm.SurfaceAnimationThread;
 
 import java.io.*;
 import java.util.*;
@@ -37,23 +38,6 @@ public class TaskProfiler {
 
     public void initTaskProfiles() {
         try {
-            int inputReaderTid = findThreadIdByName(MY_PID, "InputReader");
-            int inputDispatcherTid = findThreadIdByName(MY_PID, "InputDispatcher");
-
-            if (inputReaderTid > 0) {
-                AxExtServiceFactory.getBoostAdjuster().boostThreadLimited(inputReaderTid);
-                Slog.i(TAG, "Boosted InputReader (tid=" + inputReaderTid + ")");
-            } else {
-                Slog.w(TAG, "InputReader thread not found!");
-            }
-
-            if (inputDispatcherTid > 0) {
-                AxExtServiceFactory.getBoostAdjuster().boostThreadLimited(inputDispatcherTid);
-                Slog.i(TAG, "Boosted InputDispatcher (tid=" + inputDispatcherTid + ")");
-            } else {
-                Slog.w(TAG, "InputDispatcher thread not found!");
-            }
-
             Map<String, Integer> processMap = buildProcessMap();
             Set<Integer> uxThreads = new HashSet<>();
 
@@ -213,22 +197,4 @@ public class TaskProfiler {
         }
         return sb.toString();
     }
-    
-    private int findThreadIdByName(int pid, String threadName) {
-        File taskDir = new File("/proc/" + pid + "/task");
-        File[] tasks = taskDir.listFiles(f -> f.getName().matches("\\d+"));
-        if (tasks == null) return -1;
-
-        for (File t : tasks) {
-            try {
-                int tid = Integer.parseInt(t.getName());
-                String name = readSingleLine(t.getPath() + "/comm");
-                if (name != null && name.trim().equals(threadName)) {
-                    return tid;
-                }
-            } catch (Exception ignored) {}
-        }
-        return -1;
-    }
-
 }

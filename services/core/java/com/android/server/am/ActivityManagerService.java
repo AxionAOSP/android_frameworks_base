@@ -774,6 +774,8 @@ public class ActivityManagerService extends IActivityManager.Stub
 
     private AccessCheckDelegateHelper mAccessCheckDelegateHelper;
     
+    private final TaskProfiler mTaskProfiler = new TaskProfiler();
+
     /**
      * Uids of apps with current active camera sessions.  Access synchronized on
      * the IntArray instance itself, and no other locks must be acquired while that
@@ -5271,6 +5273,7 @@ public class ActivityManagerService extends IActivityManager.Stub
 
             // Start PSI monitoring in LMKD if it was skipped earlier.
             ProcessList.startPsiMonitoringAfterBoot();
+            mTaskProfiler.initTaskProfiles();
             
             mHandler.postDelayed(() -> {
                 SystemProperties.set("persist.sys.axion_boot_completed", "1");
@@ -19640,11 +19643,6 @@ public class ActivityManagerService extends IActivityManager.Stub
     @Override
     public void getProcessesAndFrozen(String currentResumePackage) {
         AxExtServiceFactory.getBoostAdjuster().getProcessesAndFrozen(currentResumePackage);
-    }
-    
-    @Override
-    public void boostThread(int tid) {
-        AxExtServiceFactory.getBoostAdjuster().boostThread(tid);
     }
     
     @Override

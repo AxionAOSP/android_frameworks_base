@@ -2590,11 +2590,7 @@ public final class ProcessList {
                         try {
                             if (app.uid % 100000 > 10000 && !AxUtils.isInWhiteList(app.processName) 
                                     && !AxUtils.isInPerfList(app.processName)) {
-                                final int startPid = startResult.pid;
-                                final int group = AxUtils.THREAD_GROUP_NT_FOREGROUND;
-                                Process.setThreadGroupAndCpuset(startPid, group);
-                                Process.setProcessGroup(startPid, group);
-                                Process.setThreadAffinity(startPid, 1);
+                                Process.setProcessGroup(startResult.pid, AxUtils.THREAD_GROUP_NT_FOREGROUND);
                             }
                         } catch (Exception e) {
                         }
