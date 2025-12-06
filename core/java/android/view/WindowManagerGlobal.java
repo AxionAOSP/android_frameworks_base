@@ -560,6 +560,30 @@ public final class WindowManagerGlobal {
             root.setLayoutParams(wparams, false);
         }
     }
+    
+    public void bringViewToFront(View view) {
+        if (view == null) {
+            return;
+        }
+        
+        synchronized (mLock) {
+            int index = findViewLocked(view, true);
+            if (index < 0) return;
+            
+            ViewRootImpl root = mRoots.get(index);
+            WindowManager.LayoutParams wparams = mParams.get(index);
+            
+            mViews.remove(index);
+            mRoots.remove(index);
+            mParams.remove(index);
+            
+            mViews.add(view);
+            mRoots.add(root);
+            mParams.add(wparams);
+            
+            root.bringToFront();
+        }
+    }
 
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     public void removeView(View view, boolean immediate) {

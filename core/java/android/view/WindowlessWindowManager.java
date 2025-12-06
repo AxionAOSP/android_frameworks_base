@@ -696,6 +696,10 @@ public class WindowlessWindowManager implements IWindowSession {
     public void notifyImeWindowVisibilityChangedFromClient(IWindow window, boolean visible,
             @NonNull ImeTracker.Token statsToken) {
     }
+    
+    @Override
+    public void bringToFront(IWindow window) {
+    }
 
     void setParentInterface(@Nullable ISurfaceControlViewHostParent parentInterface) {
         IBinder oldInterface = mParentInterface == null ? null : mParentInterface.asBinder();

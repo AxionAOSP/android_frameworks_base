@@ -3094,6 +3094,8 @@ public class ActivityTaskManagerService extends IActivityTaskManager.Stub {
                 mScreenObservers.get(i).onKeyguardStateChanged(keyguardShowing);
             }
         });
+        
+        android.app.FreeformLauncher.onKeyguardStateChanged(keyguardShowing);
     }
 
     /**

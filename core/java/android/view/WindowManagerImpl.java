@@ -247,6 +247,11 @@ public final class WindowManagerImpl implements WindowManager {
     public void removeViewImmediate(View view) {
         mGlobal.removeView(view, true);
     }
+    
+    @Override
+    public void bringViewToFront(@NonNull View view) {
+        mGlobal.bringViewToFront(view);
+    }
 
     @Override
     public void requestAppKeyboardShortcuts(
