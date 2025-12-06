@@ -320,6 +320,7 @@ import com.android.server.webkit.WebViewUpdateService;
 import com.android.server.wm.ActivityTaskManagerService;
 import com.android.server.wm.AxSandboxService;
 import com.android.server.wm.GameSpaceService;
+import com.android.server.wm.FreeformOverlayManagerService;
 import com.android.server.wm.WindowManagerGlobalLock;
 import com.android.server.wm.WindowManagerService;
 
@@ -1811,6 +1812,10 @@ public final class SystemServer implements Dumpable {
             // TODO: Use service dependencies instead.
             t.traceBegin("DisplayManagerWindowManagerAndInputReady");
             mDisplayManagerService.windowManagerAndInputReady();
+            t.traceEnd();
+
+            t.traceBegin("StartFreeformOverlayManagerService");
+            mSystemServiceManager.startService(FreeformOverlayManagerService.class);
             t.traceEnd();
 
             if (mFactoryTestMode == FactoryTest.FACTORY_TEST_LOW_LEVEL) {

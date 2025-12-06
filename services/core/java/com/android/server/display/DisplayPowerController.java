@@ -2305,6 +2305,14 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
             if (pcModeService != null) {
                 pcModeService.onScreenStateChanged(isOff);
             }
+            DisplayManagerInternal dmi = LocalServices.getService(DisplayManagerInternal.class);
+            if (dmi != null) {
+                if (isOff) {
+                    dmi.pauseAllFreeformDisplays();
+                } else if (isOn) {
+                    dmi.resumeAllFreeformDisplays();
+                }
+            }
         }
 
         // Return true if the screen isn't blocked.

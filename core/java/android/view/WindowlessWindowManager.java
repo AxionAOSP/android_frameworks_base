@@ -716,6 +716,23 @@ public class WindowlessWindowManager implements IWindowSession {
     public void notifyImeWindowVisibilityChangedFromClient(IWindow window, boolean visible,
             @NonNull ImeTracker.Token statsToken) {
     }
+    
+    @Override
+    public void bringToFront(IWindow window) {
+    }
+
+    @Override
+    public void bringToBack(IWindow window, IWindow targetWindow) {
+        synchronized (this) {
+            final State windowState = mStateForWindow.get(window.asBinder());
+            final State targetState = mStateForWindow.get(targetWindow.asBinder());
+            if (windowState != null && targetState != null) {
+                try (SurfaceControl.Transaction t = new SurfaceControl.Transaction()) {
+                    t.setRelativeLayer(windowState.mLeash, targetState.mLeash, -1).apply();
+                }
+            }
+        }
+    }
 
     void setParentInterface(@Nullable ISurfaceControlViewHostParent parentInterface) {
         IBinder oldInterface = mParentInterface == null ? null : mParentInterface.asBinder();
