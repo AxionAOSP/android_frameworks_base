@@ -282,4 +282,6 @@ interface IDisplayManager {
     // Set the display topology
     @EnforcePermission("MANAGE_DISPLAYS")
     void setDisplayTopology(in DisplayTopology topology);
+
+    boolean isFreeformDisplayId(int displayId);
 }

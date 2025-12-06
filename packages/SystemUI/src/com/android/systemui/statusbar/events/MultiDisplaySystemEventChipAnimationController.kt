@@ -71,6 +71,10 @@ constructor(
         controllersForAllDisplays().forEach { consumer(it) }
     }
 
-    private fun controllersForAllDisplays() =
-        displayRepository.displays.value.mapNotNull { controllerStore.forDisplay(it.displayId) }
+    private fun controllersForAllDisplays(): List<SystemEventChipAnimationController> {
+        val displayIdsWithDecorations = displayRepository.displayIdsWithSystemDecorations.value
+        return displayRepository.displays.value
+            .filter { it.displayId in displayIdsWithDecorations }
+            .mapNotNull { controllerStore.forDisplay(it.displayId) }
+    }
 }
