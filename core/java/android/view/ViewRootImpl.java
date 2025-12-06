@@ -12891,6 +12891,16 @@ public final class ViewRootImpl implements ViewParent,
     IWindowSession getWindowSession() {
         return mWindowSession;
     }
+    
+    /**
+     * @hide
+     */
+    public void bringToFront() {
+        try {
+            mWindowSession.bringToFront(mWindow);
+        } catch (RemoteException e) {
+        }
+    }
 
     private void registerCallbacksForSync(boolean syncBuffer,
             final SurfaceSyncGroup surfaceSyncGroup) {

@@ -1037,4 +1037,31 @@ class Session extends IWindowSession.Stub implements IBinder.DeathRecipient {
             }
         }
     }
+    
+    @Override
+    public void bringToFront(IWindow window) {
+        synchronized (mService.mGlobalLock) {
+            final long identity = Binder.clearCallingIdentity();
+            try {
+                final WindowState win = mService.windowForClientLocked(this, window,
+                        false /* throwOnError */);
+                if (win == null) {
+                    Slog.w(TAG_WM, "bringToFront: window not found");
+                    return;
+                }
+                
+                final WindowToken token = win.mToken;
+                if (token != null) {
+                    token.positionChildAt(WindowContainer.POSITION_TOP, win, true /* includingParents */);
+                    final DisplayContent dc = win.getDisplayContent();
+                    if (dc != null) {
+                        dc.assignWindowLayers(true /* setLayoutNeeded */);
+                        dc.scheduleAnimation();
+                    }
+                }
+            } finally {
+                Binder.restoreCallingIdentity(identity);
+            }
+        }
+    }
 }

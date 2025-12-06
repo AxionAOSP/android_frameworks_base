@@ -529,6 +529,7 @@ public final class DisplayManagerService extends SystemService {
     private final Spline mMinimumBrightnessSpline;
     private final ColorSpace mWideColorSpace;
     private final OverlayProperties mOverlayProperties;
+    private MiFreeformDisplayAdapter mMiFreeformDisplayAdapter;
 
     private SensorManager mSensorManager;
     private BrightnessTracker mBrightnessTracker;
@@ -2385,6 +2386,7 @@ public final class DisplayManagerService extends SystemService {
             if (shouldRegisterNonEssentialDisplayAdaptersLocked()) {
                 registerOverlayDisplayAdapterLocked();
                 registerWifiDisplayAdapterLocked();
+                registerMiFreeformDisplayAdapterLocked();
             }
         }
     }
@@ -2403,6 +2405,12 @@ public final class DisplayManagerService extends SystemService {
                     mPersistentDataStore, mFlags);
             registerDisplayAdapterLocked(mWifiDisplayAdapter);
         }
+    }
+
+    private void registerMiFreeformDisplayAdapterLocked() {
+        mMiFreeformDisplayAdapter = new MiFreeformDisplayAdapter(
+                mSyncRoot, mContext, mHandler, mDisplayDeviceRepo, mLogicalDisplayMapper, mFlags);
+        registerDisplayAdapterLocked(mMiFreeformDisplayAdapter);
     }
 
     private boolean shouldRegisterNonEssentialDisplayAdaptersLocked() {
@@ -5791,6 +5799,19 @@ public final class DisplayManagerService extends SystemService {
                 mDisplayTopologyCoordinator.setTopology(topology);
             }
         }
+
+        @Override // Binder call
+        public boolean isFreeformDisplayId(int displayId) {
+            final long token = Binder.clearCallingIdentity();
+            try {
+                synchronized (mSyncRoot) {
+                    return mMiFreeformDisplayAdapter != null
+                            && mMiFreeformDisplayAdapter.isFreeformDisplayIdLocked(displayId);
+                }
+            } finally {
+                Binder.restoreCallingIdentity(token);
+            }
+        }
     }
 
     @VisibleForTesting
@@ -5814,6 +5835,118 @@ public final class DisplayManagerService extends SystemService {
             }
 
             mHandler.sendEmptyMessage(MSG_LOAD_BRIGHTNESS_CONFIGURATIONS);
+        }
+
+        @Override
+        public void createFreeformDisplay(String name, android.app.IFreeformDisplayCallback callback,
+                int width, int height, int densityDpi, boolean secure,
+                boolean ownContentOnly, boolean shouldShowSystemDecorations, android.view.Surface surface,
+                float refreshRate, long presentationDeadlineNanos) {
+            synchronized (mSyncRoot) {
+                if (mMiFreeformDisplayAdapter != null) {
+                    mMiFreeformDisplayAdapter.createFreeformLocked(name, callback, width, height,
+                            densityDpi, secure, ownContentOnly, shouldShowSystemDecorations, surface,
+                            refreshRate, presentationDeadlineNanos);
+                }
+            }
+        }
+        
+        @Override
+        public void pauseFreeformDisplay(int displayId) {
+            synchronized (mSyncRoot) {
+                LogicalDisplay display = mLogicalDisplayMapper.getDisplayLocked(displayId);
+                if (display != null) {
+                    DisplayDevice device = display.getPrimaryDisplayDeviceLocked();
+                    if (device != null) {
+                        device.requestDisplayStateLocked(Display.STATE_OFF, 0f, 0f, null);
+                    }
+                }
+            }
+        }
+        
+        @Override
+        public void resumeFreeformDisplay(int displayId) {
+            synchronized (mSyncRoot) {
+                LogicalDisplay display = mLogicalDisplayMapper.getDisplayLocked(displayId);
+                if (display != null) {
+                    DisplayDevice device = display.getPrimaryDisplayDeviceLocked();
+                    if (device != null) {
+                        device.requestDisplayStateLocked(Display.STATE_ON, 1.0f, 1.0f, null);
+                    }
+                }
+            }
+        }
+        
+        @Override
+        public void resizeFreeform(IBinder appToken, int width, int height, int densityDpi) {
+            synchronized (mSyncRoot) {
+                if (mMiFreeformDisplayAdapter != null) {
+                    mMiFreeformDisplayAdapter.resizeFreeform(appToken, width, height, densityDpi);
+                }
+            }
+        }
+        
+        @Override
+        public void releaseFreeform(IBinder appToken) {
+            synchronized (mSyncRoot) {
+                if (mMiFreeformDisplayAdapter != null) {
+                    mMiFreeformDisplayAdapter.releaseFreeform(appToken);
+                }
+            }
+        }
+        
+        @Override
+        public int getDisplayIdForFreeformToken(IBinder appToken) {
+            if (mMiFreeformDisplayAdapter != null) {
+                return mMiFreeformDisplayAdapter.getDisplayIdForToken(appToken);
+            }
+            return -1;
+        }
+        
+        @Override
+        public boolean isFreeformDisplayId(int displayId) {
+            if (mMiFreeformDisplayAdapter != null) {
+                return mMiFreeformDisplayAdapter.isFreeformDisplayIdLocked(displayId);
+            }
+            return false;
+        }
+        
+        @Override
+        public void pauseAllFreeformDisplays() {
+            synchronized (mSyncRoot) {
+                if (mMiFreeformDisplayAdapter != null) {
+                    List<Integer> displayIds = mMiFreeformDisplayAdapter.getAllFreeformDisplayIdsLocked();
+                    for (int displayId : displayIds) {
+                        LogicalDisplay display = mLogicalDisplayMapper.getDisplayLocked(displayId);
+                        if (display != null) {
+                            DisplayDevice device = display.getPrimaryDisplayDeviceLocked();
+                            if (device != null) {
+                                device.requestDisplayStateLocked(Display.STATE_OFF, 0f, 0f, null);
+                            }
+                        }
+                    }
+                    Slog.d(TAG, "Paused " + displayIds.size() + " freeform displays");
+                }
+            }
+        }
+        
+        @Override
+        public void resumeAllFreeformDisplays() {
+            synchronized (mSyncRoot) {
+                if (mMiFreeformDisplayAdapter != null) {
+                    List<Integer> displayIds = mMiFreeformDisplayAdapter.getAllFreeformDisplayIdsLocked();
+                    for (int displayId : displayIds) {
+                        LogicalDisplay display = mLogicalDisplayMapper.getDisplayLocked(displayId);
+                        if (display != null) {
+                            DisplayDevice device = display.getPrimaryDisplayDeviceLocked();
+                            if (device != null) {
+                                device.requestDisplayStateLocked(Display.STATE_ON, 1.0f, 1.0f, null);
+                            }
+                        }
+                    }
+                    Slog.d(TAG, "Resumed " + displayIds.size() + " freeform displays");
+                }
+            }
         }
 
         @Override

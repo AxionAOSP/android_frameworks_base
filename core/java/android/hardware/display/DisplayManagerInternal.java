@@ -19,11 +19,13 @@ package android.hardware.display;
 import android.annotation.FloatRange;
 import android.annotation.IntDef;
 import android.annotation.Nullable;
+import android.app.IFreeformDisplayCallback;
 import android.companion.virtual.IVirtualDevice;
 import android.graphics.Point;
 import android.hardware.SensorManager;
 import android.hardware.input.HostUsiVersion;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.PowerManager;
 import android.util.IntArray;
 import android.util.SparseArray;
@@ -47,6 +49,26 @@ import java.util.Set;
  * @hide Only for use within the system server.
  */
 public abstract class DisplayManagerInternal {
+    public abstract void createFreeformDisplay(String name, IFreeformDisplayCallback callback,
+            int width, int height, int densityDpi, boolean secure,
+            boolean ownContentOnly, boolean shouldShowSystemDecorations, android.view.Surface surface,
+            float refreshRate, long presentationDeadlineNanos);
+    
+    public abstract void pauseFreeformDisplay(int displayId);
+    
+    public abstract void resumeFreeformDisplay(int displayId);
+    
+    public abstract void resizeFreeform(IBinder appToken, int width, int height, int densityDpi);
+    
+    public abstract void releaseFreeform(IBinder appToken);
+    
+    public abstract int getDisplayIdForFreeformToken(IBinder appToken);
+    
+    public abstract boolean isFreeformDisplayId(int displayId);
+    
+    public abstract void pauseAllFreeformDisplays();
+    
+    public abstract void resumeAllFreeformDisplays();
 
     @IntDef(prefix = {"REFRESH_RATE_LIMIT_"}, value = {
             REFRESH_RATE_LIMIT_HIGH_BRIGHTNESS_MODE

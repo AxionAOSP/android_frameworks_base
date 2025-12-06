@@ -2015,6 +2015,13 @@ public final class DisplayManager {
     }
 
     /**
+     * @hide
+     */
+    public boolean isFreeformDisplayId(int displayId) {
+        return mGlobal.isFreeformDisplayId(displayId);
+    }
+
+    /**
      * Register a listener to receive display topology updates.
      * @param executor The executor specifying the thread on which the callbacks will be invoked
      * @param listener The listener

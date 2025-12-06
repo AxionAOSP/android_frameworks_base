@@ -5699,6 +5699,11 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
             // Do not show system decorations on untrusted virtual display.
             return true;
         }
+        // Freeform displays are isolated app containers that should not run sysui components
+        if (mWmService.mDisplayManagerInternal != null
+                && mWmService.mDisplayManagerInternal.isFreeformDisplayId(mDisplayId)) {
+            return true;
+        }
         return false;
     }
 

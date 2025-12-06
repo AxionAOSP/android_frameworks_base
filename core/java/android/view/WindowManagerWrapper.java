@@ -84,6 +84,11 @@ public class WindowManagerWrapper implements WindowManager {
         mBase.removeViewImmediate(view);
     }
 
+    @Override
+    public void bringViewToFront(View view) {
+        mBase.bringViewToFront(view);
+    }
+
     @NonNull
     @Override
     public WindowMetrics getCurrentWindowMetrics() {
