@@ -1476,6 +1476,17 @@ public final class DisplayManagerGlobal {
     }
 
     /**
+     * @hide
+     */
+    public boolean isFreeformDisplayId(int displayId) {
+        try {
+            return mDm.isFreeformDisplayId(displayId);
+        } catch (RemoteException ex) {
+            throw ex.rethrowFromSystemServer();
+        }
+    }
+
+    /**
      * @see DisplayManager#registerTopologyListener
      */
     public void registerTopologyListener(@NonNull @CallbackExecutor Executor executor,

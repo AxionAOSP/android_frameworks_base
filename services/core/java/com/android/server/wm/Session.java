@@ -1019,4 +1019,92 @@ class Session extends IWindowSession.Stub implements IBinder.DeathRecipient {
             }
         }
     }
+    
+    @Override
+    public void bringToFront(IWindow window) {
+        synchronized (mService.mGlobalLock) {
+            final long identity = Binder.clearCallingIdentity();
+            try {
+                final WindowState win = mService.windowForClient(this, window);
+                if (win == null) {
+                    Slog.w(TAG_WM, "bringToFront: window not found");
+                    return;
+                }
+                
+                final WindowToken token = win.mToken;
+                if (token != null) {
+                    token.positionChildAt(WindowContainer.POSITION_TOP, win, true /* includingParents */);
+                    final DisplayContent dc = win.getDisplayContent();
+                    if (dc != null) {
+                        dc.assignWindowLayers(true /* setLayoutNeeded */);
+                        dc.scheduleAnimation();
+                    }
+                }
+            } finally {
+                Binder.restoreCallingIdentity(identity);
+            }
+        }
+    }
+
+    @Override
+    public void bringToBack(IWindow window, IWindow targetWindow) {
+        synchronized (mService.mGlobalLock) {
+            final long identity = Binder.clearCallingIdentity();
+            try {
+                final WindowState win = mService.windowForClient(this, window);
+                if (win == null) {
+                    Slog.w(TAG_WM, "bringToBack: window not found");
+                    return;
+                }
+
+                int position = 0;
+                final WindowContainer parent = win.getParent();
+
+                if (targetWindow != null) {
+                    final WindowState targetWin = mService.windowForClient(this, targetWindow);
+                    if (targetWin == null) {
+                        Slog.w(TAG_WM, "bringToBack: target window not found");
+                        return;
+                    }
+
+                    if (win.getParent() != targetWin.getParent()) {
+                        Slog.w(TAG_WM, "bringToBack: windows have different parents");
+                        return;
+                    }
+
+                    if (parent == null) {
+                        return;
+                    }
+
+                    final int windowIndex = parent.mChildren.indexOf(win);
+                    final int targetIndex = parent.mChildren.indexOf(targetWin);
+
+                    if (windowIndex == -1 || targetIndex == -1) {
+                        return;
+                    }
+
+                    position = targetIndex;
+                    if (windowIndex < targetIndex) {
+                        position = targetIndex - 1;
+                    }
+                } else {
+                    if (parent == null) {
+                        return;
+                    }
+                    position = 0;
+                }
+
+                parent.positionChildAt(position, win, true /* includingParents */);
+
+                final DisplayContent dc = win.getDisplayContent();
+                if (dc != null) {
+                    dc.assignWindowLayers(true /* setLayoutNeeded */);
+                    dc.scheduleAnimation();
+                }
+
+            } finally {
+                Binder.restoreCallingIdentity(identity);
+            }
+        }
+    }
 }
