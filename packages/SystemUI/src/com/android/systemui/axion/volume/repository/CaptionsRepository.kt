@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.flowOn
 
 interface AxionCaptionsRepository {
     val captionsEnabledFlow: Flow<Boolean>
+    val captionsAvailableFlow: Flow<Boolean>
     fun setCaptionsEnabled(enabled: Boolean)
     fun isCaptionsEnabled(): Boolean
     fun isCaptionsAvailable(): Boolean
@@ -65,6 +66,28 @@ class AxionCaptionsRepositoryImpl @Inject constructor(
         )
 
         trySend(isCaptionsEnabled())
+
+        awaitClose {
+            context.contentResolver.unregisterContentObserver(observer)
+        }
+    }
+        .distinctUntilChanged()
+        .flowOn(backgroundDispatcher)
+
+    override val captionsAvailableFlow: Flow<Boolean> = callbackFlow {
+        val observer = object : ContentObserver(handler) {
+            override fun onChange(selfChange: Boolean) {
+                trySend(isCaptionsAvailable())
+            }
+        }
+
+        context.contentResolver.registerContentObserver(
+            Settings.Secure.getUriFor(Settings.Secure.ODI_CAPTIONS_VOLUME_UI_ENABLED),
+            false,
+            observer
+        )
+
+        trySend(isCaptionsAvailable())
 
         awaitClose {
             context.contentResolver.unregisterContentObserver(observer)

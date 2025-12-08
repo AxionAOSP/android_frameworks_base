@@ -58,13 +58,14 @@ class AxionVolumeDialogInteractorImpl @Inject constructor(
         ringerModeFlow(),
         volumeStreamsFlow(),
         captionsRepository.captionsEnabledFlow,
+        captionsRepository.captionsAvailableFlow,
         volumeRepository.activeAppVolumes,
-    ) { ringerMode, streams, captionsEnabled, appVolumes ->
+    ) { ringerMode, streams, captionsEnabled, captionsAvailable, appVolumes ->
         AxionVolumeDialogState(
             ringerMode = ringerMode,
             volumeStreams = streams,
             captionsEnabled = captionsEnabled,
-            captionsAvailable = captionsRepository.isCaptionsAvailable(),
+            captionsAvailable = captionsAvailable,
             supportedRingerModes = getSupportedRingerModes(),
             appVolumes = appVolumes.map { 
                 AxionAppVolumeModel(
