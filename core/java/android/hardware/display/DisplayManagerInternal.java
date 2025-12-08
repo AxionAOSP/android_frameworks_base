@@ -62,6 +62,10 @@ public abstract class DisplayManagerInternal {
     
     public abstract void releaseFreeform(IBinder appToken);
     
+    public abstract int getDisplayIdForFreeformToken(IBinder appToken);
+    
+    public abstract boolean isFreeformDisplayId(int displayId);
+    
     public abstract void pauseAllFreeformDisplays();
     
     public abstract void resumeAllFreeformDisplays();

@@ -2297,8 +2297,15 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
         
         AxExtServiceFactory.getUxPerformance().setScreenState(isOff);
 
-        if (mDisplayId == Display.DEFAULT_DISPLAY && isOff) {
-            android.app.FreeformLauncher.onScreenOff();
+        if (mDisplayId == Display.DEFAULT_DISPLAY) {
+            DisplayManagerInternal dmi = LocalServices.getService(DisplayManagerInternal.class);
+            if (dmi != null) {
+                if (isOff) {
+                    dmi.pauseAllFreeformDisplays();
+                } else if (isOn) {
+                    dmi.resumeAllFreeformDisplays();
+                }
+            }
         }
 
         // Return true if the screen isn't blocked.

@@ -5801,6 +5801,19 @@ public final class DisplayManagerService extends SystemService {
                 mDisplayTopologyCoordinator.setTopology(topology);
             }
         }
+
+        @Override // Binder call
+        public boolean isFreeformDisplayId(int displayId) {
+            final long token = Binder.clearCallingIdentity();
+            try {
+                synchronized (mSyncRoot) {
+                    return mMiFreeformDisplayAdapter != null
+                            && mMiFreeformDisplayAdapter.isFreeformDisplayIdLocked(displayId);
+                }
+            } finally {
+                Binder.restoreCallingIdentity(token);
+            }
+        }
     }
 
     @VisibleForTesting
@@ -5882,6 +5895,22 @@ public final class DisplayManagerService extends SystemService {
                     mMiFreeformDisplayAdapter.releaseFreeform(appToken);
                 }
             }
+        }
+        
+        @Override
+        public int getDisplayIdForFreeformToken(IBinder appToken) {
+            if (mMiFreeformDisplayAdapter != null) {
+                return mMiFreeformDisplayAdapter.getDisplayIdForToken(appToken);
+            }
+            return -1;
+        }
+        
+        @Override
+        public boolean isFreeformDisplayId(int displayId) {
+            if (mMiFreeformDisplayAdapter != null) {
+                return mMiFreeformDisplayAdapter.isFreeformDisplayIdLocked(displayId);
+            }
+            return false;
         }
         
         @Override

@@ -56,6 +56,10 @@ public class MiFreeformDisplayAdapter extends DisplayAdapter {
             float refreshRate, long presentationDeadlineNanos) {
         
         IBinder appToken = callback.asBinder();
+        Slog.i(TAG, "createFreeformLocked: token=" + appToken + 
+               ", ownContentOnly=" + ownContentOnly +
+               ", shouldShowSystemDecorations=" + shouldShowSystemDecorations);
+        
         if (mFreeformDisplayDevices.containsKey(appToken)) {
             Slog.w(TAG, "Display already exists for this token");
             return;
@@ -64,7 +68,7 @@ public class MiFreeformDisplayAdapter extends DisplayAdapter {
         IBinder displayToken = DisplayControl.createVirtualDisplay(name, secure);
         FreeformDisplayDevice device = new FreeformDisplayDevice(displayToken, name, width, height,
                 densityDpi, refreshRate, presentationDeadlineNanos,
-                new FreeformFlags(secure, ownContentOnly, shouldShowSystemDecorations),
+                new FreeformFlags(secure, true /* ownContentOnly */, false /* shouldShowSystemDecorations */),
                 surface, new Callback(callback, getHandler()), appToken);
 
         mFreeformDisplayDevices.put(appToken, device);
@@ -111,6 +115,8 @@ public class MiFreeformDisplayAdapter extends DisplayAdapter {
     
     public void releaseFreeform(IBinder appToken) {
         synchronized (getSyncRoot()) {
+            Slog.i(TAG, "releaseFreeform: token=" + appToken + 
+                   ", devices in map: " + mFreeformDisplayDevices.size());
             FreeformDisplayDevice device = mFreeformDisplayDevices.remove(appToken);
             if (device != null) {
                 device.destroyLocked(true);
@@ -118,7 +124,8 @@ public class MiFreeformDisplayAdapter extends DisplayAdapter {
                 sendDisplayDeviceEventLocked(device, DISPLAY_DEVICE_EVENT_REMOVED);
                 Slog.i(TAG, "Released freeform display for token " + appToken);
             } else {
-                Slog.w(TAG, "releaseFreeform: Device not found for token " + appToken);
+                Slog.w(TAG, "releaseFreeform: Device not found for token " + appToken +
+                       ". Available tokens: " + mFreeformDisplayDevices.keySet());
             }
         }
     }
@@ -139,6 +146,29 @@ public class MiFreeformDisplayAdapter extends DisplayAdapter {
             }
         }
         return displayIds;
+    }
+    
+    public int getDisplayIdForToken(IBinder appToken) {
+        synchronized (getSyncRoot()) {
+            FreeformDisplayDevice device = mFreeformDisplayDevices.get(appToken);
+            if (device != null) {
+                LogicalDisplay display = mLogicalDisplayMapper.getDisplayLocked(device);
+                if (display != null) {
+                    return display.getDisplayIdLocked();
+                }
+            }
+            return -1;
+        }
+    }
+    
+    public boolean isFreeformDisplayIdLocked(int displayId) {
+        for (FreeformDisplayDevice device : mFreeformDisplayDevices.values()) {
+            LogicalDisplay display = mLogicalDisplayMapper.getDisplayLocked(device);
+            if (display != null && display.getDisplayIdLocked() == displayId) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private class FreeformDisplayDevice extends DisplayDevice implements IBinder.DeathRecipient {
@@ -254,21 +284,12 @@ public class MiFreeformDisplayAdapter extends DisplayAdapter {
                 mInfo.yDpi = mDensityDpi;
                 mInfo.presentationDeadlineNanos = mDisplayPresentationDeadlineNanos +
                         1000000000L / (int) mRefreshRate;
-                mInfo.flags = 0;
-                if (mFlags.mSecure) {
-                    mInfo.flags |= DisplayDeviceInfo.FLAG_SECURE;
-                }
-                if (mFlags.mOwnContentOnly) {
-                    mInfo.flags |= DisplayDeviceInfo.FLAG_OWN_CONTENT_ONLY;
-                }
-                if (mFlags.mShouldShowSystemDecorations) {
-                    mInfo.flags |= DisplayDeviceInfo.FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS;
-                }
-                mInfo.type = Display.TYPE_OVERLAY;
-                
+                mInfo.type = Display.TYPE_VIRTUAL;
                 mInfo.touch = DisplayDeviceInfo.TOUCH_VIRTUAL;
+                mInfo.flags = 0;
+                mInfo.flags |= DisplayDeviceInfo.FLAG_OWN_CONTENT_ONLY;
+                mInfo.flags |= DisplayDeviceInfo.FLAG_ALWAYS_UNLOCKED;
                 mInfo.flags |= DisplayDeviceInfo.FLAG_TRUSTED;
-                
                 mInfo.flags |= DisplayDeviceInfo.FLAG_ROTATES_WITH_CONTENT;
             }
             return mInfo;
@@ -278,12 +299,11 @@ public class MiFreeformDisplayAdapter extends DisplayAdapter {
     private static final class FreeformFlags {
         final boolean mSecure;
         final boolean mOwnContentOnly;
-        final boolean mShouldShowSystemDecorations;
+        final boolean mShouldShowSystemDecorations = false;
 
         FreeformFlags(boolean secure, boolean ownContentOnly, boolean shouldShowSystemDecorations) {
             mSecure = secure;
             mOwnContentOnly = ownContentOnly;
-            mShouldShowSystemDecorations = shouldShowSystemDecorations;
         }
     }
 

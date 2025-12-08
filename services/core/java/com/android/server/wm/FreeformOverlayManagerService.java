@@ -27,11 +27,17 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.util.Slog;
+import android.view.Display;
 import android.view.Surface;
 import com.android.server.LocalServices;
 import com.android.server.SystemService;
 
+import java.util.List;
+
 public class FreeformOverlayManagerService extends SystemService {
+    private static final String TAG = "FreeformOverlayManager";
+    
     private final FreeformOverlayManagerImpl mService = new FreeformOverlayManagerImpl();
 
     public FreeformOverlayManagerService(Context context) {
@@ -69,6 +75,7 @@ public class FreeformOverlayManagerService extends SystemService {
                 float refreshRate, long presentationDeadlineNanos) {
             final long token = Binder.clearCallingIdentity();
             try {
+                Slog.i(TAG, "createFreeform: name=" + name + ", token=" + callback.asBinder());
                 DisplayManagerInternal dmi = LocalServices.getService(DisplayManagerInternal.class);
                 if (dmi != null) {
                     dmi.createFreeformDisplay(name, callback, width, height, densityDpi, secure,
@@ -140,12 +147,32 @@ public class FreeformOverlayManagerService extends SystemService {
         public void releaseFreeform(IBinder appToken) {
             final long token = Binder.clearCallingIdentity();
             try {
+                Slog.i(TAG, "releaseFreeform: token=" + appToken);
                 DisplayManagerInternal dmi = LocalServices.getService(DisplayManagerInternal.class);
                 if (dmi != null) {
+                    int displayId = dmi.getDisplayIdForFreeformToken(appToken);
+                    if (displayId > 0) {
+                        minimizeTaskOnDisplay(displayId);
+                    }
                     dmi.releaseFreeform(appToken);
                 }
             } finally {
                 Binder.restoreCallingIdentity(token);
+            }
+        }
+        
+        private void minimizeTaskOnDisplay(int displayId) {
+            try {
+                IActivityTaskManager atm = ActivityTaskManager.getService();
+                List<android.app.ActivityManager.RunningTaskInfo> tasks = 
+                        atm.getTasks(1, false, false, displayId);
+                if (tasks != null && !tasks.isEmpty()) {
+                    int taskId = tasks.get(0).taskId;
+                    atm.moveRootTaskToDisplayOnTopOrBottom(taskId, Display.DEFAULT_DISPLAY, false);
+                    Slog.i(TAG, "Minimized task " + taskId + " from display " + displayId);
+                }
+            } catch (RemoteException e) {
+                Slog.e(TAG, "Failed to minimize task on display " + displayId, e);
             }
         }
     }

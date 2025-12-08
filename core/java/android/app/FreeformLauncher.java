@@ -15,15 +15,10 @@
  */
 package android.app;
 
-import android.content.Context;
-import android.content.Intent;
-import android.hardware.display.DisplayManagerInternal;
 import android.os.IBinder;
 import android.os.ServiceManager;
-import android.os.UserHandle;
 import android.util.Log;
 import android.view.Surface;
-import com.android.server.LocalServices;
 
 /** @hide */
 public class FreeformLauncher {
@@ -128,36 +123,6 @@ public class FreeformLauncher {
             }
         } catch (Exception e) {
             Log.e(TAG, "Failed to release freeform display", e);
-        }
-    }
-
-    /** @hide */
-    public static void pauseAllDisplays() {
-        DisplayManagerInternal dmi = LocalServices.getService(DisplayManagerInternal.class);
-        if (dmi != null) {
-            dmi.pauseAllFreeformDisplays();
-        }
-    }
-
-    /** @hide */
-    public static void resumeAllDisplays() {
-        DisplayManagerInternal dmi = LocalServices.getService(DisplayManagerInternal.class);
-        if (dmi != null) {
-            dmi.resumeAllFreeformDisplays();
-        }
-    }
-
-    /** @hide */
-    public static void onScreenOff() {
-        pauseAllDisplays();
-    }
-
-    /** @hide */
-    public static void onKeyguardStateChanged(boolean keyguardShowing) {
-        if (keyguardShowing) {
-            pauseAllDisplays();
-        } else {
-            resumeAllDisplays();
         }
     }
 }
