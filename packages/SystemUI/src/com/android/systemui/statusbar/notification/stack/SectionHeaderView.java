@@ -144,7 +144,7 @@ public class SectionHeaderView extends StackScrollerDecorView {
         mLabelView.setText(resId);
     }
 
-    void setForegroundColors(@ColorInt int onSurface, @ColorInt int onSurfaceVariant) {
+    protected void setForegroundColors(@ColorInt int onSurface, @ColorInt int onSurfaceVariant) {
         mLabelView.setTextColor(onSurface);
         mClearAllButton.setImageTintList(ColorStateList.valueOf(onSurfaceVariant));
     }

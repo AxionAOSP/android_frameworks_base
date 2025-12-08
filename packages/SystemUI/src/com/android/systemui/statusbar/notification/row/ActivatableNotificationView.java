@@ -129,6 +129,7 @@ public abstract class ActivatableNotificationView extends ExpandableOutlineView 
      */
     protected boolean mOnKeyguard;
     protected boolean mIsBlurSupported;
+    private boolean mEssentialBackgroundPadding;
 
     public ActivatableNotificationView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -796,6 +797,36 @@ public abstract class ActivatableNotificationView extends ExpandableOutlineView 
                             + FakeShadowView.SHADOW_SIBLING_TRESHOLD), outlineAlpha, shadowYEnd,
                     outlineTranslation);
         }
+    }
+
+    public void setIsEssentialBackground(boolean isEssential) {
+        setIsEssentialBackground(isEssential, false);
+    }
+
+    public void setIsEssentialBackground(boolean isEssential, boolean isHeadsUp) {
+        setEssentialBackgroundPadding(isEssential && !isHeadsUp);
+    }
+
+    private void setEssentialBackgroundPadding(boolean enable) {
+        if (enable == mEssentialBackgroundPadding) {
+            return;
+        }
+        mEssentialBackgroundPadding = enable;
+        applyEssentialBackgroundPadding();
+    }
+
+    public boolean isEssentialBackground() {
+        return mEssentialBackgroundPadding;
+    }
+
+    protected void applyEssentialBackgroundPadding() {
+        setEssentialBackgroundPaddingValue(mEssentialBackgroundPadding 
+            ? mContext.getResources().getDimensionPixelOffset(R.dimen.essential_notification_row_padding) 
+            : 0);
+    }
+
+    protected void setEssentialBackgroundPaddingValue(int padding) {
+        setPadding(padding, 0, 0, 0);
     }
 
     public int getBackgroundColorWithoutTint() {

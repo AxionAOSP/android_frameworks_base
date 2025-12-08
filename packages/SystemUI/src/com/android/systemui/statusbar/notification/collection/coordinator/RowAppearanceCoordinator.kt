@@ -74,15 +74,20 @@ internal constructor(
     }
 
     private fun onAfterRenderEntry(entry: NotificationEntry, controller: NotifRowController) {
+        val isEssential = entry.bucket == 14
+        
         // If mAlwaysExpandNonGroupedNotification is false, then only expand the
         // very first notification if it's not a child of grouped notifications and when
         // mAutoExpandFirstNotification is true.
+        // Essential notifications are always collapsed by default.
         controller.setSystemExpanded(
+            !isEssential &&
             !entry.isBundled &&
                 (mAlwaysExpandNonGroupedNotification ||
                     (mAutoExpandFirstNotification && entry == entryToExpand))
         )
         // Show/hide the feedback icon
         controller.setFeedbackIcon(mAssistantFeedbackController.getFeedbackIcon(entry.ranking))
+        entry.row?.setIsEssentialBackground(isEssential)
     }
 }

@@ -27,6 +27,7 @@ import static com.android.systemui.Flags.magneticNotificationSwipes;
 import static com.android.systemui.Flags.physicalNotificationMovement;
 import static com.android.systemui.statusbar.notification.stack.NotificationPriorityBucketKt.BUCKET_NEWS;
 import static com.android.systemui.statusbar.notification.stack.NotificationPriorityBucketKt.BUCKET_PROMO;
+import static com.android.systemui.statusbar.notification.stack.NotificationPriorityBucketKt.BUCKET_ESSENTIAL;
 import static com.android.systemui.statusbar.notification.stack.NotificationPriorityBucketKt.BUCKET_RECS;
 import static com.android.systemui.statusbar.notification.stack.NotificationPriorityBucketKt.BUCKET_SILENT;
 import static com.android.systemui.statusbar.notification.stack.NotificationPriorityBucketKt.BUCKET_SOCIAL;
@@ -83,6 +84,7 @@ import android.widget.OverScroller;
 import android.widget.ScrollView;
 
 import com.android.app.animation.Interpolators;
+import com.android.systemui.animation.ShadeInterpolation;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.jank.InteractionJankMonitor;
 import com.android.internal.policy.SystemBarUtils;
@@ -143,6 +145,8 @@ import com.android.systemui.util.ColorUtilKt;
 import com.android.systemui.util.DumpUtilsKt;
 import com.android.systemui.util.ListenerSet;
 import com.android.systemui.util.NTBoosterController;
+import com.axion.systemui.statusbar.notification.stack.EssentialSectionBackgroundDelegate;
+import com.axion.systemui.statusbar.notification.stack.EssentialSectionHeaderView;
 
 import com.google.errorprone.annotations.CompileTimeConstant;
 
@@ -503,6 +507,7 @@ public class NotificationStackScrollLayout
     private boolean mSkinnyNotifsInLandscape;
     private int mSidePaddings;
     private final Rect mBackgroundAnimationRect = new Rect();
+    private EssentialSectionBackgroundDelegate mEssentialSectionDelegate;
     private final ArrayList<BiConsumer<Float, Float>> mExpandedHeightListeners = new ArrayList<>();
     private int mHeadsUpInset;
 
@@ -969,6 +974,11 @@ public class NotificationStackScrollLayout
         mHeadsUpInset = mStatusBarHeight + res.getDimensionPixelSize(
                 R.dimen.heads_up_status_bar_padding);
         mQsScrollBoundaryPosition = SystemBarUtils.getQuickQsOffsetHeight(mContext);
+
+        if (mEssentialSectionDelegate == null) {
+            mEssentialSectionDelegate = new EssentialSectionBackgroundDelegate(this, mSectionsManager);
+        }
+        mEssentialSectionDelegate.init();
     }
 
     void updateSidePadding(int viewWidth) {
@@ -5991,6 +6001,10 @@ public class NotificationStackScrollLayout
      */
     public void setDozeAmount(float dozeAmount) {
         mAmbientState.setDozeAmount(dozeAmount);
+        SectionHeaderView essentialHeader = mSectionsManager.getEssentialHeaderView();
+        if (essentialHeader instanceof EssentialSectionHeaderView) {
+            ((EssentialSectionHeaderView) essentialHeader).setDozeAmount(dozeAmount);
+        }
         updateStackPosition();
         requestChildrenUpdate();
     }
@@ -6486,6 +6500,7 @@ public class NotificationStackScrollLayout
                 //  of in dispatchDraw
                 applyClipToCanvas(canvas);
             }
+            drawEssentialSectionBackground(canvas);
             super.dispatchDraw(canvas);
         }
     }
@@ -6499,6 +6514,48 @@ public class NotificationStackScrollLayout
             // subtract the negative path if it is defined
             canvas.clipOutPath(mNegativeRoundedClipPath);
         }
+    }
+
+    private void drawEssentialSectionBackground(Canvas canvas) {
+        if (mEssentialSectionDelegate != null) {
+            mEssentialSectionDelegate.setSidePaddings(mSidePaddings);
+            float expansionFraction = mAmbientState.getExpansionFraction();
+            float notificationAlpha = mAmbientState.isExpansionChanging()
+                    ? ShadeInterpolation.getContentAlpha(expansionFraction)
+                    : 1f;
+            mEssentialSectionDelegate.setNotificationAlpha(notificationAlpha);
+            mEssentialSectionDelegate.setBlurRadius(mBlurRadius);
+            mEssentialSectionDelegate.setDozeAmount(mAmbientState.getDozeAmount());
+            mEssentialSectionDelegate.setHasEssentialHeadsUp(hasEssentialHeadsUp());
+            mEssentialSectionDelegate.setOnKeyguard(onKeyguard());
+            mEssentialSectionDelegate.draw(canvas, mSections);
+        }
+    }
+
+    private boolean hasEssentialHeadsUp() {
+        for (NotificationSection section : mSections) {
+            if (section.getBucket() == BUCKET_ESSENTIAL) {
+                ExpandableView child = section.getFirstVisibleChild();
+                while (child != null) {
+                    if (child instanceof ExpandableNotificationRow row && row.isHeadsUp()) {
+                        return true;
+                    }
+                    int idx = indexOfChild(child) + 1;
+                    if (idx >= getChildCount()) break;
+                    View next = getChildAt(idx);
+                    if (!(next instanceof ExpandableView)) break;
+                    ExpandableView nextView = (ExpandableView) next;
+                    if (nextView == section.getLastVisibleChild()) {
+                        if (nextView instanceof ExpandableNotificationRow row && row.isHeadsUp()) {
+                            return true;
+                        }
+                        break;
+                    }
+                    child = nextView;
+                }
+            }
+        }
+        return false;
     }
 
     @Override

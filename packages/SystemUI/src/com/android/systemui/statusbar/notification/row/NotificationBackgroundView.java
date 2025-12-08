@@ -74,6 +74,7 @@ public class NotificationBackgroundView extends View implements Dumpable,
     private final ColorStateList mLightColoredStatefulColors;
     private final ColorStateList mDarkColoredStatefulColors;
     private int mNormalColor;
+    private int mEssentialPadding;
     private final int convexR = 9;
     private final int concaveR = 22;
 
@@ -193,7 +194,7 @@ public class NotificationBackgroundView extends View implements Dumpable,
             right = (int) (left + actualWidth);
         }
 
-        return new Rect(left, top, right, bottom);
+        return new Rect(left, top, right - mEssentialPadding, bottom);
     }
 
     /**
@@ -229,7 +230,7 @@ public class NotificationBackgroundView extends View implements Dumpable,
                 left = (int) ((width - actualWidth) / 2.0f);
                 right = (int) (left + actualWidth);
             }
-            drawable.setBounds(left, top, right, bottom);
+            drawable.setBounds(left, top, right - mEssentialPadding, bottom);
             drawable.draw(canvas);
         }
     }
@@ -430,6 +431,11 @@ public class NotificationBackgroundView extends View implements Dumpable,
             mBottomAmountClips = clips;
             invalidate();
         }
+    }
+
+    public void setEssentialPadding(int padding) {
+        mEssentialPadding = padding;
+        invalidate();
     }
 
     private void updateBackgroundRadii() {
