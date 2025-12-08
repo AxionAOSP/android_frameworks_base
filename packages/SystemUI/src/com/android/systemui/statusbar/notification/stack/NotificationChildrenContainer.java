@@ -143,7 +143,17 @@ public class NotificationChildrenContainer extends ViewGroup
     private ViewState mExpandButtonViewState;
     private int mClipBottomAmount;
     private boolean mIsMinimized;
+    private boolean mIsEssentialBackground;
     private OnClickListener mHeaderClickListener;
+
+    public void setIsEssentialBackground(boolean isEssential) {
+        mIsEssentialBackground = isEssential;
+        int size = mAttachedChildren.size();
+        for (int i = 0; i < size; i++) {
+            mAttachedChildren.get(i).setIsEssentialBackground(isEssential, true);
+        }
+    }
+
     private ViewGroup mCurrentHeader;
     private boolean mIsConversation;
     private Path mChildClipPath = null;

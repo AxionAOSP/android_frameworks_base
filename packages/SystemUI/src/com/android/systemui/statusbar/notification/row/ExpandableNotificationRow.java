@@ -4475,6 +4475,21 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
         super.applyRoundnessAndInvalidate();
     }
 
+    @Override
+    public void setIsEssentialBackground(boolean isEssential) {
+        super.setIsEssentialBackground(isEssential);
+        if (mIsSummaryWithChildren) {
+            mChildrenContainer.setIsEssentialBackground(isEssential);
+        }
+    }
+
+    @Override
+    protected void setEssentialBackgroundPaddingValue(int padding) {
+        mBackgroundNormal.setEssentialPadding(padding);
+        mBackgroundNormal.invalidate();
+        super.setEssentialBackgroundPaddingValue(padding);
+    }
+
     private void applyChildrenRoundness() {
         if (mIsSummaryWithChildren) {
             mChildrenContainer.requestRoundness(

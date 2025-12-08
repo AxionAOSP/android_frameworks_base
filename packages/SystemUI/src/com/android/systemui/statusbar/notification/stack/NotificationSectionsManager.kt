@@ -26,6 +26,7 @@ import com.android.systemui.statusbar.notification.collection.NotificationClassi
 import com.android.systemui.statusbar.notification.collection.render.MediaContainerController
 import com.android.systemui.statusbar.notification.collection.render.SectionHeaderController
 import com.android.systemui.statusbar.notification.dagger.AlertingHeader
+import com.android.systemui.statusbar.notification.dagger.EssentialHeader
 import com.android.systemui.statusbar.notification.dagger.IncomingHeader
 import com.android.systemui.statusbar.notification.dagger.NewsHeader
 import com.android.systemui.statusbar.notification.dagger.PeopleHeader
@@ -61,6 +62,7 @@ internal constructor(
     @SocialHeader private val socialHeaderController: SectionHeaderController,
     @RecsHeader private val recsHeaderController: SectionHeaderController,
     @PromoHeader private val promoHeaderController: SectionHeaderController,
+    @EssentialHeader private val essentialHeaderController: SectionHeaderController,
 ) : SectionProvider {
 
     private val configurationListener =
@@ -109,6 +111,10 @@ internal constructor(
     val promoHeaderView: SectionHeaderView?
         get() = promoHeaderController.headerView
 
+    @VisibleForTesting
+    val essentialHeaderView: SectionHeaderView?
+        get() = essentialHeaderController.headerView
+
     /** Must be called before use. */
     fun initialize(parent: NotificationStackScrollLayout) {
         check(!initialized) { "NotificationSectionsManager already initialized" }
@@ -135,6 +141,7 @@ internal constructor(
             recsHeaderController.reinflateView(parent)
             promoHeaderController.reinflateView(parent)
         }
+        essentialHeaderController.reinflateView(parent)
     }
 
     override fun beginsSection(view: View, previous: View?): Boolean =
@@ -143,6 +150,7 @@ internal constructor(
             view === peopleHeaderView ||
             view === alertingHeaderView ||
             view === incomingHeaderView ||
+            view === essentialHeaderView ||
             (NotificationClassificationFlag.isEnabled &&
                 (view === newsHeaderView ||
                     view === socialHeaderView ||
@@ -161,6 +169,7 @@ internal constructor(
             view === socialHeaderView -> BUCKET_SOCIAL
             view === recsHeaderView -> BUCKET_RECS
             view === promoHeaderView -> BUCKET_PROMO
+            view === essentialHeaderView -> BUCKET_ESSENTIAL
             view is ExpandableNotificationRow ->
                 if (NotificationBundleUi.isEnabled) view.entryAdapter?.sectionBucket
                 else view.entryLegacy.bucket
@@ -265,6 +274,14 @@ internal constructor(
             noMoreLastChild.requestBottomRoundness(0f, SECTION)
         }
 
+        children.forEach { view ->
+            if (view is ExpandableNotificationRow) {
+                val bucket = getBucket(view)
+                val isEssential = bucket != null && bucket == 14
+                view.setIsEssentialBackground(isEssential)
+            }
+        }
+
         if (DEBUG) {
             logSections(sections)
         }
@@ -295,6 +312,7 @@ internal constructor(
         peopleHeaderView?.setForegroundColors(onSurface, onSurfaceVariant)
         silentHeaderView?.setForegroundColors(onSurface, onSurfaceVariant)
         alertingHeaderView?.setForegroundColors(onSurface, onSurfaceVariant)
+        essentialHeaderView?.setForegroundColors(onSurface, onSurfaceVariant)
         if (NotificationClassificationFlag.isEnabled) {
             newsHeaderView?.setForegroundColors(onSurface, onSurfaceVariant)
             socialHeaderView?.setForegroundColors(onSurface, onSurfaceVariant)

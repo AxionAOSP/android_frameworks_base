@@ -23,6 +23,7 @@ import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.statusbar.notification.collection.render.NodeController
 import com.android.systemui.statusbar.notification.collection.render.SectionHeaderController
 import com.android.systemui.statusbar.notification.collection.render.SectionHeaderNodeControllerImpl
+import com.axion.systemui.statusbar.notification.collection.render.EssentialSectionHeaderController
 import dagger.Binds
 import dagger.BindsInstance
 import dagger.Module
@@ -122,6 +123,20 @@ object NotificationSectionHeadersModule {
         .headerText(com.android.internal.R.string.promotional_notification_channel_label)
         .clickIntentAction(Settings.ACTION_NOTIFICATION_SETTINGS)
         .build()
+
+    @Provides
+    @EssentialHeader
+    @SysUISingleton
+    @JvmStatic fun providesEssentialHeaderNodeController(
+        controller: EssentialSectionHeaderController
+    ): NodeController = controller
+
+    @Provides
+    @EssentialHeader
+    @SysUISingleton
+    @JvmStatic fun providesEssentialHeaderController(
+        controller: EssentialSectionHeaderController
+    ): SectionHeaderController = controller
 
     @Provides
     @SilentHeader
@@ -291,3 +306,7 @@ annotation class RecsHeader
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class PromoHeader
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class EssentialHeader

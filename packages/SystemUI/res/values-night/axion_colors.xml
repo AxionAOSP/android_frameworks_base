@@ -17,4 +17,6 @@
  */
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Essential notification -->
+    <color name="essential_notification_section_text_color">@android:color/system_neutral1_100</color>
 </resources>
