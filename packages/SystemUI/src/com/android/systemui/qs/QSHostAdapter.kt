@@ -35,6 +35,9 @@ import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 
+import com.android.systemui.theme.UiStyleProvider
+import com.android.systemui.qs.tileimpl.QSTileImpl
+
 /**
  * Adapter to determine what real class to use for classes that depend on [QSHost].
  * * When [QSPipelineFlagsRepository.pipelineEnabled] is false, all calls will be routed to
@@ -54,7 +57,7 @@ constructor(
     private val tileServiceRequestControllerBuilder: TileServiceRequestController.Builder,
     @Application private val scope: CoroutineScope,
     dumpManager: DumpManager,
-) : QSHost {
+) : QSHost, UiStyleProvider.ThemeChangeListener {
 
     companion object {
         private const val TAG = "QSTileHost"
@@ -66,6 +69,15 @@ constructor(
         scope.launch { tileServiceRequestControllerBuilder.create(this@QSHostAdapter).init() }
         // Redirect dump to the correct host (needed for CTS tests)
         dumpManager.registerCriticalDumpable(TAG, interactor)
+        UiStyleProvider.get(context).addThemeChangeListener(this)
+    }
+    
+    override fun onThemeChanged() {
+        QSTileImpl.DrawableIconWithRes.incrementThemeVersion()
+        QSTileImpl.ResourceIcon.clearCache()
+        for (tile in interactor.currentQSTiles) {
+            tile.refreshState()
+        }
     }
 
     override fun getTiles(): Collection<QSTile> {

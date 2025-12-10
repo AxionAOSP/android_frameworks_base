@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.*
 import androidx.compose.ui.unit.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.systemui.axion.volume.ui.viewmodel.AxionVolumeDialogViewModel
+import com.android.systemui.theme.UiStyleProvider
 
 @Composable
 fun AxionVolumeDialogContent(
@@ -123,6 +124,7 @@ private fun VolumeSliderHolder(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val dialogState = uiState.dialogState
+    val style = UiStyleProvider.rememberCurrentStyle()
 
     val isLeftSide = uiState.isLeftSide
     val isExpanded = uiState.isExpanded
@@ -166,7 +168,7 @@ private fun VolumeSliderHolder(
             expandedWidth = SliderExpandedContentWidth,
             isLeftSide = isLeftSide,
             modifier = Modifier
-                .clip(RoundedCornerShape(32.dp))
+                .clip(RoundedCornerShape(style.dialogCornerRadius))
                 .background(backgroundColor)
         ) {
             Column(

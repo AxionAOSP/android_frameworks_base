@@ -49,6 +49,8 @@ import com.android.systemui.axion.volume.ui.viewmodel.AxionVolumeDialogViewModel
 import com.android.systemui.haptics.slider.SeekableSliderTrackerConfig
 import com.android.systemui.haptics.slider.SliderHapticFeedbackConfig
 import com.android.systemui.lifecycle.rememberViewModel
+import com.android.systemui.theme.UiStyleProvider
+import com.android.systemui.theme.TrackPattern
 
 @Composable
 fun SliderColumn(
@@ -175,6 +177,8 @@ fun VolumeSlider(
     val onSurface = MaterialTheme.colorScheme.onSurface
     val density = LocalDensity.current
 
+    val style = UiStyleProvider.rememberCurrentStyle()
+
     Column(
         modifier = modifier, 
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -187,21 +191,22 @@ fun VolumeSlider(
             contentAlignment = Alignment.BottomCenter
         ) {
             val maxHeight = maxHeight
-            val expandedWidthPx = with(density) { SliderTrackWidthExpanded.toPx() }
+            val expandedWidthPx = with(density) { style.volumeSliderTrackWidthExpanded.toPx() }
+            val collapsedWidthPx = with(density) { style.volumeSliderTrackWidthCollapsed.toPx() }
             val maxHeightPx = with(density) { maxHeight.toPx() }
             
             val threshold = if (maxHeightPx > 0) expandedWidthPx / maxHeightPx else 0f
             
-            val targetWidth by remember(sliderValue, isDragging, isPressed, threshold) {
+            val targetWidth by remember(sliderValue, isDragging, isPressed, threshold, style) {
                 derivedStateOf {
                     if (!isDragging && !isPressed) {
-                        SliderTrackWidthCollapsed
+                        style.volumeSliderTrackWidthCollapsed
                     } else {
                         if (sliderValue >= threshold) {
-                            SliderTrackWidthExpanded
+                            style.volumeSliderTrackWidthExpanded
                         } else {
                             val fraction = (sliderValue / threshold).coerceIn(0f, 1f)
-                            SliderTrackWidthCollapsed + (SliderTrackWidthExpanded - SliderTrackWidthCollapsed) * fraction
+                            style.volumeSliderTrackWidthCollapsed + (style.volumeSliderTrackWidthExpanded - style.volumeSliderTrackWidthCollapsed) * fraction
                         }
                     }
                 }
@@ -213,11 +218,13 @@ fun VolumeSlider(
                 label = "width"
             )
 
+            val cornerRadius = style.volumeSliderCornerRadius
+
             Box(
                 modifier = Modifier
                     .width(animatedWidth)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(percent = 50))
+                    .clip(RoundedCornerShape(cornerRadius))
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onPress = {
@@ -284,18 +291,36 @@ fun VolumeSlider(
                         val h = size.height
                         val w = size.width
                         val cx = w / 2
-                        val dotRadius = 4f
-                        val dotColor = onSurface.copy(alpha = 0.2f)
+
+                        val cornerRadiusPx = cornerRadius.toPx()
                         
-                        var y = dotRadius + 2f
-                        while (y < h - dotRadius) {
-                            drawCircle(dotColor, dotRadius, Offset(cx, y))
-                            y += 16f
+                        if (style.volumeTrackPattern == TrackPattern.DOT_MATRIX) {
+                            val dotRadius = style.volumeTrackDotRadius
+                            val dotSpacing = style.volumeTrackDotSpacing
+                            val dotColor = onSurface.copy(alpha = 0.2f)
+                            
+                            var y = dotRadius + 2f
+                            while (y < h - dotRadius) {
+                                drawCircle(dotColor, dotRadius, Offset(cx, y))
+                                y += dotSpacing
+                            }
+                        } else {
+                            val trackColor = onSurface.copy(alpha = 0.12f)
+                            drawRoundRect(
+                                color = trackColor,
+                                cornerRadius = CornerRadius(cornerRadiusPx)
+                            )
                         }
 
                         val minHeight = w
                         val ph = minHeight + (h - minHeight) * animatedValue
-                        drawRoundRect(primary, Offset(0f, h - ph), Size(w, ph), CornerRadius(w / 2))
+                        
+                        drawRoundRect(
+                            color = primary,
+                            topLeft = Offset(0f, h - ph),
+                            size = Size(w, ph),
+                            cornerRadius = CornerRadius(cornerRadiusPx)
+                        )
                     }
             )
         }

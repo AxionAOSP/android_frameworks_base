@@ -252,6 +252,58 @@ public class Resources {
     }
 
     /**
+     * @hide
+     */
+    @Nullable
+    public Drawable getIconPackOverride(
+            @NonNull String packageName, @NonNull String className, int density) {
+        try {
+            ThemeEngine themeEngine = ThemeEngine.getInstance();
+            if (themeEngine == null) {
+                return null;
+            }
+            android.content.ComponentName cn = 
+                    new android.content.ComponentName(packageName, className);
+            return themeEngine.getIconPackDrawable(cn, density);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * @hide
+     */
+    @Nullable
+    public Drawable getIconPackOverride(
+            @NonNull String packageName, @NonNull String className) {
+        return getIconPackOverride(packageName, className, 0);
+    }
+
+    /**
+     * @hide
+     */
+    public boolean hasActiveIconPack() {
+        try {
+            ThemeEngine themeEngine = ThemeEngine.getInstance();
+            return themeEngine != null && themeEngine.hasActiveIconPack();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    /**
+     * @hide
+     */
+    public String getIconPackPackage() {
+        try {
+            ThemeEngine themeEngine = ThemeEngine.getInstance();
+            return themeEngine != null ? themeEngine.getIconPackPackage() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
      * This exception is thrown by the resource APIs when a requested resource
      * can not be found.
      */
@@ -571,6 +623,17 @@ public class Resources {
      */
     @NonNull
     public String getString(@StringRes int id) throws NotFoundException {
+        try {
+            ThemeEngine themeEngine = ThemeEngine.getInstance();
+            if (themeEngine != null) {
+                String entryName = getResourceEntryName(id);
+                String themedString = themeEngine.getThemedString(entryName);
+                if (themedString != null) {
+                    return themedString;
+                }
+            }
+        } catch (Exception e) {
+        }
         return getText(id).toString();
     }
 
@@ -1031,7 +1094,43 @@ public class Resources {
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     Drawable loadDrawable(@NonNull TypedValue value, int id, int density, @Nullable Theme theme)
             throws NotFoundException {
+        try {
+            ThemeEngine themeEngine = ThemeEngine.getInstance();
+            if (themeEngine != null && themeEngine.shouldOverlayResource(this, id)) {
+                Drawable themed = themeEngine.getIconThemeDrawable(this, id);
+                if (themed != null) {
+                    return themed;
+                }
+            }
+        } catch (Exception e) {
+        }
+        return loadDrawableInternal(value, id, density, theme);
+    }
+    
+    /**
+     * @hide
+     */
+    @NonNull
+    public Drawable loadDrawableInternal(@NonNull TypedValue value, int id, int density, 
+            @Nullable Theme theme) throws NotFoundException {
         return mResourcesImpl.loadDrawable(this, value, id, density, theme);
+    }
+    
+    /**
+     * @hide
+     */
+    @Nullable
+    public Drawable getDrawableInternal(@DrawableRes int id) {
+        final TypedValue value = obtainTempTypedValue();
+        try {
+            final ResourcesImpl impl = mResourcesImpl;
+            impl.getValueForDensity(id, 0, value, true);
+            return loadDrawableInternal(value, id, 0, null);
+        } catch (Exception e) {
+            return null;
+        } finally {
+            releaseTempTypedValue(value);
+        }
     }
 
     /**

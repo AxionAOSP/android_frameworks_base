@@ -162,8 +162,11 @@ fun ContentScope.Tile(
         val isClickable = uiState.state != STATE_UNAVAILABLE
 
         val icon by
-            produceState(tile.currentState.toIconProvider(), tile) {
-                tile.state.collect { value = it.toIconProvider() }
+            run {
+                val themeStyle = com.android.systemui.theme.UiStyleProvider.rememberCurrentStyle()
+                produceState(tile.currentState.toIconProvider(), tile, themeStyle) {
+                    tile.state.collect { value = it.toIconProvider() }
+                }
             }
 
         val colors = TileDefaults.getColorForState(uiState, iconOnly)

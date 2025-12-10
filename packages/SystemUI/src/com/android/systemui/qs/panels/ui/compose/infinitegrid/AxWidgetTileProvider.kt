@@ -33,6 +33,7 @@ import com.android.systemui.SystemUIApplication
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileHeight
 import com.android.systemui.res.R
+import com.android.systemui.theme.UiStyleProvider
 import com.android.systemui.util.AxColorScheme
 import javax.inject.Inject
 
@@ -69,23 +70,31 @@ class AxWidgetTileProvider @Inject constructor(
         squishinessProvider: () -> Float,
         modifier: Modifier = Modifier
     ): Boolean {
+        val themeVersion = UiStyleProvider.rememberThemeVersion()
+
         return when (spec) {
             "sound" -> {
-                WidgetTileContainer(shape, squishinessProvider, modifier) {
-                    RingerSliderContent()
+                key(themeVersion) {
+                    WidgetTileContainer(squishinessProvider, modifier) {
+                        RingerSliderContent()
+                    }
                 }
                 true
             }
             "volume" -> {
-                WidgetTileContainer(shape, squishinessProvider, modifier) {
-                    VolumeSliderContent()
+                key(themeVersion) {
+                    WidgetTileContainer(squishinessProvider, modifier) {
+                        VolumeSliderContent()
+                    }
                 }
                 true
             }
             "flashlight" -> {
                 if (torchInteractor.isSupported) {
-                    WidgetTileContainer(shape, squishinessProvider, modifier) {
-                        TorchSliderContent()
+                    key(themeVersion) {
+                        WidgetTileContainer(squishinessProvider, modifier) {
+                            TorchSliderContent()
+                        }
                     }
                     true
                 } else false
@@ -96,7 +105,6 @@ class AxWidgetTileProvider @Inject constructor(
 
     @Composable
     private fun WidgetTileContainer(
-        shape: Shape,
         squishinessProvider: () -> Float,
         modifier: Modifier,
         content: @Composable () -> Unit
@@ -121,8 +129,7 @@ class AxWidgetTileProvider @Inject constructor(
                         scaleX = s
                         scaleY = s
                         alpha = s
-                    }
-                    .clip(shape),
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 content()

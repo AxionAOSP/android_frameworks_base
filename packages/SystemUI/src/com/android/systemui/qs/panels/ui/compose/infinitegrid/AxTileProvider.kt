@@ -45,6 +45,7 @@ import com.android.systemui.res.R
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.SmallTileContent
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
+import com.android.systemui.theme.UiStyleProvider
 
 object TileGridDefaults {
     val SmallScreenThreshold = 420.dp
@@ -194,12 +195,13 @@ private fun IconTileImpl(
 ) {
     val animatedBgColor by animateColorAsState(backgroundColor, label = "IconTileBg")
     val s = viewModel.squishiness
+    val style = UiStyleProvider.rememberCurrentStyle()
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
                 .size(TileHeight * s)
-                .clip(CircleShape)
+                .clip(style.qsTileShape())
                 .background(animatedBgColor)
                 .tileClickable(enabled, onClick, onLongClick),
             contentAlignment = Alignment.Center,
@@ -208,7 +210,7 @@ private fun IconTileImpl(
                 iconProvider = iconProvider,
                 color = iconColor,
                 modifier = Modifier.squishy(s),
-                size = { TileConstants.IconSize },
+                size = { style.qsTileIconSize },
             )
         }
     }
@@ -233,6 +235,7 @@ private fun LargeTileImpl(
     val hasDualTarget = onToggleClick != null
     val tileSpacing = dimensionResource(R.dimen.qs_tile_margin_horizontal)
     val s = viewModel.squishiness
+    val style = UiStyleProvider.rememberCurrentStyle()
 
     BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.Center) {
         val targetWidth = remember(maxWidth, tileSpacing) {
@@ -244,7 +247,7 @@ private fun LargeTileImpl(
         Box(
             modifier = Modifier
                 .size(width = targetWidth * s, height = TileHeight * s)
-                .clip(shape)
+                .clip(style.qsTileShape())
                 .background(animatedBgColor)
                 .tileClickable(enabled, onClick, onLongClick),
             contentAlignment = Alignment.CenterStart,

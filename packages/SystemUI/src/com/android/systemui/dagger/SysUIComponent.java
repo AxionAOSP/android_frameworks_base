@@ -32,6 +32,7 @@ import com.android.systemui.statusbar.NotificationInsetsModule;
 import com.android.systemui.statusbar.QsFrameTranslateModule;
 import com.android.systemui.statusbar.phone.ConfigurationForwarder;
 import com.android.systemui.statusbar.policy.ConfigurationController;
+import com.android.systemui.theme.UiStyleProvider;
 import com.android.wm.shell.appzoomout.AppZoomOut;
 import com.android.wm.shell.back.BackAnimation;
 import com.android.wm.shell.bubbles.Bubbles;
@@ -171,6 +172,9 @@ public interface SysUIComponent {
     
     @SysUISingleton
     AxWidgetTileProvider getAxWidgetTileProvider();
+    
+    @SysUISingleton
+    UiStyleProvider getUiStyleProvider();
 
     /**
      * Returns {@link CoreStartable}s that should be started with the application.

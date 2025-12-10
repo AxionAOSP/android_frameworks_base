@@ -42,6 +42,7 @@ import com.android.systemui.statusbar.StatusBarIconView
 import com.android.systemui.statusbar.pipeline.mobile.domain.model.SignalIconModel
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileViewLogger
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.LocationBasedMobileViewModelKairos
+import com.android.systemui.statusbar.connectivity.ThemedStatusBarIcons
 import com.android.systemui.statusbar.pipeline.shared.ui.binder.ModernStatusBarViewBinding
 import com.android.systemui.statusbar.pipeline.shared.ui.binder.ModernStatusBarViewVisibilityHelper
 import com.android.systemui.statusbar.pipeline.shared.ui.binder.StatusBarViewBinderConstants
@@ -231,8 +232,17 @@ object MobileIconBinderKairos {
                     newIcon,
                 )
                 if (newIcon is SignalIconModel.Cellular) {
-                    iconView.setImageDrawable(mobileDrawable)
-                    mobileDrawable.level = newIcon.toSignalDrawableState()
+                    val themedDrawable = ThemedStatusBarIcons.getThemedSignalIcon(
+                        view.context,
+                        newIcon.level,
+                        newIcon.numberOfLevels
+                    )
+                    if (themedDrawable != null) {
+                        iconView.setImageDrawable(themedDrawable)
+                    } else {
+                        iconView.setImageDrawable(mobileDrawable)
+                        mobileDrawable.level = newIcon.toSignalDrawableState()
+                    }
                 } else if (newIcon is SignalIconModel.Satellite) {
                     IconViewBinder.bind(newIcon.icon, iconView)
                 }
