@@ -243,71 +243,76 @@ fun SmallTileContent(
     animateToEnd: Boolean = false,
 ) {
     val context = LocalContext.current
-    val icon = iconProvider(context)
-    val animatedColor by animateColorAsState(color, label = "QSTileIconColor")
-    val iconModifier = modifier.size({ size().roundToPx() }, { size().roundToPx() })
-    val loadedDrawable =
-        remember(icon, context) {
-            when (icon) {
-                is Icon.Loaded -> icon.drawable
-                is Icon.Resource -> context.getDrawable(icon.res)
+    val themeVersion = com.android.systemui.theme.UiStyleProvider.rememberThemeVersion()
+    
+    key(themeVersion) {
+        val icon = iconProvider(context)
+        val animatedColor by animateColorAsState(color, label = "QSTileIconColor")
+        val iconModifier = modifier.size({ size().roundToPx() }, { size().roundToPx() })
+
+        val loadedDrawable =
+            remember(icon, context, themeVersion) {
+                when (icon) {
+                    is Icon.Loaded -> icon.drawable
+                    is Icon.Resource -> context.getDrawable(icon.res)
+                }
             }
-        }
-    if (loadedDrawable is Animatable) {
-        // Skip initial animation, icons should animate only as the state change
-        // and not when first composed
-        var shouldSkipInitialAnimation by remember { mutableStateOf(true) }
-        LaunchedEffect(Unit) { shouldSkipInitialAnimation = animateToEnd }
+        if (loadedDrawable is Animatable) {
+            // Skip initial animation, icons should animate only as the state change
+            // and not when first composed
+            var shouldSkipInitialAnimation by remember { mutableStateOf(true) }
+            LaunchedEffect(Unit) { shouldSkipInitialAnimation = animateToEnd }
 
-        val painter =
-            when (icon) {
-                is Icon.Resource -> {
-                    val image = AnimatedImageVector.animatedVectorResource(id = icon.res)
-                    key(icon) {
-                        var atEnd by remember(icon) { mutableStateOf(shouldSkipInitialAnimation) }
-                        LaunchedEffect(key1 = icon.res) { atEnd = true }
+            val painter =
+                when (icon) {
+                    is Icon.Resource -> {
+                        val image = AnimatedImageVector.animatedVectorResource(id = icon.res)
+                        key(icon) {
+                            var atEnd by remember(icon) { mutableStateOf(shouldSkipInitialAnimation) }
+                            LaunchedEffect(key1 = icon.res) { atEnd = true }
 
-                        rememberAnimatedVectorPainter(animatedImageVector = image, atEnd = atEnd)
+                            rememberAnimatedVectorPainter(animatedImageVector = image, atEnd = atEnd)
+                        }
+                    }
+
+                    is Icon.Loaded -> {
+                        val painter = rememberDrawablePainter(loadedDrawable)
+
+                        // rememberDrawablePainter automatically starts the animation. Using
+                        // SideEffect here to immediately stop it if needed
+                        DisposableEffect(painter) {
+                            if (loadedDrawable is AnimatedVectorDrawable) {
+                                loadedDrawable.forceAnimationOnUI()
+                            }
+                            if (shouldSkipInitialAnimation) {
+                                loadedDrawable.stop()
+                            }
+                            onDispose {}
+                        }
+
+                        painter
                     }
                 }
 
-                is Icon.Loaded -> {
-                    val painter = rememberDrawablePainter(loadedDrawable)
-
-                    // rememberDrawablePainter automatically starts the animation. Using
-                    // SideEffect here to immediately stop it if needed
-                    DisposableEffect(painter) {
-                        if (loadedDrawable is AnimatedVectorDrawable) {
-                            loadedDrawable.forceAnimationOnUI()
-                        }
-                        if (shouldSkipInitialAnimation) {
-                            loadedDrawable.stop()
-                        }
-                        onDispose {}
-                    }
-
-                    painter
-                }
+            if (iconRefresh2025()) {
+                NonClippedImage(
+                    painter = painter,
+                    contentDescription = icon.contentDescription?.load(),
+                    colorFilter = ColorFilter.tint(color = animatedColor),
+                    modifier = iconModifier,
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                Image(
+                    painter = painter,
+                    contentDescription = icon.contentDescription?.load(),
+                    colorFilter = ColorFilter.tint(color = animatedColor),
+                    modifier = iconModifier,
+                )
             }
-
-        if (iconRefresh2025()) {
-            NonClippedImage(
-                painter = painter,
-                contentDescription = icon.contentDescription?.load(),
-                colorFilter = ColorFilter.tint(color = animatedColor),
-                modifier = iconModifier,
-                contentScale = ContentScale.Crop,
-            )
         } else {
-            Image(
-                painter = painter,
-                contentDescription = icon.contentDescription?.load(),
-                colorFilter = ColorFilter.tint(color = animatedColor),
-                modifier = iconModifier,
-            )
+            Icon(icon = icon, tint = animatedColor, modifier = iconModifier)
         }
-    } else {
-        Icon(icon = icon, tint = animatedColor, modifier = iconModifier)
     }
 }
 

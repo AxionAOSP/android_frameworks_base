@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -47,8 +48,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
+import com.android.compose.ui.graphics.painter.rememberDrawablePainter
 import com.android.systemui.common.ui.compose.load
 import com.android.systemui.res.R
+import com.android.systemui.statusbar.connectivity.ThemedStatusBarIcons
 import com.android.systemui.statusbar.pipeline.mobile.ui.model.DualSim
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.StackedMobileIconViewModel
 import com.android.systemui.statusbar.pipeline.shared.ui.composable.StackedMobileIconDimensions.BarBaseHeightFiveBarsSp
@@ -71,6 +74,7 @@ import com.android.systemui.statusbar.pipeline.shared.ui.composable.StackedMobil
 import com.android.systemui.statusbar.pipeline.shared.ui.composable.StackedMobileIconDimensions.RoamingIconHeightSp
 import com.android.systemui.statusbar.pipeline.shared.ui.composable.StackedMobileIconDimensions.RoamingIconPaddingTopSp
 import com.android.systemui.statusbar.pipeline.shared.ui.composable.StackedMobileIconDimensions.SecondaryBarHeightSp
+import com.android.systemui.theme.UiStyleProvider
 import kotlin.math.max
 
 /**
@@ -128,6 +132,59 @@ fun StackedMobileIcon(viewModel: StackedMobileIconViewModel, modifier: Modifier 
 
 @Composable
 private fun StackedMobileIcon(
+    viewModel: DualSim,
+    color: Color,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val themeVersion = UiStyleProvider.rememberThemeVersion()
+
+    val primaryThemedDrawable = remember(themeVersion, viewModel.primary.level, viewModel.primary.numberOfLevels) {
+        ThemedStatusBarIcons.getThemedSignalIcon(context, viewModel.primary.level, viewModel.primary.numberOfLevels)
+    }
+    
+    val secondaryThemedDrawable = remember(themeVersion, viewModel.secondary.level, viewModel.secondary.numberOfLevels) {
+        ThemedStatusBarIcons.getThemedSignalIcon(context, viewModel.secondary.level, viewModel.secondary.numberOfLevels)
+    }
+
+    val padding = with(LocalDensity.current) { IconPaddingSp.toDp() }
+    val horizontalArrangement = with(density) { spacedBy(padding) }
+    val paddingTop = with(LocalDensity.current) { RoamingIconPaddingTopSp.toDp() }
+    
+    if (primaryThemedDrawable != null) {
+        val iconHeight = with(density) { IconHeightSp.toDp() }
+        
+        Row(
+            horizontalArrangement = horizontalArrangement,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = modifier.padding(top = paddingTop),
+        ) {
+            Image(
+                painter = rememberDrawablePainter(primaryThemedDrawable),
+                contentDescription = contentDescription,
+                modifier = Modifier.height(iconHeight),
+                colorFilter = ColorFilter.tint(color, BlendMode.SrcIn),
+                contentScale = ContentScale.FillHeight,
+            )
+            if (secondaryThemedDrawable != null) {
+                Image(
+                    painter = rememberDrawablePainter(secondaryThemedDrawable),
+                    contentDescription = null,
+                    modifier = Modifier.height(iconHeight),
+                    colorFilter = ColorFilter.tint(color, BlendMode.SrcIn),
+                    contentScale = ContentScale.FillHeight,
+                )
+            }
+        }
+    } else {
+        StackedMobileIconCanvas(viewModel, color, contentDescription, modifier)
+    }
+}
+
+@Composable
+private fun StackedMobileIconCanvas(
     viewModel: DualSim,
     color: Color,
     contentDescription: String?,

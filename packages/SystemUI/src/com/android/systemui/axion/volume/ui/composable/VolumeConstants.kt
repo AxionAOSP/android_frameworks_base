@@ -16,7 +16,10 @@
 
 package com.android.systemui.axion.volume.ui.composable
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.android.systemui.theme.UiStyleProvider
 
 internal val VolumeButtonsSize = 60.dp
 internal val RingerIndicatorSize = 44.dp
@@ -32,3 +35,21 @@ internal val SliderTrackWidthCollapsed = 12.dp
 internal val SliderIconSize = 24.dp
 internal val SliderIconMinSize = 12.dp
 internal val SliderExpandedContentWidth = (SliderWidthExpanded * 5) + (SliderSpacing * 4) + 12.dp
+
+@Composable
+internal fun styledSliderHeight(): Dp {
+    val style = UiStyleProvider.rememberCurrentStyle()
+    return style.volumeSliderHeight
+}
+
+@Composable
+internal fun styledTrackWidthExpanded(): Dp {
+    val style = UiStyleProvider.rememberCurrentStyle()
+    return style.volumeSliderTrackWidthExpanded
+}
+
+@Composable
+internal fun styledTrackWidthCollapsed(): Dp {
+    val style = UiStyleProvider.rememberCurrentStyle()
+    return style.volumeSliderTrackWidthCollapsed
+}

@@ -127,6 +127,20 @@ public class LauncherActivityInfo {
      * @return The drawable associated with the activity.
      */
     public Drawable getIcon(int density) {
+        try {
+            ComponentName cn = getComponentName();
+            final Resources resources = mPm.getResourcesForApplication(
+                    getActivityInfo().applicationInfo);
+            if (cn != null && resources != null) {
+                Drawable themedIcon = resources.getIconPackOverride(
+                        cn.getPackageName(), cn.getClassName(), density);
+                if (themedIcon != null) {
+                    return themedIcon;
+                }
+            }
+        } catch (Exception e) {
+        }
+
         // TODO: Go through LauncherAppsService
         final int iconRes = getActivityInfo().getIconResource();
         Drawable icon = null;

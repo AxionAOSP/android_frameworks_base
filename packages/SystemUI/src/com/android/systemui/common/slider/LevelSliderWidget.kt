@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.android.systemui.theme.UiStyleProvider
 import com.android.systemui.util.AxColorScheme
 
 @OptIn(ExperimentalAnimationApi::class)
@@ -47,6 +48,8 @@ fun LevelSliderWidget(
     isDozing: Boolean = false,
     border: Modifier = Modifier
 ) {
+    val style = UiStyleProvider.rememberCurrentStyle()
+    val tileShape = style.qsTileShape()
     var level by remember { mutableFloatStateOf(interactor.getCurrentLevel()) }
     var dragLevel by remember { mutableFloatStateOf(level) }
     var isDragging by remember { mutableStateOf(false) }
@@ -103,10 +106,10 @@ fun LevelSliderWidget(
         modifier = modifier
             .height(dimens.height)
             .scale(enabledScale)
-            .clip(CircleShape)
-            .then(if (isDozing) Modifier.border(theme.dozeStroke, Color.White, CircleShape) else border)
+            .clip(tileShape)
+            .then(if (isDozing) Modifier.border(theme.dozeStroke, Color.White, tileShape) else border)
             .then(
-                if (isEnabled) Modifier.border(2.dp, AxColorScheme.primary.copy(alpha = 0.6f), CircleShape)
+                if (isEnabled) Modifier.border(2.dp, AxColorScheme.primary.copy(alpha = 0.6f), tileShape)
                 else Modifier
             )
             .pointerInput(Unit) {
@@ -134,9 +137,9 @@ fun LevelSliderWidget(
         val boxWidthPx = with(density) { maxWidth.toPx() }
         val fillWidth = boxWidthPx * animatedLevel
 
-        Box(Modifier.fillMaxSize().background(animatedTrackColor, CircleShape).clip(CircleShape))
+        Box(Modifier.fillMaxSize().background(animatedTrackColor, tileShape).clip(tileShape))
 
-        Canvas(Modifier.fillMaxSize().clip(CircleShape)) {
+        Canvas(Modifier.fillMaxSize().clip(tileShape)) {
             drawRoundRect(
                 color = progressFillColor,
                 size = Size(fillWidth, size.height),

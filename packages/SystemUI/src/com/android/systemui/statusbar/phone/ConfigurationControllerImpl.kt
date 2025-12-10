@@ -23,6 +23,7 @@ import android.view.View.LAYOUT_DIRECTION_RTL
 import com.android.systemui.statusbar.data.repository.StatusBarConfigurationController
 import com.android.systemui.statusbar.policy.ConfigurationController
 import com.android.systemui.statusbar.policy.ConfigurationController.ConfigurationListener
+import com.android.systemui.theme.UiStyleProvider
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -30,7 +31,7 @@ import dagger.assisted.AssistedInject
 class ConfigurationControllerImpl
 @AssistedInject
 constructor(@Assisted private val context: Context) :
-    ConfigurationController, StatusBarConfigurationController {
+    ConfigurationController, StatusBarConfigurationController, UiStyleProvider.ThemeChangeListener {
 
     private val listeners: MutableList<ConfigurationListener> = ArrayList()
     private val lastConfig = Configuration()
@@ -56,6 +57,22 @@ constructor(@Assisted private val context: Context) :
         uiMode = currentConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
         localeList = currentConfig.locales
         layoutDirection = currentConfig.layoutDirection
+
+        UiStyleProvider.get(context).addThemeChangeListener(this)
+    }
+
+    override fun onThemeChanged() {
+        dispatchFullConfigChange()
+    }
+
+    private fun dispatchFullConfigChange() {
+        val currentConfig = context.resources.configuration
+        val listeners = synchronized(this.listeners) { ArrayList(this.listeners) }
+        context.theme.applyStyle(context.themeResId, true)
+        listeners.filterForEach({ this.listeners.contains(it) }) { it.onConfigChanged(currentConfig) }
+        listeners.filterForEach({ this.listeners.contains(it) }) { it.onDensityOrFontScaleChanged() }
+        listeners.filterForEach({ this.listeners.contains(it) }) { it.onThemeChanged() }
+        listeners.filterForEach({ this.listeners.contains(it) }) { it.onUiModeChanged() }
     }
 
     override fun notifyThemeChanged() {

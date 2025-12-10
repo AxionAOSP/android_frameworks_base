@@ -283,6 +283,7 @@ import com.android.server.testharness.TestHarnessModeService;
 import com.android.server.textclassifier.TextClassificationManagerService;
 import com.android.server.textservices.TextServicesManagerService;
 import com.android.server.texttospeech.TextToSpeechManagerService;
+import com.android.server.theme.ThemeEngineManagerService;
 import com.android.server.timedetector.GnssTimeUpdateService;
 import com.android.server.timedetector.NetworkTimeUpdateService;
 import com.android.server.timedetector.TimeDetectorService;
@@ -1797,6 +1798,11 @@ public final class SystemServer implements Dumpable {
 
             t.traceBegin("StartFreeformOverlayManagerService");
             mSystemServiceManager.startService(FreeformOverlayManagerService.class);
+            t.traceEnd();
+
+            t.traceBegin("StartThemeEngineManagerService");
+            mSystemServiceManager.startService(
+                    ThemeEngineManagerService.class);
             t.traceEnd();
 
             if (mFactoryTestMode == FactoryTest.FACTORY_TEST_LOW_LEVEL) {

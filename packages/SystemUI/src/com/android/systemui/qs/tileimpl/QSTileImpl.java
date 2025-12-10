@@ -725,26 +725,41 @@ public abstract class QSTileImpl<TState extends State> implements QSTile, Lifecy
     }
 
     public static class DrawableIconWithRes extends DrawableIcon {
+        private static volatile int sThemeVersion = 0;
+        
         private final int mId;
+        private final int mThemeVersion;
 
         public DrawableIconWithRes(Drawable drawable, int id) {
             super(drawable);
             mId = id;
+            mThemeVersion = sThemeVersion;
         }
 
         public int getResourceId() {
             return mId;
         }
+        
+        public static void incrementThemeVersion() {
+            sThemeVersion++;
+        }
 
         @Override
         public boolean equals(Object o) {
-            return o instanceof DrawableIconWithRes && ((DrawableIconWithRes) o).mId == mId;
+            if (!(o instanceof DrawableIconWithRes)) return false;
+            DrawableIconWithRes other = (DrawableIconWithRes) o;
+            return other.mId == mId && other.mThemeVersion == mThemeVersion;
+        }
+        
+        @Override
+        public int hashCode() {
+            return Objects.hash(mId, mThemeVersion);
         }
 
         @Override
         @NonNull
         public String toString() {
-            return String.format("DrawableIconWithRes[resId=0x%08x]", mId);
+            return String.format("DrawableIconWithRes[resId=0x%08x,themeVer=%d]", mId, mThemeVersion);
         }
     }
 
@@ -764,6 +779,10 @@ public abstract class QSTileImpl<TState extends State> implements QSTile, Lifecy
                 ICONS.put(resId, icon);
             }
             return icon;
+        }
+        
+        public static synchronized void clearCache() {
+            ICONS.clear();
         }
 
         @Override
