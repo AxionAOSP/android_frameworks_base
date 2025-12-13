@@ -57,6 +57,7 @@ import com.android.systemui.keyguard.ui.viewmodel.KeyguardSmartspaceViewModel
 import com.android.systemui.keyguard.ui.viewmodel.OccludingAppDeviceEntryMessageViewModel
 import com.android.systemui.keyguard.ui.viewmodel.TransitionData
 import com.android.systemui.keyguard.ui.viewmodel.ViewStateAccessor
+import com.android.systemui.util.ScrimUtils
 import com.android.systemui.lifecycle.repeatWhenAttached
 import com.android.systemui.log.LogBuffer
 import com.android.systemui.log.core.Logger
@@ -199,6 +200,7 @@ object KeyguardRootViewBinder {
                     launch("$TAG#alpha") {
                         viewModel.alpha(viewState).collect { alpha ->
                             view.alpha = alpha
+                            ScrimUtils.get().setKeyguardAlpha(alpha)
                             childViews[burnInLayerId]?.alpha = alpha
                             childViews[sliceViewId]?.alpha = alpha
                         }
