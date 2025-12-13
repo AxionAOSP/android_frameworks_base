@@ -41,6 +41,7 @@ import com.android.systemui.keyguard.ui.viewmodel.KeyguardRootViewModel
 import com.android.systemui.lifecycle.repeatWhenAttached
 import com.android.systemui.plugins.keyguard.ui.clocks.AodClockBurnInModel
 import com.android.systemui.plugins.keyguard.ui.clocks.ClockController
+import com.android.systemui.util.ScrimUtils
 import com.android.systemui.util.kotlin.DisposableHandles
 import com.android.systemui.util.ui.value
 import kotlinx.coroutines.DisposableHandle
@@ -63,6 +64,7 @@ object KeyguardClockViewBinder {
         aodBurnInViewModel: AodBurnInViewModel,
     ): DisposableHandle {
         val disposables = DisposableHandles()
+        ScrimUtils.get().attachKeyguardView(keyguardRootView)
         disposables +=
             keyguardRootView.repeatWhenAttached {
                 repeatOnLifecycle(Lifecycle.State.CREATED) {
