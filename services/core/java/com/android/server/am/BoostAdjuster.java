@@ -286,14 +286,15 @@ public class BoostAdjuster implements IBoostAdjuster {
         logger("animationBoost: pid=" + pid + " renderTid=" + renderTid + 
                 " duration=" + duration);
         
-        
         if (duration >= 0) {
             AxBurstEngine.animationBoost(pid, renderTid, duration);
             resourcesBoost(true);
         }
         
         if (duration == 0) return;
-        if (duration == -1) duration = INPUT_BOOST_DURATION;
+        
+        final long boostDuration = duration == -1 ? INPUT_BOOST_DURATION 
+                : Math.max(duration, 100L);
         
         Message m = mHandler.obtainMessage(pid);
         m.setCallback(() -> { 
@@ -301,7 +302,7 @@ public class BoostAdjuster implements IBoostAdjuster {
             AxBurstEngine.animationBoost(pid, renderTid, -1L);
         });
         mHandler.removeMessages(pid);
-        mHandler.sendMessageDelayed(m, duration);
+        mHandler.sendMessageDelayed(m, boostDuration);
     }
 
     public void inputBoost() {
