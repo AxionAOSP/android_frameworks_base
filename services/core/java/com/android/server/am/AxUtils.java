@@ -117,7 +117,8 @@ public class AxUtils {
     }
 
     public static boolean isInLowPrioList(String processName) {
-        return processName != null && processName.contains("google");
+        if (processName == null) return false;
+        return processName.contains("google");
     }
 
     public static void boostCamera(boolean boost) {
