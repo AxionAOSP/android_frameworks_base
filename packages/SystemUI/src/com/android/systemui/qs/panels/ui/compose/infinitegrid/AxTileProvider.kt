@@ -21,6 +21,7 @@ import android.content.res.Configuration
 import android.graphics.Typeface
 import androidx.compose.*
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.*
@@ -197,7 +198,7 @@ private fun IconTileImpl(
     val s = viewModel.squishiness
     val style = UiStyleProvider.rememberCurrentStyle()
 
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+    Box(modifier = modifier.squishy(s), contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
                 .size(TileHeight * s)
@@ -209,7 +210,7 @@ private fun IconTileImpl(
             SmallTileContent(
                 iconProvider = iconProvider,
                 color = iconColor,
-                modifier = Modifier.squishy(s),
+                modifier = Modifier,
                 size = { style.qsTileIconSize },
             )
         }
@@ -237,7 +238,7 @@ private fun LargeTileImpl(
     val s = viewModel.squishiness
     val style = UiStyleProvider.rememberCurrentStyle()
 
-    BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier = modifier.squishy(s), contentAlignment = Alignment.Center) {
         val targetWidth = remember(maxWidth, tileSpacing) {
             val smallTileSize = (maxWidth - tileSpacing) / 2f
             val centerPadding = (smallTileSize - TileHeight) / 2f
@@ -263,7 +264,6 @@ private fun LargeTileImpl(
                 enabled = enabled,
                 onToggleClick = onToggleClick,
                 onLongClick = onLongClick,
-                squishiness = s,
             )
         }
     }
@@ -313,10 +313,9 @@ private fun LargeTileContent(
     enabled: Boolean,
     onToggleClick: (() -> Unit)?,
     onLongClick: (() -> Unit)?,
-    squishiness: Float,
 ) {
     Row(
-        modifier = Modifier.fillMaxHeight().squishy(squishiness),
+        modifier = Modifier.fillMaxHeight(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(Modifier.width(TileConstants.IconPaddingStart))
@@ -459,5 +458,10 @@ private fun Modifier.tileClickable(
 private fun Modifier.squishy(squishiness: Float): Modifier = graphicsLayer {
     scaleX = squishiness
     scaleY = squishiness
-    alpha = squishiness
+    alpha = if (squishiness < 0.83f) {
+        0f
+    } else {
+        ((squishiness - 0.83f) / (1f - 0.83f))
+            .coerceIn(0f, 1f)
+    }
 }
