@@ -754,6 +754,7 @@ constructor(
                                 mediaHost = viewModel.qqsMediaHost,
                                 mediaLogger = mediaLogger,
                                 squishiness = squishiness,
+                                isKeyguardState = viewModel.isKeyguardState,
                             )
                         }
                     }
@@ -923,6 +924,7 @@ constructor(
                                         mediaHost = viewModel.qsMediaHost,
                                         mediaLogger = mediaLogger,
                                         update = { translationY = viewModel.qsMediaTranslationY },
+                                        isKeyguardState = viewModel.isKeyguardState,
                                     )
                                 }
                             }
@@ -1403,14 +1405,26 @@ private fun MediaObject(
     modifier: Modifier = Modifier,
     mediaLogger: MediaViewLogger,
     squishiness: Float = 1f,
+    isKeyguardState: Boolean,
     update: UniqueObjectHostView.() -> Unit = {},
 ) {
+    val showStart = 0.89f
+    val expanding = squishiness < showStart
+    val mediaAlpha = when {
+        isKeyguardState -> 1f
+        expanding -> 0f
+        else -> {
+            ((squishiness - showStart) / (1f - showStart))
+                .coerceIn(0f, 1f)
+        }
+    }
     Box(
         modifier =
             Modifier.graphicsLayer {
                     scaleX = squishiness
                     scaleY = squishiness
                     transformOrigin = TransformOrigin(0.5f, 0.5f)
+                    alpha = mediaAlpha
                 }
     ) {
         AndroidView(
