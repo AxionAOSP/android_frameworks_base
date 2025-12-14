@@ -318,7 +318,7 @@ public class BoostAdjuster implements IBoostAdjuster {
         }
     }
     
-    private void adjustBackground(boolean limit) {
+    public void adjustBackground(boolean limit) {
         if (mData == null) return;
         final long duration = limit ? 0L : -1L;
         final String bgLimit = limit ? mData.bgLimit : mData.bgCpus;

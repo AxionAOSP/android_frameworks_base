@@ -19,9 +19,12 @@ package com.android.server.wm;
 import static android.os.Process.THREAD_PRIORITY_DISPLAY;
 
 import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
 import android.os.Trace;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.ServiceThread;
 
 /**
@@ -40,7 +43,7 @@ public final class SurfaceAnimationThread extends ServiceThread {
             sInstance = new SurfaceAnimationThread();
             sInstance.start();
             sInstance.getLooper().setTraceTag(Trace.TRACE_TAG_WINDOW_MANAGER);
-            sHandler = makeSharedHandler(sInstance.getLooper());
+            sHandler = new WorkHandler(sInstance.getLooper());
         }
     }
 
@@ -71,6 +74,22 @@ public final class SurfaceAnimationThread extends ServiceThread {
 
             getHandler().runWithScissors(() -> sInstance.quit(), 0 /* timeout */);
             sInstance = null;
+        }
+    }
+    
+    private static class WorkHandler extends Handler {
+        WorkHandler(Looper looper) {
+            super(looper, null, false, true);
+        }
+
+        @Override
+        public void dispatchMessage(Message msg) {
+            AxExtServiceFactory.getBoostAdjuster().adjustBackground(true);
+            try {
+                super.dispatchMessage(msg);
+            } finally {
+                AxExtServiceFactory.getBoostAdjuster().adjustBackground(false);
+            }
         }
     }
 }

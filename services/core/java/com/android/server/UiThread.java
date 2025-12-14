@@ -18,6 +18,7 @@ package com.android.server;
 
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Message;
 import android.os.Process;
 import android.os.Trace;
 
@@ -53,7 +54,23 @@ public final class UiThread extends ServiceThread {
             looper.setTraceTag(Trace.TRACE_TAG_SYSTEM_SERVER);
             looper.setSlowLogThresholdMs(
                     SLOW_DISPATCH_THRESHOLD_MS, SLOW_DELIVERY_THRESHOLD_MS);
-            sHandler = makeSharedHandler(sInstance.getLooper());
+            sHandler = new UiWorkHandler(looper);
+        }
+    }
+
+    private static class UiWorkHandler extends Handler {
+        UiWorkHandler(Looper looper) {
+            super(looper, null, false, true);
+        }
+
+        @Override
+        public void dispatchMessage(Message msg) {
+            AxExtServiceFactory.getBoostAdjuster().adjustBackground(true);
+            try {
+                super.dispatchMessage(msg);
+            } finally {
+                AxExtServiceFactory.getBoostAdjuster().adjustBackground(false);
+            }
         }
     }
 

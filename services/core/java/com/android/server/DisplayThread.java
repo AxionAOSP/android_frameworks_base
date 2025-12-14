@@ -17,6 +17,7 @@
 package com.android.server;
 
 import android.os.Handler;
+import android.os.Message;
 import android.os.Process;
 import android.os.Trace;
 
@@ -43,7 +44,23 @@ public final class DisplayThread extends ServiceThread {
             sInstance = new DisplayThread();
             sInstance.start();
             sInstance.getLooper().setTraceTag(Trace.TRACE_TAG_SYSTEM_SERVER);
-            sHandler = makeSharedHandler(sInstance.getLooper());
+            sHandler = new DisplayWorkHandler(sInstance.getLooper());
+        }
+    }
+
+    private static class DisplayWorkHandler extends Handler {
+        DisplayWorkHandler(android.os.Looper looper) {
+            super(looper, null, false, true);
+        }
+
+        @Override
+        public void dispatchMessage(Message msg) {
+            AxExtServiceFactory.getBoostAdjuster().adjustBackground(true);
+            try {
+                super.dispatchMessage(msg);
+            } finally {
+                AxExtServiceFactory.getBoostAdjuster().adjustBackground(false);
+            }
         }
     }
 
