@@ -63,4 +63,7 @@ public interface IBoostAdjuster {
     
     default void adjustBackground(boolean limit) {
     }
+    
+    default void appLaunchBoost(String packageName, int durationHint) {
+    }
 }
