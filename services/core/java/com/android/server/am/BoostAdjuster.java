@@ -334,6 +334,20 @@ public class BoostAdjuster implements IBoostAdjuster {
         mBackgroundBoosted = !limit;
     }
 
+    public void appLaunchBoost(String packageName, int durationHint) {
+        if (mData == null) return;
+        if (durationHint == 0) {
+            adjustBackground(true);
+            enablePerformanceMode(true);
+            UiThread.getHandler().postDelayed(() -> {
+                adjustBackground(false);
+                enablePerformanceMode(false);
+            }, 2000);
+        } else {
+            inputBoost();
+        }
+    }
+
     private class InputBoostResetRunnable implements Runnable {
         @Override
         public void run() {
