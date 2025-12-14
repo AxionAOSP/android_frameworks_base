@@ -77,6 +77,7 @@ class WindowManagerThreadPriorityBooster extends ThreadPriorityBooster {
             if (mAppTransitionRunning != running) {
                 mAppTransitionRunning = running;
                 updatePriorityLocked();
+                com.android.server.AxExtServiceFactory.getBoostAdjuster().adjustBackground(running);
             }
         }
     }

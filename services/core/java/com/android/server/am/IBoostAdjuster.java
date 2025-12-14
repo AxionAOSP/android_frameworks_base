@@ -60,4 +60,7 @@ public interface IBoostAdjuster {
     
     default void limitForegroundCpu(boolean limit) {
     }
+    
+    default void adjustBackground(boolean limit) {
+    }
 }

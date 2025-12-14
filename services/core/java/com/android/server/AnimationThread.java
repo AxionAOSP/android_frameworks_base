@@ -19,6 +19,8 @@ package com.android.server;
 import static android.os.Process.THREAD_PRIORITY_DISPLAY;
 
 import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
 import android.os.Trace;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -40,7 +42,23 @@ public final class AnimationThread extends ServiceThread {
             sInstance = new AnimationThread();
             sInstance.start();
             sInstance.getLooper().setTraceTag(Trace.TRACE_TAG_WINDOW_MANAGER);
-            sHandler = makeSharedHandler(sInstance.getLooper());
+            sHandler = new AnimWorkHandler(sInstance.getLooper());
+        }
+    }
+
+    private static class AnimWorkHandler extends Handler {
+        AnimWorkHandler(Looper looper) {
+            super(looper, null, false, true);
+        }
+
+        @Override
+        public void dispatchMessage(Message msg) {
+            AxExtServiceFactory.getBoostAdjuster().adjustBackground(true);
+            try {
+                super.dispatchMessage(msg);
+            } finally {
+                AxExtServiceFactory.getBoostAdjuster().adjustBackground(false);
+            }
         }
     }
 
