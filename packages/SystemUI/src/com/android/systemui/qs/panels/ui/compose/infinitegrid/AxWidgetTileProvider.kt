@@ -128,7 +128,12 @@ class AxWidgetTileProvider @Inject constructor(
                         val s = squishinessProvider()
                         scaleX = s
                         scaleY = s
-                        alpha = s
+                        alpha = if (s < 0.83f) {
+                            0f
+                        } else {
+                            ((s - 0.83f) / (1f - 0.83f))
+                                .coerceIn(0f, 1f)
+                        }
                     },
                 contentAlignment = Alignment.Center,
             ) {
