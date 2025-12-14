@@ -19,6 +19,8 @@ import static android.os.Process.*;
 import static com.android.server.am.AxUtils.THREAD_GROUP_SVP;
 import static com.android.server.am.BurstEngineConstants.*;
 
+import android.os.Binder;
+
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Process;
@@ -90,10 +92,12 @@ public class AxBurstEngine {
     }
 
     private void handleProcessScheduling(int pid, int group, String name) {
-        mHandler.post(() -> {
-            ProcessState ps = getOrCreateProcessState(pid, name, group);
+        ProcessState ps = getOrCreateProcessState(pid, name, group);
+        if (ps.isUiPerfPkg || group == THREAD_GROUP_TOP_APP) {
             setSchedulingPolicy(ps);
-        });
+        } else {
+            mHandler.post(() -> setSchedulingPolicy(ps));
+        }
     }
 
     private ProcessState getOrCreateProcessState(int pid, String name, int targetGroup) {
@@ -113,7 +117,8 @@ public class AxBurstEngine {
         final boolean isPerfBlack = ps.isBlacklisted;
         final int pid = ps.pid;
 
-        final int affinity = isTop ? AFFINITY_ALL : AFFINITY_LITTLE;
+        final int affinity = isTop ? AFFINITY_ALL 
+                : (isPerfProcess ? AFFINITY_BALANCED : AFFINITY_LITTLE);
         
         if (!AxUtils.checkTid(pid)) {
             mProcessStates.remove(pid);
@@ -153,7 +158,7 @@ public class AxBurstEngine {
             Process.setProcessGroup(pid, perfGroup);
             Process.setThreadGroupAndCpuset(pid, perfGroup);
             Process.setThreadAffinity(pid, perfAffinity);
-            Process.setThreadScheduler(pid, SCHED_FIFO | SCHED_RESET_ON_FORK, 1);
+            Process.setThreadScheduler(pid, SCHED_RR | SCHED_RESET_ON_FORK, 1);
 
             AxUtils.logger(TAG + ": " + "perfList → cgroup=" + perfGroup
                     + " proc=" + ps.name);
@@ -168,13 +173,15 @@ public class AxBurstEngine {
     private void handleAnimationBoost(int pid, int renderTid, long duration) {
         mHandler.post(() -> {
             ProcessState ps = getOrCreateProcessState(pid, "animator", THREAD_GROUP_SVP);
+            ps.updateFromRecord(THREAD_GROUP_SVP);
+            final int rtid = renderTid > 0 ? renderTid : ps.rtid;
             if (duration >= 0) {
-                boostRenderThread(ps);
+                boostRenderThread(ps, rtid);
                 if (ps.isSystemUI) {
                     AxExtServiceFactory.getBoostAdjuster().limitForegroundCpu(true);
                 }
                 AxUtils.logger(TAG + ": animation_start → pid=" + pid +
-                        " render=" + renderTid + " duration=" + duration + "ms");
+                        " rtid=" + rtid + " duration=" + duration + "ms");
             } else {
                 if (ps.isSystemUI) {
                     AxExtServiceFactory.getBoostAdjuster().limitForegroundCpu(false);
@@ -185,13 +192,13 @@ public class AxBurstEngine {
         });
     }
 
-    private void boostRenderThread(ProcessState ps) {
-        if (ps.rtid > 0) {
-            mBoostedThreads.computeIfAbsent(ps.rtid, 
+    private void boostRenderThread(ProcessState ps, int rtid) {
+        if (rtid > 0) {
+            mBoostedThreads.computeIfAbsent(rtid, 
                 tid -> new ThreadBoost(tid, ps.pid));
-            setScheduler(ps.rtid, SCHED_FIFO | SCHED_RESET_ON_FORK, 1);
-            Process.setThreadGroupAndCpuset(ps.rtid, THREAD_GROUP_SVP);
-            Process.setThreadAffinity(ps.rtid, AFFINITY_BIG);
+            setScheduler(rtid, SCHED_RR | SCHED_RESET_ON_FORK, 1);
+            Process.setThreadGroupAndCpuset(rtid, THREAD_GROUP_SVP);
+            Process.setThreadAffinity(rtid, AFFINITY_BIG);
         } else {
             resetBoostedThreads(ps.pid);
         }
