@@ -54,6 +54,8 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sign
+import com.android.systemui.theme.UiStyleProvider
+import com.android.systemui.theme.UiStyle
 
 private const val TAG = "BackPanelController"
 private const val ENABLE_FAILSAFE = true
@@ -97,7 +99,7 @@ constructor(
     private val configurationController: ConfigurationController,
     latencyTracker: LatencyTracker,
     private val interactionJankMonitor: InteractionJankMonitor,
-) : ViewController<BackPanel>(BackPanel(context, latencyTracker)), NavigationEdgeBackPlugin {
+) : ViewController<BackPanel>(BackPanel(context, latencyTracker)), NavigationEdgeBackPlugin, UiStyleProvider.ThemeChangeListener {
 
     @AssistedFactory
     interface Factory {
@@ -272,22 +274,39 @@ constructor(
         updateArrowState(GestureState.GONE, force = true)
         updateRestingArrowDimens()
         configurationController.addCallback(configurationListener)
-        regionSamplingHelper = RegionSamplingHelper(
-            mView,
-            object : RegionSamplingHelper.SamplingCallback {
-                override fun onRegionDarknessChanged(isRegionDark: Boolean) {
-                    mView.setIsDark(!isRegionDark)
-                }
-                override fun getSampledRegion(sampledView: View): Rect {
-                    return samplingRect
-                }
-                override fun isSamplingEnabled(): Boolean {
-                    return context.displayId == 0
-                }
-            },
-            samplingExecutor
-        )
-        regionSamplingHelper?.setWindowVisible(true)
+        UiStyleProvider.get(context).addThemeChangeListener(this)
+        updateUiStyle()
+    }
+    
+    private fun updateUiStyle() {
+        val useAxionStyle = UiStyleProvider.getCurrentStyle(context) == UiStyle.AXION
+        mView.useAxionStyle = useAxionStyle
+        
+        if (useAxionStyle && regionSamplingHelper == null) {
+            regionSamplingHelper = RegionSamplingHelper(
+                mView,
+                object : RegionSamplingHelper.SamplingCallback {
+                    override fun onRegionDarknessChanged(isRegionDark: Boolean) {
+                        mView.setIsDark(!isRegionDark)
+                    }
+                    override fun getSampledRegion(sampledView: View): Rect {
+                        return samplingRect
+                    }
+                    override fun isSamplingEnabled(): Boolean {
+                        return context.displayId == 0
+                    }
+                },
+                samplingExecutor
+            )
+            regionSamplingHelper?.setWindowVisible(true)
+        } else if (!useAxionStyle && regionSamplingHelper != null) {
+            regionSamplingHelper?.stop()
+            regionSamplingHelper = null
+        }
+    }
+    
+    override fun onThemeChanged() {
+        updateUiStyle()
     }
 
     /** Update the arrow direction. The arrow should point the same way for both panels. */
@@ -297,6 +316,7 @@ constructor(
 
     override fun onViewDetached() {
         configurationController.removeCallback(configurationListener)
+        UiStyleProvider.get(context).removeThemeChangeListener(this)
     }
 
     override fun onMotionEvent(event: MotionEvent) {

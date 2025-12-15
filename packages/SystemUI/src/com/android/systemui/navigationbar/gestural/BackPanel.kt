@@ -46,6 +46,8 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
     // True if the panel is currently on the left of the screen
     var isLeftPanel = false
 
+    var useAxionStyle = true
+
     /** Used to track back arrow latency from [android.view.MotionEvent.ACTION_DOWN] to [onDraw] */
     private var trackingBackArrowLatency = false
 
@@ -514,7 +516,7 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
                 )
         canvas.drawPath(
             arrowBackground,
-            arrowBackgroundPaint.apply { alpha = 0 }
+            arrowBackgroundPaint.apply { alpha = if (useAxionStyle) 0 else (255 * backgroundAlpha.pos).toInt() }
         )
 
         val dx = arrowLength.pos
@@ -541,7 +543,15 @@ class BackPanel(context: Context, private val latencyTracker: LatencyTracker) : 
         if (isLeftPanel) {
             canvas.scale(-1f, 1f, dx / 2f, dy / 2f)
         }
-        canvas.drawPath(calculateArrowPathEx(arrowPath, arrowPaint, x = dx, y = dy), arrowPaint)
+        val pathToDraw = if (useAxionStyle) {
+            calculateArrowPathEx(arrowPath, arrowPaint, x = dx, y = dy)
+        } else {
+            val density = resources.displayMetrics.density
+            arrowPaint.strokeWidth = 4f * density
+            arrowPaint.style = Paint.Style.STROKE
+            calculateArrowPath(dx = dx, dy = dy)
+        }
+        canvas.drawPath(pathToDraw, arrowPaint)
         canvas.restore()
 
         if (trackingBackArrowLatency) {
