@@ -22,7 +22,8 @@ import com.android.systemui.qs.shared.ui.ElementKeys
 import androidx.compose.ui.unit.dp
 
 fun TransitionBuilder.quickQuickSettingsToQuickSettings(
-    animateTilesExpansion: () -> Boolean = { true }
+    animateTilesExpansion: () -> Boolean = { true },
+    animateBrightnessSlider: () -> Boolean = { true }
 ) {
 
     fractionRange(start = 0.43f) { fade(ElementKeys.QuickSettingsContent) }
@@ -32,6 +33,8 @@ fun TransitionBuilder.quickQuickSettingsToQuickSettings(
     anchoredTranslate(ElementKeys.QuickSettingsContent, ElementKeys.GridAnchor)
 
     sharedElement(ElementKeys.TileElementMatcher, enabled = animateTilesExpansion())
+    
+    sharedElement(ElementKeys.BrightnessSlider, enabled = animateBrightnessSlider())
 
     fractionRange(start = 0.01f, end = 0.2f) {
         fade(ElementKeys.DragHandle)
