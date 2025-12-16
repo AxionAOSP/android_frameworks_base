@@ -36,6 +36,7 @@ import com.android.systemui.animation.ShadeInterpolation
 import com.android.systemui.classifier.Classifier
 import com.android.systemui.classifier.domain.interactor.FalsingInteractor
 import com.android.systemui.common.ui.domain.interactor.ConfigurationInteractor
+import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.deviceentry.domain.interactor.DeviceEntryBypassInteractor
 import com.android.systemui.keyguard.domain.interactor.KeyguardTransitionInteractor
 import com.android.systemui.keyguard.shared.model.Edge
@@ -74,6 +75,8 @@ import com.android.systemui.util.asIndenting
 import com.android.systemui.util.kotlin.emitOnStart
 import com.android.systemui.util.printSection
 import com.android.systemui.util.println
+import com.android.systemui.util.settings.SecureSettings
+import com.android.systemui.util.settings.SettingsProxyExt.observerFlow
 import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -82,10 +85,13 @@ import java.io.PrintWriter
 import javax.inject.Named
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 
@@ -114,6 +120,8 @@ constructor(
     @Named(QSFragmentComposeModule.QS_USING_MEDIA_PLAYER) private val usingMedia: Boolean,
     private val uiEventLogger: UiEventLogger,
     @Assisted private val lifecycleScope: LifecycleCoroutineScope,
+    private val secureSettings: SecureSettings,
+    @Background private val backgroundDispatcher: CoroutineDispatcher,
 ) : Dumpable, ExclusiveActivatable() {
 
     val containerViewModel = containerViewModelFactory.create(supportsBrightnessMirroring = true)
@@ -189,6 +197,42 @@ constructor(
             initialValue = resources.getDimensionPixelSize(R.dimen.qqs_layout_padding_bottom),
             source = configurationInteractor.dimensionPixelSize(R.dimen.qqs_layout_padding_bottom),
         )
+
+    val isQQSBrightnessSliderEnabled by hydrator.hydratedStateOf(
+        traceName = "isQQSBrightnessSliderEnabled",
+        initialValue = true,
+        source = secureSettings
+            .observerFlow("qs_brightness_slider_enabled")
+            .onStart { emit(Unit) }
+            .map { secureSettings.getInt("qs_brightness_slider_enabled", 2) }
+            .map { value -> value == 2 }
+            .distinctUntilChanged()
+            .flowOn(backgroundDispatcher)
+    )
+    
+    val isQsBrightnessSliderEnabled by hydrator.hydratedStateOf(
+        traceName = "isQsBrightnessSliderEnabled",
+        initialValue = true,
+        source = secureSettings
+            .observerFlow("qs_brightness_slider_enabled")
+            .onStart { emit(Unit) }
+            .map { secureSettings.getInt("qs_brightness_slider_enabled", 2) }
+            .map { value -> value >= 1 }
+            .distinctUntilChanged()
+            .flowOn(backgroundDispatcher)
+    )
+    
+    val isQsBrightnessSliderTop by hydrator.hydratedStateOf(
+        traceName = "isQsBrightnessSliderTop",
+        initialValue = false,
+        source = secureSettings
+            .observerFlow("qs_brightness_slider_top")
+            .onStart { emit(Unit) }
+            .map { secureSettings.getInt("qs_brightness_slider_top", 0) }
+            .map { value -> value >= 1 }
+            .distinctUntilChanged()
+            .flowOn(backgroundDispatcher)
+    )
 
     // Starting with a non-zero value makes it so that it has a non-zero height on first expansion
     // This is important for `QuickSettingsControllerImpl.mMinExpansionHeight` to detect a "change".
@@ -323,6 +367,9 @@ constructor(
 
     val animateTilesExpansion: Boolean
         get() = inFirstPage && !mediaSuddenlyAppearingInLandscape
+
+    val animateBrightnessSlider: Boolean
+        get() = isQQSBrightnessSliderEnabled && isQsBrightnessSliderEnabled && isBrightnessSliderVisible
 
     val isEditing by
         hydrator.hydratedStateOf(
