@@ -184,6 +184,7 @@ constructor(
      * @param slotId The id of the lockscreen slot that the affordance is in
      */
     fun onQuickAffordanceTriggered(configKey: String, expandable: Expandable?, slotId: String) {
+        com.android.systemui.mistouch.MistouchInteractor.get().handleAffordanceLongClick()
         val (decodedSlotId, decodedConfigKey) = configKey.decode()
         val config =
             repository.get().selections.value[decodedSlotId]?.find { it.key == decodedConfigKey }
