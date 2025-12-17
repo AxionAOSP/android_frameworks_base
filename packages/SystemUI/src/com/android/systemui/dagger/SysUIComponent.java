@@ -80,7 +80,8 @@ import javax.inject.Provider;
         StartBinderLoggerModule.class,
         SystemUIModule.class,
         SystemUICoreStartableModule.class,
-        WallpaperModule.class})
+        WallpaperModule.class,
+        AxionStartableModule.class})
 public interface SysUIComponent {
 
     /**

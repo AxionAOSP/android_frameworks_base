@@ -43,7 +43,8 @@ import dagger.Subcomponent;
         SystemUIModule.class,
         SystemUICoreStartableModule.class,
         SysUIUnfoldModule.class,
-        WallpaperModule.class})
+        WallpaperModule.class,
+        AxionStartableModule.class})
 public interface ReferenceSysUIComponent extends SysUIComponent {
 
     /**
