@@ -19,6 +19,7 @@ package com.android.systemui.dagger
 import com.android.systemui.CoreStartable
 import com.android.systemui.edgelight.EdgeLightViewController
 import com.android.systemui.media.MediaViewController
+import com.android.systemui.mistouch.MistouchPreventionWindowController
 import com.android.systemui.pulse.PulseViewController
 import dagger.Binds
 import dagger.Module
@@ -44,4 +45,10 @@ abstract class AxionStartableModule {
     @IntoMap
     @ClassKey(PulseViewController::class)
     abstract fun bindPulseViewController(impl: PulseViewController): CoreStartable
+    
+    /** Inject into MistouchPreventionWindowController. */
+    @Binds
+    @IntoMap
+    @ClassKey(MistouchPreventionWindowController::class)
+    abstract fun bindMistouchPreventionWindowController(impl: MistouchPreventionWindowController): CoreStartable
 }

@@ -51,4 +51,16 @@
     <!-- Udfps fingerprint animation -->
     <dimen name="udfps_animation_size">180dp</dimen>
     <dimen name="udfps_animation_offset">0dp</dimen>
+    
+    <!-- Mistouch -->
+    <dimen name="keyguard_mistouch_prevention_description_margin_top">227px</dimen>
+    <dimen name="keyguard_mistouch_prevention_description_text_size">39px</dimen>
+    <dimen name="keyguard_mistouch_prevention_description_width">358px</dimen>
+    <dimen name="keyguard_mistouch_prevention_exit_margin_top">40px</dimen>
+    <dimen name="keyguard_mistouch_prevention_exit_text_size">37px</dimen>
+    <dimen name="keyguard_mistouch_prevention_outline_height">1301px</dimen>
+    <dimen name="keyguard_mistouch_prevention_outline_margin_top">437px</dimen>
+    <dimen name="keyguard_mistouch_prevention_title_and_exit_width">783px</dimen>
+    <dimen name="keyguard_mistouch_prevention_title_margin_top">182px</dimen>
+    <dimen name="keyguard_mistouch_prevention_title_text_size">61px</dimen>
 </resources>

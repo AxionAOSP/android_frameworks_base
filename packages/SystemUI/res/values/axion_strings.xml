@@ -50,4 +50,9 @@
     <string name="ringer_silent">Silent</string>
     <string name="ringer_normal">Sound</string>
     <string name="widget_unknown">Widget</string>
+    
+    <!-- Mistouch -->
+    <string name="keyguard_mistouch_description">Remove anything covering this area</string>
+    <string name="keyguard_mistouch_exit_desciption">Press volume up key to exit</string>
+    <string name="keyguard_mistouch_title">Mistouch prevention</string>
 </resources>
