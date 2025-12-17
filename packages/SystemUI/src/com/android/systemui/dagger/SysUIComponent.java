@@ -71,7 +71,8 @@ import javax.inject.Provider;
         QsFrameTranslateModule.class,
         SystemUIModule.class,
         SystemUICoreStartableModule.class,
-        ReferenceSystemUIModule.class})
+        ReferenceSystemUIModule.class,
+        AxionStartableModule.class})
 public interface SysUIComponent {
 
     /**
