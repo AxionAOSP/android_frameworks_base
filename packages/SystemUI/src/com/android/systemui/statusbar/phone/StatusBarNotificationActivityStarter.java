@@ -83,6 +83,8 @@ import com.android.systemui.statusbar.notification.row.OnUserInteractionCallback
 import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.wmshell.BubblesManager;
 
+import com.axion.applocker.AxAppLockerHelper;
+
 import dagger.Lazy;
 
 import java.util.List;
@@ -257,6 +259,13 @@ public class StatusBarNotificationActivityStarter implements NotificationActivit
     @Override
     public void onNotificationClicked(@NonNull NotificationEntry entry,
             @NonNull ExpandableNotificationRow row) {
+        String packageName = entry.getSbn().getPackageName();
+        if (AxAppLockerHelper.get(mContext).isAppLockedWithoutCache(packageName)) {
+            int userId = entry.getSbn().getUserId();
+            AxAppLockerHelper.get(mContext).promptUnlock(packageName, userId);
+            return;
+        }
+        
         mLogger.logStartingActivityFromClick(entry, row.isHeadsUpState(),
                 mKeyguardStateController.isVisible(),
                 mNotificationShadeWindowController.getPanelExpanded());

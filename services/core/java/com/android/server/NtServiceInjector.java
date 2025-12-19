@@ -18,6 +18,7 @@ package com.android.server;
 import android.content.Context;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.pm.PackageManagerService;
+import com.android.server.wm.ActivityTaskManagerService;
 import com.android.server.wm.WindowManagerService;
 
 public class NtServiceInjector {
@@ -59,6 +60,10 @@ public class NtServiceInjector {
 
     public ActivityManagerService getActivityManagerService() {
         return mService;
+    }
+
+    public ActivityTaskManagerService getActivityTaskManagerService() {
+        return mService != null ? mService.mActivityTaskManager : null;
     }
 
     public PackageManagerService getPackageManagerService() {

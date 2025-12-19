@@ -50,6 +50,7 @@ import android.annotation.SpecialUsers.CannotBeSpecialUser;
 import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.app.AppGlobals;
+import android.app.AxSandboxManager;
 import android.app.backup.BackupManager;
 import android.app.compat.CompatChanges;
 import android.app.job.JobInfo;
@@ -455,6 +456,9 @@ public class SettingsProvider extends ContentProvider {
                         Context.DEVICE_ID_DEFAULT, setting, isTrackingGeneration(args));
             }
             case Settings.CALL_METHOD_GET_GLOBAL -> {
+                if (shouldSpoofDevOptions(name)) {
+                    return Bundle.forPair(Settings.NameValueTable.VALUE, "0");
+                }
                 Setting setting = getGlobalSetting(name);
                 // Global settings are applicable only for the default device, hence pass
                 // Context.DEVICE_ID_DEFAULT as the deviceId.
@@ -616,6 +620,34 @@ public class SettingsProvider extends ContentProvider {
         }
 
         return null;
+    }
+    
+    private boolean shouldSpoofDevOptions(String settingName) {
+        if (!Settings.Global.ADB_ENABLED.equals(settingName) 
+                && !Settings.Global.DEVELOPMENT_SETTINGS_ENABLED.equals(settingName)) {
+            return false;
+        }
+        
+        String callingPackage = getCallingPackage();
+        if (callingPackage == null) return false;
+        
+        if (callingPackage.startsWith("com.android.") 
+                || callingPackage.startsWith("com.google.android.")) {
+            return false;
+        }
+        
+        try {
+            AxSandboxManager sandboxManager = 
+                    getContext().getSystemService(AxSandboxManager.class);
+            if (sandboxManager != null && sandboxManager.isDevOptionsHidden(callingPackage)) {
+                Slog.d(LOG_TAG, "Spoofing dev option " + settingName 
+                        + " for app in hide list: " + callingPackage);
+                return true;
+            }
+        } catch (Exception e) {
+            Slog.w(LOG_TAG, "Failed to check AxSandboxManager for " + callingPackage, e);
+        }
+        return false;
     }
 
     @Override
