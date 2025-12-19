@@ -49,6 +49,7 @@ import com.android.wm.shell.startingsurface.StartingSurface;
 import com.android.wm.shell.sysui.ShellInterface;
 import com.android.wm.shell.taskview.TaskViewFactory;
 import com.android.wm.shell.windowdecor.viewholder.AppHandles;
+import com.axion.applocker.AxAppLockerHelper;
 
 import dagger.BindsInstance;
 import dagger.Subcomponent;
@@ -181,6 +182,8 @@ public interface SysUIComponent {
     @SysUISingleton
     NTForbiddenSwipeDownQSController forbiddenSwipeDownQSController();
 
+    @SysUISingleton
+    AxAppLockerHelper getAxAppLockerHelper();
     /**
      * Returns {@link CoreStartable}s that should be started with the application.
      */

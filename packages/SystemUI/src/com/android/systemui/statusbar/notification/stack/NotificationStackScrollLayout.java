@@ -148,6 +148,9 @@ import com.android.systemui.util.NTBoosterController;
 import com.axion.systemui.statusbar.notification.stack.EssentialSectionBackgroundDelegate;
 import com.axion.systemui.statusbar.notification.stack.EssentialSectionHeaderView;
 
+import com.axion.applocker.AxAppLockerHelper;
+import android.service.notification.StatusBarNotification;
+
 import com.google.errorprone.annotations.CompileTimeConstant;
 
 import java.io.PrintWriter;
@@ -7270,5 +7273,23 @@ public class NotificationStackScrollLayout
         if (SPEW) {
             Log.v(TAG, logMsg);
         }
+    }
+
+    public void onAppLockerUpdate() {
+        int childCount = getChildCount();
+        for (int i = 0; i < childCount; i++) {
+            ExpandableView child = getChildAtIndex(i);
+            if (child instanceof ExpandableNotificationRow) {
+                ExpandableNotificationRow row = (ExpandableNotificationRow) child;
+                NotificationEntry entry = row.getEntry();
+                if (entry != null) {
+                    StatusBarNotification sbn = entry.getSbn();
+                    if (!AxAppLockerHelper.get(getContext()).isAppLocked(sbn.getPackageName())) {
+                        row.setHeadsUpAnimatingAway(row.isHeadsUpAnimatingAway());
+                    }
+                }
+            }
+        }
+        updateContentHeight();
     }
 }

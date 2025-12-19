@@ -99,6 +99,7 @@ import android.content.pm.Signature;
 import android.content.pm.SigningDetails;
 import android.content.pm.SigningInfo;
 import android.content.pm.UserInfo;
+import android.app.ActivityManagerInternal;
 import android.content.pm.UserPackage;
 import android.content.pm.VersionedPackage;
 import android.os.Binder;
@@ -140,6 +141,7 @@ import com.android.internal.util.IndentingPrintWriter;
 import com.android.internal.util.Preconditions;
 import com.android.modules.utils.TypedXmlSerializer;
 import com.android.server.LocalManagerRegistry;
+import com.android.server.LocalServices;
 import com.android.server.ondeviceintelligence.OnDeviceIntelligenceManagerLocal;
 import com.android.server.pm.dex.DexManager;
 import com.android.server.pm.dex.PackageDexUsage;
@@ -161,6 +163,7 @@ import com.android.server.utils.WatchedLongSparseArray;
 import com.android.server.utils.WatchedSparseBooleanArray;
 import com.android.server.utils.WatchedSparseIntArray;
 import com.android.server.wm.ActivityTaskManagerInternal;
+import com.android.server.wm.AxSandboxService;
 
 import libcore.util.EmptyArray;
 
@@ -487,6 +490,123 @@ public class ComputerEngine implements Computer {
         // Used to reference PMS attributes that are primitives and which are not
         // updated under control of the PMS lock.
         mService = args.service;
+    }
+
+    private boolean shouldHideFromCaller(int callingUid, String targetPackage) {
+        if (!android.os.SystemProperties.getBoolean("sys.boot_completed", false)) return false;
+        if (targetPackage == null) return false;
+        
+        if (!AxSandboxService.get().isPackageHidden(targetPackage)) return false;
+
+        if (Process.isIsolated(callingUid) || Process.isSdkSandboxUid(callingUid)) {
+            return false;
+        }
+
+        String callingPkg = null;
+        int callingPid = Binder.getCallingPid();
+        ActivityManagerInternal ami = LocalServices.getService(ActivityManagerInternal.class);
+        if (ami != null) {
+            callingPkg = ami.getPackageNameByPid(callingPid);
+        }
+
+        if (callingPkg == null || TextUtils.isEmpty(callingPkg)) {
+            return false;
+        }
+        
+        boolean isSystemUid = callingUid < Process.FIRST_APPLICATION_UID;
+        boolean isLauncher = callingPkg.contains("com.android.launcher3");
+        boolean isSettings = callingPkg.contains("com.android.settings");
+        boolean isPlayStore = callingPkg.contains("com.android.vending");
+        boolean isCallerHideApps = isLauncher || isSettings || isPlayStore;
+        
+        if (isSystemUid && !isCallerHideApps) {
+            return false;
+        }
+        
+        if (callingPkg.contains(AxSandboxService.SANDBOX_PACKAGE)) {
+            return false;
+        }
+
+        if (callingPkg.contains(targetPackage)) {
+            return false;
+        }
+
+        if (targetPackage.equals("com.android.vending")) {
+            return false;
+        }
+        
+        return isCallerHideApps;
+    }
+
+    private final boolean isAppDetached(String packageName) {
+        if (!android.os.SystemProperties.getBoolean(
+            "sys.boot_completed", false)) {
+            return false;
+        }
+        
+        if (packageName == null || TextUtils.isEmpty(packageName)) {
+            return false;
+        }
+        
+        if (!AxSandboxService.get().isPackageSandboxed(packageName)) {
+            return false;
+        }
+        
+        final int callingUid = Binder.getCallingUid();
+
+        String callingPackage = null;
+        int callingPid = Binder.getCallingPid();
+        ActivityManagerInternal ami = LocalServices.getService(ActivityManagerInternal.class);
+        if (ami != null) {
+            callingPackage = ami.getPackageNameByPid(callingPid);
+        }
+
+        if (callingPackage == null || TextUtils.isEmpty(callingPackage)) {
+            return false;
+        }
+
+        // app can be always hidden if calling package is play store
+        boolean isFinsky = callingPackage.contains("com.android.vending");
+
+        if (isFinsky) return true;
+        
+        if (packageName == null || TextUtils.isEmpty(packageName)) {
+            return false;
+        }
+        
+        // the calling package is itself, no need to hide
+        if (callingPackage.contains(packageName)) return false;
+
+        // we only want to hide these apps from playstore 
+        // to avoid these apps from being updated, so abort if
+        // calling package is not finsky
+        if (packageName.contains("youtube") 
+            || packageName.contains("microg")
+            || packageName.contains("revanced")
+            || packageName.contains("gms")) {
+            return false;
+        }
+
+        // this is for banking apps, but we need to make sure first that 
+        // we arent hiding app infos from sandbox/system processes
+        return !isCallerSystem(callingUid)
+            && !Process.isIsolated(callingUid)
+            && !Process.isSdkSandboxUid(callingUid);
+    }
+    
+    private final boolean isCallerSystem(int callingUid) {
+        if (isSystemOrRootOrShell(callingUid)) {
+            return true;
+        }
+        final SettingBase callingPs = mSettings.getSettingBase(UserHandle.getAppId(callingUid));
+        if (callingPs == null) return false;
+        final int callingFlags = callingPs.getFlags();
+        if (((callingFlags & ApplicationInfo.FLAG_SYSTEM) == ApplicationInfo.FLAG_SYSTEM)
+                || ((callingFlags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)
+                        == ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) {
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -992,6 +1112,7 @@ public class ComputerEngine implements Computer {
 
     public final ApplicationInfo getApplicationInfo(String packageName,
             @PackageManager.ApplicationInfoFlagsBits long flags, int userId) {
+        if (isAppDetached(packageName)) return null;
         return getApplicationInfoInternal(packageName, flags, Binder.getCallingUid(), userId);
     }
 
@@ -1005,6 +1126,7 @@ public class ComputerEngine implements Computer {
             @PackageManager.ApplicationInfoFlagsBits long flags,
             int filterCallingUid, int userId) {
         if (!mUserManager.exists(userId)) return null;
+        if (isAppDetached(packageName)) return null;
         flags = updateFlagsForApplication(flags, userId);
 
         if (!isRecentsAccessingChildProfiles(Binder.getCallingUid(), userId)) {
@@ -1014,6 +1136,20 @@ public class ComputerEngine implements Computer {
         }
 
         return getApplicationInfoInternalBody(packageName, flags, filterCallingUid, userId);
+    }
+
+    public ParceledListSlice<PackageInfo> recreatePackageList(
+            int callingUid, Context context, int userId, ParceledListSlice<PackageInfo> list) {
+        List<PackageInfo> appList = new ArrayList<>(list.getList());
+        appList.removeIf(info -> isAppDetached(info.packageName));
+        return new ParceledListSlice<>(appList);
+    }
+
+    public List<ApplicationInfo> recreateApplicationList(
+            int callingUid, Context context, int userId, List<ApplicationInfo> list) {
+        List<ApplicationInfo> appList = new ArrayList<>(list);
+        appList.removeIf(info -> isAppDetached(info.packageName));
+        return appList;
     }
 
     protected ApplicationInfo getApplicationInfoInternalBody(String packageName,
@@ -1646,6 +1782,7 @@ public class ComputerEngine implements Computer {
 
     public final PackageInfo getPackageInfo(String packageName,
             @PackageManager.PackageInfoFlagsBits long flags, int userId) {
+        if (isAppDetached(packageName)) return null;
         return getPackageInfoInternal(packageName, PackageManager.VERSION_CODE_HIGHEST,
                 flags, Binder.getCallingUid(), userId);
     }
@@ -1769,7 +1906,8 @@ public class ComputerEngine implements Computer {
         enforceCrossUserPermission(callingUid, userId, false /* requireFullPermission */,
                 false /* checkShell */, "get installed packages");
 
-        return getInstalledPackagesBody(flags, userId, callingUid);
+        return recreatePackageList(callingUid, mContext,
+                        userId, getInstalledPackagesBody(flags, userId, callingUid));
     }
 
     protected ParceledListSlice<PackageInfo> getInstalledPackagesBody(long flags, int userId,
@@ -2598,6 +2736,9 @@ public class ComputerEngine implements Computer {
         final boolean callerIsInstantApp = instantAppPkgName != null;
         final boolean packageArchivedForUser = ps != null && PackageArchiver.isArchived(
                 ps.getUserStateOrDefault(userId));
+        if (ps != null && isAppDetached(ps.getPackageName())) {
+            return true;
+        }
         // Don't treat hiddenUntilInstalled as an uninstalled state, phone app needs to access
         // these hidden application details to customize carrier apps. Also, allowing the system
         // caller accessing to application across users.
@@ -4752,6 +4893,9 @@ public class ComputerEngine implements Computer {
                     if (shouldFilterApplication(ps, callingUid, userId)) {
                         continue;
                     }
+                    if (shouldHideFromCaller(callingUid, ps.getPackageName())) {
+                        continue;
+                    }
                     ai = PackageInfoUtils.generateApplicationInfo(ps.getPkg(), effectiveFlags,
                             ps.getUserStateOrDefault(userId), userId, ps);
                     if (ai != null) {
@@ -4783,6 +4927,9 @@ public class ComputerEngine implements Computer {
                 if (shouldFilterApplication(packageState, callingUid, userId)) {
                     continue;
                 }
+                if (shouldHideFromCaller(callingUid, packageState.getPackageName())) {
+                    continue;
+                }
                 ApplicationInfo ai = PackageInfoUtils.generateApplicationInfo(pkg, flags,
                         packageState.getUserStateOrDefault(userId), userId, packageState);
                 if (ai != null) {
@@ -4792,7 +4939,7 @@ public class ComputerEngine implements Computer {
             }
         }
 
-        return list;
+        return recreateApplicationList(callingUid, mContext, userId, list);
     }
 
     @Nullable

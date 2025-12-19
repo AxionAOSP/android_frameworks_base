@@ -65,6 +65,7 @@ import com.android.systemui.qs.external.TileLifecycleManager.TileChangeListener;
 import com.android.systemui.qs.logging.QSLogger;
 import com.android.systemui.qs.tileimpl.QSTileImpl;
 import com.android.systemui.settings.DisplayTracker;
+import com.axion.applocker.AxAppLockerHelper;
 
 import dagger.Lazy;
 import dagger.assisted.Assisted;
@@ -414,6 +415,12 @@ public class CustomTile extends QSTileImpl<State> implements TileChangeListener,
         if (mTile.getState() == Tile.STATE_UNAVAILABLE) {
             return;
         }
+
+        if (AxAppLockerHelper.get(mContext).isAppLocked(mComponent.getPackageName())) {
+            AxAppLockerHelper.get(mContext).promptUnlock(mComponent.getPackageName(), mUser);
+            return;
+        }
+
         mExpandableClicked = expandable;
         try {
             if (DEBUG) Log.d(TAG, "Adding token");

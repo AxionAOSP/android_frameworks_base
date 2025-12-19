@@ -101,6 +101,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.inject.Inject;
+import com.axion.applocker.AxAppLockerHelper;
 
 /**
  * Handles keeping track of the current user, profiles, and various things related to hiding
@@ -729,6 +730,10 @@ public class NotificationLockscreenUserManagerImpl implements
      */
     public @RedactionType int getRedactionType(NotificationEntry ent) {
         int userId = ent.getSbn().getUserId();
+
+        if (AxAppLockerHelper.get(mContext).isAppLocked(ent.getSbn().getPackageName())) {
+            return REDACTION_TYPE_PUBLIC;
+        }
 
         boolean isCurrentUserRedactingNotifs =
                 !userAllowsPrivateNotificationsInPublic(mCurrentUserId);

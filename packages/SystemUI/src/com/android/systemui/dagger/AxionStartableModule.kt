@@ -21,6 +21,7 @@ import com.android.systemui.edgelight.EdgeLightViewController
 import com.android.systemui.media.MediaViewController
 import com.android.systemui.mistouch.MistouchPreventionWindowController
 import com.android.systemui.pulse.PulseViewController
+import com.axion.applocker.AxAppLockerHelper
 import dagger.Binds
 import dagger.Module
 import dagger.multibindings.ClassKey
@@ -51,4 +52,10 @@ abstract class AxionStartableModule {
     @IntoMap
     @ClassKey(MistouchPreventionWindowController::class)
     abstract fun bindMistouchPreventionWindowController(impl: MistouchPreventionWindowController): CoreStartable
+    
+    /** Inject into AxAppLockerHelper. */
+    @Binds
+    @IntoMap
+    @ClassKey(AxAppLockerHelper::class)
+    abstract fun bindAxAppLockerHelper(impl: AxAppLockerHelper): CoreStartable
 }
