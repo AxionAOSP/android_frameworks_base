@@ -91,6 +91,12 @@ public final class RolesUtils {
                             PERMISSION_NEARBY_DEVICES, PERMISSION_POST_NOTIFICATIONS)
     );
 
+    public static final Set<String> NLS_PROFILES = Set.of(
+            DEVICE_PROFILE_WATCH,
+            DEVICE_PROFILE_GLASSES,
+            DEVICE_PROFILE_APP_STREAMING,
+            DEVICE_PROFILE_COMPUTER);
+
     private static final Set<String> ROLELESS_DEVICE_PROFILES;
     static {
         final Set<String> profiles = new ArraySet<>();

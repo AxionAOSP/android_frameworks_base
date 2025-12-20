@@ -318,6 +318,7 @@ public final class AssociationRequest implements Parcelable {
             boolean forceConfirmation,
             boolean skipRoleGrant,
             @Nullable Icon deviceIcon) {
+        validateDisplayName(displayName);
         mSingleDevice = singleDevice;
         mDeviceFilters = requireNonNull(deviceFilters);
         mDeviceProfile = deviceProfile;
@@ -431,6 +432,7 @@ public final class AssociationRequest implements Parcelable {
 
     /** @hide */
     public void setDisplayName(CharSequence displayName) {
+        validateDisplayName(displayName);
         mDisplayName = displayName;
     }
 
@@ -522,11 +524,7 @@ public final class AssociationRequest implements Parcelable {
         public Builder setDisplayName(@NonNull CharSequence displayName) {
             checkNotUsed();
             mDisplayName = requireNonNull(displayName);
-            if (displayName.length() > DISPLAY_NAME_LENGTH_LIMIT) {
-                throw new IllegalArgumentException("Length of the display name must be at most "
-                        + DISPLAY_NAME_LENGTH_LIMIT + " characters");
-            }
-
+            validateDisplayName(displayName);
             return this;
         }
 
@@ -821,4 +819,11 @@ public final class AssociationRequest implements Parcelable {
             return new AssociationRequest(in);
         }
     };
+
+    private static void validateDisplayName(@Nullable CharSequence displayName) {
+        if (displayName != null && displayName.length() > DISPLAY_NAME_LENGTH_LIMIT) {
+            throw new IllegalArgumentException("Length of the display name must be at most "
+                    + DISPLAY_NAME_LENGTH_LIMIT + " characters");
+        }
+    }
 }
