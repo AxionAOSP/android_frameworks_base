@@ -28,10 +28,10 @@ class NTypeLargeClockView @JvmOverloads constructor(
     override val tagName = "NTypeLargeClockView"
 
     override val yOffset: Float
-        get() = context.resources.displayMetrics.density * 100f
+        get() = context.resources.displayMetrics.density * 130f
 
     override val digitScale: Float
-        get() = scaleRatio * 1.5f
+        get() = scaleRatio * 1.4f
 
     override val digitResIds = intArrayOf(
         R.drawable.ntype_0,
