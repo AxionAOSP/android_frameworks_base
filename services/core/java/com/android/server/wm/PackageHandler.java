@@ -65,6 +65,15 @@ class PackageHandler {
                     } else if (Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(intent.getAction())) {
                         UiThread.getHandler().post(() -> {
                             mGameListManager.removeGame(pkg);
+                            if (AxSandboxService.get().isAppLocked(pkg)) {
+                                AxSandboxService.get().removeLockedApp(pkg);
+                            }
+                            if (AxSandboxService.get().isPackageHidden(pkg)) {
+                                AxSandboxService.get().setPackageHidden(pkg, false);
+                            }
+                            if (AxSandboxService.get().isPackageSandboxed(pkg)) {
+                                AxSandboxService.get().removeSandboxedPackage(pkg);
+                            }
                         });
                     }
                 });
