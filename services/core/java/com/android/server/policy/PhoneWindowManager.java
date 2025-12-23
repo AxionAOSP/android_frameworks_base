@@ -1128,8 +1128,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
         if (!handled) {
             if ((event.getFlags() & KeyEvent.FLAG_LONG_PRESS) == 0) {
-                // Abort possibly stuck animations only when power key up without long press case.
-                mHandler.post(mWindowManagerFuncs::triggerAnimationFailsafe);
                 // See if we deferred screen wake because long press power for torch is enabled
                 if (mResolvedLongPressOnPowerBehavior == LONG_PRESS_POWER_TORCH &&
                         (!isScreenOn() || isDozeMode())) {
