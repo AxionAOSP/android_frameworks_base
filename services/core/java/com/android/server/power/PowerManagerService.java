@@ -7676,8 +7676,21 @@ public final class PowerManagerService extends SystemService
             throw new IllegalArgumentException("event time must not be in the future");
         }
 
-        mContext.enforceCallingOrSelfPermission(android.Manifest.permission.DEVICE_POWER,
-                /* message= */ null);
+        final int callingUid = Binder.getCallingUid();
+        final String[] packages = mContext.getPackageManager().getPackagesForUid(callingUid);
+        boolean isLauncher = false;
+        if (packages != null) {
+            for (String pkg : packages) {
+                if ("com.android.launcher3".equals(pkg)) {
+                    isLauncher = true;
+                    break;
+                }
+            }
+        }
+        if (!isLauncher) {
+            mContext.enforceCallingOrSelfPermission(android.Manifest.permission.DEVICE_POWER,
+                    /* message= */ null);
+        }
 
         boolean isNoDoze = (flags & PowerManager.GO_TO_SLEEP_FLAG_NO_DOZE) != 0;
         int uid = Binder.getCallingUid();
