@@ -10558,7 +10558,8 @@ public class WindowManagerService extends IWindowManager.Stub
     }
 
     boolean getDisableSecureWindows() {
-        return mDisableSecureWindows;
+        return Settings.Secure.getInt(mContext.getContentResolver(),
+                "window_ignore_secure", 0) == 1 || mDisableSecureWindows;
     }
 
     /**
