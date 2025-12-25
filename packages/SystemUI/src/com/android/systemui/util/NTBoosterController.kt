@@ -21,6 +21,7 @@ class NTBoosterController private constructor() {
 
     private var expandFraction: Float = 0.0f
     private var enableBoost: Boolean = false
+    private var unlockBoostReleaseRunnable: Runnable? = null
 
     fun acquireNotificationStackBoost() {
         acquireAnimationBoost(NTCpuBindController.REQUEST_ANIMATION_BOOST_TYPE_TRACKING_NOTIFICATION_STACK_SCROLL_LAYOUT, false)
@@ -31,6 +32,7 @@ class NTBoosterController private constructor() {
     }
 
     fun acquireNPVExpandingBoost() {
+        cancelPendingUnlockBoostRelease()
         controller.requestLimitOtherProcessCPU(NTCpuBindController.REQUEST_LIMIT_OTHER_PROCESS_CPU_WHEN_NOTIFICATION_EXPAND)
         acquireAnimationBoost(NTCpuBindController.REQUEST_ANIMATION_BOOST_TYPE_SWIPE_DOWN_NOTIFICATION_ANIMATION, true)
     }
@@ -65,6 +67,7 @@ class NTBoosterController private constructor() {
     }
 
     fun acquireExpansionAnimationBoost() {
+        cancelPendingUnlockBoostRelease()
         controller.animationBoostOn(NTCpuBindController.REQUEST_ANIMATION_BOOST_TYPE_SPEED_UP_QS_EXPANSION_ANIMATION)
     }
 
@@ -119,13 +122,24 @@ class NTBoosterController private constructor() {
 
     fun acquireKeyguardGoneAnimationBoost() {
         setLimitOtherAppCpu(true)
+        acquireUnlockAnimationBoost()
     }
 
     fun releaseKeyguardGoneAnimationBoost() {
         setLimitOtherAppCpu(false)
-        TaskWorkerManager.instance.taskWorker.postDelayed({
+        unlockBoostReleaseRunnable = Runnable {
             releaseUnlockAnimationBoost()
-        }, 800L)
+            unlockBoostReleaseRunnable = null
+        }
+        TaskWorkerManager.instance.taskWorker.postDelayed(unlockBoostReleaseRunnable!!, 1200L)
+    }
+
+    private fun cancelPendingUnlockBoostRelease() {
+        unlockBoostReleaseRunnable?.let {
+            TaskWorkerManager.instance.taskWorker.removeCallback(it)
+            releaseUnlockAnimationBoost()
+            unlockBoostReleaseRunnable = null
+        }
     }
 
     private fun acquireAnimationBoost(sceneId: Int, needBindBigCore: Boolean = false) {
