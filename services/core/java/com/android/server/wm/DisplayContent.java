@@ -4122,6 +4122,10 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
 
         if (newFocus != null && isDefaultDisplay) {
             NtRefreshRateController.get().updateFocusedApp(newFocus);
+            
+            final String packageName = newFocus.packageName;
+            final boolean isLauncherVisible = newFocus.isActivityTypeHome();
+            com.android.server.am.AxBurstEngine.setFocusedApp(packageName, isLauncherVisible);
         }
         getInputMonitor().setFocusedAppLw(newFocus);
         return true;

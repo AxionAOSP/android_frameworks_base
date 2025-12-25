@@ -31,6 +31,8 @@ import com.android.server.NtServiceInjector;
 import com.android.server.ServiceThread;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -46,6 +48,15 @@ public class AxBurstEngine {
     private final ConcurrentHashMap<Integer, ProcessState> mProcessStates = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, ThreadBoost> mBoostedThreads = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, Integer> mPendingOomAdj = new ConcurrentHashMap<>();
+    
+    private volatile String mFocusedAppPackage = null;
+    private volatile String mPreviousFocusedAppPackage = null;
+    private volatile boolean mIsLauncherVisible = false;
+    private final Set<String> mPerceptibleApps = ConcurrentHashMap.newKeySet();
+    private final Set<String> mProtectedMediaPackages = ConcurrentHashMap.newKeySet();
+    
+    private static final long FAST_SWITCH_DELAY_MS = 1500;
+    private static final int MSG_DEMOTE_PREVIOUS_APP = 1;
     
     private AxBurstEngine() {
         mWorkerThread = new ServiceThread(
@@ -86,9 +97,74 @@ public class AxBurstEngine {
         return get().getOptAdj(pid, adj);
     }
 
+    public static void setFocusedApp(String packageName, boolean isLauncherVisible) {
+        if (!isSupported()) return;
+        get().handleFocusedAppChanged(packageName, isLauncherVisible);
+    }
+
+    public static void onTaskRemoved(int taskId, String packageName) {
+        if (!isSupported() || packageName == null) return;
+        get().handleTaskRemoved(packageName);
+    }
+
+    public static void setMediaPlayerActive(String packageName, boolean active) {
+        if (!isSupported() || packageName == null) return;
+        get().handleMediaPlayerState(packageName, active);
+    }
+
     private int getOptAdj(int pid, int adj) {
         Integer optAdj = mPendingOomAdj.get(pid);
         return optAdj != null ? optAdj : adj;
+    }
+
+    private void handleFocusedAppChanged(String packageName, boolean isLauncherVisible) {
+        final String prevFocused = mFocusedAppPackage;
+        mFocusedAppPackage = packageName;
+        mIsLauncherVisible = isLauncherVisible;
+
+        mHandler.removeMessages(MSG_DEMOTE_PREVIOUS_APP);
+
+        if (prevFocused != null && !prevFocused.equals(packageName)) {
+            mPreviousFocusedAppPackage = prevFocused;
+            
+            mHandler.postDelayed(() -> {
+                if (mPreviousFocusedAppPackage != null && mPreviousFocusedAppPackage.equals(prevFocused)) {
+                    mPerceptibleApps.add(prevFocused);
+                    mPreviousFocusedAppPackage = null;
+                    AxUtils.logger(TAG + ": marked perceptible (delayed) → " + prevFocused);
+                    rescheduleAllProcesses();
+                }
+            }, FAST_SWITCH_DELAY_MS);
+        }
+
+        AxUtils.logger(TAG + ": focused_app → " + packageName 
+                + " launcher_visible=" + isLauncherVisible
+                + " prev=" + prevFocused);
+
+        mHandler.post(this::rescheduleAllProcesses);
+    }
+
+    private void handleTaskRemoved(String packageName) {
+        if (mPerceptibleApps.remove(packageName)) {
+            AxUtils.logger(TAG + ": cleared perceptible → " + packageName);
+        }
+    }
+
+    private void handleMediaPlayerState(String packageName, boolean active) {
+        if (active) {
+            mProtectedMediaPackages.add(packageName);
+            AxUtils.logger(TAG + ": media_protected → " + packageName);
+        } else {
+            mProtectedMediaPackages.remove(packageName);
+            AxUtils.logger(TAG + ": media_unprotected → " + packageName);
+        }
+        mHandler.post(this::rescheduleAllProcesses);
+    }
+
+    private void rescheduleAllProcesses() {
+        for (ProcessState ps : mProcessStates.values()) {
+            setSchedulingPolicy(ps);
+        }
     }
 
     private void handleProcessScheduling(int pid, int group, String name) {
@@ -113,9 +189,9 @@ public class AxBurstEngine {
 
     private void setSchedulingPolicy(ProcessState ps) {
         final boolean isPerfProcess = ps.isUiPerfPkg;
-        final boolean isTop = ps.isUiProc;
         final boolean isPerfBlack = ps.isBlacklisted;
         final int pid = ps.pid;
+        final String packageName = ps.packageName;
         
         if (!AxUtils.checkTid(pid)) {
             mProcessStates.remove(pid);
@@ -126,46 +202,42 @@ public class AxBurstEngine {
             mPendingOomAdj.put(pid, ps.adj);
         }
 
+        final boolean isFocusedApp = packageName != null && packageName.equals(mFocusedAppPackage);
+        final boolean isProtectedMedia = packageName != null && mProtectedMediaPackages.contains(packageName);
+        final boolean isTargetingTop = ps.group == THREAD_GROUP_TOP_APP;
+        final boolean isBg = ps.group == THREAD_GROUP_BACKGROUND || ps.group == THREAD_GROUP_RESTRICTED;
+
+        int targetGroup = ps.group;
+        int affinity = AFFINITY_LITTLE;
+        if (isPerfProcess && !isBg) {
+            targetGroup = AxUtils.THREAD_GROUP_SVP;
+            affinity = AFFINITY_BIG;
+        } else if (isFocusedApp) {
+            targetGroup = THREAD_GROUP_TOP_APP;
+            affinity = AFFINITY_ALL;
+        } else if (isProtectedMedia && isTargetingTop) {
+            targetGroup = THREAD_GROUP_TOP_APP;
+            affinity = AFFINITY_ALL;
+        } else if (isProtectedMedia) {
+            targetGroup = THREAD_GROUP_DEFAULT;
+            affinity = AFFINITY_BALANCED;
+        } else if (ps.group == THREAD_GROUP_TOP_APP) {
+            if (mIsLauncherVisible) {
+                targetGroup = THREAD_GROUP_DEFAULT;
+            } else {
+                targetGroup = AxUtils.THREAD_GROUP_NT_FOREGROUND;
+            }
+            affinity = AFFINITY_BALANCED;
+        } else if (isPerfBlack) {
+            targetGroup = isBg ? THREAD_GROUP_BACKGROUND : AxUtils.THREAD_GROUP_NT_FOREGROUND;
+            affinity = AFFINITY_BALANCED;
+        } else if (!isBg) {
+            affinity = ps.group == THREAD_GROUP_TOP_APP ? AFFINITY_ALL : AFFINITY_BALANCED;
+        }
+
         try {
-            if (isPerfBlack && !isTop) {
-                final boolean isBg = ps.group == THREAD_GROUP_BACKGROUND;
-
-                final int lowPrioGroup = isBg 
-                        ? THREAD_GROUP_BACKGROUND
-                        : AxUtils.THREAD_GROUP_NT_FOREGROUND;
-
-                Process.setProcessGroup(pid, lowPrioGroup);
-                Process.setThreadGroupAndCpuset(pid, lowPrioGroup);
-                Process.setThreadAffinity(pid, AFFINITY_BALANCED);
-
-                AxUtils.logger(TAG + ": " + "limit "
-                        + "blacklist → cgroup=" + lowPrioGroup
-                        + " proc=" + ps.name);
-                return;
-            }
-
-            if (isPerfProcess) {
-                final int perfAffinity = isTop ? AFFINITY_BIG : AFFINITY_ALL;
-                final int perfGroup = isTop
-                        ? AxUtils.THREAD_GROUP_SVP
-                        : THREAD_GROUP_DEFAULT;
-
-                final int policy = isTop ? SCHED_RR | SCHED_RESET_ON_FORK : SCHED_OTHER;
-                final int prio = isTop ? 1 : 0;
-                Process.setProcessGroup(pid, perfGroup);
-                Process.setThreadGroupAndCpuset(pid, perfGroup);
-                Process.setThreadAffinity(pid, perfAffinity);
-                Process.setThreadScheduler(pid, policy, prio);
-
-                AxUtils.logger(TAG + ": " + "perfList → cgroup=" + perfGroup
-                        + " proc=" + ps.name);
-                return;
-            }
-
-            final int affinity = isTop ? AFFINITY_ALL : AFFINITY_BALANCED;
-
-            Process.setProcessGroup(pid, ps.group);
-            Process.setThreadGroupAndCpuset(pid, ps.group);
+            Process.setProcessGroup(pid, targetGroup);
+            Process.setThreadGroupAndCpuset(pid, targetGroup);
             Process.setThreadAffinity(pid, affinity);
         } catch (Exception e) {
             mProcessStates.remove(pid);
