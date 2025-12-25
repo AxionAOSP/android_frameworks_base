@@ -209,10 +209,8 @@ public class AxBurstEngine {
 
         int targetGroup = ps.group;
         int affinity = AFFINITY_LITTLE;
-        if (isPerfProcess && !isBg) {
-            targetGroup = AxUtils.THREAD_GROUP_SVP;
-            affinity = AFFINITY_BIG;
-        } else if (isFocusedApp) {
+
+        if (isFocusedApp) {
             targetGroup = THREAD_GROUP_TOP_APP;
             affinity = AFFINITY_ALL;
         } else if (isProtectedMedia && isTargetingTop) {
@@ -221,7 +219,7 @@ public class AxBurstEngine {
         } else if (isProtectedMedia) {
             targetGroup = THREAD_GROUP_DEFAULT;
             affinity = AFFINITY_BALANCED;
-        } else if (ps.group == THREAD_GROUP_TOP_APP) {
+        } else if (isTargetingTop && !isFocusedApp) {
             if (mIsLauncherVisible) {
                 targetGroup = THREAD_GROUP_DEFAULT;
             } else {
@@ -229,16 +227,32 @@ public class AxBurstEngine {
             }
             affinity = AFFINITY_BALANCED;
         } else if (isPerfBlack) {
-            targetGroup = isBg ? THREAD_GROUP_BACKGROUND : AxUtils.THREAD_GROUP_NT_FOREGROUND;
+            targetGroup = isBg 
+                ? THREAD_GROUP_BACKGROUND 
+                : AxUtils.THREAD_GROUP_NT_FOREGROUND;
             affinity = AFFINITY_BALANCED;
         } else if (!isBg) {
             affinity = ps.group == THREAD_GROUP_TOP_APP ? AFFINITY_ALL : AFFINITY_BALANCED;
+        }
+
+        if (isPerfProcess && !isBg) {
+            targetGroup = isTargetingTop 
+                ? AxUtils.THREAD_GROUP_SVP 
+                : THREAD_GROUP_DEFAULT;
+            affinity = isTargetingTop 
+                ? AFFINITY_BIG
+                : AFFINITY_ALL;
         }
 
         try {
             Process.setProcessGroup(pid, targetGroup);
             Process.setThreadGroupAndCpuset(pid, targetGroup);
             Process.setThreadAffinity(pid, affinity);
+            if (isPerfProcess) {
+                final int policy = isTargetingTop ? SCHED_RR | SCHED_RESET_ON_FORK : SCHED_OTHER;
+                final int prio = isTargetingTop? 1 : 0;
+                Process.setThreadScheduler(pid, policy, prio);
+            }
         } catch (Exception e) {
             mProcessStates.remove(pid);
             mPendingOomAdj.remove(pid);
