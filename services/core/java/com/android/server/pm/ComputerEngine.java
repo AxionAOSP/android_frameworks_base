@@ -540,7 +540,7 @@ public class ComputerEngine implements Computer {
         return isCallerHideApps;
     }
 
-    private boolean isAppDetached(String packageName) {
+    private final boolean isAppDetached(String packageName) {
         if (!android.os.SystemProperties.getBoolean(
             "sys.boot_completed", false)) {
             return false;
@@ -591,9 +591,24 @@ public class ComputerEngine implements Computer {
 
         // this is for banking apps, but we need to make sure first that 
         // we arent hiding app infos from sandbox/system processes
-        return callingUid >= Process.FIRST_APPLICATION_UID
+        return !isCallerSystem(callingUid)
             && !Process.isIsolated(callingUid)
             && !Process.isSdkSandboxUid(callingUid);
+    }
+    
+    private final boolean isCallerSystem(int callingUid) {
+        if (isSystemOrRootOrShell(callingUid)) {
+            return true;
+        }
+        final SettingBase callingPs = mSettings.getSettingBase(UserHandle.getAppId(callingUid));
+        if (callingPs == null) return false;
+        final int callingFlags = callingPs.getFlags();
+        if (((callingFlags & ApplicationInfo.FLAG_SYSTEM) == ApplicationInfo.FLAG_SYSTEM)
+                || ((callingFlags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)
+                        == ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) {
+            return true;
+        }
+        return false;
     }
 
     @Override
