@@ -31,7 +31,7 @@ import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.*
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.*
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,7 +46,8 @@ fun LevelSliderWidget(
     dimens: LevelSliderDimens,
     modifier: Modifier = Modifier,
     isDozing: Boolean = false,
-    border: Modifier = Modifier
+    border: Modifier = Modifier,
+    fontFamily: FontFamily? = null
 ) {
     val style = UiStyleProvider.rememberCurrentStyle()
     val tileShape = style.qsTileShape()
@@ -96,16 +97,9 @@ fun LevelSliderWidget(
         label = "content_color_animation"
     )
 
-    val enabledScale by animateFloatAsState(
-        targetValue = if (isEnabled) 1.05f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-        label = "enabled_scale"
-    )
-
     BoxWithConstraints(
         modifier = modifier
             .height(dimens.height)
-            .scale(enabledScale)
             .clip(tileShape)
             .then(if (isDozing) Modifier.border(theme.dozeStroke, Color.White, tileShape) else border)
             .then(
@@ -139,11 +133,12 @@ fun LevelSliderWidget(
 
         Box(Modifier.fillMaxSize().background(animatedTrackColor, tileShape).clip(tileShape))
 
+        val cornerRadiusPx = with(density) { style.qsTileCornerRadius.toPx() }
         Canvas(Modifier.fillMaxSize().clip(tileShape)) {
             drawRoundRect(
                 color = progressFillColor,
                 size = Size(fillWidth, size.height),
-                cornerRadius = CornerRadius(size.height / 2)
+                cornerRadius = CornerRadius(cornerRadiusPx)
             )
         }
 
@@ -171,6 +166,7 @@ fun LevelSliderWidget(
                 color = animatedContentColor,
                 fontSize = 14.sp,
                 fontWeight = if (isDragging) FontWeight.Bold else FontWeight.Medium,
+                fontFamily = fontFamily,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
