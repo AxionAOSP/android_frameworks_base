@@ -15,7 +15,9 @@
  */
 package com.android.systemui.qs.panels.ui.compose.infinitegrid
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Typeface
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +28,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.*
 import com.android.systemui.common.ringer.*
 import com.android.systemui.common.slider.*
@@ -71,10 +74,11 @@ class AxWidgetTileProvider @Inject constructor(
         modifier: Modifier = Modifier
     ): Boolean {
         val themeVersion = UiStyleProvider.rememberThemeVersion()
+        val fontFamily = rememberSystemFontFamily()
 
         return when (spec) {
             "sound" -> {
-                key(themeVersion) {
+                key(themeVersion, fontFamily) {
                     WidgetTileContainer(squishinessProvider, modifier) {
                         RingerSliderContent()
                     }
@@ -82,18 +86,18 @@ class AxWidgetTileProvider @Inject constructor(
                 true
             }
             "volume" -> {
-                key(themeVersion) {
+                key(themeVersion, fontFamily) {
                     WidgetTileContainer(squishinessProvider, modifier) {
-                        VolumeSliderContent()
+                        VolumeSliderContent(fontFamily = fontFamily)
                     }
                 }
                 true
             }
             "flashlight" -> {
                 if (torchInteractor.isSupported) {
-                    key(themeVersion) {
+                    key(themeVersion, fontFamily) {
                         WidgetTileContainer(squishinessProvider, modifier) {
-                            TorchSliderContent()
+                            TorchSliderContent(fontFamily = fontFamily)
                         }
                     }
                     true
@@ -155,28 +159,43 @@ class AxWidgetTileProvider @Inject constructor(
     }
 
     @Composable
-    private fun VolumeSliderContent() {
+    private fun VolumeSliderContent(fontFamily: FontFamily? = null) {
         val interactor = remember { volumeInteractor }
         LevelSliderWidget(
             interactor = interactor,
             theme = AxWidgetTheme,
             dimens = AxWidgetLevelDimens,
             modifier = Modifier.fillMaxSize(),
-            isDozing = false
+            isDozing = false,
+            fontFamily = fontFamily
         )
     }
 
     @Composable
-    private fun TorchSliderContent() {
+    private fun TorchSliderContent(fontFamily: FontFamily? = null) {
         val interactor = remember { torchInteractor }
         LevelSliderWidget(
             interactor = interactor,
             theme = AxWidgetTheme,
             dimens = AxWidgetLevelDimens,
             modifier = Modifier.fillMaxSize(),
-            isDozing = false
+            isDozing = false,
+            fontFamily = fontFamily
         )
     }
+}
+
+@SuppressLint("DiscouragedApi")
+private fun Context.getAndroidConfig(configName: String): String {
+    val configId = resources.getIdentifier(configName, "string", "android")
+    return if (configId != 0) resources.getString(configId) else "sans-serif"
+}
+
+@Composable
+private fun rememberSystemFontFamily(): FontFamily {
+    val context = LocalContext.current
+    val fontName = remember(context) { context.getAndroidConfig("config_bodyFontFamily") }
+    return remember(fontName) { FontFamily(Typeface.create(fontName, Typeface.NORMAL)) }
 }
 
 @Stable
