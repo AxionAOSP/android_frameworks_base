@@ -53,6 +53,7 @@ class UdfpsAnimationHost @Inject constructor(
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             y = 0
+            setTrustedOverlay()
         }
     }
 
