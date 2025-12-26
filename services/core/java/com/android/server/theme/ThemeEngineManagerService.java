@@ -36,6 +36,7 @@ import android.content.res.ThemeEngine;
 import android.database.ContentObserver;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.drawable.AdaptiveIconDrawable;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.ColorDrawable;
@@ -52,6 +53,8 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.LruCache;
 import android.util.Slog;
+import android.util.TypedValue;
+import android.view.ContextThemeWrapper;
 
 import com.android.server.NtServiceInjector;
 import com.android.server.SystemService;
@@ -197,6 +200,8 @@ public class ThemeEngineManagerService extends SystemService {
     
     private volatile String mLastConfigJson = null;
 
+    private int mLastUiMode = Configuration.UI_MODE_NIGHT_UNDEFINED;
+
     private ContentObserver mSettingsObserver;
     
     private final RemoteCallbackList<IThemeEngineCallback> mCallbacks = 
@@ -242,10 +247,25 @@ public class ThemeEngineManagerService extends SystemService {
             
             loadThemeConfig();
             
+            mLastUiMode = mContext.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+            
+            IntentFilter configFilter = new IntentFilter(Intent.ACTION_CONFIGURATION_CHANGED);
+            mContext.registerReceiver(new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    int newUiMode = mContext.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+                    if (newUiMode != mLastUiMode) {
+                        Slog.d(TAG, "UI mode changed: " + mLastUiMode + " -> " + newUiMode + ", clearing bitmap cache");
+                        mLastUiMode = newUiMode;
+                        mBitmapCache.evictAll();
+                    }
+                }
+            }, configFilter, null, mHandler);
+            
             Slog.i(TAG, "ThemeEngineManagerService ready");
         }
     }
-    
+
     private synchronized void loadThemeConfig() {
         mEnabledThemes.clear();
         mStyleIds.clear();
@@ -537,10 +557,16 @@ public class ThemeEngineManagerService extends SystemService {
     }
     
     @NonNull
-    private Bitmap drawableToBitmap(@NonNull Drawable drawable, int density) {
+    private Bitmap drawableToBitmap(@NonNull Drawable drawable, int density, boolean clearTint) {
         int size = density > 0 ? density : 192; 
         
-        if (drawable instanceof BitmapDrawable) {
+        if (clearTint) {
+            drawable.setColorFilter(null);
+            int textColorPrimary = getTextColorPrimary();
+            drawable.setTint(textColorPrimary);
+        }
+        
+        if (!clearTint && drawable instanceof BitmapDrawable) {
             Bitmap bitmap = ((BitmapDrawable) drawable).getBitmap();
             if (bitmap != null) {
                 return bitmap;
@@ -561,7 +587,26 @@ public class ThemeEngineManagerService extends SystemService {
         
         return bitmap;
     }
-    
+
+    private int getTextColorPrimary() {
+        try {
+            int themeResId = mContext.getResources().getConfiguration().isNightModeActive()
+                    ? android.R.style.Theme_DeviceDefault
+                    : android.R.style.Theme_DeviceDefault_Light;
+            Context themedContext = new ContextThemeWrapper(mContext, themeResId);
+            TypedValue typedValue = new TypedValue();
+            themedContext.getTheme().resolveAttribute(android.R.attr.textColorPrimary, typedValue, true);
+            if (typedValue.resourceId != 0) {
+                return themedContext.getColor(typedValue.resourceId);
+            }
+            return typedValue.data != 0 ? typedValue.data : Color.WHITE;
+        } catch (Exception e) {
+            return mContext.getResources().getConfiguration().isNightModeActive()
+                    ? Color.WHITE
+                    : Color.BLACK;
+        }
+    }
+
     private void notifyThemeChangedInternal(@Nullable String category) {
         final long ident = Binder.clearCallingIdentity();
         try {
@@ -652,7 +697,7 @@ public class ThemeEngineManagerService extends SystemService {
                 if (resId != 0) {
                     Drawable drawable = res.getDrawableInternal(resId);
                     if (drawable != null) {
-                        Bitmap bitmap = drawableToBitmap(drawable, density);
+                        Bitmap bitmap = drawableToBitmap(drawable, density, false);
                         mBitmapCache.put(cacheKey, bitmap);
                         
                         if (DEBUG) {
@@ -745,7 +790,7 @@ public class ThemeEngineManagerService extends SystemService {
                 if (resId != 0) {
                     Drawable drawable = themeResources.getDrawableInternal(resId);
                     if (drawable != null) {
-                        Bitmap bitmap = drawableToBitmap(drawable, density);
+                        Bitmap bitmap = drawableToBitmap(drawable, density, true);
                         mBitmapCache.put(cacheKey, bitmap);
                         
                         if (DEBUG) {
