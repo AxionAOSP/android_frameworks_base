@@ -19,8 +19,12 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.database.ContentObserver
 import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
 import android.os.Vibrator
+import android.provider.Settings
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
@@ -43,6 +47,7 @@ class RingerModeInteractorImpl @Inject constructor(
     private val hasVibrator: Boolean = vibrator?.hasVibrator() == true
 
     private val _ringerMode = MutableStateFlow(audioManager.ringerModeInternal)
+    private val _isDndEnabled = MutableStateFlow(isZenModeActive())
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, intent: Intent?) {
@@ -52,12 +57,29 @@ class RingerModeInteractorImpl @Inject constructor(
         }
     }
 
+    private val zenModeObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            _isDndEnabled.value = isZenModeActive()
+        }
+    }
+
+    private fun isZenModeActive(): Boolean {
+        val zenMode = Settings.Global.getInt(context.contentResolver, Settings.Global.ZEN_MODE, Settings.Global.ZEN_MODE_OFF)
+        return zenMode != Settings.Global.ZEN_MODE_OFF
+    }
+
     init {
         val filter = IntentFilter(AudioManager.RINGER_MODE_CHANGED_ACTION)
         context.registerReceiver(receiver, filter)
+        context.contentResolver.registerContentObserver(
+            Settings.Global.getUriFor(Settings.Global.ZEN_MODE),
+            false,
+            zenModeObserver
+        )
     }
 
     override val ringerMode: Flow<Int> = _ringerMode.asStateFlow()
+    override val isDndEnabled: StateFlow<Boolean> = _isDndEnabled.asStateFlow()
 
     override fun getCurrentMode(): Int = audioManager.ringerModeInternal
 
@@ -101,6 +123,7 @@ class RingerModeInteractorImpl @Inject constructor(
 interface RingerModeInteractor {
     val ringerMode: Flow<Int>
     val targetPositionFlow: Flow<Float>
+    val isDndEnabled: StateFlow<Boolean>
     fun getCurrentMode(): Int
     fun setRingerMode(mode: Int)
     fun getAvailableRingerModes(): List<RingerModeOption>

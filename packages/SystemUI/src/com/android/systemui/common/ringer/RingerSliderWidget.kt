@@ -47,6 +47,7 @@ fun RingerSliderWidget(
     var dragOffset by remember { mutableFloatStateOf(targetPosition) }
     var isDragging by remember { mutableStateOf(false) }
     val animatedPosition = remember { Animatable(targetPosition) }
+    val isDndEnabled by interactor.isDndEnabled.collectAsState()
 
     LaunchedEffect(Unit) {
         interactor.targetPositionFlow.collect { newPosition ->
@@ -69,42 +70,53 @@ fun RingerSliderWidget(
         }
     }
 
+    val sliderAlpha by animateFloatAsState(
+        targetValue = if (isDndEnabled) 0.4f else 1f,
+        animationSpec = tween(durationMillis = 200),
+        label = "slider_alpha"
+    )
+
     Box(
         modifier = modifier
             .height(dimens.thumbSize)
+            .graphicsLayer { alpha = sliderAlpha }
             .background(if (isDozing) Color.Transparent else theme.neutralBg, CircleShape)
             .clip(CircleShape)
             .then(if (isDozing)
                 Modifier.border(theme.dozeStroke, Color.White, CircleShape)
             else border)
-            .pointerInput(availableModes, numModes) {
-                detectTapGestures { tapOffset ->
-                    val sectionWidth = size.width / numModes.toFloat()
-                    val tappedIndex = (tapOffset.x / sectionWidth).toInt().coerceIn(0, numModes - 1)
-                    interactor.setRingerMode(availableModes[tappedIndex].mode)
-                    dragOffset = tappedIndex.toFloat()
+            .pointerInput(availableModes, numModes, isDndEnabled) {
+                if (!isDndEnabled) {
+                    detectTapGestures { tapOffset ->
+                        val sectionWidth = size.width / numModes.toFloat()
+                        val tappedIndex = (tapOffset.x / sectionWidth).toInt().coerceIn(0, numModes - 1)
+                        interactor.setRingerMode(availableModes[tappedIndex].mode)
+                        dragOffset = tappedIndex.toFloat()
+                    }
                 }
             }
-            .pointerInput(availableModes, maxOffset) {
-                detectDragGestures(
-                    onDragStart = { isDragging = true },
-                    onDragEnd = {
-                        val finalMode = interactor.snapMode(dragOffset)
-                        interactor.setRingerMode(finalMode)
-                        val snappedPosition = interactor.getTargetPosition(finalMode)
-                        dragOffset = snappedPosition
-                        isDragging = false
-                    },
-                    onDragCancel = { 
-                        isDragging = false
-                        dragOffset = targetPosition
+            .pointerInput(availableModes, maxOffset, isDndEnabled) {
+                if (!isDndEnabled) {
+                    detectDragGestures(
+                        onDragStart = { isDragging = true },
+                        onDragEnd = {
+                            val finalMode = interactor.snapMode(dragOffset)
+                            interactor.setRingerMode(finalMode)
+                            val snappedPosition = interactor.getTargetPosition(finalMode)
+                            dragOffset = snappedPosition
+                            isDragging = false
+                        },
+                        onDragCancel = { 
+                            isDragging = false
+                            dragOffset = targetPosition
+                        }
+                    ) { change, dragAmount ->
+                        change.consume()
+                        val trackWidth = size.width - dimens.thumbSize.toPx()
+                        val pixelPerUnit = trackWidth / maxOffset
+                        dragOffset = (dragOffset + (dragAmount.x / pixelPerUnit))
+                            .coerceIn(0f, maxOffset)
                     }
-                ) { change, dragAmount ->
-                    change.consume()
-                    val trackWidth = size.width - dimens.thumbSize.toPx()
-                    val pixelPerUnit = trackWidth / maxOffset
-                    dragOffset = (dragOffset + (dragAmount.x / pixelPerUnit))
-                        .coerceIn(0f, maxOffset)
                 }
             },
         contentAlignment = Alignment.CenterStart
