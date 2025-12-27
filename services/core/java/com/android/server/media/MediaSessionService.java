@@ -518,13 +518,6 @@ public class MediaSessionService extends SystemService implements Monitor {
                             + " playbackState="
                             + playbackState);
             reportMediaInteractionEvent(record, isUserEngaged);
-            
-            final boolean isPlaying = playbackState != null 
-                    && playbackState.getState() == PlaybackState.STATE_PLAYING;
-            final String packageName = record.getPackageName();
-            if (packageName != null) {
-                com.android.server.am.AxBurstEngine.setMediaPlayerActive(packageName, isPlaying);
-            }
         }
     }
 

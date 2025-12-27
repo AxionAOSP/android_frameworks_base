@@ -28,13 +28,13 @@ import android.util.Slog;
 class ProcessState {
     final int pid;
     volatile String name;
-    volatile String packageName;
     volatile ProcessRecord record;
 
     volatile Integer adj = null;
 
     volatile boolean isUiPerfPkg = false;
     volatile boolean isBlacklisted = false;
+    volatile boolean isUiProc = false;
     volatile boolean isPerceptible = false;
     volatile boolean isSystemUI = false;
 
@@ -44,6 +44,7 @@ class ProcessState {
     ProcessState(int pid, String processName, int targetGroup) {
         this.pid = pid;
         this.name = processName;
+        this.isUiProc = targetGroup == THREAD_GROUP_TOP_APP;
         this.isUiPerfPkg = AxUtils.isInPerfList(name);
         this.isBlacklisted = AxUtils.isInPerfBlackList(name);
         this.isSystemUI = processName.contains("systemui");
@@ -67,7 +68,6 @@ class ProcessState {
         }
 
         this.name = record.getProcessName();
-        this.packageName = record.info != null ? record.info.packageName : null;
         this.isUiPerfPkg = AxUtils.isInPerfList(name);
         this.isBlacklisted = AxUtils.isInPerfBlackList(name);
         this.isSystemUI = name.contains("systemui");
@@ -82,6 +82,11 @@ class ProcessState {
                         || currentAdj == PREVIOUS_APP_ADJ;
 
         adj = isPerceptible ? OOM_ADJ_PROTECTED : null;
+
+        isUiProc = group == THREAD_GROUP_TOP_APP
+                || s.hasTopUi()
+                || s.hasOverlayUi()
+                || s.isRunningRemoteAnimation();
     }
 
     private String groupToString(int g) {
@@ -112,6 +117,7 @@ class ProcessState {
         sb.append(" flags=[");
         sb.append("uiPerf=").append(isUiPerfPkg).append(", ");
         sb.append("blacklisted=").append(isBlacklisted).append(", ");
+        sb.append("top=").append(isUiProc).append(", ");
         sb.append("perceptible=").append(isPerceptible).append(", ");
         sb.append("systemUI=").append(isSystemUI);
         sb.append("]");
