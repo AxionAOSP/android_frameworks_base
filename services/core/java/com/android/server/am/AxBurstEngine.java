@@ -48,8 +48,7 @@ public class AxBurstEngine {
     private final ConcurrentHashMap<Integer, Integer> mPendingOomAdj = new ConcurrentHashMap<>();
     
     private AxBurstEngine() {
-        mWorkerThread = new ServiceThread(
-            TAG, THREAD_PRIORITY_TOP_APP_BOOST, false);
+        mWorkerThread = new HandlerThread(TAG, -2);
         mWorkerThread.start();
         mHandler = new Handler(mWorkerThread.getLooper());
     }
@@ -93,10 +92,13 @@ public class AxBurstEngine {
 
     private void handleProcessScheduling(int pid, int group, String name) {
         ProcessState ps = getOrCreateProcessState(pid, name, group);
-        if (ps.isUiPerfPkg || group == THREAD_GROUP_TOP_APP) {
-            setSchedulingPolicy(ps);
-        } else {
-            mHandler.post(() -> setSchedulingPolicy(ps));
+        try {
+            if (ps.isUiPerfPkg || group == THREAD_GROUP_TOP_APP) {
+                setSchedulingPolicy(ps);
+            } else {
+                mHandler.post(() -> setSchedulingPolicy(ps));
+            }
+        } catch (Exception e) {
         }
     }
 
@@ -150,7 +152,7 @@ public class AxBurstEngine {
         }
 
         if (isPerfProcess) {
-            final int perfAffinity = isTop ? AFFINITY_ALL : AFFINITY_BIG;
+            final int perfAffinity = isTop ? AFFINITY_BIG : AFFINITY_ALL;
             final int perfGroup = isTop
                     ? AxUtils.THREAD_GROUP_SVP
                     : THREAD_GROUP_TOP_APP;
