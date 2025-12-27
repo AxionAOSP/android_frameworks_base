@@ -74,6 +74,7 @@ import com.android.systemui.statusbar.phone.domain.interactor.DarkIconInteractor
 import com.android.systemui.statusbar.phone.domain.interactor.IsAreaDark
 import com.android.systemui.statusbar.phone.domain.interactor.LightsOutInteractor
 import com.android.systemui.statusbar.phone.ongoingcall.StatusBarChipsModernization
+import com.android.systemui.statusbar.pipeline.battery.domain.interactor.BatteryInteractor
 import com.android.systemui.statusbar.pipeline.battery.ui.viewmodel.BatteryNextToPercentViewModel
 import com.android.systemui.statusbar.pipeline.battery.ui.viewmodel.BatteryViewModel
 import com.android.systemui.statusbar.pipeline.shared.domain.interactor.HomeStatusBarIconBlockListInteractor
@@ -114,6 +115,9 @@ import kotlinx.coroutines.flow.stateIn
  */
 interface HomeStatusBarViewModel : Activatable {
     /** Factory to create the view model for the battery icon with the percentage alongside */
+
+    val batteryPercentMode: StateFlow<Int>
+
     val batteryNextToPercentViewModel: BatteryNextToPercentViewModel.Factory
     /** Factory for the unified (percent embedded) battery view model */
     val unifiedBatteryViewModel: BatteryViewModel.BasedOnUserSetting.Factory
@@ -231,6 +235,7 @@ constructor(
     override val statusBarBoundsViewModelFactory: StatusBarBoundsViewModel.Factory,
     tableLoggerFactory: TableLogBufferFactory,
     homeStatusBarInteractor: HomeStatusBarInteractor,
+    batteryInteractor: BatteryInteractor,
     homeStatusBarIconBlockListInteractor: HomeStatusBarIconBlockListInteractor,
     lightsOutInteractor: LightsOutInteractor,
     notificationsInteractor: ActiveNotificationsInteractor,
@@ -258,6 +263,14 @@ constructor(
     val tableLogger = tableLoggerFactory.getOrCreate(tableLogBufferName(thisDisplayId), 200)
 
     private val statusBarPopupChips by lazy { statusBarPopupChipsViewModelFactory.create() }
+
+    override val batteryPercentMode: StateFlow<Int> =
+        batteryInteractor.batteryPercentMode
+            .stateIn(
+                bgDisplayScope,
+                SharingStarted.WhileSubscribed(),
+                0,
+            )
 
     override val isTransitioningFromLockscreenToOccluded: StateFlow<Boolean> =
         keyguardTransitionInteractor

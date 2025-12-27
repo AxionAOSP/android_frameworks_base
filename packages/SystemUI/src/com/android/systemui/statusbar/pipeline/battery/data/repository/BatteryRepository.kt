@@ -17,7 +17,12 @@
 package com.android.systemui.statusbar.pipeline.battery.data.repository
 
 import android.content.Context
+import android.database.ContentObserver
+import android.net.Uri
+import android.os.Handler
+import android.os.UserHandle
 import android.provider.Settings
+import lineageos.providers.LineageSettings
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
@@ -68,6 +73,14 @@ interface BatteryRepository {
      * battery percentage in the home screen status bar
      */
     val isShowBatteryPercentSettingEnabled: StateFlow<Boolean>
+
+    /**
+     * battery percentage modes:
+     * 0: OFF
+     * 1: INSIDE
+     * 2: NEXT_TO
+     */
+    val batteryPercentMode: StateFlow<Int>
 
     /**
      * If available, this flow yields a string that describes the approximate time remaining for the
@@ -153,16 +166,49 @@ constructor(
 
     override val isStateUnknown = batteryState.map { it.isStateUnknown }
 
-    override val isShowBatteryPercentSettingEnabled = run {
-        val default =
-            context.resources.getBoolean(
-                com.android.internal.R.bool.config_defaultBatteryPercentageSetting
-            )
-        settingsRepository
-            .boolSetting(name = Settings.System.SHOW_BATTERY_PERCENT, defaultValue = default)
+    override val batteryPercentMode: StateFlow<Int> =
+        conflatedCallbackFlow {
+                val observer =
+                    object : ContentObserver(null) {
+                        override fun onChange(selfChange: Boolean) {
+                            trySend(
+                                LineageSettings.System.getIntForUser(
+                                    context.contentResolver,
+                                    LineageSettings.System.STATUS_BAR_SHOW_BATTERY_PERCENT,
+                                    0,
+                                    UserHandle.USER_CURRENT
+                                )
+                            )
+                        }
+                    }
+
+                trySend(
+                    LineageSettings.System.getIntForUser(
+                        context.contentResolver,
+                        LineageSettings.System.STATUS_BAR_SHOW_BATTERY_PERCENT,
+                        0,
+                        UserHandle.USER_CURRENT
+                    )
+                )
+
+                context.contentResolver.registerContentObserver(
+                    LineageSettings.System.getUriFor(
+                        LineageSettings.System.STATUS_BAR_SHOW_BATTERY_PERCENT
+                    ),
+                    false,
+                    observer,
+                    UserHandle.USER_ALL
+                )
+
+                awaitClose { context.contentResolver.unregisterContentObserver(observer) }
+            }
             .flowOn(bgDispatcher)
-            .stateIn(scope, SharingStarted.Lazily, default)
-    }
+            .stateIn(scope, SharingStarted.Lazily, 0)
+
+    override val isShowBatteryPercentSettingEnabled =
+        batteryPercentMode
+            .map { it == 1 }
+            .stateIn(scope, SharingStarted.Lazily, false)
 
     /** Get and re-fetch the estimate every 2 minutes while active */
     private val estimate: Flow<String?> = flow {
