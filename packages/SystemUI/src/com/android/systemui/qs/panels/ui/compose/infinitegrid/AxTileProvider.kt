@@ -415,7 +415,7 @@ fun rememberTileColumns(): Int {
     }
 
     return remember(effectiveWidthDp, spacing, isLandscape) {
-        if (effectiveWidthDp < TileGridDefaults.SmallScreenThreshold) {
+        val columns = if (effectiveWidthDp < TileGridDefaults.SmallScreenThreshold) {
             TileGridDefaults.FixedColumnsForSmallScreen
         } else {
             val availableWidth = effectiveWidthDp - (spacing.horizontalMargin * 2)
@@ -423,6 +423,7 @@ fun rememberTileColumns(): Int {
                 .toInt()
                 .coerceAtLeast(TileGridDefaults.FixedColumnsForSmallScreen)
         }
+        if (columns % 2 != 0) columns - 1 else columns
     }
 }
 
