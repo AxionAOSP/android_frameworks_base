@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2025 The LineageOS Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,16 +17,10 @@
 
 package com.android.systemui.screenshot;
 
-import static com.android.systemui.screenshot.DeleteScreenshotReceiver.EXTRA_SCREENSHOT_URI_ID;
-import static com.android.systemui.screenshot.SmartActionsReceiver.EXTRA_ACTION_TYPE;
-import static com.android.systemui.screenshot.SmartActionsReceiver.EXTRA_ID;
-import static com.android.systemui.screenshot.SmartActionsReceiver.EXTRA_SMART_ACTIONS_ENABLED;
-
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotNull;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -58,8 +53,6 @@ import java.util.concurrent.Executor;
 public class DeleteScreenshotReceiverTest extends SysuiTestCase {
 
     @Mock
-    private ScreenshotSmartActions mMockScreenshotSmartActions;
-    @Mock
     private Executor mMockExecutor;
 
     private DeleteScreenshotReceiver mDeleteScreenshotReceiver;
@@ -68,8 +61,7 @@ public class DeleteScreenshotReceiverTest extends SysuiTestCase {
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
-        mDeleteScreenshotReceiver =
-                new DeleteScreenshotReceiver(mMockScreenshotSmartActions, mMockExecutor);
+        mDeleteScreenshotReceiver = new DeleteScreenshotReceiver(mMockExecutor);
     }
 
     @Test
@@ -79,15 +71,10 @@ public class DeleteScreenshotReceiverTest extends SysuiTestCase {
         mDeleteScreenshotReceiver.onReceive(mContext, intent);
 
         verify(mMockExecutor, never()).execute(any(Runnable.class));
-        verify(mMockScreenshotSmartActions, never()).notifyScreenshotAction(
-                any(String.class), any(String.class), anyBoolean(),
-                any(Intent.class));
     }
 
     @Test
     public void testFileDeleted() {
-        DeleteScreenshotReceiver deleteScreenshotReceiver =
-                new DeleteScreenshotReceiver(mMockScreenshotSmartActions, mFakeExecutor);
         ContentResolver contentResolver = mContext.getContentResolver();
         final Uri testUri = contentResolver.insert(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI, getFakeContentValues());
@@ -97,41 +84,18 @@ public class DeleteScreenshotReceiverTest extends SysuiTestCase {
             Cursor cursor =
                     contentResolver.query(testUri, null, null, null, null);
             assertEquals(1, cursor.getCount());
-            Intent intent = new Intent(mContext, DeleteScreenshotReceiver.class)
-                    .putExtra(EXTRA_SCREENSHOT_URI_ID, testUri.toString());
+            Intent intent = new Intent(mContext, DeleteScreenshotReceiver.class);
+            intent.setData(testUri);
 
-            deleteScreenshotReceiver.onReceive(mContext, intent);
+            mDeleteScreenshotReceiver.onReceive(mContext, intent);
             int runCount = mFakeExecutor.runAllReady();
 
             assertEquals(1, runCount);
-            cursor =
-                    contentResolver.query(testUri, null, null, null, null);
+            cursor = contentResolver.query(testUri, null, null, null, null);
             assertEquals(0, cursor.getCount());
         } finally {
             contentResolver.delete(testUri, null, null);
         }
-
-        // ensure smart actions not called by default
-        verify(mMockScreenshotSmartActions, never()).notifyScreenshotAction(
-                any(String.class), any(String.class), anyBoolean(), any(Intent.class));
-    }
-
-    @Test
-    public void testNotifyScreenshotAction() {
-        Intent intent = new Intent(mContext, DeleteScreenshotReceiver.class);
-        String uriString = "testUri";
-        String testId = "testID";
-        String testActionType = "testActionType";
-        intent.putExtra(EXTRA_SCREENSHOT_URI_ID, uriString);
-        intent.putExtra(EXTRA_ID, testId);
-        intent.putExtra(EXTRA_SMART_ACTIONS_ENABLED, true);
-        intent.putExtra(EXTRA_ACTION_TYPE, testActionType);
-
-        mDeleteScreenshotReceiver.onReceive(mContext, intent);
-
-        verify(mMockExecutor).execute(any(Runnable.class));
-        verify(mMockScreenshotSmartActions).notifyScreenshotAction(testId,
-                testActionType, false, null);
     }
 
     private static ContentValues getFakeContentValues() {

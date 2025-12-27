@@ -155,7 +155,7 @@ constructor(
             uiEventLogger.log(SCREENSHOT_DELETE_TAPPED, 0, request.packageNameString)
             onDeferrableActionTapped { result ->
                 actionExecutor.sendPendingIntent(
-                    actionIntentCreator.createDelete(result.uri, context)
+                    actionIntentCreator.createDelete(result.uri)
                 )
             }
         }
