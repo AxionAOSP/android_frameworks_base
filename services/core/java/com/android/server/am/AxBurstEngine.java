@@ -116,6 +116,9 @@ public class AxBurstEngine {
         final boolean isTop = ps.isUiProc;
         final boolean isPerfBlack = ps.isBlacklisted;
         final int pid = ps.pid;
+
+        final int affinity = isTop ? AFFINITY_ALL 
+                : (isPerfProcess ? AFFINITY_BALANCED : AFFINITY_LITTLE);
         
         if (!AxUtils.checkTid(pid)) {
             mProcessStates.remove(pid);
@@ -126,51 +129,45 @@ public class AxBurstEngine {
             mPendingOomAdj.put(pid, ps.adj);
         }
 
-        try {
-            if (isPerfBlack && !isTop) {
-                final boolean isBg = ps.group == THREAD_GROUP_BACKGROUND;
+        if (isPerfBlack) {
+            final boolean isBg = ps.group == THREAD_GROUP_BACKGROUND;
 
-                final int lowPrioGroup = isBg 
-                        ? THREAD_GROUP_BACKGROUND
-                        : AxUtils.THREAD_GROUP_NT_FOREGROUND;
+            final int lowPrioGroup = isBg 
+                    ? THREAD_GROUP_BACKGROUND
+                    : AxUtils.THREAD_GROUP_NT_FOREGROUND;
+            final int newGroup = isTop
+                    ? THREAD_GROUP_TOP_APP
+                    : lowPrioGroup;
 
-                Process.setProcessGroup(pid, lowPrioGroup);
-                Process.setThreadGroupAndCpuset(pid, lowPrioGroup);
-                Process.setThreadAffinity(pid, AFFINITY_BALANCED);
-
-                AxUtils.logger(TAG + ": " + "limit "
-                        + "blacklist → cgroup=" + lowPrioGroup
-                        + " proc=" + ps.name);
-                return;
-            }
-
-            if (isPerfProcess) {
-                final int perfAffinity = isTop ? AFFINITY_BIG : AFFINITY_ALL;
-                final int perfGroup = isTop
-                        ? AxUtils.THREAD_GROUP_SVP
-                        : THREAD_GROUP_DEFAULT;
-
-                final int policy = isTop ? SCHED_RR | SCHED_RESET_ON_FORK : SCHED_OTHER;
-                final int prio = isTop ? 1 : 0;
-                Process.setProcessGroup(pid, perfGroup);
-                Process.setThreadGroupAndCpuset(pid, perfGroup);
-                Process.setThreadAffinity(pid, perfAffinity);
-                Process.setThreadScheduler(pid, policy, prio);
-
-                AxUtils.logger(TAG + ": " + "perfList → cgroup=" + perfGroup
-                        + " proc=" + ps.name);
-                return;
-            }
-
-            final int affinity = isTop ? AFFINITY_ALL : AFFINITY_BALANCED;
-
-            Process.setProcessGroup(pid, ps.group);
-            Process.setThreadGroupAndCpuset(pid, ps.group);
+            Process.setProcessGroup(pid, newGroup);
+            Process.setThreadGroupAndCpuset(pid, newGroup);
             Process.setThreadAffinity(pid, affinity);
-        } catch (Exception e) {
-            mProcessStates.remove(pid);
-            mPendingOomAdj.remove(pid);
+
+            AxUtils.logger(TAG + ": " + (isTop ? "boost " : "limit ")
+                    + "blacklist → cgroup=" + newGroup
+                    + " proc=" + ps.name);
+            return;
         }
+
+        if (isPerfProcess) {
+            final int perfAffinity = isTop ? AFFINITY_ALL : AFFINITY_BIG;
+            final int perfGroup = isTop
+                    ? AxUtils.THREAD_GROUP_SVP
+                    : THREAD_GROUP_TOP_APP;
+
+            Process.setProcessGroup(pid, perfGroup);
+            Process.setThreadGroupAndCpuset(pid, perfGroup);
+            Process.setThreadAffinity(pid, perfAffinity);
+            Process.setThreadScheduler(pid, SCHED_RR | SCHED_RESET_ON_FORK, 1);
+
+            AxUtils.logger(TAG + ": " + "perfList → cgroup=" + perfGroup
+                    + " proc=" + ps.name);
+            return;
+        }
+
+        Process.setProcessGroup(pid, ps.group);
+        Process.setThreadGroupAndCpuset(pid, ps.group);
+        Process.setThreadAffinity(pid, affinity);
     }
 
     private void handleAnimationBoost(int pid, int renderTid, long duration) {
@@ -199,13 +196,9 @@ public class AxBurstEngine {
         if (rtid > 0) {
             mBoostedThreads.computeIfAbsent(rtid, 
                 tid -> new ThreadBoost(tid, ps.pid));
-            try {
-                setScheduler(rtid, SCHED_RR | SCHED_RESET_ON_FORK, 1);
-                Process.setThreadGroupAndCpuset(rtid, THREAD_GROUP_SVP);
-                Process.setThreadAffinity(rtid, AFFINITY_BIG);
-            } catch (Exception e) {
-                mBoostedThreads.remove(rtid);
-            }
+            setScheduler(rtid, SCHED_RR | SCHED_RESET_ON_FORK, 1);
+            Process.setThreadGroupAndCpuset(rtid, THREAD_GROUP_SVP);
+            Process.setThreadAffinity(rtid, AFFINITY_BIG);
         } else {
             resetBoostedThreads(ps.pid);
         }
@@ -216,8 +209,8 @@ public class AxBurstEngine {
             ThreadBoost boost = entry.getValue();
             if (boost.ownerPid == pid) {
                 setScheduler(boost.tid, SCHED_OTHER, THREAD_PRIORITY_DISPLAY);
-                Process.setThreadGroupAndCpuset(boost.tid, THREAD_GROUP_DEFAULT);
-                Process.setThreadAffinity(boost.tid, AFFINITY_BALANCED);
+                Process.setThreadGroupAndCpuset(boost.tid, THREAD_GROUP_TOP_APP);
+                Process.setThreadAffinity(boost.tid, 2);
                 return true;
             }
             return false;
