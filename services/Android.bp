@@ -361,6 +361,7 @@ java_library {
     visibility: [
         ":__subpackages__",
         "//frameworks/opt:__subpackages__",
+        "//lineage-sdk:__subpackages__",
     ],
 }
 
