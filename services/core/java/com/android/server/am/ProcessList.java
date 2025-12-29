@@ -1619,8 +1619,7 @@ public final class ProcessList {
             }
             buf.putInt(pid);
             buf.putInt(uid);
-            final int finalAdj = AxBurstEngine.interceptOomAdj(pid, amt);
-            buf.putInt(finalAdj);
+            buf.putInt(amt);
             buf.putInt(0);  // Default proc type to PROC_TYPE_APP
             total_procs_in_buf++;
         }

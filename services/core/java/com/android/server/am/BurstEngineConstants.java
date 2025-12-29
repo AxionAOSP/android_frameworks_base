@@ -28,7 +28,7 @@ public final class BurstEngineConstants {
     public static final int AFFINITY_ALL = 2;
     public static final int AFFINITY_BALANCED = 3;
 
-    public static final int OOM_ADJ_PROTECTED = -900;
+    public static final int OPT_ADJ_OOM_SCORE = 201;
 
     private BurstEngineConstants() {
     }

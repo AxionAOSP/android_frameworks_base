@@ -30,12 +30,9 @@ class ProcessState {
     volatile String name;
     volatile ProcessRecord record;
 
-    volatile Integer adj = null;
-
     volatile boolean isUiPerfPkg = false;
     volatile boolean isBlacklisted = false;
     volatile boolean isUiProc = false;
-    volatile boolean isPerceptible = false;
     volatile boolean isSystemUI = false;
 
     volatile int group = THREAD_GROUP_DEFAULT;
@@ -74,18 +71,9 @@ class ProcessState {
         this.rtid = record.getRenderThreadTid();
 
         ProcessStateRecord s = record.mState;
-        int currentAdj = record.getSetAdj();
-
-        isPerceptible =
-                currentAdj <= PERCEPTIBLE_LOW_APP_ADJ
-                        || currentAdj == HOME_APP_ADJ
-                        || currentAdj == PREVIOUS_APP_ADJ;
-
-        adj = isPerceptible ? OOM_ADJ_PROTECTED : null;
 
         isUiProc = group == THREAD_GROUP_TOP_APP
                 || s.hasTopUi()
-                || s.hasOverlayUi()
                 || s.isRunningRemoteAnimation();
     }
 
@@ -118,11 +106,8 @@ class ProcessState {
         sb.append("uiPerf=").append(isUiPerfPkg).append(", ");
         sb.append("blacklisted=").append(isBlacklisted).append(", ");
         sb.append("top=").append(isUiProc).append(", ");
-        sb.append("perceptible=").append(isPerceptible).append(", ");
         sb.append("systemUI=").append(isSystemUI);
         sb.append("]");
-
-        sb.append(" adj=").append(adj != null ? adj : "null");
 
         sb.append(" record=").append(record);
 
