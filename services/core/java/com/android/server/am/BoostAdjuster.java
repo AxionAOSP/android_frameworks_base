@@ -325,6 +325,7 @@ public class BoostAdjuster implements IBoostAdjuster {
         adjustCpusetCpus(CPU_NT_FG, ntFgLimit, duration);
         adjustCpusetCpus(CPU_DEX2OAT, bgLimit, duration);
         adjustCpusetCpus(CPU_BG, bgLimit, duration);
+        SystemProperties.set("dalvik.vm.dex2oat-threads", limit ? "1" : "3");
         mBackgroundBoosted = !limit;
     }
 
