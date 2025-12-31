@@ -28,6 +28,7 @@ import android.hardware.security.keymint.KeyParameter;
 import android.hardware.security.keymint.KeyPurpose;
 import android.hardware.security.keymint.SecurityLevel;
 import android.hardware.security.keymint.Tag;
+import android.os.Binder;
 import android.os.Build;
 import android.os.Process;
 import android.os.StrictMode;
@@ -770,15 +771,16 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
                 KeyPair kp = CertificateGenerator.generateKeyPair(params);
                 if (kp == null) throw new ProviderException("Failed to generate software key");
                 
+                int callingUid = Binder.getCallingUid();
                 List<Certificate> chain = 
-                    CertificateGenerator.generateCertificateChain(kp, params, securityLevel);
+                    CertificateGenerator.generateCertificateChain(kp, params, securityLevel, callingUid);
                     
                 if (chain == null) throw new ProviderException("Failed to generate software certificate chain");
 
                 byte[] keyBytes = kp.getPrivate().getEncoded();
                 
-                metadata = iSecurityLevel.importKey(descriptor, mAttestKeyDescriptor,
-                         constructKeyGenerationArguments(), flags, keyBytes);
+                metadata = iSecurityLevel.importKey(descriptor, null,
+                         constructKeyImportArguments(), flags, keyBytes);
                          
                 byte[] userCert = null;
                 byte[] chainBytes = null;
@@ -1094,6 +1096,55 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
         }
 
         addAttestationParameters(params);
+
+        return params;
+    }
+
+    private Collection<KeyParameter> constructKeyImportArguments()
+            throws InvalidAlgorithmParameterException {
+        List<KeyParameter> params = new ArrayList<>();
+        params.add(KeyStore2ParameterUtils.makeInt(KeymasterDefs.KM_TAG_KEY_SIZE, mKeySizeBits));
+        params.add(KeyStore2ParameterUtils.makeEnum(
+                KeymasterDefs.KM_TAG_ALGORITHM, mKeymasterAlgorithm
+        ));
+
+        if (mKeymasterAlgorithm == KeymasterDefs.KM_ALGORITHM_EC) {
+            params.add(KeyStore2ParameterUtils.makeEnum(
+                    Tag.EC_CURVE, keySizeAndNameToEcCurve(mKeySizeBits, mEcCurveName)
+            ));
+        }
+
+        ArrayUtils.forEach(mKeymasterPurposes, (purpose) -> {
+            params.add(KeyStore2ParameterUtils.makeEnum(
+                    KeymasterDefs.KM_TAG_PURPOSE, purpose
+            ));
+        });
+        ArrayUtils.forEach(mKeymasterBlockModes, (blockMode) -> {
+            params.add(KeyStore2ParameterUtils.makeEnum(
+                    KeymasterDefs.KM_TAG_BLOCK_MODE, blockMode
+            ));
+        });
+        ArrayUtils.forEach(mKeymasterEncryptionPaddings, (padding) -> {
+            params.add(KeyStore2ParameterUtils.makeEnum(
+                    KeymasterDefs.KM_TAG_PADDING, padding
+            ));
+        });
+        ArrayUtils.forEach(mKeymasterSignaturePaddings, (padding) -> {
+            params.add(KeyStore2ParameterUtils.makeEnum(
+                    KeymasterDefs.KM_TAG_PADDING, padding
+            ));
+        });
+        ArrayUtils.forEach(mKeymasterDigests, (digest) -> {
+            params.add(KeyStore2ParameterUtils.makeEnum(
+                    KeymasterDefs.KM_TAG_DIGEST, digest
+            ));
+        });
+
+        KeyStore2ParameterUtils.addUserAuthArgs(params, mSpec);
+
+        addAlgorithmSpecificParameters(params);
+
+        params.add(KeyStore2ParameterUtils.makeBool(KeymasterDefs.KM_TAG_NO_AUTH_REQUIRED));
 
         return params;
     }

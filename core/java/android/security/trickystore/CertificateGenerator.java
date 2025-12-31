@@ -5,7 +5,6 @@ import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
-import android.os.Process;
 import android.util.Log;
 
 import com.android.internal.org.bouncycastle.asn1.ASN1Boolean;
@@ -120,7 +119,8 @@ public final class CertificateGenerator {
     public static List<Certificate> generateCertificateChain(
             KeyPair keyPair,
             KeyGenParameters params,
-            int securityLevel) {
+            int securityLevel,
+            int uid) {
         
         KeyBoxManager keyboxManager = TrickyStoreService.getInstance().getKeyBoxManager();
         String algorithm = params.algorithm == 3 ? "EC" : "RSA";
@@ -136,7 +136,7 @@ public final class CertificateGenerator {
                 keybox.certificates.get(0).getEncoded());
             X500Name issuer = issuerHolder.getSubject();
 
-            X509Certificate leaf = buildCertificate(keyPair, keybox, params, issuer, securityLevel);
+            X509Certificate leaf = buildCertificate(keyPair, keybox, params, issuer, securityLevel, uid);
 
             List<Certificate> chain = new ArrayList<>();
             chain.add(leaf);
@@ -153,7 +153,8 @@ public final class CertificateGenerator {
             KeyBoxManager.KeyBox keybox,
             KeyGenParameters params,
             X500Name issuer,
-            int securityLevel) throws Exception {
+            int securityLevel,
+            int uid) throws Exception {
 
         BigInteger serial = params.certificateSerial != null ? 
             params.certificateSerial : BigInteger.ONE;
@@ -178,7 +179,7 @@ public final class CertificateGenerator {
         );
 
         builder.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.keyCertSign));
-        builder.addExtension(buildAttestExtension(params, securityLevel));
+        builder.addExtension(buildAttestExtension(params, securityLevel, uid));
 
         String sigAlg = params.algorithm == 3 ? "SHA256withECDSA" : "SHA256withRSA";
         JcaContentSignerBuilder signerBuilder = new JcaContentSignerBuilder(sigAlg);
@@ -193,7 +194,7 @@ public final class CertificateGenerator {
             new ByteArrayInputStream(holder.getEncoded()));
     }
 
-    private static Extension buildAttestExtension(KeyGenParameters params, int securityLevel) {
+    private static Extension buildAttestExtension(KeyGenParameters params, int securityLevel, int uid) {
         try {
             byte[] bootKey = AttestationUtils.getBootKey();
             byte[] bootHash = AttestationUtils.getBootHash();
@@ -248,14 +249,13 @@ public final class CertificateGenerator {
             }
 
             ASN1EncodableVector softwareEnforced = new ASN1EncodableVector();
-            softwareEnforced.add(new DERTaggedObject(true, 701, new ASN1Integer(System.currentTimeMillis())));
-            
             try {
-                ASN1OctetString applicationId = createApplicationId(Process.myUid());
+                ASN1OctetString applicationId = createApplicationId(uid);
                 softwareEnforced.add(new DERTaggedObject(true, 709, applicationId));
             } catch (Throwable e) {
                  Log.w(TAG, "Failed to create application ID", e);
             }
+            softwareEnforced.add(new DERTaggedObject(true, 701, new ASN1Integer(System.currentTimeMillis())));
 
             ASN1Encodable[] keyDescriptionElements = new ASN1Encodable[] {
                 new ASN1Integer(AttestationUtils.getAttestVersion()),

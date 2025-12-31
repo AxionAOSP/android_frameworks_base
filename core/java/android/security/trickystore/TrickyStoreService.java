@@ -214,6 +214,9 @@ public class TrickyStoreService {
             synchronized (this) {
                 if (mTeeBroken == null) {
                     mTeeBroken = checkTeeBroken();
+                    if (mTeeBroken) {
+                        AttestationUtils.setTeeBroken(true);
+                    }
                 }
             }
         }
