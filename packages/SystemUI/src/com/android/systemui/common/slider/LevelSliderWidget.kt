@@ -133,11 +133,12 @@ fun LevelSliderWidget(
 
         Box(Modifier.fillMaxSize().background(animatedTrackColor, tileShape).clip(tileShape))
 
+        val cornerRadiusPx = with(density) { style.qsTileCornerRadius.toPx() }
         Canvas(Modifier.fillMaxSize().clip(tileShape)) {
             drawRoundRect(
                 color = progressFillColor,
                 size = Size(fillWidth, size.height),
-                cornerRadius = CornerRadius(size.height / 2)
+                cornerRadius = CornerRadius(cornerRadiusPx)
             )
         }
 
