@@ -30,6 +30,7 @@ import com.android.systemui.animation.Expandable
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.statusbar.phone.SystemUIDialog
+import com.android.systemui.statusbar.policy.FlashlightController.FlashlightListener
 import java.util.concurrent.Executor
 import javax.inject.Inject
 import javax.inject.Provider
@@ -43,7 +44,8 @@ class FlashlightStrengthController @Inject constructor(
     private val dialogDelegateProvider: Provider<FlashlightStrengthDialogDelegate>,
     private val keyguardStateController: KeyguardStateController,
     private val activityStarter: ActivityStarter,
-    private val mainHandler: Handler
+    private val mainHandler: Handler,
+    private val flashlightController: FlashlightController
 ) {
 
     interface OnTorchLevelChangedListener {
@@ -93,10 +95,10 @@ class FlashlightStrengthController @Inject constructor(
                         _notifyLevelChanged(0)
                     } else {
                         runCatching {
-                            torchOn = true
                             cm.turnOnTorchWithStrengthLevel(id, lvl)
                             _torchLevel = lvl
                             _notifyLevelChanged(lvl)
+                            _notifyStatusChanged(1)
                         }.onFailure { e ->
                             Log.w(TAG, "Failed to change torch level: $e")
                             _torchLevel = 0
@@ -122,6 +124,7 @@ class FlashlightStrengthController @Inject constructor(
                     torchId = id
                     _maxLevel = max
                     Log.d(TAG, "Flashlight strength supported, max level=$max")
+                    flashlightController.addCallback(flashlightListener)
                     return@lazy true
                 }
             }
@@ -208,6 +211,26 @@ class FlashlightStrengthController @Inject constructor(
                 listeners.forEach { it.onStatusChanged(enabled) }
             }
         }
+    }
+
+    private val flashlightListener = object : FlashlightListener {
+        override fun onFlashlightChanged(enabled: Boolean) {
+            _notifyStatusChanged(if (enabled) 1 else 0)
+            if (enabled) {
+                torchId?.let { id ->
+                    runCatching {
+                        val lvl = cm.getTorchStrengthLevel(id)
+                        if (lvl > 0) {
+                            _torchLevel = lvl
+                            _notifyLevelChanged(lvl)
+                        }
+                    }
+                }
+            }
+        }
+
+        override fun onFlashlightError() {}
+        override fun onFlashlightAvailabilityChanged(available: Boolean) {}
     }
 
     companion object {

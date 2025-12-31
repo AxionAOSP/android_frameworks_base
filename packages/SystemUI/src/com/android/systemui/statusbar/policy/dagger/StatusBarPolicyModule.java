@@ -328,7 +328,8 @@ public interface StatusBarPolicyModule {
             Provider<FlashlightStrengthDialogDelegate> dialogDelegateProvider,
             KeyguardStateController keyguardStateController,
             ActivityStarter activityStarter,
-            @Main Handler mainHandler
+            @Main Handler mainHandler,
+            FlashlightController flashlightController
     ) {
         return new FlashlightStrengthController(
                 context,
@@ -337,7 +338,8 @@ public interface StatusBarPolicyModule {
                 dialogDelegateProvider,
                 keyguardStateController,
                 activityStarter,
-                mainHandler
+                mainHandler,
+                flashlightController
         );
     }
     
