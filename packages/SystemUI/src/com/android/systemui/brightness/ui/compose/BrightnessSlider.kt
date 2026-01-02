@@ -27,7 +27,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.VectorConverter
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -44,10 +43,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderColors
@@ -421,13 +420,6 @@ private fun drawAutoBrightnessButton(
 ) {
     val view = LocalView.current
     val coroutineScope = rememberCoroutineScope()
-    val animatedCornerRadius by animateDpAsState(
-        targetValue = if (autoMode) {
-            SliderTrackRoundedCorner
-        } else {
-            22.5.dp
-        }
-    )
     val backgroundColor by animateColorAsState(
         targetValue = if (autoMode) {
             MaterialTheme.colorScheme.primary
@@ -453,20 +445,15 @@ private fun drawAutoBrightnessButton(
         HapticFeedbackConstants.TOGGLE_ON
     }
 
-    Box(
+    IconButton(
+        onClick = {
+            view.performHapticFeedback(hapticConstant)
+            coroutineScope.launch { onIconClick() }
+        },
         modifier = Modifier
-            .size(45.dp)
-            .clip(RoundedCornerShape(animatedCornerRadius))
+            .size(52.dp)
+            .clip(CircleShape)
             .background(backgroundColor)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null, // Disable ripple effect
-                onClick = {
-                    view.performHapticFeedback(hapticConstant)
-                    coroutineScope.launch { onIconClick() }
-                }
-            ),
-        contentAlignment = Alignment.Center
     ) {
         Icon(
             painter = painterResource(painterRes),
