@@ -16,29 +16,46 @@
 
 package com.android.systemui.axion.volume.ui.composable
 
+import android.content.res.Configuration
 import android.media.AudioManager
-import android.util.Log
 import android.view.HapticFeedbackConstants
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.*
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.ClosedCaptionDisabled
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.*
-import androidx.compose.ui.text.font.*
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.ui.unit.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.android.systemui.axion.volume.domain.model.AxionStreamInfo
+import com.android.systemui.axion.volume.domain.model.AxionVolumeDialogState
+import com.android.systemui.axion.volume.domain.model.VolumeSliderItem
 import com.android.systemui.axion.volume.ui.viewmodel.AxionVolumeDialogViewModel
 import com.android.systemui.theme.UiStyleProvider
+import kotlinx.coroutines.delay
+
+private const val SLIDE_DURATION = 200
 
 @Composable
 fun AxionVolumeDialogContent(
@@ -47,9 +64,7 @@ fun AxionVolumeDialogContent(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isVisible = uiState.isVisible
     val isLeft = uiState.isLeftSide
-    val dialogState = uiState.dialogState
-    val appVolumes = dialogState.appVolumes
-    val hasAppVolumes = appVolumes.isNotEmpty()
+    val isExpanded = uiState.isExpanded
 
     var animateIn by remember { mutableStateOf(false) }
     
@@ -59,20 +74,14 @@ fun AxionVolumeDialogContent(
 
     val visibilityProgress by animateFloatAsState(
         targetValue = if (animateIn && isVisible) 1f else 0f,
-        animationSpec = tween(
-            durationMillis = DialogAnimDuration,
-            easing = FastOutSlowInEasing
-        ),
+        animationSpec = tween(durationMillis = DialogAnimDuration, easing = FastOutSlowInEasing),
         label = "visibility"
     )
 
     val overscrollOffset by viewModel.overscrollOffset.collectAsStateWithLifecycle()
     val animatedOverscroll by animateFloatAsState(
         targetValue = overscrollOffset,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
         label = "overscroll"
     )
     
@@ -84,188 +93,389 @@ fun AxionVolumeDialogContent(
     }
 
     val slideOffset = with(LocalDensity.current) { 48.dp.toPx() }
-    
-    val config = LocalConfiguration.current
-    val screenHeightDp = config.screenHeightDp.dp
-    
-    val sizing = calculateVolumeDialogSizing(screenHeightDp)
 
-    Column(
+    var showCollapsed by remember { mutableStateOf(!isExpanded) }
+    var showExpanded by remember { mutableStateOf(isExpanded) }
+
+    LaunchedEffect(isExpanded) {
+        if (isExpanded) {
+            showCollapsed = false
+            delay(DialogAnimDuration.toLong())
+            showExpanded = true
+        } else {
+            showExpanded = false
+            delay(DialogAnimDuration.toLong())
+            showCollapsed = true
+        }
+    }
+
+    val slideDirection = if (isLeft) -1 else 1
+
+    Box(
         modifier = Modifier
             .graphicsLayer {
                 alpha = visibilityProgress
-                translationX = if (isLeft) {
-                    -slideOffset * (1f - visibilityProgress)
-                } else {
-                    slideOffset * (1f - visibilityProgress)
-                }
+                translationX = if (isLeft) -slideOffset * (1f - visibilityProgress) else slideOffset * (1f - visibilityProgress)
                 translationY = animatedOverscroll
             },
-        horizontalAlignment = if (isLeft) Alignment.Start else Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        contentAlignment = if (isLeft) Alignment.CenterStart else Alignment.CenterEnd
     ) {
-        RingerControlButton(viewModel, buttonSize = sizing.ringerSize)
-        
-        VolumeSliderHolder(
-            viewModel = viewModel,
-            sliderHeight = sizing.sliderHeight,
-            footerSize = sizing.footerSize,
-            sliderIconSize = sizing.sliderIconSize
-        )
+        AnimatedVisibility(
+            visible = showCollapsed,
+            enter = slideInHorizontally(
+                initialOffsetX = { slideDirection * it },
+                animationSpec = tween(DialogAnimDuration)
+            ),
+            exit = slideOutHorizontally(
+                targetOffsetX = { slideDirection * it },
+                animationSpec = tween(DialogAnimDuration)
+            )
+        ) {
+            CollapsedVolumeDialog(viewModel = viewModel)
+        }
+
+        AnimatedVisibility(
+            visible = showExpanded,
+            enter = slideInHorizontally(
+                initialOffsetX = { slideDirection * it },
+                animationSpec = tween(DialogAnimDuration)
+            ),
+            exit = slideOutHorizontally(
+                targetOffsetX = { slideDirection * it },
+                animationSpec = tween(DialogAnimDuration)
+            )
+        ) {
+            ExpandedVolumeDialog(viewModel = viewModel)
+        }
     }
 }
 
 @Composable
-private fun VolumeSliderHolder(
-    viewModel: AxionVolumeDialogViewModel,
-    sliderHeight: Dp,
-    footerSize: Dp,
-    sliderIconSize: Dp
-) {
+private fun CollapsedVolumeDialog(viewModel: AxionVolumeDialogViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val dialogState = uiState.dialogState
-    val style = UiStyleProvider.rememberCurrentStyle()
-
+    val ringerMode = uiState.dialogState.ringerMode
     val isLeftSide = uiState.isLeftSide
-    val isExpanded = uiState.isExpanded
-    val shouldAnimateExpansion = uiState.shouldAnimateExpansion
-    val showingAppVolumes = uiState.showingAppVolumes
-    val appVolumes = dialogState.appVolumes
-    val hasAppVolumes = appVolumes.isNotEmpty()
+    val style = UiStyleProvider.rememberCurrentStyle()
+    val cornerRadius = style.dialogCornerRadius
 
-    val (musicStream, otherStreams) = remember(dialogState.volumeStreams) {
-        val map = dialogState.volumeStreams.associateBy { it.streamType }
-        val music = map[AudioManager.STREAM_MUSIC]
-        val others = listOfNotNull(
-            map[AudioManager.STREAM_VOICE_CALL],
-            map[AudioManager.STREAM_RING],
-            map[AudioManager.STREAM_NOTIFICATION],
-            map[AudioManager.STREAM_ALARM]
-        )
-        music to others
-    }
-
-    val widthProgress by animateFloatAsState(
-        targetValue = if (isExpanded) 1f else 0f,
-        animationSpec = if (shouldAnimateExpansion) {
-            tween(durationMillis = 300, easing = FastOutSlowInEasing)
-        } else {
-            snap()
-        },
-        label = "widthProgress"
-    )
-
-    val backgroundColor = MaterialTheme.colorScheme.surface
-    val sidePadding = if (isExpanded) 10.dp else 6.dp
-
-    Box(
-        modifier = Modifier.width(SliderExpandedContentWidth),
-        contentAlignment = if (isLeftSide) Alignment.CenterStart else Alignment.CenterEnd
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        DrawerLayout(
-            widthProgress = widthProgress,
-            collapsedWidth = SliderWidthCollapsed,
-            expandedWidth = SliderExpandedContentWidth,
-            isLeftSide = isLeftSide,
+        RingerButton(
+            ringerMode = ringerMode,
+            onClick = { 
+                viewModel.rescheduleTimeout()
+                viewModel.toggleExpanded() 
+            },
+            size = VolumeButtonsSize,
+            cornerRadius = cornerRadius
+        )
+
+        Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(style.dialogCornerRadius))
-                .background(backgroundColor)
+                .width(SliderWidthCollapsed)
+                .clip(RoundedCornerShape(cornerRadius))
+                .background(MaterialTheme.colorScheme.surfaceBright),
+            contentAlignment = Alignment.Center
         ) {
             Column(
-                modifier = Modifier
-                    .width(SliderExpandedContentWidth)
-                    .padding(top = 12.dp, bottom = 10.dp, start = sidePadding, end = sidePadding),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(0.dp)
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-                VolumeSlidersRow(
-                    viewModel = viewModel,
-                    showingAppVolumes = showingAppVolumes,
-                    hasAppVolumes = hasAppVolumes,
-                    isLeftSide = isLeftSide,
-                    musicStream = musicStream,
-                    otherStreams = otherStreams,
-                    appVolumes = appVolumes,
-                    sliderHeight = sliderHeight,
-                    iconSize = sliderIconSize
-                )
-
-                if (isExpanded) {
-                    Spacer(Modifier.height(12.dp))
+                ActiveStreamSlider(viewModel = viewModel)
+                
+                Spacer(modifier = Modifier.height(18.dp))
+                
+                Box(
+                    modifier = Modifier
+                        .size(SliderIconSize + 8.dp)
+                        .clip(CircleShape)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            viewModel.rescheduleTimeout()
+                            viewModel.toggleExpanded()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isLeftSide) Icons.AutoMirrored.Filled.KeyboardArrowRight else Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                        contentDescription = "Expand",
+                        modifier = Modifier.size(SliderIconSize),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
                 }
 
-                VolumeFooterRow(
-                    isLeftSide = isLeftSide,
-                    buttonSize = footerSize,
-                    expandButton = {
-                        ExpandableCaptionButton(
-                            isExpanded = isExpanded,
-                            isLeftSide = isLeftSide,
-                            captionsAvailable = dialogState.captionsAvailable,
-                            captionsEnabled = dialogState.captionsEnabled,
-                            viewModel = viewModel,
-                            buttonSize = footerSize
-                        )
-                    },
-                    hasAppVolumes = hasAppVolumes,
-                    showingAppVolumes = showingAppVolumes,
-                    onSystemClick = {
-                        if (showingAppVolumes) viewModel.toggleVolumeView()
-                    },
-                    onAppsClick = {
-                        if (!showingAppVolumes) viewModel.toggleVolumeView()
-                    },
-                    onSeeMoreClick = { viewModel.onSeeMoreClick() }
-                )
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }
 }
 
-private data class VolumeDialogSizing(
-    val ringerSize: Dp,
-    val footerSize: Dp,
-    val sliderHeight: Dp,
-    val sliderIconSize: Dp
-)
+@Composable
+private fun ExpandedVolumeDialog(viewModel: AxionVolumeDialogViewModel) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val dialogState = uiState.dialogState
+    val isLeftSide = uiState.isLeftSide
+    val style = UiStyleProvider.rememberCurrentStyle()
+    val configuration = LocalConfiguration.current
+    val isTablet = configuration.smallestScreenWidthDp >= 600
+    val isPhoneLandscape = !isTablet && configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-private fun calculateVolumeDialogSizing(screenHeightDp: Dp): VolumeDialogSizing {
-    val ringerSize = VolumeButtonsSize
-    val footerSize = 48.dp
-    
-    val columnSpacing = 12.dp
-    val drawerTopPadding = 12.dp
-    val drawerBottomPadding = 10.dp
-    val spacerBeforeSliders = 12.dp
-    val spacerAfterSliders = 8.dp
-    val sliderInternalSpacing = 12.dp
-    
-    val fixedSpace = ringerSize + footerSize + columnSpacing + 
-                     drawerTopPadding + drawerBottomPadding + 
-                     spacerBeforeSliders + spacerAfterSliders + sliderInternalSpacing
-    
-    val availableForSliders = screenHeightDp - fixedSpace
-    
-    val sliderHeight = when {
-        availableForSliders >= SliderHeightTarget -> SliderHeightTarget
-        else -> availableForSliders.coerceAtLeast(SliderHeightMin)
-    }
-    
-    val sliderIconSize = if (sliderHeight < SliderHeightTarget) {
-        (SliderIconSize * (sliderHeight / SliderHeightTarget)).coerceAtLeast(SliderIconMinSize)
-    } else {
-        SliderIconSize
-    }
-    
-    Log.d("calculateVolumeDialogSizing", 
-        "screenHeightDp=$screenHeightDp availableForSliders=$availableForSliders fixedSpace=$fixedSpace sliderIconSize=$sliderIconSize sliderHeight=$sliderHeight")
-    
-    return VolumeDialogSizing(
-        ringerSize = ringerSize,
-        footerSize = footerSize,
-        sliderHeight = sliderHeight,
-        sliderIconSize = sliderIconSize
+    val streamCount = dialogState.volumeStreams.size
+    val appVolumeCount = dialogState.appVolumes.size
+    val totalSliderCount = streamCount + appVolumeCount
+    val targetPanelWidth = calculateExpandedPanelWidth(totalSliderCount, isLandscape = isPhoneLandscape)
+    val panelWidth by animateDpAsState(
+        targetValue = targetPanelWidth,
+        label = "PanelWidthAnimation"
     )
+
+    val collapseButton = @Composable {
+        FilledTonalButton(
+            onClick = { 
+                viewModel.rescheduleTimeout()
+                viewModel.toggleExpanded() 
+            },
+            modifier = Modifier.size(VolumeButtonsSize),
+            shape = CircleShape,
+            colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceBright,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ),
+            contentPadding = PaddingValues(0.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = "Dismiss",
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+
+    if (isPhoneLandscape) {
+        ExpandedPanelContent(
+            viewModel = viewModel,
+            dialogState = dialogState,
+            panelWidth = panelWidth,
+            cornerRadius = style.dialogCornerRadius,
+            isLandscape = true
+        )
+    } else {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ExpandedPanelContent(
+                viewModel = viewModel,
+                dialogState = dialogState,
+                panelWidth = panelWidth,
+                cornerRadius = style.dialogCornerRadius
+            )
+
+            collapseButton()
+        }
+    }
+}
+
+@Composable
+private fun ExpandedPanelContent(
+    viewModel: AxionVolumeDialogViewModel,
+    dialogState: AxionVolumeDialogState,
+    panelWidth: Dp,
+    cornerRadius: Dp,
+    isLandscape: Boolean = false
+) {
+    Box(
+        modifier = Modifier
+            .width(panelWidth)
+            .clip(RoundedCornerShape(cornerRadius))
+            .background(MaterialTheme.colorScheme.surfaceBright)
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                val captionsEnabled = dialogState.captionsEnabled
+                FilledTonalIconButton(
+                    onClick = { 
+                        viewModel.rescheduleTimeout()
+                        viewModel.toggleCaptions() 
+                    },
+                    modifier = Modifier.size(VolumeButtonsSizeExpanded),
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = if (captionsEnabled) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = if (captionsEnabled) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Icon(
+                        imageVector = if (captionsEnabled) Icons.Filled.ClosedCaption else Icons.Filled.ClosedCaptionDisabled,
+                        contentDescription = "Captions",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                val activeAppPkg = dialogState.activeAppPackageName
+                val activeAppLabel = activeAppPkg?.let { pkg ->
+                    dialogState.appVolumes.find { it.packageName == pkg }?.label
+                }
+
+                val title = activeAppLabel ?: run {
+                    val activeStreamInfo = AxionStreamInfo.fromStreamType(dialogState.activeStream)
+                    if (activeStreamInfo != AxionStreamInfo.UNKNOWN) activeStreamInfo.label else "Volume"
+                }
+
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.basicMarquee()
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilledTonalIconButton(
+                        onClick = { 
+                            viewModel.rescheduleTimeout()
+                            viewModel.onSeeMoreClick() 
+                        },
+                        modifier = Modifier.size(VolumeButtonsSizeExpanded),
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Settings",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    
+                }
+            }
+
+            ExpandedSlidersRow(
+                viewModel = viewModel,
+                isLandscape = isLandscape
+            )
+
+            RingerSegmentedButton(
+                viewModel = viewModel,
+                ringerMode = dialogState.ringerMode,
+                supportedModes = dialogState.supportedRingerModes
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActiveStreamSlider(viewModel: AxionVolumeDialogViewModel) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val activeStream = uiState.dialogState.activeStream
+
+    val streamModel = uiState.dialogState.volumeStreams.find { it.streamType == activeStream }
+        ?: uiState.dialogState.volumeStreams.find { it.streamType == AudioManager.STREAM_MUSIC }
+
+    if (streamModel != null) {
+        SliderColumn(
+            stream = streamModel,
+            viewModel = viewModel,
+            sliderHeight = SliderHeightTarget,
+            iconSize = SliderIconSize,
+            showPercentage = false
+        )
+    }
+}
+
+@Composable
+private fun ExpandedSlidersRow(
+    viewModel: AxionVolumeDialogViewModel,
+    isLandscape: Boolean
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val dialogState = uiState.dialogState
+    val isLeftSide = uiState.isLeftSide
+
+    val sliderItems = remember(dialogState.volumeStreams, dialogState.appVolumes, isLeftSide) {
+        val streamOrder = listOf(
+            AudioManager.STREAM_VOICE_CALL,
+            AudioManager.STREAM_RING,
+            AudioManager.STREAM_NOTIFICATION,
+            AudioManager.STREAM_ALARM
+        )
+        val musicStream = dialogState.volumeStreams.find { it.streamType == AudioManager.STREAM_MUSIC }
+        val otherStreams = dialogState.volumeStreams
+            .filter { it.streamType != AudioManager.STREAM_MUSIC }
+            .sortedBy { streamOrder.indexOf(it.streamType) }
+        val appVolumeItems = dialogState.appVolumes.map { VolumeSliderItem.AppVolume(it) }
+
+        buildList {
+            if (isLeftSide) {
+                musicStream?.let { add(VolumeSliderItem.Stream(it)) }
+                otherStreams.forEach { add(VolumeSliderItem.Stream(it)) }
+                addAll(appVolumeItems)
+            } else {
+                addAll(appVolumeItems)
+                otherStreams.reversed().forEach { add(VolumeSliderItem.Stream(it)) }
+                musicStream?.let { add(VolumeSliderItem.Stream(it)) }
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = if (isLeftSide) Alignment.CenterStart else Alignment.CenterEnd
+    ) {
+        VolumeSlidersRow(
+            viewModel = viewModel,
+            sliderItems = sliderItems,
+            sliderHeight = SliderHeightTarget,
+            iconSize = SliderIconSize,
+            showPercentage = true,
+            modifier = if (isLandscape) {
+                Modifier.padding(
+                    start = if (!isLeftSide) 8.dp else 0.dp,
+                    end = if (isLeftSide) 8.dp else 0.dp
+                )
+            } else Modifier
+        )
+
+        if (isLandscape) {
+            Box(
+                modifier = Modifier
+                    .align(if (isLeftSide) Alignment.CenterEnd else Alignment.CenterStart)
+                    .size(VolumeButtonsSizeExpanded)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = ripple(bounded = false, radius = 20.dp)
+                    ) { 
+                        viewModel.rescheduleTimeout()
+                        viewModel.toggleExpanded() 
+                    },
+                contentAlignment = if (isLeftSide) Alignment.CenterEnd else Alignment.CenterStart
+            ) {
+                Icon(
+                    imageVector = if (isLeftSide) Icons.AutoMirrored.Filled.KeyboardArrowLeft else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Collapse",
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 }

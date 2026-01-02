@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import com.android.systemui.axion.volume.domain.model.AxionAppVolumeModel
 import com.android.systemui.axion.volume.domain.model.AxionVolumeStreamModel
+import com.android.systemui.axion.volume.domain.model.VolumeSliderItem
 import com.android.systemui.axion.volume.ui.viewmodel.AxionVolumeDialogViewModel
 import com.android.systemui.haptics.slider.SeekableSliderTrackerConfig
 import com.android.systemui.haptics.slider.SliderHapticFeedbackConfig
@@ -57,7 +58,8 @@ fun SliderColumn(
     stream: AxionVolumeStreamModel,
     viewModel: AxionVolumeDialogViewModel,
     sliderHeight: Dp = SliderHeightTarget,
-    iconSize: Dp = SliderIconSize
+    iconSize: Dp = SliderIconSize,
+    showPercentage: Boolean = false
 ) {
     val info = stream.streamInfo
     val muted = stream.isMuted
@@ -67,8 +69,9 @@ fun SliderColumn(
         value = if (muted) 0f else stream.level,
         onValueChange = { viewModel.setVolume(stream.streamType, it) },
         isMuted = muted,
-        modifier = Modifier.height(sliderHeight).width(SliderWidthExpanded),
+        modifier = Modifier.height(sliderHeight + if(showPercentage) 20.dp else 0.dp).width(SliderWidthExpanded),
         viewModel = viewModel,
+        streamType = stream.streamType,
         icon = {
             Icon(
                 imageVector = if (muted) info.mutedIcon else info.icon,
@@ -78,7 +81,8 @@ fun SliderColumn(
             )
         },
         onIconClick = { viewModel.toggleMute(stream.streamType) },
-        iconSize = iconSize
+        iconSize = iconSize,
+        showPercentage = showPercentage
     )
 }
 
@@ -87,7 +91,8 @@ fun AppVolumeSlider(
     appVolume: AxionAppVolumeModel,
     viewModel: AxionVolumeDialogViewModel,
     sliderHeight: Dp,
-    iconSize: Dp = SliderIconSize
+    iconSize: Dp = SliderIconSize,
+    showPercentage: Boolean = false
 ) {
     val context = LocalContext.current
     val pm = context.packageManager
@@ -103,7 +108,7 @@ fun AppVolumeSlider(
         value = if (appVolume.isMuted) 0f else appVolume.volume,
         onValueChange = { viewModel.setAppVolume(appVolume.packageName, it) },
         isMuted = appVolume.isMuted,
-        modifier = Modifier.height(sliderHeight).width(SliderWidthExpanded),
+        modifier = Modifier.height(sliderHeight + if(showPercentage) 20.dp else 0.dp).width(SliderWidthExpanded),
         viewModel = viewModel,
         icon = {
             if (icon != null) {
@@ -125,7 +130,8 @@ fun AppVolumeSlider(
             }
         },
         onIconClick = { viewModel.setAppMute(appVolume.packageName, !appVolume.isMuted) },
-        iconSize = iconSize
+        iconSize = iconSize,
+        showPercentage = showPercentage
     )
 }
 
@@ -136,9 +142,11 @@ fun VolumeSlider(
     isMuted: Boolean,
     modifier: Modifier = Modifier,
     viewModel: AxionVolumeDialogViewModel,
+    streamType: Int? = null,
     icon: @Composable () -> Unit,
     onIconClick: () -> Unit,
-    iconSize: Dp = SliderIconSize
+    iconSize: Dp = SliderIconSize,
+    showPercentage: Boolean = false
 ) {
     var sliderValue by remember { mutableFloatStateOf(value) }
     var isDragging by remember { mutableStateOf(false) }
@@ -182,12 +190,22 @@ fun VolumeSlider(
     Column(
         modifier = modifier, 
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
+        if (showPercentage) {
+            Text(
+                text = "${(sliderValue * 100).toInt()}%",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+            )
+        }
+    
         BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
-                .wrapContentWidth(),
+                .wrapContentWidth()
+                .padding(top = 8.dp),
             contentAlignment = Alignment.BottomCenter
         ) {
             val maxHeight = maxHeight
@@ -244,6 +262,7 @@ fun VolumeSlider(
                         detectVerticalDragGestures(
                             onDragStart = {
                                 isDragging = true
+                                streamType?.let { viewModel.setActiveStream(it) }
                                 sliderValue = 1f - (it.y / size.height).coerceIn(0f, 1f)
                                 onValueChange(sliderValue)
                                 hapticsViewModel.onValueChange(sliderValue)
@@ -325,6 +344,8 @@ fun VolumeSlider(
             )
         }
 
+        Spacer(modifier = Modifier.height(12.dp))
+
         Box(
             modifier = Modifier
                 .size(iconSize)
@@ -344,57 +365,37 @@ fun VolumeSlider(
 @Composable
 fun VolumeSlidersRow(
     viewModel: AxionVolumeDialogViewModel,
-    showingAppVolumes: Boolean,
-    hasAppVolumes: Boolean,
-    isLeftSide: Boolean,
-    musicStream: AxionVolumeStreamModel?,
-    otherStreams: List<AxionVolumeStreamModel>,
-    appVolumes: List<AxionAppVolumeModel>,
+    sliderItems: List<VolumeSliderItem>,
     sliderHeight: Dp,
-    iconSize: Dp = SliderIconSize
+    iconSize: Dp = SliderIconSize,
+    showPercentage: Boolean = false,
+    modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = Modifier
-            .height(sliderHeight)
-            .width(SliderExpandedContentWidth - 20.dp),
-        contentAlignment = if (isLeftSide) Alignment.CenterStart else Alignment.CenterEnd
+        modifier = modifier
+            .height(sliderHeight + if(showPercentage) 20.dp else 0.dp)
+            .fillMaxWidth(),
+        contentAlignment = Alignment.Center
     ) {
-        if (showingAppVolumes && hasAppVolumes) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (musicStream != null) {
-                    SliderColumn(musicStream, viewModel, sliderHeight, iconSize)
-                }
-                appVolumes.forEach { appVolume ->
-                    key(appVolume.packageName) {
-                        AppVolumeSlider(appVolume, viewModel, sliderHeight, iconSize)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(
+                space = SliderSpacing,
+                alignment = Alignment.CenterHorizontally
+            ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            sliderItems.forEach { item ->
+                when (item) {
+                    is VolumeSliderItem.Stream -> {
+                        key(item.model.streamType) {
+                            SliderColumn(item.model, viewModel, sliderHeight, iconSize, showPercentage)
+                        }
                     }
-                }
-            }
-        } else {
-            val orderedStreams = remember(isLeftSide, musicStream, otherStreams) {
-                if (isLeftSide) {
-                    listOfNotNull(musicStream) + otherStreams
-                } else {
-                    otherStreams + listOfNotNull(musicStream)
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(
-                    space = SliderSpacing,
-                    alignment = if (isLeftSide) Alignment.Start else Alignment.End
-                ),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                orderedStreams.forEach { stream ->
-                    SliderColumn(stream, viewModel, sliderHeight, iconSize)
+                    is VolumeSliderItem.AppVolume -> {
+                        key(item.model.packageName) {
+                            AppVolumeSlider(item.model, viewModel, sliderHeight, iconSize, showPercentage)
+                        }
+                    }
                 }
             }
         }

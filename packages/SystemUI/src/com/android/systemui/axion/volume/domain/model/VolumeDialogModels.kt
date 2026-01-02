@@ -44,20 +44,28 @@ data class AxionVolumeDialogState(
     val volumeStreams: List<AxionVolumeStreamModel> = emptyList(),
     val captionsEnabled: Boolean = false,
     val captionsAvailable: Boolean = true,
+    val activeStream: Int = AudioManager.STREAM_MUSIC,
     val supportedRingerModes: List<AxionRingerMode> = listOf(
         AxionRingerMode.NORMAL,
         AxionRingerMode.VIBRATE,
         AxionRingerMode.SILENT
     ),
     val appVolumes: List<AxionAppVolumeModel> = emptyList(),
+    val activeAppPackageName: String? = null
 )
 
 data class AxionAppVolumeModel(
     val packageName: String,
+    val label: String,
     val volume: Float,
     val isMuted: Boolean,
     val isActive: Boolean
 )
+
+sealed class VolumeSliderItem {
+    data class Stream(val model: AxionVolumeStreamModel) : VolumeSliderItem()
+    data class AppVolume(val model: AxionAppVolumeModel) : VolumeSliderItem()
+}
 
 data class AxionVolumeStreamModel(
     val streamType: Int,

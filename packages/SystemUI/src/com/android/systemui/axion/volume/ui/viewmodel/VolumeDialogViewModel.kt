@@ -69,6 +69,7 @@ class AxionVolumeDialogViewModel @Inject constructor(
     private val _showingAppVolumes = MutableStateFlow(false)
     private val _overscrollOffset = MutableStateFlow(0f)
     private val _volumeKeyHapticTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val _rescheduleTimeoutTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     val uiState: StateFlow<AxionVolumeDialogUiState> = combine(
         interactor.volumeDialogState,
@@ -107,7 +108,10 @@ class AxionVolumeDialogViewModel @Inject constructor(
     
     var expansionState: ExpansionState
         get() = _expansionState.value
-        set(value) { _expansionState.value = value }
+        set(value) { 
+            _expansionState.value = value 
+            interactor.setExpanded(value == ExpansionState.EXPANDED)
+        }
 
     var isInteracting: Boolean
         get() = _isInteracting.value
@@ -115,13 +119,14 @@ class AxionVolumeDialogViewModel @Inject constructor(
     
     val overscrollOffset: StateFlow<Float> = _overscrollOffset.asStateFlow()
     val volumeKeyHapticTrigger: SharedFlow<Unit> = _volumeKeyHapticTrigger.asSharedFlow()
+    val rescheduleTimeoutTrigger: SharedFlow<Unit> = _rescheduleTimeoutTrigger.asSharedFlow()
     
     fun setOverscrollOffset(offset: Float) {
         _overscrollOffset.value = offset
     }
 
     fun resetState() {
-        _expansionState.value = ExpansionState.COLLAPSED
+        expansionState = ExpansionState.COLLAPSED
         _showingAppVolumes.value = false
     }
     
@@ -143,9 +148,18 @@ class AxionVolumeDialogViewModel @Inject constructor(
     fun setVolume(streamType: Int, level: Float) {
         interactor.setVolume(streamType, level)
     }
+
+    fun setActiveStream(streamType: Int) {
+        interactor.setActiveStream(streamType)
+    }
     
     fun setRingerMode(mode: AxionRingerMode) {
         interactor.setRingerMode(mode)
+    }
+
+    fun rescheduleTimeout() {
+        interactor.rescheduleTimeout()
+        _rescheduleTimeoutTrigger.tryEmit(Unit)
     }
 
     fun toggleMute(streamType: Int) {

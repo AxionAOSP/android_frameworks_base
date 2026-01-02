@@ -16,146 +16,95 @@
 
 package com.android.systemui.axion.volume.ui.composable
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.RingVolume
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Vibration
-import androidx.compose.material.icons.filled.VolumeOff
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.*
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.android.systemui.axion.volume.domain.model.AxionRingerMode
 import com.android.systemui.axion.volume.ui.viewmodel.AxionVolumeDialogViewModel
 
 @Composable
-fun RingerControlButton(
+fun RingerSegmentedButton(
     viewModel: AxionVolumeDialogViewModel,
-    buttonSize: Dp = VolumeButtonsSize
+    ringerMode: AxionRingerMode,
+    supportedModes: List<AxionRingerMode>,
+    modifier: Modifier = Modifier
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val dialogState = uiState.dialogState
-    val ringerMode = dialogState.ringerMode
-    val supportedModes = dialogState.supportedRingerModes
-    val isLeftSide = uiState.isLeftSide
-    val isExpanded = uiState.isExpanded
-
-    val widthProgress by animateFloatAsState(
-        targetValue = if (isExpanded) 1f else 0f,
-        animationSpec = tween(300, easing = FastOutSlowInEasing),
-        label = "ringerWidthProgress"
+    val allOptions = listOf(
+        AxionRingerMode.NORMAL to Icons.Filled.Notifications,
+        AxionRingerMode.VIBRATE to Icons.Filled.Vibration,
+        AxionRingerMode.SILENT to Icons.Filled.NotificationsOff
     )
-
-    Box(
-        modifier = Modifier.width(SliderExpandedContentWidth),
-        contentAlignment = if (isLeftSide) Alignment.CenterStart else Alignment.CenterEnd
+    val options = allOptions.filter { it.first in supportedModes }
+    
+    SingleChoiceSegmentedButtonRow(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp)
     ) {
-        DrawerLayout(
-            widthProgress = widthProgress,
-            collapsedWidth = buttonSize,
-            expandedWidth = SliderExpandedContentWidth,
-            isLeftSide = isLeftSide,
-            modifier = Modifier
-                .clip(RoundedCornerShape(32.dp))
-                .background(MaterialTheme.colorScheme.surface)
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(SliderExpandedContentWidth)
-                    .height(buttonSize),
-                contentAlignment = Alignment.Center
+        options.forEachIndexed { index, (mode, icon) ->
+            val isSelected = ringerMode == mode
+            SegmentedButton(
+                selected = isSelected,
+                onClick = { 
+                    viewModel.rescheduleTimeout()
+                    viewModel.setRingerMode(mode) 
+                },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                colors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = MaterialTheme.colorScheme.primary,
+                    activeContentColor = MaterialTheme.colorScheme.onPrimary,
+                    inactiveContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    inactiveContentColor = MaterialTheme.colorScheme.onSurface
+                ),
+                icon = {}
             ) {
-                if (isExpanded) {
-                    val selectedIndex = supportedModes.indexOf(ringerMode).coerceAtLeast(0)
-                    val spacing = (SliderExpandedContentWidth - buttonSize) / (supportedModes.size - 1).coerceAtLeast(1)
-                    val edgePadding = (buttonSize - RingerIndicatorSize) / 2
-                    
-                    val indicatorOffset by animateDpAsState(
-                        targetValue = edgePadding + (if (supportedModes.size > 1) spacing * selectedIndex else 0.dp),
-                        animationSpec = tween(200, easing = FastOutSlowInEasing),
-                        label = "indicator"
-                    )
-                    
-                    Surface(
-                        modifier = Modifier
-                            .offset(x = indicatorOffset)
-                            .align(Alignment.CenterStart)
-                            .size(RingerIndicatorSize),
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary,
-                        tonalElevation = 2.dp
-                    ) {}
-                }
-                
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = if (!isExpanded && !isLeftSide) Arrangement.End else Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    supportedModes.forEach { mode ->
-                        val isSelected = mode == ringerMode
-                        if (isExpanded || isSelected) {
-                            Box(
-                                modifier = Modifier
-                                    .size(buttonSize)
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null
-                                    ) { 
-                                        if (isExpanded) viewModel.setRingerMode(mode) 
-                                        else viewModel.cycleRingerMode()
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                val targetColor = if (isSelected && isExpanded) MaterialTheme.colorScheme.onPrimary
-                                else if (isSelected) MaterialTheme.colorScheme.onSurface
-                                else MaterialTheme.colorScheme.onSurfaceVariant
-
-                                val animatedColor by animateColorAsState(targetColor, label = "iconColor", animationSpec = tween(200))
-                                
-                                Icon(
-                                    imageVector = mode.icon,
-                                    contentDescription = mode.label,
-                                    tint = animatedColor,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
-                    }
-                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = mode.name,
+                    modifier = Modifier.size(20.dp),
+                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     }
 }
 
-private val AxionRingerMode.icon: ImageVector
-    get() = when (this) {
-        AxionRingerMode.NORMAL -> Icons.Filled.RingVolume
+@Composable
+fun RingerButton(
+    ringerMode: AxionRingerMode,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = 56.dp,
+    cornerRadius: Dp = 16.dp
+) {
+    val icon = when (ringerMode) {
+        AxionRingerMode.NORMAL -> Icons.Filled.Notifications
         AxionRingerMode.VIBRATE -> Icons.Filled.Vibration
-        AxionRingerMode.SILENT -> Icons.Filled.VolumeOff
+        AxionRingerMode.SILENT -> Icons.Filled.NotificationsOff
     }
 
-private val AxionRingerMode.label: String
-    get() = when (this) {
-        AxionRingerMode.NORMAL -> "Ring"
-        AxionRingerMode.VIBRATE -> "Vibrate"
-        AxionRingerMode.SILENT -> "Silent"
+    FilledTonalIconButton(
+        onClick = onClick,
+        modifier = modifier.size(size),
+        shape = RoundedCornerShape(cornerRadius),
+        colors = IconButtonDefaults.filledTonalIconButtonColors(
+            containerColor = MaterialTheme.colorScheme.surfaceBright,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = "Ringer Mode",
+            modifier = Modifier.size(24.dp)
+        )
     }
+}
