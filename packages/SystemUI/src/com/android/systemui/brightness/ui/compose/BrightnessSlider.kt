@@ -16,10 +16,7 @@
 
 package com.android.systemui.brightness.ui.compose
 
-import android.content.ContentResolver
 import android.content.Context
-import android.database.ContentObserver
-import android.os.UserHandle
 import android.view.MotionEvent
 import androidx.annotation.VisibleForTesting
 import androidx.compose.animation.animateColorAsState
@@ -119,7 +116,6 @@ import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.qs.ui.compose.borderOnFocus
 import com.android.systemui.res.R
 import com.android.systemui.utils.PolicyRestriction
-import lineageos.providers.LineageSettings
 import platform.test.motion.compose.values.MotionTestValueKey
 import platform.test.motion.compose.values.motionTestValues
 
@@ -210,30 +206,9 @@ fun BrightnessSlider(
         }
     }
 
-    val cr = context.contentResolver
     val hasAutoBrightness = context.resources.getBoolean(
         com.android.internal.R.bool.config_automatic_brightness_available
     )
-    var showAutoBrightness by remember { mutableStateOf(readShowAutoBrightness(cr)) }
-
-    DisposableEffect(Unit) {
-        val observer = object : ContentObserver(null) {
-            override fun onChange(selfChange: Boolean) {
-                context.mainExecutor.execute {
-                    showAutoBrightness = readShowAutoBrightness(cr)
-                }
-            }
-        }
-
-        cr.registerContentObserver(
-            LineageSettings.Secure.getUriFor(LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS),
-            false, observer, UserHandle.USER_ALL
-        )
-
-        onDispose {
-            cr.unregisterContentObserver(observer)
-        }
-    }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -373,7 +348,7 @@ fun BrightnessSlider(
             },
         )
 
-        if (hasAutoBrightness && showAutoBrightness) {
+        if (hasAutoBrightness) {
             Spacer(modifier = Modifier.width(10.dp))
             drawAutoBrightnessButton(autoMode = autoMode, onIconClick = onIconClick)
         }
@@ -400,16 +375,6 @@ private fun Modifier.sliderBackground(color: Color) = drawWithCache {
         drawRoundRect(color = color, topLeft = offset, size = newSize, cornerRadius = cornerRadius)
     }
 }
-
-private fun readShowAutoBrightness(cr: ContentResolver): Boolean =
-    try {
-        LineageSettings.Secure.getIntForUser(
-            cr, LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS,
-            1, UserHandle.USER_CURRENT
-        ) != 0
-    } catch (_: Throwable) {
-        false
-    }
 
 @Composable
 private fun drawAutoBrightnessButton(
