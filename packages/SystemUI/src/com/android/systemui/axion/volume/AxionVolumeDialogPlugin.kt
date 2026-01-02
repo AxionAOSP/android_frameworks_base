@@ -20,7 +20,9 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import com.android.systemui.axion.volume.dagger.AxionVolumeComponent
-import com.android.systemui.axion.volume.ui.viewmodel.*
+import com.android.systemui.axion.volume.ui.viewmodel.AxionVolumeDialogViewModel
+import com.android.systemui.axion.volume.ui.viewmodel.ExpansionState
+import com.android.systemui.axion.volume.ui.viewmodel.VisibilityState
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.plugins.VolumeDialog
 import com.android.systemui.plugins.VolumeDialogController
@@ -42,12 +44,29 @@ class AxionVolumeDialogPlugin @Inject constructor(
     private var autoDismissJob: Job? = null
     private var previousVisibilityState: VisibilityState? = null
 
+    companion object {
+        private const val DISMISS_TIMEOUT_MS = 3000L
+        private const val DISMISS_TIMEOUT_EXPANDED_MS = 5000L
+    }
+
     private val controllerCallbacks = object : VolumeDialogController.Callbacks {
         override fun onShowRequested(reason: Int, keyguardLocked: Boolean, lockTaskModeState: Int) {
-            if (viewModel.visibilityState != VisibilityState.SHOWING) {
+            val wasShowing = viewModel.visibilityState == VisibilityState.SHOWING
+            
+            if (!wasShowing) {
                 viewModel.expansionState = ExpansionState.COLLAPSED
             }
             viewModel.visibilityState = VisibilityState.SHOWING
+            
+            if (wasShowing) {
+                 handler.post {
+                     if (::dialog.isInitialized && !dialog.isShowing) {
+                         dialog.show()
+                         controller.notifyVisible(true)
+                     }
+                     rescheduleAutoDismiss()
+                 }
+            }
         }
 
         override fun onDismissRequested(reason: Int) {
@@ -60,6 +79,7 @@ class AxionVolumeDialogPlugin @Inject constructor(
 
         override fun onVolumeChangedFromKey() {
             viewModel.triggerVolumeKeyHaptic()
+            rescheduleAutoDismiss()
         }
 
         override fun onStateChanged(state: VolumeDialogController.State) {}
@@ -84,6 +104,12 @@ class AxionVolumeDialogPlugin @Inject constructor(
 
         controller.addCallback(controllerCallbacks, handler)
 
+        pluginScope?.launch {
+            viewModel.rescheduleTimeoutTrigger.collect {
+                rescheduleAutoDismiss()
+            }
+        }
+
         var dismissJob: Job? = null
 
         pluginScope?.launch {
@@ -96,11 +122,7 @@ class AxionVolumeDialogPlugin @Inject constructor(
                 if (state.isInteracting) {
                     autoDismissJob?.cancel()
                 } else if (state.visibilityState == VisibilityState.SHOWING) {
-                    autoDismissJob?.cancel()
-                    autoDismissJob = pluginScope?.launch {
-                        delay(3000L)
-                        viewModel.visibilityState = VisibilityState.DISMISSED
-                    }
+                    rescheduleAutoDismiss()
                 }
                 
                 val visibilityChanged = previousVisibilityState != state.visibilityState
@@ -120,7 +142,7 @@ class AxionVolumeDialogPlugin @Inject constructor(
                         }
                         return@collect
                     }
-
+                    
                     when (state.visibilityState) {
                         VisibilityState.SHOWING -> {
                             dismissJob?.cancel()
@@ -132,11 +154,7 @@ class AxionVolumeDialogPlugin @Inject constructor(
                             }
                             
                             if (!state.isInteracting) {
-                                autoDismissJob?.cancel()
-                                autoDismissJob = pluginScope?.launch {
-                                    delay(3000L)
-                                    viewModel.visibilityState = VisibilityState.DISMISSED
-                                }
+                                rescheduleAutoDismiss()
                             }
                         }
                         VisibilityState.DISMISSED -> {
@@ -168,9 +186,25 @@ class AxionVolumeDialogPlugin @Inject constructor(
             }
         }
     }
+    
+    fun rescheduleAutoDismiss() {
+        autoDismissJob?.cancel()
+        val timeout = if (viewModel.expansionState == ExpansionState.EXPANDED) {
+            DISMISS_TIMEOUT_EXPANDED_MS
+        } else {
+            DISMISS_TIMEOUT_MS
+        }
+        autoDismissJob = pluginScope?.launch {
+            delay(timeout)
+            if (viewModel.visibilityState == VisibilityState.SHOWING && !viewModel.isInteracting) {
+                viewModel.visibilityState = VisibilityState.DISMISSED
+            }
+        }
+    }
 
     override fun destroy() {
         controller.removeCallback(controllerCallbacks)
+        autoDismissJob?.cancel()
         dialog.dismiss()
         pluginScope?.cancel()
         pluginScope = null

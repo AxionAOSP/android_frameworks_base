@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.*
 interface AxionVolumeDialogInteractor {
     val volumeDialogState: Flow<AxionVolumeDialogState>
     fun setVolume(streamType: Int, level: Float)
+    fun setActiveStream(streamType: Int)
     fun setRingerMode(mode: AxionRingerMode)
     fun toggleMute(streamType: Int)
     fun toggleCaptions()
@@ -41,6 +42,8 @@ interface AxionVolumeDialogInteractor {
     fun setAppMute(packageName: String, muted: Boolean)
     fun getSupportedRingerModes(): List<AxionRingerMode>
     fun openVolumePanel()
+    fun rescheduleTimeout()
+    fun setExpanded(expanded: Boolean)
     val isLeftSide: Flow<Boolean>
 }
 
@@ -54,27 +57,33 @@ class AxionVolumeDialogInteractorImpl @Inject constructor(
     private val volumePanelNavigationInteractor: VolumePanelNavigationInteractor,
 ) : AxionVolumeDialogInteractor {
 
+    @Suppress("UNCHECKED_CAST")
     override val volumeDialogState: Flow<AxionVolumeDialogState> = combine(
         ringerModeFlow(),
         volumeStreamsFlow(),
         captionsRepository.captionsEnabledFlow,
         captionsRepository.captionsAvailableFlow,
         volumeRepository.activeAppVolumes,
-    ) { ringerMode, streams, captionsEnabled, captionsAvailable, appVolumes ->
+        volumeRepository.activeStreamFlow,
+        volumeRepository.activeAppPackageName
+    ) { args: Array<Any?> ->
+        val ringerMode = args[0] as AxionRingerMode
+        val streams = args[1] as List<AxionVolumeStreamModel>
+        val captionsEnabled = args[2] as Boolean
+        val captionsAvailable = args[3] as Boolean
+        val appVolumes = args[4] as List<AxionAppVolumeModel>
+        val activeStream = args[5] as Int
+        val activeAppPackageName = args[6] as String?
+
         AxionVolumeDialogState(
             ringerMode = ringerMode,
             volumeStreams = streams,
             captionsEnabled = captionsEnabled,
             captionsAvailable = captionsAvailable,
             supportedRingerModes = getSupportedRingerModes(),
-            appVolumes = appVolumes.map { 
-                AxionAppVolumeModel(
-                    packageName = it.packageName,
-                    volume = it.volume,
-                    isMuted = it.isMuted,
-                    isActive = it.isActive
-                )
-            }
+            appVolumes = appVolumes,
+            activeStream = activeStream,
+            activeAppPackageName = activeAppPackageName
         )
     }
 
@@ -100,18 +109,25 @@ class AxionVolumeDialogInteractorImpl @Inject constructor(
     private fun volumeStreamFlow(streamType: Int): Flow<AxionVolumeStreamModel> = combine(
         volumeRepository.volumeFlow(streamType),
         volumeRepository.muteFlow(streamType),
-    ) { level, isMuted ->
+        volumeRepository.routedToBluetoothFlow(streamType),
+    ) { level, isMuted, routedToBluetooth ->
         AxionVolumeStreamModel(
             streamType = streamType,
             level = level,
             isMuted = isMuted,
             maxLevel = volumeRepository.getMaxVolume(streamType),
             minLevel = volumeRepository.getMinVolume(streamType),
+            isRoutedToBluetooth = routedToBluetooth,
         )
     }
 
     override fun setVolume(streamType: Int, level: Float) {
-        volumeRepository.setVolume(streamType, level, AudioManager.FLAG_SHOW_UI)
+        volumeRepository.setVolume(streamType, level)
+    }
+
+    override fun setActiveStream(streamType: Int) {
+        volumeRepository.setActiveStream(streamType)
+        volumeRepository.setActiveApp(null)
     }
 
     override fun setRingerMode(mode: AxionRingerMode) {
@@ -135,6 +151,7 @@ class AxionVolumeDialogInteractorImpl @Inject constructor(
 
     override fun setAppVolume(packageName: String, volume: Float) {
         volumeRepository.setAppVolume(packageName, volume)
+        volumeRepository.setActiveApp(packageName)
     }
 
     override fun setAppMute(packageName: String, muted: Boolean) {
@@ -155,6 +172,13 @@ class AxionVolumeDialogInteractorImpl @Inject constructor(
             volumePanelNavigationInteractor.getVolumePanelRoute()
         )
     }
+
+    override fun rescheduleTimeout() {
+        volumeRepository.userActivity()
+    }
     
     override val isLeftSide: Flow<Boolean> = volumeRepository.isLeftSideFlow
+    override fun setExpanded(expanded: Boolean) {
+        volumeRepository.setExpanded(expanded)
+    }
 }

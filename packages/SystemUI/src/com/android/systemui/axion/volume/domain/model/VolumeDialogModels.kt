@@ -21,6 +21,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.BluetoothAudio
+import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
@@ -44,20 +47,28 @@ data class AxionVolumeDialogState(
     val volumeStreams: List<AxionVolumeStreamModel> = emptyList(),
     val captionsEnabled: Boolean = false,
     val captionsAvailable: Boolean = true,
+    val activeStream: Int = AudioManager.STREAM_MUSIC,
     val supportedRingerModes: List<AxionRingerMode> = listOf(
         AxionRingerMode.NORMAL,
         AxionRingerMode.VIBRATE,
         AxionRingerMode.SILENT
     ),
     val appVolumes: List<AxionAppVolumeModel> = emptyList(),
+    val activeAppPackageName: String? = null
 )
 
 data class AxionAppVolumeModel(
     val packageName: String,
+    val label: String,
     val volume: Float,
     val isMuted: Boolean,
     val isActive: Boolean
 )
+
+sealed class VolumeSliderItem {
+    data class Stream(val model: AxionVolumeStreamModel) : VolumeSliderItem()
+    data class AppVolume(val model: AxionAppVolumeModel) : VolumeSliderItem()
+}
 
 data class AxionVolumeStreamModel(
     val streamType: Int,
@@ -65,9 +76,23 @@ data class AxionVolumeStreamModel(
     val isMuted: Boolean,
     val maxLevel: Int,
     val minLevel: Int,
+    val isRoutedToBluetooth: Boolean = false,
 ) {
     val streamInfo: AxionStreamInfo
         get() = AxionStreamInfo.fromStreamType(streamType)
+    
+    val icon: ImageVector
+        get() = when {
+            streamType == AudioManager.STREAM_MUSIC && isRoutedToBluetooth -> Icons.Filled.BluetoothAudio
+            isMuted -> streamInfo.mutedIcon
+            else -> streamInfo.icon
+        }
+    
+    val mutedIcon: ImageVector
+        get() = when {
+            streamType == AudioManager.STREAM_MUSIC && isRoutedToBluetooth -> Icons.Filled.BluetoothDisabled
+            else -> streamInfo.mutedIcon
+        }
 }
 
 enum class AxionStreamInfo(
@@ -105,6 +130,12 @@ enum class AxionStreamInfo(
         label = "Notification",
         icon = Icons.Filled.Notifications,
         mutedIcon = Icons.Filled.NotificationsOff,
+    ),
+    BLUETOOTH_SCO(
+        streamType = AudioManager.STREAM_BLUETOOTH_SCO,
+        label = "Bluetooth",
+        icon = Icons.Filled.Bluetooth,
+        mutedIcon = Icons.Filled.Bluetooth,
     ),
     UNKNOWN(
         streamType = -1,

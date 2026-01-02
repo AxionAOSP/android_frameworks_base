@@ -28,29 +28,42 @@ import android.os.Looper
 import android.provider.Settings
 import android.content.pm.PackageManager
 import android.content.pm.ApplicationInfo
+import android.telephony.TelephonyCallback
+import android.telephony.TelephonyManager
 import lineageos.providers.LineageSettings
+import com.android.systemui.axion.volume.domain.model.AxionAppVolumeModel
 import com.android.systemui.axion.volume.dagger.AxionVolumeScope
 import com.android.systemui.broadcast.BroadcastDispatcher
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
+import com.android.systemui.plugins.VolumeDialogController
 import javax.inject.Inject
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
+import com.android.systemui.statusbar.policy.bluetooth.data.repository.BluetoothRepository
 
 interface AxionVolumeRepository {
     fun volumeFlow(streamType: Int): Flow<Float>
     fun muteFlow(streamType: Int): Flow<Boolean>
+    fun routedToBluetoothFlow(streamType: Int): Flow<Boolean>
     val ringerModeFlow: Flow<Int>
     val availableStreamsFlow: Flow<List<Int>>
     val isLeftSideFlow: Flow<Boolean>
-    val activeAppVolumes: Flow<List<AppVolume>>
+    val activeAppVolumes: Flow<List<AxionAppVolumeModel>>
+    val activeAppPackageName: Flow<String?>
+    fun setActiveApp(packageName: String?)
+    val activeStreamFlow: Flow<Int>
+    val inCallFlow: Flow<Boolean>
 
     fun setVolume(streamType: Int, level: Float, flags: Int = 0)
     fun setMute(streamType: Int, muted: Boolean)
     fun setAppVolume(packageName: String, volume: Float)
     fun setAppMute(packageName: String, muted: Boolean)
     fun setRingerMode(mode: Int)
+    fun setActiveStream(streamType: Int)
+    fun setExpanded(expanded: Boolean)
+    fun userActivity()
     fun getMaxVolume(streamType: Int): Int
     fun getMinVolume(streamType: Int): Int
     fun isStreamMuted(streamType: Int): Boolean
@@ -64,6 +77,8 @@ class AxionVolumeRepositoryImpl @Inject constructor(
     private val broadcastDispatcher: BroadcastDispatcher,
     private val packageManager: PackageManager,
     @Background private val backgroundDispatcher: CoroutineDispatcher,
+    private val controller: VolumeDialogController,
+    private val bluetoothRepository: BluetoothRepository,
 ) : AxionVolumeRepository {
 
     private val handler = Handler(Looper.getMainLooper())
@@ -71,7 +86,6 @@ class AxionVolumeRepositoryImpl @Inject constructor(
     companion object {
         private const val VOLUME_CHANGED_ACTION = "android.media.VOLUME_CHANGED_ACTION"
         private const val STREAM_MUTE_CHANGED_ACTION = "android.media.STREAM_MUTE_CHANGED_ACTION"
-        private const val EXTRA_VOLUME_STREAM_TYPE = "android.media.EXTRA_VOLUME_STREAM_TYPE"
 
         val TRACKED_STREAMS = listOf(
             AudioManager.STREAM_MUSIC,
@@ -79,136 +93,154 @@ class AxionVolumeRepositoryImpl @Inject constructor(
             AudioManager.STREAM_ALARM,
             AudioManager.STREAM_VOICE_CALL,
             AudioManager.STREAM_NOTIFICATION,
+            AudioManager.STREAM_BLUETOOTH_SCO,
         )
     }
 
-    private val appVolumeUpdateEvents = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val appVolumeUpdateEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    private val volumeChanges = callbackFlow {
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                val streamType = intent.getIntExtra(EXTRA_VOLUME_STREAM_TYPE, -1)
-                trySend(streamType)
+    private val controllerState: StateFlow<VolumeDialogController.State?> = callbackFlow<VolumeDialogController.State?> {
+        val callback = object : VolumeDialogController.Callbacks {
+            override fun onShowRequested(reason: Int, keyguardLocked: Boolean, lockTaskModeState: Int) {}
+            override fun onDismissRequested(reason: Int) {}
+            override fun onScreenOff() {}
+            override fun onShowSafetyWarning(flags: Int) {}
+            override fun onAccessibilityModeChanged(showA11yStream: Boolean?) {}
+            override fun onCaptionEnabledStateChanged(isEnabled: Boolean, checkBeforeSwitch: Boolean) {}
+            override fun onCaptionComponentStateChanged(isComponentEnabled: Boolean?, fromTooltip: Boolean) {}
+            override fun onShowCsdWarning(csdWarning: Int, durationMs: Int) {}
+            override fun onLayoutDirectionChanged(layoutDirection: Int) {}
+            override fun onConfigurationChanged() {}
+            override fun onShowVibrateHint() {}
+            override fun onShowSilentHint() {}
+            override fun onVolumeChangedFromKey() {}
+
+            override fun onStateChanged(state: VolumeDialogController.State) {
+                trySend(state)
             }
         }
         
-        val observer = object : ContentObserver(handler) {
-            override fun onChange(selfChange: Boolean) {
-                trySend(-1)
-            }
-        }
-
-        context.contentResolver.registerContentObserver(
-            Settings.System.CONTENT_URI,
-            true,
-            observer
-        )
-
-        broadcastDispatcher.registerReceiver(
-            receiver,
-            IntentFilter(VOLUME_CHANGED_ACTION)
-        )
-
+        controller.addCallback(callback, handler)
+        controller.getState()
+        
         awaitClose {
-            context.contentResolver.unregisterContentObserver(observer)
-            broadcastDispatcher.unregisterReceiver(receiver)
+            controller.removeCallback(callback)
         }
-    }.shareIn(
+    }.stateIn(
         scope = CoroutineScope(backgroundDispatcher),
-        started = SharingStarted.WhileSubscribed(),
-        replay = 1
+        started = SharingStarted.Eagerly,
+        initialValue = null
     )
 
-    override fun volumeFlow(streamType: Int): Flow<Float> = volumeChanges
-        .filter { it == -1 || it == streamType }
-        .map { getNormalizedVolume(streamType) }
-        .onStart { emit(getNormalizedVolume(streamType)) }
+    override fun volumeFlow(streamType: Int): Flow<Float> = controllerState
+        .filterNotNull()
+        .map { state ->
+            val ss = state.states.get(streamType)
+            if (ss != null) {
+                val max = ss.levelMax
+                val min = ss.levelMin
+                val current = ss.level
+                if (max > min) {
+                    (current - min).toFloat() / (max - min)
+                } else {
+                    0f
+                }
+            } else {
+                0f
+            }
+        }
         .distinctUntilChanged()
         .flowOn(backgroundDispatcher)
 
-    override fun muteFlow(streamType: Int): Flow<Boolean> = callbackFlow {
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                val changedStreamType = intent.getIntExtra(EXTRA_VOLUME_STREAM_TYPE, -1)
-                if (changedStreamType == streamType || changedStreamType == -1) {
-                    trySend(audioManager.isStreamMute(streamType))
-                }
+    override fun muteFlow(streamType: Int): Flow<Boolean> = controllerState
+        .filterNotNull()
+        .map { state ->
+             state.states.get(streamType)?.muted == true
+        }
+        .distinctUntilChanged()
+        .flowOn(backgroundDispatcher)
+
+    override fun routedToBluetoothFlow(streamType: Int): Flow<Boolean> = controllerState
+        .filterNotNull()
+        .map { state ->
+            state.states.get(streamType)?.routedToBluetooth == true
+        }
+        .distinctUntilChanged()
+        .flowOn(backgroundDispatcher)
+
+    override val ringerModeFlow: Flow<Int> = controllerState
+        .filterNotNull()
+        .map { it.ringerModeInternal }
+        .distinctUntilChanged()
+        .flowOn(backgroundDispatcher)
+
+    override val inCallFlow: Flow<Boolean> = callbackFlow {
+        val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        
+        val callback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+            override fun onCallStateChanged(state: Int) {
+                trySend(state != TelephonyManager.CALL_STATE_IDLE)
             }
         }
-
-        val filter = IntentFilter().apply {
-            addAction(STREAM_MUTE_CHANGED_ACTION)
-            addAction(VOLUME_CHANGED_ACTION)
-        }
-
-        broadcastDispatcher.registerReceiver(receiver, filter)
-        trySend(audioManager.isStreamMute(streamType))
-
+        
+        telephonyManager.registerTelephonyCallback(context.mainExecutor, callback)
+        trySend(telephonyManager.callState != TelephonyManager.CALL_STATE_IDLE)
+        
         awaitClose {
-            broadcastDispatcher.unregisterReceiver(receiver)
+            telephonyManager.unregisterTelephonyCallback(callback)
         }
     }
     .distinctUntilChanged()
     .flowOn(backgroundDispatcher)
 
-    override val ringerModeFlow: Flow<Int> = broadcastFlow(
-        actions = listOf(
-            AudioManager.RINGER_MODE_CHANGED_ACTION,
-            AudioManager.INTERNAL_RINGER_MODE_CHANGED_ACTION
-        ),
-        initialValue = { audioManager.ringerModeInternal },
-        extractor = { intent ->
-            intent.getIntExtra(AudioManager.EXTRA_RINGER_MODE, audioManager.ringerModeInternal)
-        }
-    )
-
-    override val availableStreamsFlow: Flow<List<Int>> = callbackFlow {
-        trySend(getAvailableStreams())
-        awaitClose { }
-    }.flowOn(backgroundDispatcher)
+    override val availableStreamsFlow: Flow<List<Int>> = combine(
+        controllerState.filterNotNull(),
+        inCallFlow,
+        bluetoothRepository.connectedDevices
+    ) { state, inCall, connectedDevices ->
+        getAvailableStreams(state, inCall, connectedDevices.isNotEmpty())
+    }
+    .distinctUntilChanged()
+    .flowOn(backgroundDispatcher)
 
     override val isLeftSideFlow: Flow<Boolean> = settingsFlow(
         uri = LineageSettings.Secure.getUriFor(LineageSettings.Secure.VOLUME_PANEL_ON_LEFT),
         getValue = ::isLeftSide
     )
+    
+    override val activeStreamFlow: Flow<Int> = controllerState
+        .filterNotNull()
+        .map { it.activeStream }
+        .distinctUntilChanged()
+        .flowOn(backgroundDispatcher)
         
-    override val activeAppVolumes: Flow<List<AppVolume>> = kotlinx.coroutines.flow.merge(
-        callbackFlow {
-            val observer = object : ContentObserver(handler) {
-                override fun onChange(selfChange: Boolean) {
-                    trySend(Unit)
+    private val isExpanded = MutableStateFlow(false)
+
+    override fun setExpanded(expanded: Boolean) {
+        isExpanded.value = expanded
+    }
+
+    private val _activeAppPackageName = MutableStateFlow<String?>(null)
+    override val activeAppPackageName: Flow<String?> = _activeAppPackageName.asStateFlow()
+
+    override fun setActiveApp(packageName: String?) {
+        _activeAppPackageName.value = packageName
+    }
+
+    override val activeAppVolumes: Flow<List<AxionAppVolumeModel>> = isExpanded
+        .flatMapLatest { expanded ->
+            if (expanded) {
+                flow {
+                    while (currentCoroutineContext().isActive) {
+                        emit(getAppVolumes())
+                        delay(1000)
+                    }
                 }
+            } else {
+                flowOf(emptyList())
             }
-    
-            val receiver = object : BroadcastReceiver() {
-                override fun onReceive(context: Context, intent: Intent) {
-                    trySend(Unit)
-                }
-            }
-    
-            context.contentResolver.registerContentObserver(
-                Settings.System.getUriFor(Settings.System.SHOW_APP_VOLUME),
-                false,
-                observer
-            )
-    
-            val filter = IntentFilter().apply {
-                addAction(VOLUME_CHANGED_ACTION)
-                addAction(STREAM_MUTE_CHANGED_ACTION)
-            }
-            broadcastDispatcher.registerReceiver(receiver, filter)
-    
-            trySend(Unit)
-    
-            awaitClose {
-                context.contentResolver.unregisterContentObserver(observer)
-                broadcastDispatcher.unregisterReceiver(receiver)
-            }
-        },
-        appVolumeUpdateEvents
-    )
-    .map { getAppVolumes() }
-    .flowOn(backgroundDispatcher)
+        }
+        .flowOn(backgroundDispatcher)
 
     private fun <T> settingsFlow(uri: android.net.Uri, getValue: () -> T): Flow<T> = callbackFlow {
         val observer = object : ContentObserver(handler) {
@@ -227,32 +259,7 @@ class AxionVolumeRepositoryImpl @Inject constructor(
     .distinctUntilChanged()
     .flowOn(backgroundDispatcher)
 
-    private fun <T> broadcastFlow(
-        actions: List<String>,
-        initialValue: () -> T,
-        extractor: (Intent) -> T
-    ): Flow<T> = callbackFlow {
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                trySend(extractor(intent))
-            }
-        }
-
-        val filter = IntentFilter().apply {
-            actions.forEach { addAction(it) }
-        }
-
-        broadcastDispatcher.registerReceiver(receiver, filter)
-        trySend(initialValue())
-
-        awaitClose {
-            broadcastDispatcher.unregisterReceiver(receiver)
-        }
-    }
-    .distinctUntilChanged()
-    .flowOn(backgroundDispatcher)
-
-    private fun getAppVolumes(): List<AppVolume> {
+    private fun getAppVolumes(): List<AxionAppVolumeModel> {
         val showAppVolume = Settings.System.getInt(
             context.contentResolver,
             Settings.System.SHOW_APP_VOLUME,
@@ -261,12 +268,21 @@ class AxionVolumeRepositoryImpl @Inject constructor(
         if (!showAppVolume) return emptyList()
         return audioManager.listAppVolumes()
             .filter { it.isActive }
-            .filter {
+            .mapNotNull { appVolume ->
                 try {
-                    val appInfo = packageManager.getApplicationInfo(it.packageName, 0)
-                    (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) == 0
+                    val appInfo = packageManager.getApplicationInfo(appVolume.packageName, 0)
+                    if ((appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0) return@mapNotNull null
+                    
+                    val label = packageManager.getApplicationLabel(appInfo).toString()
+                    AxionAppVolumeModel(
+                        packageName = appVolume.packageName,
+                        label = label,
+                        volume = appVolume.volume,
+                        isMuted = appVolume.isMuted,
+                        isActive = appVolume.isActive
+                    )
                 } catch (e: Exception) {
-                    false
+                    null
                 }
             }
     }
@@ -278,18 +294,38 @@ class AxionVolumeRepositoryImpl @Inject constructor(
             0
         ) != 0
 
-    private fun getAvailableStreams(): List<Int> =
-        TRACKED_STREAMS.filter { stream -> getMaxVolume(stream) > 0 }
-
-    private fun getNormalizedVolume(streamType: Int): Float {
-        val max = getMaxVolume(streamType)
-        val min = getMinVolume(streamType)
-        val current = audioManager.getStreamVolume(streamType)
-        return if (max > min) {
-            (current - min).toFloat() / (max - min)
-        } else {
-            0f
+    private fun getAvailableStreams(state: VolumeDialogController.State, inCall: Boolean, isBluetoothConnected: Boolean): List<Int> {
+        val logicStreams = buildList {
+            add(AudioManager.STREAM_MUSIC)
+            if (inCall) {
+                add(AudioManager.STREAM_VOICE_CALL)
+            }
+            add(AudioManager.STREAM_RING)
+            add(AudioManager.STREAM_NOTIFICATION)
+            add(AudioManager.STREAM_ALARM)
+            if (isBluetoothConnected) {
+                add(AudioManager.STREAM_BLUETOOTH_SCO)
+            }
         }
+        
+        val streams = mutableListOf<Int>()
+        
+        val excludedActiveStreams = setOf(
+            AudioManager.STREAM_ACCESSIBILITY,
+            AudioManager.STREAM_VOICE_CALL
+        )
+        
+        if (state.activeStream != -1 && state.activeStream !in excludedActiveStreams) {
+            streams.add(state.activeStream)
+        }
+        
+        for (stream in logicStreams) {
+             if (!streams.contains(stream) && (state.states.get(stream)?.levelMax ?: 0) > 0) {
+                 streams.add(stream)
+             }
+        }
+        
+        return streams
     }
 
     override fun setVolume(streamType: Int, level: Float, flags: Int) {
@@ -319,6 +355,14 @@ class AxionVolumeRepositoryImpl @Inject constructor(
 
     override fun setRingerMode(mode: Int) {
         audioManager.ringerModeInternal = mode
+    }
+
+    override fun setActiveStream(streamType: Int) {
+        controller.setActiveStream(streamType, false)
+    }
+
+    override fun userActivity() {
+        controller.userActivity()
     }
 
     override fun getMaxVolume(streamType: Int): Int =
