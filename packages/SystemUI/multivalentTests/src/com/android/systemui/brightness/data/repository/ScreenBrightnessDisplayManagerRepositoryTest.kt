@@ -37,7 +37,6 @@ import com.android.systemui.util.mockito.argumentCaptor
 import com.android.systemui.util.mockito.capture
 import com.android.systemui.util.mockito.eq
 import com.android.systemui.util.mockito.whenever
-import com.android.systemui.util.settings.SystemSettings
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -64,7 +63,6 @@ class ScreenBrightnessDisplayManagerRepositoryTest : SysuiTestCase() {
 
     @Mock private lateinit var displayManager: DisplayManager
     @Mock private lateinit var display: Display
-    @Mock private lateinit var systemSettings: SystemSettings
 
     private val displayId = 0
 
@@ -80,7 +78,6 @@ class ScreenBrightnessDisplayManagerRepositoryTest : SysuiTestCase() {
                 logcatTableLogBuffer(kosmos, "screenBrightness"),
                 kosmos.applicationCoroutineScope,
                 kosmos.testDispatcher,
-                systemSettings,
             )
 
         whenever(displayManager.getDisplay(displayId)).thenReturn(display)
