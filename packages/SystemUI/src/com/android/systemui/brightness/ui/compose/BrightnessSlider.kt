@@ -432,7 +432,7 @@ private fun drawAutoBrightnessButton(
         targetValue = if (autoMode) {
             MaterialTheme.colorScheme.primary
         } else {
-            LocalAndroidColorScheme.current.surfaceEffect1
+            LocalAndroidColorScheme.current.surfaceEffect2
         }
     )
     val iconTint by animateColorAsState(
@@ -470,7 +470,7 @@ private fun drawAutoBrightnessButton(
     ) {
         Icon(
             painter = painterResource(painterRes),
-            contentDescription = stringResource(R.string.accessibility_adaptive_brightness),
+            contentDescription = "Auto brightness",
             tint = iconTint
         )
     }
