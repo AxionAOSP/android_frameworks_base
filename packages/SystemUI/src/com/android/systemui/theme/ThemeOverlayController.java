@@ -158,6 +158,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
     // UI contrast as reported by UiModeManager
     private double mContrast = 0.0;
     private double mChromaBoost = 0.0;
+    private boolean mIsFidelityEnabled = true;
     // Theme variant: Vibrant, Tonal, Expressive, etc
     @VisibleForTesting
     @Style.Type
@@ -642,6 +643,7 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
         mMainWallpaperColor = mainColor;
 
         if (mIsMonetEnabled) {
+            fetchCustomThemeSettings();
             mThemeStyle = fetchThemeStyleFromSetting();
             createOverlays(mMainWallpaperColor);
             mNeedsOverlayCreation = true;
@@ -653,6 +655,28 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
 
         updateThemeOverlays();
     }
+
+    private void fetchCustomThemeSettings() {
+        final String overlayPackageJson = mSecureSettings.getStringForUser(
+                Settings.Secure.THEME_CUSTOMIZATION_OVERLAY_PACKAGES,
+                mUserTracker.getUserId());
+        if (!TextUtils.isEmpty(overlayPackageJson)) {
+            try {
+                JSONObject object = new JSONObject(overlayPackageJson);
+                mContrast = object.optDouble("_contrast_level", 0.0);
+                mChromaBoost = object.optDouble("_chroma_boost", 0.0);
+                mIsFidelityEnabled = object.optBoolean("_fidelity_enabled", true);
+                if (DEBUG) {
+                    Log.d(TAG, "Custom theme settings: contrast=" + mContrast
+                            + " chromaBoost=" + mChromaBoost
+                            + " fidelity=" + mIsFidelityEnabled);
+                }
+            } catch (JSONException e) {
+                Log.w(TAG, "Failed to parse custom theme settings.", e);
+            }
+        }
+    }
+
 
     /**
      * Return the main theme color from a given {@link WallpaperColors} instance.
@@ -683,8 +707,12 @@ public class ThemeOverlayController implements CoreStartable, Dumpable {
     }
 
     private void createOverlays(int color) {
-        mDarkColorScheme = new ColorScheme(color, true /* isDark */, mThemeStyle, mContrast);
-        mLightColorScheme = new ColorScheme(color, false /* isDark */, mThemeStyle, mContrast);
+        int style = mThemeStyle;
+        if (mIsFidelityEnabled) {
+            style = Style.CONTENT;
+        }
+        mDarkColorScheme = new ColorScheme(color, true /* isDark */, style, mContrast);
+        mLightColorScheme = new ColorScheme(color, false /* isDark */, style, mContrast);
         mColorScheme = isNightMode() ? mDarkColorScheme : mLightColorScheme;
 
         mAccentOverlay = newFabricatedOverlay("accent");
