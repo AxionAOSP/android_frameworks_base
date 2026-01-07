@@ -38,6 +38,7 @@ import com.android.systemui.statusbar.CircleReveal
 import com.android.systemui.statusbar.LiftReveal
 import com.android.systemui.statusbar.LightRevealEffect
 import com.android.systemui.statusbar.PowerButtonReveal
+import com.android.systemui.util.TapPositionUtil
 import javax.inject.Inject
 import kotlin.math.max
 import kotlinx.coroutines.CoroutineScope
@@ -49,6 +50,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -113,6 +115,12 @@ constructor(
             it?.let { constructCircleRevealFromPoint(it) } ?: DEFAULT_REVEAL_EFFECT
         }
 
+    private val sleepTapRevealEffect: Flow<LightRevealEffect> = flow {
+        val tapPos = TapPositionUtil.INSTANCE().tapPos?.let { constructCircleRevealFromPoint(it) }
+        val lastPos = keyguardRepository.lastDozeTapToWakePosition.value?.let { constructCircleRevealFromPoint(it) }
+        emit(tapPos ?: lastPos ?: DEFAULT_REVEAL_EFFECT)
+    }
+
     /**
      * Reveal effect to use for a fingerprint unlock. This is reconstructed if the fingerprint
      * sensor location on the screen (in pixels) changes due to configuration changes.
@@ -138,6 +146,7 @@ constructor(
                 wakefulnessModel.isAwakeOrAsleepFrom(WakeSleepReason.POWER_BUTTON) ->
                     powerButtonRevealEffect
                 wakefulnessModel.isAwakeFrom(TAP) -> tapRevealEffect
+                wakefulnessModel.isAsleep() -> sleepTapRevealEffect
                 else -> flowOf(LiftReveal)
             }
         }
