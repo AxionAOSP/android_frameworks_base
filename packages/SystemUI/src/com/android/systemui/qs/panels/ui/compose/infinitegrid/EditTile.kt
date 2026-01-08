@@ -62,6 +62,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridItemScope
@@ -90,6 +91,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -200,6 +202,8 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import androidx.compose.ui.composed
+import com.android.systemui.theme.UiStyleProvider
 
 object TileType
 
@@ -1100,64 +1104,75 @@ fun EditTile(
     progress: () -> Float,
     colors: TileColors = EditModeTileDefaults.editTileColors(),
 ) {
-    val iconSizeDiff = CommonTileDefaults.IconSize - CommonTileDefaults.LargeTileIconSize
+    val style = UiStyleProvider.rememberCurrentStyle()
     val containerAlpha by animateFloatAsState(if (tileState == TileState.GreyedOut) .4f else 1f)
+    
     Row(
-        horizontalArrangement = spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier =
-            Modifier.layout { measurable, constraints ->
-                    val (min, max) = state.bounds
-                    val currentProgress = progress()
-                    // Always display the tile using the large size and trust the parent composable
-                    // to clip the content as needed. This stop the labels from being truncated.
-                    val width =
-                        max?.roundToInt()?.takeIf { it > constraints.maxWidth }
-                            ?: constraints.maxWidth
-                    val placeable =
-                        measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+        modifier = Modifier
+            .fillMaxHeight()
+            .layout { measurable, constraints ->
+                val (min, max) = state.bounds
+                val currentProgress = progress()
+                val width =
+                    max?.roundToInt()?.takeIf { it > constraints.maxWidth }
+                        ?: constraints.maxWidth
+                val placeable =
+                    measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
 
-                    val startPadding =
-                        if (currentProgress == 0f) {
+                val startPadding =
+                    if (currentProgress == 0f) {
                             // Find the center of the max width when the tile is icon only
-                            iconHorizontalCenter(constraints.maxWidth)
-                        } else {
+                        iconHorizontalCenter(constraints.maxWidth)
+                    } else {
                             // Find the center of the minimum width to hold the same position as the
                             // tile is resized.
-                            val basePadding =
-                                min?.let { iconHorizontalCenter(it.roundToInt()) } ?: 0f
+                        val basePadding =
+                            min?.let { iconHorizontalCenter(it.roundToInt()) } ?: 0f
                             // Large tiles, represented with a progress of 1f, have a 0.dp padding
-                            basePadding * (1f - currentProgress)
-                        }
-
-                    layout(constraints.maxWidth, constraints.maxHeight) {
-                        placeable.placeRelative(startPadding.roundToInt(), 0)
+                        basePadding * (1f - currentProgress)
                     }
+
+                layout(constraints.maxWidth, constraints.maxHeight) {
+                    placeable.placeRelative(startPadding.roundToInt(), 0)
                 }
-                .largeTilePadding()
-                .graphicsLayer { this.alpha = containerAlpha },
-    ) {
-        // Icon
-        Box(
-            Modifier.size(ToggleTargetSize).thenIf(tile.isDualTarget) {
-                Modifier.drawBehind { drawCircle(colors.iconBackground, alpha = progress()) }
             }
+            .graphicsLayer { this.alpha = containerAlpha },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Spacer(Modifier.width(24.dp))
+
+        Box(
+            modifier = Modifier.size(24.dp),
+            contentAlignment = Alignment.Center,
         ) {
             SmallTileContent(
                 iconProvider = { tile.icon },
                 color = colors.icon,
                 animateToEnd = true,
-                size = { CommonTileDefaults.IconSize - iconSizeDiff * progress() },
-                modifier = Modifier.align(Alignment.Center),
+                size = { style.qsTileIconSize },
             )
         }
 
-        // Labels, positioned after the icon
+        Spacer(Modifier.width(if (tile.isDualTarget) 10.dp else 14.dp))
+
+        if (tile.isDualTarget) {
+            VerticalDivider(
+                modifier = Modifier
+                    .size(1.dp, 18.dp)
+                    .graphicsLayer { this.alpha = progress() },
+                color = colors.label.copy(alpha = 0.2f),
+            )
+            Spacer(Modifier.width(14.dp))
+        }
+
         LargeTileLabels(
             label = tile.label.text,
             secondaryLabel = tile.appName?.text,
             colors = colors,
-            modifier = Modifier.weight(1f).graphicsLayer { this.alpha = progress() },
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 24.dp)
+                .graphicsLayer { this.alpha = progress() },
         )
     }
 }
@@ -1168,8 +1183,11 @@ private fun MeasureScope.iconHorizontalCenter(containerSize: Int): Float {
 }
 
 private fun Modifier.tileBackground(color: () -> Color): Modifier {
-    // Clip tile contents from overflowing past the tile
-    return clip(RoundedCornerShape(InactiveCornerRadius)).drawBehind { drawRect(color()) }
+    return this
+        .composed {
+            val style = UiStyleProvider.rememberCurrentStyle()
+            clip(style.qsTileShape()).drawBehind { drawRect(color()) }
+        }
 }
 
 private object EditModeTileDefaults {

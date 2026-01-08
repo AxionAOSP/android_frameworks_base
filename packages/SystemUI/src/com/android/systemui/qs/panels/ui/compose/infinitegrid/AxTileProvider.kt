@@ -55,6 +55,13 @@ object TileGridDefaults {
     val DefaultLargeTileSpan = 2
 }
 
+@Composable
+fun rememberIsSmallScreen(): Boolean {
+    val config = LocalConfiguration.current
+    val widthDp = config.screenWidthDp.dp
+    return widthDp < TileGridDefaults.SmallScreenThreshold
+}
+
 private object TileConstants {
     val IconSize = 24.dp
     val IconPaddingStart = 24.dp
@@ -197,11 +204,33 @@ private fun IconTileImpl(
     val animatedBgColor by animateColorAsState(backgroundColor, label = "IconTileBg")
     val s = viewModel.squishiness
     val style = UiStyleProvider.rememberCurrentStyle()
+    val isSmallScreen = rememberIsSmallScreen()
 
-    Box(modifier = modifier.squishy(s), contentAlignment = Alignment.Center) {
+    if (isSmallScreen) {
+        Box(modifier = modifier.squishy(s), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .size(TileHeight * s)
+                    .clip(style.qsTileShape())
+                    .background(animatedBgColor)
+                    .tileClickable(enabled, onClick, onLongClick),
+                contentAlignment = Alignment.Center,
+            ) {
+                SmallTileContent(
+                    iconProvider = iconProvider,
+                    color = iconColor,
+                    modifier = Modifier,
+                    size = { style.qsTileIconSize },
+                )
+            }
+        }
+    } else {
         Box(
-            modifier = Modifier
-                .size(TileHeight * s)
+            modifier = modifier
+                .fillMaxWidth()
+                .squishy(s)
+                .height(TileHeight)
+                .verticalSquish { s }
                 .clip(style.qsTileShape())
                 .background(animatedBgColor)
                 .tileClickable(enabled, onClick, onLongClick),
@@ -237,17 +266,45 @@ private fun LargeTileImpl(
     val tileSpacing = dimensionResource(R.dimen.qs_tile_margin_horizontal)
     val s = viewModel.squishiness
     val style = UiStyleProvider.rememberCurrentStyle()
+    val isSmallScreen = rememberIsSmallScreen()
 
-    BoxWithConstraints(modifier = modifier.squishy(s), contentAlignment = Alignment.Center) {
-        val targetWidth = remember(maxWidth, tileSpacing) {
-            val smallTileSize = (maxWidth - tileSpacing) / 2f
-            val centerPadding = (smallTileSize - TileHeight) / 2f
-            (centerPadding * 2) + (TileHeight * TileGridDefaults.DefaultLargeTileSpan) + tileSpacing
+    if (isSmallScreen) {
+        BoxWithConstraints(modifier = modifier.squishy(s), contentAlignment = Alignment.Center) {
+            val targetWidth = remember(maxWidth, tileSpacing) {
+                val smallTileSize = (maxWidth - tileSpacing) / 2f
+                val centerPadding = (smallTileSize - TileHeight) / 2f
+                (centerPadding * 2) + (TileHeight * TileGridDefaults.DefaultLargeTileSpan) + tileSpacing
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(width = targetWidth * s, height = TileHeight * s)
+                    .clip(style.qsTileShape())
+                    .background(animatedBgColor)
+                    .tileClickable(enabled, onClick, onLongClick),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                LargeTileContent(
+                    viewModel = viewModel,
+                    iconProvider = iconProvider,
+                    label = label,
+                    secondaryLabel = secondaryLabel,
+                    colors = colors,
+                    tileSpec = tileSpec,
+                    hasDualTarget = hasDualTarget,
+                    enabled = enabled,
+                    onToggleClick = onToggleClick,
+                    onLongClick = onLongClick,
+                )
+            }
         }
-
+    } else {
         Box(
-            modifier = Modifier
-                .size(width = targetWidth * s, height = TileHeight * s)
+            modifier = modifier
+                .fillMaxWidth()
+                .height(TileHeight)
+                .squishy(s)
+                .verticalSquish { s }
                 .clip(style.qsTileShape())
                 .background(animatedBgColor)
                 .tileClickable(enabled, onClick, onLongClick),
@@ -405,6 +462,7 @@ fun rememberTileSpacing(): TileSpacing {
 fun rememberTileColumns(): Int {
     val config = LocalConfiguration.current
     val spacing = rememberTileSpacing()
+    val densityDpi = config.densityDpi
 
     val isLandscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -414,8 +472,8 @@ fun rememberTileColumns(): Int {
         config.screenWidthDp.dp
     }
 
-    return remember(effectiveWidthDp, spacing, isLandscape) {
-        val columns = if (effectiveWidthDp < TileGridDefaults.SmallScreenThreshold) {
+    return remember(effectiveWidthDp, spacing, isLandscape, densityDpi) {
+        var columns = if (effectiveWidthDp < TileGridDefaults.SmallScreenThreshold) {
             TileGridDefaults.FixedColumnsForSmallScreen
         } else {
             val availableWidth = effectiveWidthDp - (spacing.horizontalMargin * 2)
@@ -423,7 +481,13 @@ fun rememberTileColumns(): Int {
                 .toInt()
                 .coerceAtLeast(TileGridDefaults.FixedColumnsForSmallScreen)
         }
-        if (columns % 2 != 0) columns - 1 else columns
+        if (columns % 2 != 0) {
+            columns -= 1
+        }
+        if (densityDpi < 600 && columns >= 6) {
+            columns = 4
+        }
+        columns
     }
 }
 
