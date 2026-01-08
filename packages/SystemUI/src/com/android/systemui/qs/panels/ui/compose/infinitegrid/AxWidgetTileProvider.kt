@@ -114,20 +114,43 @@ class AxWidgetTileProvider @Inject constructor(
         content: @Composable () -> Unit
     ) {
         val tileSpacing = dimensionResource(R.dimen.qs_tile_margin_horizontal)
+        val isSmallScreen = rememberIsSmallScreen()
 
-        BoxWithConstraints(
-            modifier = modifier.fillMaxWidth().height(TileHeight),
-            contentAlignment = Alignment.Center
-        ) {
-            val targetWidth = remember(maxWidth, tileSpacing) {
-                val smallTileSize = (maxWidth - tileSpacing) / 2f
-                val centerPadding = (smallTileSize - TileHeight) / 2f
-                (centerPadding * 2) + (TileHeight * TileGridDefaults.DefaultLargeTileSpan) + tileSpacing
+        if (isSmallScreen) {
+            BoxWithConstraints(
+                modifier = modifier.fillMaxWidth().height(TileHeight),
+                contentAlignment = Alignment.Center
+            ) {
+                val targetWidth = remember(maxWidth, tileSpacing) {
+                    val smallTileSize = (maxWidth - tileSpacing) / 2f
+                    val centerPadding = (smallTileSize - TileHeight) / 2f
+                    (centerPadding * 2) + (TileHeight * TileGridDefaults.DefaultLargeTileSpan) + tileSpacing
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(width = targetWidth, height = TileHeight)
+                        .graphicsLayer {
+                            val s = squishinessProvider()
+                            scaleX = s
+                            scaleY = s
+                            alpha = if (s < 0.83f) {
+                                0f
+                            } else {
+                                ((s - 0.83f) / (1f - 0.83f))
+                                    .coerceIn(0f, 1f)
+                            }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    content()
+                }
             }
-
+        } else {
             Box(
-                modifier = Modifier
-                    .size(width = targetWidth, height = TileHeight)
+                modifier = modifier
+                    .fillMaxWidth()
+                    .height(TileHeight)
                     .graphicsLayer {
                         val s = squishinessProvider()
                         scaleX = s
@@ -138,8 +161,9 @@ class AxWidgetTileProvider @Inject constructor(
                             ((s - 0.83f) / (1f - 0.83f))
                                 .coerceIn(0f, 1f)
                         }
-                    },
-                contentAlignment = Alignment.Center,
+                    }
+                    .verticalSquish(squishinessProvider),
+                contentAlignment = Alignment.Center
             ) {
                 content()
             }
