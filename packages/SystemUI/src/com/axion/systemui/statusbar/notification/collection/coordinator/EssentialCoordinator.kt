@@ -26,6 +26,7 @@ import com.android.systemui.statusbar.notification.collection.listbuilder.plugga
 import com.android.systemui.statusbar.notification.collection.notifcollection.NotifCollectionListener
 import com.android.systemui.statusbar.notification.collection.render.NodeController
 import com.android.systemui.statusbar.notification.dagger.EssentialHeader
+import com.axion.systemui.statusbar.notification.EssentialNotification
 import com.axion.systemui.statusbar.notification.EssentialNotificationManager
 import com.axion.systemui.statusbar.notification.collection.provider.EssentialProvider
 import javax.inject.Inject
@@ -45,13 +46,21 @@ class EssentialCoordinator @Inject constructor(
         override fun onEntryAdded(entry: NotificationEntry) {
             if (essentialProvider.isEssentialNotification(entry)) {
                 essentialSectioner.invalidateList("essential notification added: ${entry.key}")
+                trackEssentialNotification(entry)
             }
         }
 
         override fun onEntryUpdated(entry: NotificationEntry) {
             if (essentialProvider.isEssentialNotification(entry)) {
                 essentialSectioner.invalidateList("essential notification updated: ${entry.key}")
+                trackEssentialNotification(entry)
+            } else {
+                essentialNotificationManager.removeEssentialNotificationByKey(entry.key)
             }
+        }
+
+        override fun onEntryRemoved(entry: NotificationEntry, reason: Int) {
+            essentialNotificationManager.removeEssentialNotificationByKey(entry.key)
         }
     }
 
@@ -112,6 +121,14 @@ class EssentialCoordinator @Inject constructor(
                 }
             }
         )
+    }
+
+    private fun trackEssentialNotification(entry: NotificationEntry) {
+        entry.sbn?.let { sbn ->
+             val essentialNotif = EssentialNotification(sbn, entry.channel, true)
+             essentialNotificationManager.inheritEssentialNotificationIfNeeded(essentialNotif)
+             essentialNotificationManager.addEssentialNotificationKey(essentialNotif)
+        }
     }
 
     private fun isApproximatelyEqual(a: Float, b: Float): Boolean = abs(a - b) < EPSILON
