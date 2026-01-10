@@ -37,6 +37,7 @@ import com.android.systemui.broadcast.BroadcastDispatcher
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.plugins.VolumeDialogController
+import com.android.systemui.volume.VolumeDialogControllerImpl
 import javax.inject.Inject
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.awaitClose
@@ -315,7 +316,8 @@ class AxionVolumeRepositoryImpl @Inject constructor(
             AudioManager.STREAM_VOICE_CALL
         )
         
-        if (state.activeStream != -1 && state.activeStream !in excludedActiveStreams) {
+        if (state.activeStream != -1 && state.activeStream !in excludedActiveStreams &&
+            state.states.get(state.activeStream) != null) {
             streams.add(state.activeStream)
         }
         
@@ -332,7 +334,13 @@ class AxionVolumeRepositoryImpl @Inject constructor(
         val max = getMaxVolume(streamType)
         val min = getMinVolume(streamType)
         val volume = (min + (level * (max - min))).toInt().coerceIn(min, max)
-        audioManager.setStreamVolume(streamType, volume, flags)
+        
+        if (streamType >= VolumeDialogControllerImpl.DYNAMIC_STREAM_REMOTE_START_INDEX ||
+            streamType == VolumeDialogControllerImpl.DYNAMIC_STREAM_BROADCAST) {
+            controller.setStreamVolume(streamType, volume, false)
+        } else {
+            audioManager.setStreamVolume(streamType, volume, flags)
+        }
     }
 
     override fun setMute(streamType: Int, muted: Boolean) {
@@ -365,11 +373,27 @@ class AxionVolumeRepositoryImpl @Inject constructor(
         controller.userActivity()
     }
 
-    override fun getMaxVolume(streamType: Int): Int =
-        audioManager.getStreamMaxVolume(streamType)
+    override fun getMaxVolume(streamType: Int): Int {
+        val state = controllerState.value
+        if (state != null) {
+            val ss = state.states.get(streamType)
+            if (ss != null) {
+                return ss.levelMax
+            }
+        }
+        return audioManager.getStreamMaxVolume(streamType)
+    }
 
-    override fun getMinVolume(streamType: Int): Int =
-        audioManager.getStreamMinVolume(streamType)
+    override fun getMinVolume(streamType: Int): Int {
+        val state = controllerState.value
+        if (state != null) {
+            val ss = state.states.get(streamType)
+            if (ss != null) {
+                return ss.levelMin
+            }
+        }
+        return audioManager.getStreamMinVolume(streamType)
+    }
 
     override fun isStreamMuted(streamType: Int): Boolean =
         audioManager.isStreamMute(streamType)
