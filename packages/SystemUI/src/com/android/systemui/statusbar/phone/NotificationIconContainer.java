@@ -960,4 +960,7 @@ public class NotificationIconContainer extends ViewGroup {
             requestLayout();
         }
     }
+    public boolean shouldCenterIcons() {
+        return mShouldCenterIcons;
+    }
 }
