@@ -17,6 +17,7 @@
 package com.android.systemui.dagger
 
 import com.android.systemui.CoreStartable
+import com.android.systemui.doze.AodScheduleController
 import com.android.systemui.edgelight.EdgeLightViewController
 import com.android.systemui.media.MediaViewController
 import com.android.systemui.mistouch.MistouchPreventionWindowController
@@ -29,6 +30,12 @@ import dagger.multibindings.IntoMap
 
 @Module
 abstract class AxionStartableModule {
+    /** Inject into AodScheduleController. */
+    @Binds
+    @IntoMap
+    @ClassKey(AodScheduleController::class)
+    abstract fun bindAodScheduleController(impl: AodScheduleController): CoreStartable
+
     /** Inject into EdgeLightViewController. */
     @Binds
     @IntoMap
