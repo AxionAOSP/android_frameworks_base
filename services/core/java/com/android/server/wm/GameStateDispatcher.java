@@ -25,6 +25,8 @@ import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Slog;
 
+import lineageos.health.HealthInterface;
+
 import com.android.internal.app.IGameSpaceCallback;
 import com.android.server.am.ActivityManagerService;
 
@@ -40,6 +42,8 @@ class GameStateDispatcher {
     private static final String TAG = "GameStateDispatcher";
 
     private PowerManager.WakeLock mWakeLock;
+    
+    private int mChargeControlLimit = 100;
 
     GameStateDispatcher(Context context,
                         List<IGameSpaceCallback> callbacks,
@@ -126,9 +130,7 @@ class GameStateDispatcher {
 
         if (bypassEnabled()) {
             setBypassActive(false);
-
-            int restoreLevel = smartChargeByUser() ? 80 : 100;
-            setSmartChargeLvl(restoreLevel);
+            setSmartChargeLvl(mChargeControlLimit);
         }
     }
 
@@ -203,15 +205,17 @@ class GameStateDispatcher {
         if (!bypassEnabled()) return;
 
         mBgHandler.post(() -> {
+            if (enable) {
+                mChargeControlLimit = getChargingLimit();
+            }
+
             setBypassActive(enable);
 
             int newLevel;
             if (enable) {
                 newLevel = battLevel();
-            } else if (smartChargeByUser()) {
-                newLevel = 80;
             } else {
-                newLevel = 100;
+                newLevel = mChargeControlLimit;
             }
 
             setSmartChargeLvl(newLevel);
@@ -239,6 +243,14 @@ class GameStateDispatcher {
 
     int getSmartChargeLvl() {
         return SystemProperties.getInt("persist.sys.smart_charge_level", 100);
+    }
+
+    int getChargingLimit() {
+        try {
+            return HealthInterface.getInstance(mContext).getLimit();
+        } catch (Exception e) {
+        }
+        return 100;
     }
 
     void setSmartChargeLvl(int value) {
