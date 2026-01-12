@@ -49,7 +49,7 @@ import java.util.concurrent.ConcurrentHashMap
 import com.android.systemui.theme.UiStyleProvider
 
 object TileGridDefaults {
-    val SmallScreenThreshold = 420.dp
+    val SmallScreenThreshold = 450.dp
     val VerticalPadding = 20.dp
     val FixedColumnsForSmallScreen = 4
     val DefaultLargeTileSpan = 2
