@@ -526,9 +526,7 @@ public abstract class OomAdjuster {
                     + processName + " to " + group);
         }
         try {
-            if (AxBurstEngine.isSupported()) {
-                AxBurstEngine.scheduleProcess(pid, group, processName);
-            } else {
+            if (!AxBurstEngine.scheduleProcess(pid, group, processName)) {
                 Process.setProcessGroup(pid, group);
             }
         } catch (Exception e) {

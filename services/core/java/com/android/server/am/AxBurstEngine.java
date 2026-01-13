@@ -64,9 +64,9 @@ public class AxBurstEngine {
                 && AxUtils.isModernKernel();
     }
 
-    public static void scheduleProcess(int pid, int group, String name) {
-        if (!isSupported()) return;
-        get().handleProcessScheduling(pid, group, name);
+    public static boolean scheduleProcess(int pid, int group, String name) {
+        if (!isSupported()) return false;
+        return get().handleProcessScheduling(pid, group, name);
     }
 
     public static void onProcessDied(int pid) {
@@ -79,15 +79,12 @@ public class AxBurstEngine {
         get().handleAnimationBoost(pid, renderTid, duration);
     }
 
-    private void handleProcessScheduling(int pid, int group, String name) {
+    private boolean handleProcessScheduling(int pid, int group, String name) {
         ProcessState ps = getOrCreateProcessState(pid, name, group);
         try {
-            if (ps.isUiPerfPkg || ps.isUiProc) {
-                setSchedulingPolicy(ps);
-            } else {
-                mHandler.post(() -> setSchedulingPolicy(ps));
-            }
+            return setSchedulingPolicy(ps);
         } catch (Exception e) {
+            return false;
         }
     }
 
@@ -102,7 +99,7 @@ public class AxBurstEngine {
         });
     }
 
-    private void setSchedulingPolicy(ProcessState ps) {
+    private boolean setSchedulingPolicy(ProcessState ps) {
         final boolean isPerfProcess = ps.isUiPerfPkg;
         final boolean isTop = ps.isUiProc;
         final boolean isPerfBlack = ps.isBlacklisted;
@@ -110,32 +107,20 @@ public class AxBurstEngine {
 
         if (!AxUtils.checkTid(pid)) {
             mProcessStates.remove(pid);
-            return;
+            return false;
         }
 
         final boolean isFg = ps.group == THREAD_GROUP_DEFAULT 
             || ps.group == THREAD_GROUP_FOREGROUND_WINDOW;
         final boolean isBg = ps.group == THREAD_GROUP_BACKGROUND 
             || ps.group == THREAD_GROUP_RESTRICTED;
-            
-        final int processAffinity = isBg ? AFFINITY_LITTLE : AFFINITY_BALANCED;
 
-        if (isPerfBlack) {
+        if (isPerfBlack && !isTop) {
             final int lowPrioGroup = isBg 
                     ? ps.group
                     : AxUtils.THREAD_GROUP_NT_FOREGROUND;
-
-            final int newGroup = isTop
-                    ? THREAD_GROUP_TOP_APP
-                    : lowPrioGroup;
-
-            Process.setProcessGroup(pid, newGroup);
-            Process.setThreadAffinity(pid, processAffinity);
-
-            AxUtils.logger(TAG + ": " + (isTop ? "boost " : "limit ")
-                    + "blacklist → cgroup=" + newGroup
-                    + " proc=" + ps.name);
-            return;
+            Process.setProcessGroup(pid, lowPrioGroup);
+            return true;
         }
 
         if (isPerfProcess) {
@@ -154,14 +139,10 @@ public class AxBurstEngine {
 
             AxUtils.logger(TAG + ": " + "perfList → cgroup=" + perfGroup
                     + " proc=" + ps.name);
-            return;
+            return true;
         }
-        
-        final int affinity = (isTop || isFg) ? AFFINITY_ALL : processAffinity;
-        final int group = isTop ? THREAD_GROUP_TOP_APP : ps.group;
 
-        Process.setProcessGroup(pid, group);
-        Process.setThreadAffinity(pid, affinity);
+        return false;
     }
 
     private void handleAnimationBoost(int pid, int renderTid, long duration) {
