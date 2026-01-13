@@ -196,17 +196,18 @@ fun ContentScope.Tile(
                 iconProvider = { getTileIcon(icon = icon) },
                 iconColor = colors.icon,
                 backgroundColor = animatedColor,
+                tileShape = tileShape,
                 isClickable = isClickable,
-                onClick = {
+                onClick = { expandable ->
                     if (QsDetailedView.isEnabled && detailsViewModel?.onTileClicked(tile.spec) == true) return@IconTile
-                    if (isDualTarget) tile.toggleClick() else tile.mainClick(null)
+                    if (isDualTarget) tile.toggleClick() else tile.mainClick(expandable)
                     hapticsViewModel?.setTileInteractionState(TileHapticsViewModel.TileInteractionState.CLICKED)
                     if (uiState.isToggleable) requestToggleTextFeedback(tile.spec)
                 },
-                onLongClick = {
+                onLongClick = ({ expandable: Expandable ->
                     hapticsViewModel?.setTileInteractionState(TileHapticsViewModel.TileInteractionState.LONG_CLICKED)
-                    if (isDualTarget && isClickable) tile.mainClick(null) else tile.settingsClick(null)
-                }.takeIf { uiState.handlesLongClick || (isDualTarget && isClickable) },
+                    if (isDualTarget && isClickable) tile.mainClick(expandable) else tile.settingsClick(expandable)
+                }).takeIf { uiState.handlesLongClick || (isDualTarget && isClickable) },
                 onBounce = { currentBounceableInfo.bounceable.animateContainerBounce() },
                 modifier = modifier.sysuiResTag(TEST_TAG_SMALL),
             )
@@ -219,17 +220,17 @@ fun ContentScope.Tile(
             secondaryLabel = uiState.secondaryLabel,
             iconProvider = { getTileIcon(icon = icon) },
             colors = colors,
-            shape = tileShape,
+            tileShape = tileShape,
             isClickable = isClickable,
-            onClick = {
+            onClick = { expandable ->
                 if (QsDetailedView.isEnabled && detailsViewModel?.onTileClicked(tile.spec) == true) return@LargeTile
-                tile.mainClick(null)
+                tile.mainClick(expandable)
                 hapticsViewModel?.setTileInteractionState(TileHapticsViewModel.TileInteractionState.CLICKED)
             },
-            onLongClick = {
+            onLongClick = ({ expandable: Expandable ->
                 hapticsViewModel?.setTileInteractionState(TileHapticsViewModel.TileInteractionState.LONG_CLICKED)
-                tile.settingsClick(null)
-            }.takeIf { uiState.handlesLongClick },
+                tile.settingsClick(expandable)
+            }).takeIf { uiState.handlesLongClick },
             onToggleClick = {
                 hapticsViewModel?.setTileInteractionState(TileHapticsViewModel.TileInteractionState.CLICKED)
                 tile.toggleClick()

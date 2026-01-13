@@ -39,6 +39,8 @@ import androidx.compose.ui.text.font.*
 import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
 import com.android.compose.modifiers.*
+import com.android.compose.animation.Expandable as ExpandableComposable
+import com.android.systemui.animation.Expandable
 import com.android.systemui.common.shared.model.Icon
 import com.android.systemui.common.ui.compose.load
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileHeight
@@ -136,22 +138,31 @@ class AxTileProvider(private val viewModel: AxTileProviderViewModel) {
         iconProvider: Context.() -> Icon,
         iconColor: Color,
         backgroundColor: Color,
+        tileShape: Shape,
         isClickable: Boolean,
-        onClick: () -> Unit,
-        onLongClick: (() -> Unit)?,
+        onClick: (Expandable) -> Unit,
+        onLongClick: ((Expandable) -> Unit)?,
         onBounce: suspend () -> Unit,
         modifier: Modifier = Modifier,
     ): Boolean {
-        IconTileImpl(
-            viewModel = viewModel,
-            iconProvider = iconProvider,
-            iconColor = iconColor,
-            backgroundColor = backgroundColor,
-            onClick = viewModel.rememberBounceClickHandler(isClickable, onClick, onBounce),
-            onLongClick = onLongClick,
-            enabled = isClickable,
-            modifier = modifier.fillMaxWidth().height(TileHeight),
-        )
+        ExpandableComposable(
+            color = Color.Transparent,
+            shape = tileShape,
+            modifier = modifier,
+            useModifierBasedImplementation = true,
+            defaultMinSize = false,
+        ) { expandable ->
+            IconTileImpl(
+                viewModel = viewModel,
+                iconProvider = iconProvider,
+                iconColor = iconColor,
+                backgroundColor = backgroundColor,
+                onClick = viewModel.rememberBounceClickHandler(isClickable, { onClick(expandable) }, onBounce),
+                onLongClick = onLongClick?.let { { it(expandable) } },
+                enabled = isClickable,
+                modifier = Modifier.fillMaxWidth().height(TileHeight),
+            )
+        }
         return true
     }
 
@@ -162,30 +173,38 @@ class AxTileProvider(private val viewModel: AxTileProviderViewModel) {
         secondaryLabel: String?,
         iconProvider: Context.() -> Icon,
         colors: TileColors,
-        shape: Shape,
+        tileShape: Shape,
         isClickable: Boolean,
-        onClick: () -> Unit,
-        onLongClick: (() -> Unit)?,
+        onClick: (Expandable) -> Unit,
+        onLongClick: ((Expandable) -> Unit)?,
         onToggleClick: (() -> Unit)?,
         onBounce: suspend () -> Unit,
         modifier: Modifier = Modifier,
     ): Boolean {
-        LargeTileImpl(
-            viewModel = viewModel,
-            tileSpec = tileSpec,
-            label = label,
-            secondaryLabel = secondaryLabel,
-            iconProvider = iconProvider,
-            colors = colors,
-            shape = shape,
-            onClick = viewModel.rememberBounceClickHandler(isClickable, onClick, onBounce),
-            onLongClick = onLongClick,
-            onToggleClick = onToggleClick?.let {
-                viewModel.rememberBounceClickHandler(true, it, onBounce)
-            },
-            enabled = isClickable,
-            modifier = modifier.fillMaxWidth().height(TileHeight),
-        )
+        ExpandableComposable(
+            color = Color.Transparent,
+            shape = tileShape,
+            modifier = modifier,
+            useModifierBasedImplementation = true,
+            defaultMinSize = false,
+        ) { expandable ->
+            LargeTileImpl(
+                viewModel = viewModel,
+                tileSpec = tileSpec,
+                label = label,
+                secondaryLabel = secondaryLabel,
+                iconProvider = iconProvider,
+                colors = colors,
+                shape = tileShape,
+                onClick = viewModel.rememberBounceClickHandler(isClickable, { onClick(expandable) }, onBounce),
+                onLongClick = onLongClick?.let { { it(expandable) } },
+                onToggleClick = onToggleClick?.let {
+                    viewModel.rememberBounceClickHandler(true, it, onBounce)
+                },
+                enabled = isClickable,
+                modifier = Modifier.fillMaxWidth().height(TileHeight),
+            )
+        }
         return true
     }
 }
@@ -201,7 +220,9 @@ private fun IconTileImpl(
     onLongClick: (() -> Unit)? = null,
     enabled: Boolean = true,
 ) {
-    val animatedBgColor by animateColorAsState(backgroundColor, label = "IconTileBg")
+    val colorAnimSpec = tween<Color>(durationMillis = 350, easing = FastOutSlowInEasing)
+    val animatedBgColor by animateColorAsState(backgroundColor, animationSpec = colorAnimSpec, label = "IconTileBg")
+    val animatedIconColor by animateColorAsState(iconColor, animationSpec = colorAnimSpec, label = "IconTileIcon")
     val s = viewModel.squishiness
     val style = UiStyleProvider.rememberCurrentStyle()
     val isSmallScreen = rememberIsSmallScreen()
@@ -218,7 +239,7 @@ private fun IconTileImpl(
             ) {
                 SmallTileContent(
                     iconProvider = iconProvider,
-                    color = iconColor,
+                    color = animatedIconColor,
                     modifier = Modifier,
                     size = { style.qsTileIconSize },
                 )
@@ -238,7 +259,7 @@ private fun IconTileImpl(
         ) {
             SmallTileContent(
                 iconProvider = iconProvider,
-                color = iconColor,
+                color = animatedIconColor,
                 modifier = Modifier,
                 size = { style.qsTileIconSize },
             )
@@ -261,12 +282,30 @@ private fun LargeTileImpl(
     onToggleClick: (() -> Unit)? = null,
     enabled: Boolean = true,
 ) {
-    val animatedBgColor by animateColorAsState(colors.background, label = "LargeTileBg")
+    val colorAnimSpec = tween<Color>(durationMillis = 350, easing = FastOutSlowInEasing)
+    val animatedBgColor by animateColorAsState(colors.background, animationSpec = colorAnimSpec, label = "LargeTileBg")
+    val animatedIconColor by animateColorAsState(colors.icon, animationSpec = colorAnimSpec, label = "LargeTileIcon")
+    val animatedLabelColor by animateColorAsState(colors.label, animationSpec = colorAnimSpec, label = "LargeTileLabel")
+    val animatedSecondaryLabelColor by animateColorAsState(colors.secondaryLabel, animationSpec = colorAnimSpec, label = "LargeTileSecLabel")
     val hasDualTarget = onToggleClick != null
     val tileSpacing = dimensionResource(R.dimen.qs_tile_margin_horizontal)
     val s = viewModel.squishiness
     val style = UiStyleProvider.rememberCurrentStyle()
     val isSmallScreen = rememberIsSmallScreen()
+
+    val animatedColors = remember(colors) {
+        TileColors(
+            background = colors.background,
+            iconBackground = colors.iconBackground,
+            label = colors.label,
+            secondaryLabel = colors.secondaryLabel,
+            icon = colors.icon,
+        )
+    }.copy(
+        icon = animatedIconColor,
+        label = animatedLabelColor,
+        secondaryLabel = animatedSecondaryLabelColor,
+    )
 
     if (isSmallScreen) {
         BoxWithConstraints(modifier = modifier.squishy(s), contentAlignment = Alignment.Center) {
@@ -289,7 +328,7 @@ private fun LargeTileImpl(
                     iconProvider = iconProvider,
                     label = label,
                     secondaryLabel = secondaryLabel,
-                    colors = colors,
+                    colors = animatedColors,
                     tileSpec = tileSpec,
                     hasDualTarget = hasDualTarget,
                     enabled = enabled,
@@ -315,7 +354,7 @@ private fun LargeTileImpl(
                 iconProvider = iconProvider,
                 label = label,
                 secondaryLabel = secondaryLabel,
-                colors = colors,
+                colors = animatedColors,
                 tileSpec = tileSpec,
                 hasDualTarget = hasDualTarget,
                 enabled = enabled,
