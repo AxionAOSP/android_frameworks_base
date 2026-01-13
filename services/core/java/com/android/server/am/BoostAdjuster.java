@@ -210,7 +210,7 @@ public class BoostAdjuster implements IBoostAdjuster {
         sDefaultsCpu.put(CPU_FG, data.allCores);
         sDefaultsCpu.put(CPU_SVP, data.allCores);
         sDefaultsCpu.put(CPU_DEX2OAT, data.bgCpus);
-        sDefaultsCpu.put(CPU_NT_FG, data.fgLimited);
+        sDefaultsCpu.put(CPU_NT_FG, data.allCores);
 
         write(sConfig);
     }
@@ -322,7 +322,7 @@ public class BoostAdjuster implements IBoostAdjuster {
         if (mData == null) return;
         final long duration = limit ? 0L : -1L;
         final String bgLimit = limit ? mData.bgLimit : mData.bgCpus;
-        final String ntFgLimit = limit ? mData.uiLimit : mData.fgLimited;
+        final String ntFgLimit = limit ? mData.uiLimit : mData.allCores;
         adjustCpusetCpus(CPU_NT_FG, ntFgLimit, duration);
         adjustCpusetCpus(CPU_DEX2OAT, bgLimit, duration);
         adjustCpusetCpus(CPU_BG, bgLimit, duration);
@@ -425,7 +425,7 @@ public class BoostAdjuster implements IBoostAdjuster {
                 case MSG_CPU_UPDATE_NT_FG:
                     ntFgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
                     if (ntFgCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_NT_FG, mData.fgLimited);
+                        restoreCpuset(CPU_NT_FG, mData.allCores);
                     }
                     break;
                 case MSG_BOOST_HINT:
