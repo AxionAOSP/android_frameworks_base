@@ -19,6 +19,8 @@ package com.android.server.am;
 import static com.android.server.am.AxUtils.logger;
 
 import android.app.AppGlobals;
+import android.app.Notification;
+import android.app.NotificationManager;
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
@@ -27,12 +29,16 @@ import android.content.pm.PackageInfo;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.StrictMode;
+import android.os.UserHandle;
 import android.provider.Settings;
 import android.text.TextUtils;
+
+import com.android.internal.notification.SystemNotificationChannels;
 
 import com.android.server.AxExtServiceFactory;
 import com.android.server.NtServiceInjector;
 import com.android.server.pm.*;
+import com.android.server.UiThread;
 
 import org.json.JSONObject;
 
@@ -59,6 +65,8 @@ public class UxPerformance implements IUxPerformance {
 
     private static final String[] OAT_DIRS = {"/oat/arm64/", "/oat/arm/"};
     private static final String[] FILE_SUFFIXES = {".art", ".odex", ".vdex"};
+
+    private static final int DEXOPT_NOTIFICATION_ID = 0x58504446;
 
     private final ConcurrentHashMap<File, WeakReference<MappedByteBuffer>> mappedDexBuffers = new ConcurrentHashMap<>();
 
@@ -218,6 +226,7 @@ public class UxPerformance implements IUxPerformance {
 
             AxExtServiceFactory.getBoostAdjuster().boostInstall(true);
             logger("----- Dexopt started (" + total + " packages) -----");
+            showDexoptNotification(total);
 
             for (String pkg : allPackages) {
 
@@ -270,6 +279,7 @@ public class UxPerformance implements IUxPerformance {
 
                 processed++;
                 int finalTotal = total - skipped;
+                updateDexoptNotification(processed, finalTotal);
 
                 if (processed % 20 == 0 || processed == finalTotal)
                     logger("Dexopt progress: " + processed + "/" + finalTotal);
@@ -281,13 +291,16 @@ public class UxPerformance implements IUxPerformance {
                 saveLastFullRunTime(System.currentTimeMillis());
                 logger("----- Dexopt FULL RUN completed (" + processed + "/" + (total - skipped) + 
                        " processed). Next run in 15 days -----");
+                dismissDexoptNotification();
             } else {
                 logger("----- Dexopt incomplete run (" + processed + "/" + (total - skipped) + 
                        " processed). Will retry on next screen off -----");
+                pauseDexoptNotification(processed, total - skipped);
             }
 
         } catch (Exception e) {
             logger("Dexopt exception: " + e);
+            dismissDexoptNotification();
         } finally {
             AxExtServiceFactory.getBoostAdjuster().boostInstall(false);
         }
@@ -423,5 +436,85 @@ public class UxPerformance implements IUxPerformance {
         synchronized (dexoptLock) {
             return action.get();
         }
+    }
+
+    private void showDexoptNotification(int total) {
+        UiThread.getHandler().post(() -> {
+            ActivityManagerService ams = NtServiceInjector.getAm();
+            if (ams == null || ams.mContext == null) return;
+            Context ctx = ams.mContext;
+            NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+            if (nm == null) return;
+
+            Notification notification = new Notification.Builder(ctx, SystemNotificationChannels.UPDATES)
+                    .setSmallIcon(android.R.drawable.stat_sys_download)
+                    .setContentTitle("Optimizing apps")
+                    .setContentText("Preparing to optimize " + total + " apps...")
+                    .setOngoing(true)
+                    .setProgress(total, 0, false)
+                    .setLocalOnly(true)
+                    .setVisibility(Notification.VISIBILITY_PUBLIC)
+                    .build();
+
+            nm.notifyAsUser(null, DEXOPT_NOTIFICATION_ID, notification, UserHandle.ALL);
+        });
+    }
+
+    private void updateDexoptNotification(int processed, int total) {
+        UiThread.getHandler().post(() -> {
+            ActivityManagerService ams = NtServiceInjector.getAm();
+            if (ams == null || ams.mContext == null) return;
+            Context ctx = ams.mContext;
+            NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+            if (nm == null) return;
+
+            Notification notification = new Notification.Builder(ctx, SystemNotificationChannels.UPDATES)
+                    .setSmallIcon(android.R.drawable.stat_sys_download)
+                    .setContentTitle("Optimizing apps")
+                    .setContentText("Device may experience lag or heat until finished")
+                    .setSubText(processed + " / " + total)
+                    .setOngoing(true)
+                    .setProgress(total, processed, false)
+                    .setLocalOnly(true)
+                    .setVisibility(Notification.VISIBILITY_PUBLIC)
+                    .build();
+
+            nm.notifyAsUser(null, DEXOPT_NOTIFICATION_ID, notification, UserHandle.ALL);
+        });
+    }
+
+    private void dismissDexoptNotification() {
+        UiThread.getHandler().post(() -> {
+            ActivityManagerService ams = NtServiceInjector.getAm();
+            if (ams == null || ams.mContext == null) return;
+            Context ctx = ams.mContext;
+            NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+            if (nm == null) return;
+            
+            nm.cancelAsUser(null, DEXOPT_NOTIFICATION_ID, UserHandle.ALL);
+        });
+    }
+
+    private void pauseDexoptNotification(int processed, int total) {
+        UiThread.getHandler().post(() -> {
+            ActivityManagerService ams = NtServiceInjector.getAm();
+            if (ams == null || ams.mContext == null) return;
+            Context ctx = ams.mContext;
+            NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+            if (nm == null) return;
+
+            Notification notification = new Notification.Builder(ctx, SystemNotificationChannels.UPDATES)
+                    .setSmallIcon(android.R.drawable.stat_sys_download)
+                    .setContentTitle("Optimizing apps")
+                    .setContentText("System will optimize apps during screen off")
+                    .setSubText(processed + " / " + total)
+                    .setOngoing(true)
+                    .setProgress(total, processed, false)
+                    .setLocalOnly(true)
+                    .setVisibility(Notification.VISIBILITY_PUBLIC)
+                    .build();
+
+            nm.notifyAsUser(null, DEXOPT_NOTIFICATION_ID, notification, UserHandle.ALL);
+        });
     }
 }
