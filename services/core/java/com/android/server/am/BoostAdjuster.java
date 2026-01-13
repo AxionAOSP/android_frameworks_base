@@ -740,10 +740,8 @@ public class BoostAdjuster implements IBoostAdjuster {
         if (mData == null) return;
         long duration = limit ? 0L : -1L;
         final String cpus = limit ? mData.sCores : mData.allCores;
-        final String bgLimit = limit ? mData.bgLimit : mData.bgCpus;
         adjustCpusetCpus(CPU_TOP_APP, cpus, duration);
         adjustCpusetCpus(CPU_CAMERA, cpus, duration);
-        adjustCpusetCpus(CPU_SYS_BG, bgLimit, duration);
         adjustBackground(limit);
     }
 }
