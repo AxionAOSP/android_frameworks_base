@@ -16,20 +16,22 @@
 package com.android.systemui.biometrics
 
 import android.content.Context
-import android.graphics.Point
 import android.hardware.fingerprint.FingerprintSensorProperties
-import android.hardware.fingerprint.FingerprintSensorPropertiesInternal
-import android.os.SystemProperties
 import android.util.Log
-import android.view.WindowManager
+import com.android.systemui.biometrics.domain.interactor.FingerprintPropertyInteractor
+import com.android.systemui.biometrics.domain.interactor.UdfpsOverlayInteractor
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
+import com.android.systemui.keyguard.data.repository.DeviceEntryFingerprintAuthRepository
+import com.android.systemui.keyguard.ui.viewmodel.DeviceEntryIconViewModel
 import com.android.systemui.res.R
-import com.android.systemui.util.ScrimUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 
@@ -44,98 +46,69 @@ data class UdfpsAnimationUiState(
 class UdfpsAnimationInteractor @Inject constructor(
     @Application private val scope: CoroutineScope,
     private val context: Context,
-    private val windowManager: WindowManager,
     private val authController: AuthController,
-) : UdfpsController.Callback {
+    private val deviceEntryIconViewModel: DeviceEntryIconViewModel,
+    private val fingerprintAuthRepository: DeviceEntryFingerprintAuthRepository,
+    private val fingerprintPropertyInteractor: FingerprintPropertyInteractor,
+    private val udfpsOverlayInteractor: UdfpsOverlayInteractor,
+) {
     private val _uiState = MutableStateFlow(UdfpsAnimationUiState())
     val uiState: StateFlow<UdfpsAnimationUiState> = _uiState.asStateFlow()
-
-    private var fingerDown = false
-    private var sensorProps: FingerprintSensorPropertiesInternal? = null
 
     init {
         val animationSize = context.resources.getDimensionPixelSize(R.dimen.udfps_animation_size)
         _uiState.update { it.copy(animationSize = animationSize) }
-        
-        ScrimUtils.get().addListener(object : ScrimUtils.ScrimEventListener {
-            override fun onKeyguardShowingChanged(showing: Boolean) {
-                if (!showing) {
-                    fingerDown = false
-                    updateVisibility()
-                }
+
+        combine(
+            fingerprintAuthRepository.isEngaged,
+            deviceEntryIconViewModel.isVisible,
+            fingerprintPropertyInteractor.isUdfps
+        ) { isEngaged, isIconVisible, isUdfps ->
+            isEngaged && isIconVisible && isUdfps
+        }.onEach { shouldShow ->
+            if (_uiState.value.isVisible != shouldShow) {
+                _uiState.update { it.copy(isVisible = shouldShow) }
             }
-            override fun onKeyguardGoingAwayChanged(goingAway: Boolean) {
-                if (goingAway) {
-                    fingerDown = false
-                    updateVisibility()
-                }
-            }
-            override fun onKeyguardFadingAwayChanged(fadingAway: Boolean) {
-                if (fadingAway) {
-                    fingerDown = false
-                    updateVisibility()
-                }
-            }
-        })
+        }.launchIn(scope)
+
+        fingerprintPropertyInteractor.isUdfps
+            .onEach { updatePosition() }
+            .launchIn(scope)
+
+        fingerprintPropertyInteractor.sensorLocation
+            .onEach { updatePosition() }
+            .launchIn(scope)
+
+        udfpsOverlayInteractor.udfpsOverlayParams
+            .onEach { updatePosition() }
+            .launchIn(scope)
     }
 
-    fun setSensorProps(props: FingerprintSensorPropertiesInternal) {
-        sensorProps = props
-        _uiState.update { 
-            it.copy(sensorType = props.sensorType)
-        }
-        updatePosition()
-    }
-
-    override fun onFingerDown() {
-        fingerDown = true
-        updateVisibility()
-    }
-
-    override fun onFingerUp() {
-        fingerDown = false
-        updateVisibility()
-    }
-
-    private fun updateVisibility() {
-        val shouldShow = fingerDown
-        
-        if (_uiState.value.isVisible != shouldShow) {
-            _uiState.update { it.copy(isVisible = shouldShow) }
-        }
-    }
-
-    private fun updatePosition() {
-        val props = sensorProps ?: return
-        
-        val displaySize = Point()
-        windowManager.defaultDisplay.getRealSize(displaySize)
-        
-        val isFullResolution = displaySize.y > 3000
+    fun updatePosition() {
         val udfpsLocation = authController.udfpsLocation
         val scaleFactor = authController.scaleFactor
-        val udfpsRadius = if (isFullResolution) {
-            authController.udfpsRadius
+
+        // AuthController has the most accurate current location info
+        // as it handles rotation and scale factor in a way that's proven to work
+        // with the existing UdfpsController logic.
+        val (scaledLocationY, scaledRadius) = if (udfpsLocation != null) {
+            Pair(udfpsLocation.y.toFloat(), authController.udfpsRadius)
         } else {
-            props.location.sensorRadius.toFloat()
+            Log.w(TAG, "updatePosition | udfpsLocation is null")
+            return
         }
-        val udfpsLocationY = if (isFullResolution && udfpsLocation != null) {
-            udfpsLocation.y.toFloat()
-        } else {
-            props.location.sensorLocationY.toFloat()
-        }
-        
+
         val animationOffset = context.resources.getDimensionPixelSize(
             R.dimen.udfps_animation_offset
         ) * scaleFactor
-        
-        val animationSize = _uiState.value.animationSize
-        val offsetY = (udfpsLocationY * scaleFactor).toInt() - 
-                      (udfpsRadius * scaleFactor).toInt() - 
-                      (animationSize / 2) + 
-                      animationOffset.toInt()
 
-        _uiState.update { it.copy(animationOffsetY = offsetY) }
+        val animationSize = _uiState.value.animationSize
+        val offsetY = scaledLocationY -
+                scaledRadius -
+                (animationSize / 2) +
+                animationOffset.toInt()
+
+        _uiState.update { it.copy(animationOffsetY = offsetY.toInt()) }
     }
 
     companion object {
