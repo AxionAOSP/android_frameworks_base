@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.android.systemui.bouncer.ui.composable
 
 import android.app.AlertDialog
@@ -53,7 +55,10 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
 import androidx.compose.runtime.Composable
@@ -942,12 +947,13 @@ private fun UserSwitcherDropdownMenu(
     val context = LocalContext.current
 
     // TODO(b/303071855): once the FR is fixed, remove this composition local override.
-    MaterialTheme(
+    MaterialExpressiveTheme(
         colorScheme =
             MaterialTheme.colorScheme.copy(
                 surface = MaterialTheme.colorScheme.surfaceContainerHighest
             ),
         shapes = MaterialTheme.shapes.copy(extraSmall = RoundedCornerShape(28.dp)),
+        motionScheme = MotionScheme.expressive()
     ) {
         DropdownMenu(
             expanded = isExpanded,
