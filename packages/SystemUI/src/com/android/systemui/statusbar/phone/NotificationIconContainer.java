@@ -613,9 +613,17 @@ public class NotificationIconContainer extends ViewGroup {
         
         if (mShouldCenterIcons && getChildCount() > 0) {
             float iconsWidth = 0;
-            for (int i = 0; i < getChildCount(); i++) {
+            int childCount = getChildCount();
+            int maxVisibleIcons = mMaxIcons;
+            int showCount = Math.min(childCount, maxVisibleIcons);
+            
+            for (int i = 0; i < showCount; i++) {
                 View child = getChildAt(i);
                 iconsWidth += child.getWidth() * getDrawingScale(child);
+            }
+            
+            if (childCount > maxVisibleIcons) {
+                iconsWidth += mStaticDotDiameter + mDotPadding;
             }
             
             float centeredPadding = Math.max(0, (getWidth() - iconsWidth) / 2);
