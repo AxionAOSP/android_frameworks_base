@@ -110,19 +110,6 @@ public class AxBurstEngine {
             return false;
         }
 
-        final boolean isFg = ps.group == THREAD_GROUP_DEFAULT 
-            || ps.group == THREAD_GROUP_FOREGROUND_WINDOW;
-        final boolean isBg = ps.group == THREAD_GROUP_BACKGROUND 
-            || ps.group == THREAD_GROUP_RESTRICTED;
-
-        if (isPerfBlack && !isTop) {
-            final int lowPrioGroup = isBg 
-                    ? ps.group
-                    : AxUtils.THREAD_GROUP_NT_FOREGROUND;
-            Process.setProcessGroup(pid, lowPrioGroup);
-            return true;
-        }
-
         if (isPerfProcess) {
             final int perfAffinity = isTop ? AFFINITY_BIG : AFFINITY_ALL;
             final int perfGroup = isTop
