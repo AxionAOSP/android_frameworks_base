@@ -45,6 +45,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class ThemeEngine {
     private static final String TAG = "ThemeEngine";
     
+    private static final String[] TARGET_PKGS = {
+            "android",
+            "com.android.systemui",
+            "com.android.settings",
+            "com.android.launcher3"
+    };
+    
     public static final String SETTINGS_THEME_ENGINE_DATA = "theme_engine_data";
     
     public static final String ACTION_THEME_CHANGED = "android.intent.action.THEME_ENGINE_CHANGED";
@@ -224,6 +231,7 @@ public class ThemeEngine {
     }
     
     public boolean shouldOverlayResource(@NonNull Resources userResources, int resId) {
+        if (!isTargetPkg()) return false;
         try {
             String entryName = userResources.getResourceEntryName(resId);
             if (!isTargetedResource(entryName)) return false;
@@ -237,6 +245,7 @@ public class ThemeEngine {
     
     @Nullable
     public String getThemedString(@NonNull String stringName) {
+        if (!isTargetPkg()) return null;
         IThemeEngineManager service = getService();
         if (service == null) return null;
         try {
@@ -303,6 +312,17 @@ public class ThemeEngine {
         } catch (RemoteException e) {
             return null;
         }
+    }
+    
+    private boolean isTargetPkg() {
+        if (mContext == null) return false;
+        String packageName = mContext.getPackageName();
+        for (String pkg : TARGET_PKGS) {
+            if (pkg.equals(packageName)) {
+                return true;
+            }
+        }
+        return false;
     }
     
     public interface ThemeChangeListener {
