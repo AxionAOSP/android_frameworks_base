@@ -443,20 +443,23 @@ abstract class NTClockView @JvmOverloads constructor(
         }
     }
 
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
-        canvas.drawFilter = antiAliasFilter
-
+    override fun draw(canvas: Canvas) {
         val cx = width / 2f
         val cy = height / 2f
         canvas.save()
         canvas.scale(animScale, animScale, cx, cy)
+        super.draw(canvas)
+        canvas.restore()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        canvas.drawFilter = antiAliasFilter
 
         if (dateVisible && displayText.isNotEmpty()) {
             drawEnhancedDateArea(canvas)
         }
         drawClock(canvas)
-        canvas.restore()
     }
 
     private fun drawEnhancedDateArea(canvas: Canvas) {
