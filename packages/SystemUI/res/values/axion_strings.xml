@@ -75,4 +75,13 @@
 
     <!-- 5G toggle in Internet Dialog -->
     <string name="enable_fiveg">Enable 5G</string>
+    
+    <!-- AOD Tile -->
+    <string name="quick_settings_aod_label">AOD</string>
+    <string name="quick_settings_aod_scheduled_label">Scheduled AOD</string>
+    <string name="quick_settings_aod_disabled_label">AOD Disabled</string>
+    <string name="quick_settings_aod_off_powersave_label">AOD (Power Save)</string>
+    <string name="quick_settings_aod_powersave_label">Power save</string>
+    <string name="quick_settings_aod_charge_only_label">Charge only</string>
+    <string name="quick_settings_aod_always_label">Always on</string>
 </resources>

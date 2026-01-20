@@ -31,10 +31,12 @@ import com.android.systemui.CoreStartable
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.statusbar.pipeline.battery.domain.interactor.BatteryInteractor
 import com.android.systemui.util.settings.SecureSettings
 import com.android.systemui.util.settings.SettingsProxyExt.observerFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import java.time.LocalTime
@@ -48,6 +50,7 @@ class AodScheduleController @Inject constructor(
     @Main private val handler: Handler,
     private val keyguardUpdateMonitor: KeyguardUpdateMonitor,
     private val secureSettings: SecureSettings,
+    private val batteryInteractor: BatteryInteractor,
     @Application private val scope: CoroutineScope
 ) : CoreStartable {
     companion object {
@@ -57,9 +60,11 @@ class AodScheduleController @Inject constructor(
         const val AOD_SCHEDULE_START_TIME = "aod_schedule_start_time"
         const val AOD_SCHEDULE_END_TIME = "aod_schedule_end_time"
         
-        const val MODE_ALWAYS = 0
-        const val MODE_SCHEDULED = 1
-        const val MODE_DISABLED = 2
+        const val MODE_DISABLED = 0
+        const val MODE_ALWAYS = 1
+        const val MODE_CHARGE_ONLY = 2
+        const val MODE_SCHEDULED = 3
+        const val MODE_SCHEDULED_CHARGE = 4
         
         private const val DEFAULT_START_TIME = "2300"
         private const val DEFAULT_END_TIME = "0700"
@@ -72,9 +77,10 @@ class AodScheduleController @Inject constructor(
     private val alarmManager: AlarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     private val dateTimeFormatter = DateTimeFormatter.ofPattern(DATE_FORMAT)
     
-    private var scheduleMode = MODE_ALWAYS
+    private var scheduleMode = MODE_DISABLED
     private var startTime: String = DEFAULT_START_TIME
     private var endTime: String = DEFAULT_END_TIME
+    private var currentChargingState = false
     
     private var isWithinScheduleWindow = true
     
@@ -83,17 +89,14 @@ class AodScheduleController @Inject constructor(
 
     private val scheduleReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            Log.d(TAG, "onReceive: action=${intent?.action}")
             when (intent?.action) {
                 ACTION_ENTER_SCHEDULE -> {
-                    Log.d(TAG, "Entering schedule window - AOD should show")
-                    isWithinScheduleWindow = true
+                    updateScheduleState(currentChargingState)
                     notifyScheduleChange()
                     rescheduleAlarms()
                 }
                 ACTION_EXIT_SCHEDULE -> {
-                    Log.d(TAG, "Exiting schedule window - AOD should hide")
-                    isWithinScheduleWindow = false
+                    updateScheduleState(currentChargingState)
                     notifyScheduleChange()
                     rescheduleAlarms()
                 }
@@ -103,36 +106,38 @@ class AodScheduleController @Inject constructor(
     
     private val keyguardCallback = object : KeyguardUpdateMonitorCallback() {
         override fun onUserSwitchComplete(newUserId: Int) {
-            Log.d(TAG, "User switch complete: userId=$newUserId")
-            loadSettings()
-            updateScheduleState()
-            rescheduleAlarms()
-            notifyScheduleChange()
+            scope.launch {
+                loadSettings()
+                batteryInteractor.isCharging.collect { isCharging ->
+                    currentChargingState = isCharging
+                    updateScheduleState(isCharging)
+                    rescheduleAlarms()
+                    notifyScheduleChange()
+                }
+            }
         }
     }
     
     override fun start() {
-        Log.d(TAG, "Starting AodScheduleController")
-        
         scope.launch {
-            secureSettings.observerFlow(
-                AOD_SCHEDULE_MODE,
-                AOD_SCHEDULE_START_TIME,
-                AOD_SCHEDULE_END_TIME
-            ).onStart { 
-                emit(Unit)
-            }.collect {
-                Log.d(TAG, "Settings flow update")
+            combine(
+                secureSettings.observerFlow(
+                    AOD_SCHEDULE_MODE,
+                    AOD_SCHEDULE_START_TIME,
+                    AOD_SCHEDULE_END_TIME
+                ).onStart { emit(Unit) },
+                batteryInteractor.isCharging
+            ) { _, isCharging ->
+                currentChargingState = isCharging
                 loadSettings()
-                updateScheduleState()
+                updateScheduleState(isCharging)
                 rescheduleAlarms()
                 notifyScheduleChange()
-            }
+            }.collect { }
         }
         
         registerReceiver()
         keyguardUpdateMonitor.registerCallback(keyguardCallback)
-        Log.d(TAG, "Start complete")
     }
     
     private fun loadSettings() {
@@ -147,18 +152,17 @@ class AodScheduleController @Inject constructor(
         endTime = secureSettings.getStringForUser(
             AOD_SCHEDULE_END_TIME, UserHandle.USER_CURRENT
         ) ?: DEFAULT_END_TIME
-        
-        Log.d(TAG, "loadSettings: mode=$scheduleMode, start=$startTime, end=$endTime")
     }
     
-    private fun updateScheduleState() {
-        val wasWithinSchedule = isWithinScheduleWindow
-        isWithinScheduleWindow = if (scheduleMode == MODE_ALWAYS) {
-            true
-        } else {
-            isWithinSchedule()
+    private fun updateScheduleState(isCharging: Boolean = false) {
+        isWithinScheduleWindow = when (scheduleMode) {
+            MODE_DISABLED -> false
+            MODE_ALWAYS -> true
+            MODE_CHARGE_ONLY -> isCharging
+            MODE_SCHEDULED -> isWithinSchedule()
+            MODE_SCHEDULED_CHARGE -> isCharging || isWithinSchedule()
+            else -> false
         }
-        Log.d(TAG, "updateScheduleState: mode=$scheduleMode, wasWithin=$wasWithinSchedule, nowWithin=$isWithinScheduleWindow")
     }
     
     private fun registerReceiver() {
@@ -167,7 +171,6 @@ class AodScheduleController @Inject constructor(
             addAction(ACTION_EXIT_SCHEDULE)
         }
         context.registerReceiver(scheduleReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        Log.d(TAG, "Broadcast receiver registered")
     }
     
     fun shouldShowAod(): Boolean {
@@ -187,7 +190,6 @@ class AodScheduleController @Inject constructor(
             }
             return result
         } catch (e: Exception) {
-            Log.e(TAG, "isWithinSchedule error", e)
             return true
         }
     }
@@ -195,7 +197,7 @@ class AodScheduleController @Inject constructor(
     private fun rescheduleAlarms() {
         cancelAlarms()
         
-        if (scheduleMode != MODE_SCHEDULED) {
+        if (scheduleMode != MODE_SCHEDULED && scheduleMode != MODE_SCHEDULED_CHARGE) {
             return
         }
         
@@ -294,20 +296,17 @@ class AodScheduleController @Inject constructor(
     
     fun addCallback(cb: Runnable) {
         callbacks.add(cb)
-        Log.d(TAG, "Callback added")
     }
 
     fun removeCallback(cb: Runnable) {
         callbacks.remove(cb)
-        Log.d(TAG, "Callback removed")
     }
     
     private fun notifyScheduleChange() {
-        Log.d(TAG, "notifyScheduleChange: callbacks=${callbacks.size}, shouldShowAod=$isWithinScheduleWindow")
         callbacks.forEach { it.run() }
     }
     
-    fun isScheduleMode(): Boolean = scheduleMode == MODE_SCHEDULED
+    fun isScheduleMode(): Boolean = scheduleMode != MODE_DISABLED && scheduleMode != MODE_ALWAYS
     
     fun getStartTime(): String = startTime
     
