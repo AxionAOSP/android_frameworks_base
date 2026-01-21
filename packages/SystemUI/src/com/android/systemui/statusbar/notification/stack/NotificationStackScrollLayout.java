@@ -7275,18 +7275,19 @@ public class NotificationStackScrollLayout
         }
     }
 
-    public void onAppLockerUpdate() {
+    public void onAppLockerUpdate(String packageName) {
         int childCount = getChildCount();
         for (int i = 0; i < childCount; i++) {
             ExpandableView child = getChildAtIndex(i);
-            if (child instanceof ExpandableNotificationRow) {
-                ExpandableNotificationRow row = (ExpandableNotificationRow) child;
+            if (child instanceof ExpandableNotificationRow row) {
                 NotificationEntry entry = row.getEntry();
                 if (entry != null) {
                     StatusBarNotification sbn = entry.getSbn();
-                    if (!AxAppLockerHelper.get(getContext()).isAppLocked(sbn.getPackageName())) {
-                        row.setHeadsUpAnimatingAway(row.isHeadsUpAnimatingAway());
+                    if (packageName != null && !packageName.equals(sbn.getPackageName())) {
+                        continue;
                     }
+                    row.setHeadsUpAnimatingAway(row.isHeadsUpAnimatingAway());
+                    onChildHeightChanged(child, true);
                 }
             }
         }

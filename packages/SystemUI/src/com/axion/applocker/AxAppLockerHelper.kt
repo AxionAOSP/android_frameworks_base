@@ -55,7 +55,7 @@ class AxAppLockerHelper @Inject constructor(
         override fun onAppLockStateChanged(packageName: String, locked: Boolean) {
             appLockCache[packageName] = locked
             TaskWorkerManager.instance.taskWorker.postDelayed({
-                qsController.get().onAppLockerUpdated()
+                qsController.get().onAppLockerUpdated(packageName)
             }, 500L)
         }
     }

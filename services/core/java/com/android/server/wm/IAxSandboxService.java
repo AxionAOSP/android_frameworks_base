@@ -76,4 +76,7 @@ public interface IAxSandboxService {
     
     default void removeTask(Task task, String reason) {
     }
+
+    default void onAppDied(String packageName, int userId) {
+    }
 }

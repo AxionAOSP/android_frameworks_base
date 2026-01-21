@@ -37,6 +37,7 @@ import android.os.IBinder;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.SystemClock;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.text.TextUtils;
@@ -54,7 +55,9 @@ import com.android.server.wm.sandbox.HideDevOptsController;
 import com.android.server.wm.sandbox.HiddenNotificationController;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandboxService {
@@ -72,13 +75,13 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
     
     private static final String ACTION_SYSTEM_UNLOCK = "com.android.applocker.action.SYSTEM_UNLOCK";
 
-    private static final String SETTING_LOCK_BEHAVIOR = "sandbox_lock_behavior";
-    private static final String SETTING_LOCK_TIMEOUT = "sandbox_lock_timeout";
+    private static final String SETTING_LOCK_BEHAVIOR = "sandbox_locked_app_behavior";
+    private static final String SETTING_LOCK_TIMEOUT = "sandbox_locked_app_timeout";
     
     private static final int LOCK_BEHAVIOR_ON_LEAVE = 0;
     private static final int LOCK_BEHAVIOR_TIMEOUT = 1;
-    private static final int LOCK_BEHAVIOR_ON_KILL = 2;
-    private static final int LOCK_BEHAVIOR_ON_SCREEN_OFF = 3;
+    private static final int LOCK_BEHAVIOR_ON_SCREEN_OFF = 2;
+    private static final int LOCK_BEHAVIOR_ON_KILL = 3;
     
     public static final Set<String> BLACKLISTED_PACKAGES = Set.of(
             "android",
@@ -102,7 +105,10 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
             new RemoteCallbackList<>();
     
     private ArrayList<String> mUnlockedApps = new ArrayList<>();
-    private final Set<String> mPendingUnlocks = new java.util.HashSet<>();
+    private final List<String> mPendingUnlocks = new ArrayList<>();
+    private final Map<String, Long> mUnlockTimestamps = new HashMap<>();
+    private final Map<String, Runnable> mTimeoutRunnables = new HashMap<>();
+    private String mLastFocusedAppKey = null;
     private ArrayList<String> mExcludedComponents = new ArrayList<>();
     
     private int mLockBehavior = LOCK_BEHAVIOR_ON_LEAVE;
@@ -200,7 +206,20 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
         if (!mKeyguardDone) return true;
         
         int userId = UserHandle.getUserId(Binder.getCallingUid());
-        return !mUnlockedApps.contains(packageName + userId);
+        String key = userId + ":" + packageName;
+        boolean isAlreadyUnlocked = mUnlockedApps.contains(key);
+
+        if (isAlreadyUnlocked && mLockBehavior == LOCK_BEHAVIOR_TIMEOUT) {
+            Long lastUsed = mUnlockTimestamps.get(key);
+            if (lastUsed != null && (SystemClock.elapsedRealtime() - lastUsed) > (mLockTimeout * 1000L)) {
+                ActivityRecord top = mAtms.mRootWindowContainer.getTopResumedActivity();
+                if (top == null || !packageName.equals(top.packageName) || userId != top.mUserId) {
+                    removeUnlockedApp(packageName, userId);
+                    isAlreadyUnlocked = false;
+                }
+            }
+        }
+        return !isAlreadyUnlocked;
     }
     
     @Override
@@ -221,7 +240,7 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
         int uid = getPackageUid(packageName);
         if (uid >= 0) {
             int userId = UserHandle.getUserId(uid);
-            mUnlockedApps.remove(packageName + userId);
+            removeUnlockedApp(packageName, userId);
         }
         notifyAppLockStateChanged(packageName, false);
     }
@@ -399,7 +418,20 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
         boolean isLocked = mAppControlController.isAppLocked(packageName);
         boolean isHidden = mAppControlController.isPackageHidden(packageName);
         
-        boolean isAlreadyUnlocked = mUnlockedApps.contains(packageName + userId);
+        String key = userId + ":" + packageName;
+        boolean isAlreadyUnlocked = mUnlockedApps.contains(key);
+        
+        if (isAlreadyUnlocked && mLockBehavior == LOCK_BEHAVIOR_TIMEOUT) {
+            Long lastUsed = mUnlockTimestamps.get(key);
+            if (lastUsed != null && (SystemClock.elapsedRealtime() - lastUsed) > (mLockTimeout * 1000L)) {
+                ActivityRecord top = mAtms.mRootWindowContainer.getTopResumedActivity();
+                if (top == null || !packageName.equals(top.packageName) || userId != top.mUserId) {
+                    removeUnlockedApp(packageName, userId);
+                    isAlreadyUnlocked = false;
+                }
+            }
+        }
+
         boolean isExcluded = component != null && mExcludedComponents.contains(component.getClassName());
         
         Slog.d(TAG, "isAppLocked:" 
@@ -429,7 +461,7 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
         boolean isLocked = isAppLocked(r);
         
         if (isLocked) {
-             if (mUnlockedApps.contains(r.packageName + r.mUserId)) {
+             if (mUnlockedApps.contains(r.mUserId + ":" + r.packageName)) {
                  if (mLockBehavior != LOCK_BEHAVIOR_ON_LEAVE) {
                      return;
                  }
@@ -466,7 +498,7 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
         clearUnlockedApp(next);
         
         if (isAppLocked(next)) {
-            String pendingKey = next.packageName + next.mUserId;
+            String pendingKey = next.mUserId + ":" + next.packageName;
             
             synchronized (mPendingUnlocks) {
                 if (mPendingUnlocks.contains(pendingKey)) {
@@ -606,23 +638,31 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
     
     @Override
     public void setKeyguardDoneLocked(boolean done) {
-        Slog.i(TAG, "setKeyguardDoneLocked: " + done);
         try {
             if (done) {
-                mKeyguardDone = done;
-            } else {
-                for (String key : new ArrayList<>(mUnlockedApps)) {
-                    String packageName = key.substring(0, key.length() - 1);
-                    notifyAppLockStateChanged(packageName, true);
-                }
-                mUnlockedApps.clear();
-            }
-            
-            if (done) {
+                mKeyguardDone = true;
                 mAtms.mWindowManager.getDefaultDisplayContentLocked()
                         .getDefaultTaskDisplayArea().forAllTasks(this::addVisibleTaskToUnlocked);
+            } else {
+                mKeyguardDone = false;
+                
+                if (mLockBehavior == LOCK_BEHAVIOR_TIMEOUT && mLastFocusedAppKey != null) {
+                    scheduleTimeoutLock(mLastFocusedAppKey);
+                }
+
+                if (mLockBehavior == LOCK_BEHAVIOR_ON_SCREEN_OFF) {
+                    for (String key : new ArrayList<>(mUnlockedApps)) {
+                        int index = key.indexOf(":");
+                        if (index != -1) {
+                            String packageName = key.substring(index + 1);
+                            notifyAppLockStateChanged(packageName, true);
+                        }
+                    }
+                    mUnlockedApps.clear();
+                    mUnlockTimestamps.clear();
+                    clearAllTimeouts();
+                }
             }
-            mKeyguardDone = done;
         } catch (Exception e) {
             Slog.w(TAG, "setKeyguardDoneLocked: failed", e);
             mKeyguardDone = done;
@@ -630,11 +670,20 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
     }
     
     @Override
-    public void onAppFocusChanged(ActivityRecord r, Task task) {
-        if (r == null || r.isActivityTypeHomeOrRecents()) {
-            return;
+    public void onAppFocusChanged(ActivityRecord newFocus, Task newTask) {
+        String newKey = (newFocus != null) ? (newFocus.mUserId + ":" + newFocus.packageName) : null;
+        
+        if (mLastFocusedAppKey != null && !mLastFocusedAppKey.equals(newKey)) {
+            scheduleTimeoutLock(mLastFocusedAppKey);
         }
-        lockTopApp(task, "newFocusTask");
+        
+        if (newKey != null) {
+            cancelTimeoutLock(newKey);
+            mUnlockTimestamps.put(newKey, SystemClock.elapsedRealtime());
+        }
+        
+        mLastFocusedAppKey = newKey;
+        lockTopApp(newTask, "onAppFocusChanged");
     }
     
     @Override
@@ -689,13 +738,14 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
     
     @Override
     public void clearUnlockedApp() {
-        boolean tracksUnlockSession = mLockBehavior == LOCK_BEHAVIOR_ON_LEAVE 
-                || mLockBehavior == LOCK_BEHAVIOR_ON_SCREEN_OFF;
+        boolean tracksUnlockSession = mLockBehavior == LOCK_BEHAVIOR_ON_LEAVE;
         if (!tracksUnlockSession || mUnlockedApps.size() <= 0) {
             return;
         }
         int size = mUnlockedApps.size();
         mUnlockedApps.clear();
+        mUnlockTimestamps.clear();
+        clearAllTimeouts();
         lockVisibleMultiWindowApps(mAtms.mWindowManager.getDefaultDisplayContentLocked());
         Slog.d(TAG, "clearUnlockedApp: size=" + size);
     }
@@ -710,7 +760,7 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
             if (r.isActivityTypeHomeOrRecents() && r.mTransitionController.isTransientLaunch(r)) {
                 return;
             }
-            boolean wasUnlocked = mUnlockedApps.contains(r.packageName + r.mUserId);
+            boolean wasUnlocked = mUnlockedApps.contains(r.mUserId + ":" + r.packageName);
             clearUnlockedApp();
             if (wasUnlocked) {
                 addUnlockedApp(r.packageName, r.mUserId);
@@ -748,21 +798,68 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
     }
     
     private void addUnlockedApp(String packageName, int userId) {
-        String key = packageName + userId;
+        String key = userId + ":" + packageName;
         if (!mUnlockedApps.contains(key)) {
             mUnlockedApps.add(key);
+            mUnlockTimestamps.put(key, SystemClock.elapsedRealtime());
             notifyAppLockStateChanged(packageName, false);
             Slog.d(TAG, "addUnlockedApp: " + packageName + " userId=" + userId);
         }
     }
     
     private void removeUnlockedApp(String packageName, int userId) {
-        String key = packageName + userId;
+        String key = userId + ":" + packageName;
         if (mUnlockedApps.contains(key)) {
             mUnlockedApps.remove(key);
+            mUnlockTimestamps.remove(key);
+            cancelTimeoutLock(key);
             notifyAppLockStateChanged(packageName, true);
             Slog.d(TAG, "removeUnlockedApp: " + packageName + " userId=" + userId);
         }
+    }
+    
+    private void scheduleTimeoutLock(String key) {
+        if (mLockBehavior != LOCK_BEHAVIOR_TIMEOUT || !mUnlockedApps.contains(key)) {
+            return;
+        }
+        
+        cancelTimeoutLock(key);
+        
+        Runnable r = () -> {
+            synchronized (mAtms.mGlobalLock) {
+                ActivityRecord top = mAtms.mRootWindowContainer.getTopResumedActivity();
+                String topKey = (top != null) ? (top.mUserId + ":" + top.packageName) : null;
+                
+                if (!key.equals(topKey)) {
+                    int index = key.indexOf(":");
+                    if (index != -1) {
+                        try {
+                            int userId = Integer.parseInt(key.substring(0, index));
+                            String packageName = key.substring(index + 1);
+                            removeUnlockedApp(packageName, userId);
+                        } catch (NumberFormatException ignored) {}
+                    }
+                }
+                mTimeoutRunnables.remove(key);
+            }
+        };
+        
+        mTimeoutRunnables.put(key, r);
+        mAtms.mH.postDelayed(r, mLockTimeout * 1000L);
+    }
+    
+    private void cancelTimeoutLock(String key) {
+        Runnable r = mTimeoutRunnables.remove(key);
+        if (r != null) {
+            mAtms.mH.removeCallbacks(r);
+        }
+    }
+    
+    private void clearAllTimeouts() {
+        for (Runnable r : mTimeoutRunnables.values()) {
+            mAtms.mH.removeCallbacks(r);
+        }
+        mTimeoutRunnables.clear();
     }
     
     private void broadcastPackageChanged(String packageName) {
@@ -802,6 +899,13 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
     private void lockVisibleTask(Task task) {
         if (task.isLeafTask() && task.shouldBeVisible(null) && isAppLocked(task.topRunningActivityLocked())) {
             lockTopApp(task, "setKeyguardDone");
+        }
+    }
+    
+    @Override
+    public void onAppDied(String packageName, int userId) {
+        if (mLockBehavior == LOCK_BEHAVIOR_ON_KILL) {
+            removeUnlockedApp(packageName, userId);
         }
     }
     

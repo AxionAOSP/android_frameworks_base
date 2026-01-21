@@ -4274,6 +4274,7 @@ final class ActivityRecord extends WindowToken {
      * finishing or has no saved state or crashed many times, it will also be removed from history.
      */
     void handleAppDied() {
+        AxSandboxService.get().onAppDied(packageName, mUserId);
         final boolean remove;
         if (Process.isSdkSandboxUid(getUid())) {
             // Sandbox activities are created for SDKs run in the sandbox process, when the sandbox

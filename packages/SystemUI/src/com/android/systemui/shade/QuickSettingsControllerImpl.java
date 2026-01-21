@@ -2524,32 +2524,14 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                 float target, float vel);
     }
 
-    public final void onAppLockerUpdated() {
+    public final void onAppLockerUpdated(String packageName) {
         NotificationStackScrollLayoutController controller = mNotificationStackScrollLayoutController;
         if (controller == null || controller.getView() == null) {
             return;
         }
 
         NotificationStackScrollLayout view = controller.getView();
-        int childCount = view.getChildCount();
-
-        boolean needsUpdate = false;
-
-        for (int i = 0; i < childCount; i++) {
-            View child = view.getChildAt(i);
-            if (child instanceof ExpandableNotificationRow) {
-                NotificationEntry entry = ((ExpandableNotificationRow) child).getEntry();
-                StatusBarNotification sbn = entry.getSbn();
-                String packageName = sbn.getPackageName();
-                if (!AxAppLockerHelper.get(mPanelView.getContext()).isAppLocked(packageName)) {
-                    needsUpdate = true;
-                }
-            }
-        }
-
-        if (needsUpdate) {
-            view.post(() -> view.onAppLockerUpdate());
-        }
+        view.post(() -> view.onAppLockerUpdate(packageName));
     }
     
     public boolean isVisible() {
