@@ -23,14 +23,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-public class NtAppRefreshRateProvider {
+public class AxAppRefreshRateProvider {
 
     public static final ArrayMap<String, AppRefreshRateConfig> DEFAULT_APP_CONFIGS = new ArrayMap<>();
-
-    public static final Set<String> GAMING_APPS = Set.of(
-            "com.tencent.ig", "com.rekoo.pubgm", "com.vng.pubgmobile",
-            "com.pubg.krmobile", "com.tencent.igce", "com.pubg.imobile"
-    );
 
     public static final Set<String> SYS_WINDOW_TYPES = Set.of(
             "StatusBar", "NavigationBar", "wallpapers"
@@ -38,38 +33,12 @@ public class NtAppRefreshRateProvider {
 
     static {
         addConfig(DEFAULT_APP_CONFIGS, new String[]{
-            "com.google.android.projection.gearhead.phonescreen","com.waze","com.google.android.apps.mapslite",
-            "ru.yandex.yandexmaps","maps.pro","com.baidu.BaiduMap","com.mapquest.android.ace","com.autonavi.minimap",
-            "com.nhn.android.nmap","com.here.app.maps","com.ss.android.ugc.aweme","com.ss.android.ugc.aweme.lite",
-            "com.ss.android.ugc.trill","tv.twitch.android.app"
-        }, "60,60,60", false, false);
-
-        addConfig(DEFAULT_APP_CONFIGS, new String[]{
-            "com.android.chrome","com.brave.browser","com.opera.browser","org.mozilla.firefox","org.torproject.torbrowser",
-            "com.sec.android.app.sbrowser","com.kiwibrowser.browser","com.microsoft.emmx","com.hsv.freeadblockerbrowser",
-            "com.vivaldi.browser","com.yandex.browser","org.adblockplus.browser","com.naver.whale"
-        }, "90,120,60", true, false);
-
-        addConfig(DEFAULT_APP_CONFIGS, new String[]{
-            "com.android.launcher3","com.tencent.mm","com.google.android.apps.nbu.paisa.user","com.android.systemui",
-            "com.android.wallpaper"
-        }, "120,120,60", true, false);
-
-        addConfig(DEFAULT_APP_CONFIGS, new String[]{
-            "com.axlebolt.standoff2","com.riotgames.league.wildrift","com.antutu.ABenchMark",
-            "com.futuremark.dmandroid.application","com.primatealbs.geekbench6"
-        }, "120,120,60", true, true);
-
-        addConfig(DEFAULT_APP_CONFIGS, new String[]{
-            "com.tencent.ig","com.tencent.igfit","com.rekoo.pubgm","com.vng.pubgmobile","com.pubg.krmobile","com.tencent.igce"
-        }, "90,90,60", true, true);
-
-        addConfig(DEFAULT_APP_CONFIGS, new String[]{ "com.pubg.imobile" }, "120,120,60", true, true);
-
-        addConfig(DEFAULT_APP_CONFIGS, new String[]{
-            "com.twitter.android","com.nothing.weather","com.android.vending","com.android.settings",
-            "com.google.android.googlequicksearchbox","com.android.setupwizard.overlay","com.nothing.applocker"
-        }, "120,120,60", false, false);
+            "com.android.launcher3", "com.android.settings", 
+            "com.android.systemui",
+            "com.android.wallpaper",
+            "com.google.android.googlequicksearchbox",
+            "com.android.setupwizard.overlay"
+        }, "MAX,MAX,MAX", true, true);
     }
 
     private static void addConfig(ArrayMap<String, AppRefreshRateConfig> map, String[] packages,
@@ -84,10 +53,18 @@ public class NtAppRefreshRateProvider {
         SparseIntArray refreshRates = new SparseIntArray(3);
         String[] rates = rateString.split(",");
         for (int i = 0; i < rates.length; i++) {
-            refreshRates.put(i, Integer.parseInt(rates[i]));
+            String rate = rates[i].trim();
+            if ("MAX".equals(rate)) {
+                refreshRates.put(i, -1);
+            } else if ("MIN".equals(rate)) {
+                refreshRates.put(i, -2);
+            } else {
+                refreshRates.put(i, Integer.parseInt(rate));
+            }
         }
         return refreshRates;
     }
+
 
     public static class AppRefreshRateConfig {
         public final SparseIntArray refreshRates;

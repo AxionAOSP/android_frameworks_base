@@ -1059,7 +1059,7 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
             }
 
             if (isDefaultDisplay && w.mHasSurface && w.isVisible()) {
-                NtRefreshRateController.get().voteNtPreferredModeId(w, getDisplayPolicy().isScreenOnFully());
+                AxRefreshRateController.get().voteNtPreferredModeId(w, getDisplayPolicy().isScreenOnFully());
             }
 
             if (w.mHasSurface && isDisplayed) {
@@ -1276,7 +1276,7 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
                 /* hasPermission= */ true, mDisplayId);
         mAppCompatCameraPolicy.start();
         if (isDefaultDisplay) {
-            NtRefreshRateController.get().init(mWmService.mContext, mWmService);
+            AxRefreshRateController.get().init(mWmService.mContext, mWmService);
         }
     }
 
@@ -4121,7 +4121,7 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
         }
 
         if (newFocus != null && isDefaultDisplay) {
-            NtRefreshRateController.get().updateFocusedApp(newFocus);
+            AxRefreshRateController.get().updateFocusedApp(newFocus);
         }
         getInputMonitor().setFocusedAppLw(newFocus);
         return true;
@@ -5103,7 +5103,7 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
         mTmpApplySurfaceChangesTransactionState.reset();
         
         if (isDefaultDisplay) {
-            NtRefreshRateController.get().resetNtVoteResult();
+            AxRefreshRateController.get().resetNtVoteResult();
         }
 
         Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "applyWindowSurfaceChanges");
@@ -5120,11 +5120,11 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
                     && mTmpApplySurfaceChangesTransactionState.preferredModeId == 0 
                     && mTmpApplySurfaceChangesTransactionState.preferredMinRefreshRate == INVALID_DPI 
                     && mTmpApplySurfaceChangesTransactionState.preferredMaxRefreshRate == INVALID_DPI;
-                NtRefreshRateController.get().updateVoteResult();
-                if (windowPreferNone || NtRefreshRateController.get().OverrideWinPrefer()) {
-                    mTmpApplySurfaceChangesTransactionState.preferredModeId = NtRefreshRateController.get().getPreferMode();
-                    mTmpApplySurfaceChangesTransactionState.preferredMinRefreshRate = NtRefreshRateController.get().getMinPreferRate();
-                    mTmpApplySurfaceChangesTransactionState.preferredMaxRefreshRate = NtRefreshRateController.get().getMaxPreferRate();
+                AxRefreshRateController.get().updateVoteResult();
+                if (windowPreferNone || AxRefreshRateController.get().OverrideWinPrefer()) {
+                    mTmpApplySurfaceChangesTransactionState.preferredModeId = AxRefreshRateController.get().getPreferMode();
+                    mTmpApplySurfaceChangesTransactionState.preferredMinRefreshRate = AxRefreshRateController.get().getMinPreferRate();
+                    mTmpApplySurfaceChangesTransactionState.preferredMaxRefreshRate = AxRefreshRateController.get().getMaxPreferRate();
                 }
             }
             mWmService.mDisplayManagerInternal.setDisplayProperties(mDisplayId,

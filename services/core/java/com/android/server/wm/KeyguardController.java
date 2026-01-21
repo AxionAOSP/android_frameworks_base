@@ -271,6 +271,7 @@ class KeyguardController {
         }
 
         if (displayId == DEFAULT_DISPLAY && keyguardChanged) {
+            AxRefreshRateController.get().setKeyguardDone(!keyguardShowing);
             AxSandboxService.get().setKeyguardDoneLocked(!keyguardShowing);
             GameSpaceService.get().setKeyguardDoneLocked(!keyguardShowing);
         }
