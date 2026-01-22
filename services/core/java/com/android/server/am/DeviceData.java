@@ -19,6 +19,7 @@ import static com.android.server.am.AxUtils.*;
 
 import android.content.Context;
 import android.os.SystemProperties;
+import android.os.UserHandle;
 import android.provider.Settings;
 
 import com.android.server.NtServiceInjector;
@@ -31,6 +32,7 @@ public final class DeviceData {
     private static final String CPU_SYS_PATH = "/sys/devices/system/cpu/cpu";
     private static final String SCALING_MIN_FREQ_FILE = "/cpufreq/scaling_min_freq";
     private static final String SCALING_MAX_FREQ_FILE = "/cpufreq/scaling_max_freq";
+    private static final String SCALING_AVAILABLE_FREQ_FILE = "/cpufreq/scaling_available_frequencies";
 
     private static final String GPU_FREQS_PATH = AxUtils.prop("gpu_freqs_path", "");
     private static final String GPU_MIN_FILE = AxUtils.prop("gpu_minfreq_file", "");
@@ -333,6 +335,23 @@ public final class DeviceData {
 
         propSetF("persist.sys.ax_max_cpu_freqs", joinString(sMaxFreq, bMaxFreq, pMaxFreq));
 
+        String[] sAvailableFreqs = readAvailableFrequencies(sIndex);
+        String[] bAvailableFreqs = readAvailableFrequencies(bIndex);
+        String[] pAvailableFreqs = readAvailableFrequencies(pIndex);
+
+        if (sAvailableFreqs.length > 0) {
+            Settings.Secure.putStringForUser(mContext.getContentResolver(),
+                "ax_cpu_small_freqs", String.join(",", sAvailableFreqs), UserHandle.USER_CURRENT);
+        }
+        if (bAvailableFreqs.length > 0) {
+            Settings.Secure.putStringForUser(mContext.getContentResolver(),
+                "ax_cpu_big_freqs", String.join(",", bAvailableFreqs), UserHandle.USER_CURRENT);
+        }
+        if (pAvailableFreqs.length > 0) {
+            Settings.Secure.putStringForUser(mContext.getContentResolver(),
+                "ax_cpu_prime_freqs", String.join(",", pAvailableFreqs), UserHandle.USER_CURRENT);
+        }
+
         String smallR = toRange(sCores);
         String bigR = toRange(bCores);
         String primeR = toRange(pCores);
@@ -406,6 +425,15 @@ public final class DeviceData {
         if (memGb <= 0) return;
         AxUtils.propSetF("persist.sys.device_ram_size", String.valueOf(memGb));
         AxUtils.logger("initDeviceMemoryData: RAM size data: " + memGb + "GB");
+    }
+
+    private String[] readAvailableFrequencies(String cpuIndex) {
+        String path = CPU_SYS_PATH + cpuIndex + SCALING_AVAILABLE_FREQ_FILE;
+        String freqsStr = AxUtils.readBufFile(path);
+        if (freqsStr == null || freqsStr.trim().isEmpty()) {
+            return new String[0];
+        }
+        return freqsStr.trim().split("\\s+");
     }
 
     public void boostGpu(int level) {
