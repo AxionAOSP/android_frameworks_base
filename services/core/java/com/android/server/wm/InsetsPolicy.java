@@ -37,6 +37,7 @@ import android.content.res.Resources;
 import android.os.Handler;
 import android.os.IBinder;
 import android.util.SparseArray;
+import android.view.DisplayCutout;
 import android.view.InsetsController;
 import android.view.InsetsFrameProvider;
 import android.view.InsetsSource;
@@ -316,7 +317,8 @@ class InsetsPolicy {
         }
         state = adjustVisibilityForIme(target, state, state == originalState);
         state = mPolicy.replaceInsetsSourcesIfNeeded(state, state == originalState);
-        return adjustInsetsForRoundedCorners(target.mToken, state, state == originalState);
+        state = adjustInsetsForRoundedCorners(target.mToken, state, state == originalState);
+        return adjustInsetsForForceLongScreen(target, state, state == originalState);
     }
 
     InsetsState adjustInsetsForWindow(WindowState target, InsetsState originalState) {
@@ -529,6 +531,24 @@ class InsetsPolicy {
         }
         return originalState;
     }
+
+    private InsetsState adjustInsetsForForceLongScreen(WindowState target, InsetsState originalState,
+            boolean copyState) {
+        if (target == null || target.mActivityRecord == null) {
+            return originalState;
+        }
+        if (!target.mActivityRecord.shouldForceLongScreen()) {
+            return originalState;
+        }
+        final InsetsState state = copyState ? new InsetsState(originalState) : originalState;
+        state.removeSource(InsetsSource.createId(null, 0, Type.displayCutout()));
+        state.removeSource(InsetsSource.createId(null, 1, Type.displayCutout()));
+        state.removeSource(InsetsSource.createId(null, 2, Type.displayCutout()));
+        state.removeSource(InsetsSource.createId(null, 3, Type.displayCutout()));
+        state.setDisplayCutout(DisplayCutout.NO_CUTOUT);
+        return state;
+    }
+
 
     void onRequestedVisibleTypesChanged(InsetsTarget caller, @InsetsType int changedTypes,
             @Nullable ImeTracker.Token statsToken) {
