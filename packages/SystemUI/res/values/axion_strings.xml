@@ -84,4 +84,10 @@
     <string name="quick_settings_aod_powersave_label">Power save</string>
     <string name="quick_settings_aod_charge_only_label">Charge only</string>
     <string name="quick_settings_aod_always_label">Always on</string>
+
+    <!-- Data disabled icon -->
+    <string name="data_disabled_icon_title">Data disabled icon</string>
+
+    <!-- 4G icon instead LTE -->
+    <string name="fourg_icon_title">4G icon</string>
 </resources>
