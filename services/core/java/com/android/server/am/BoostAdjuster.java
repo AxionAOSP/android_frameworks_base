@@ -728,8 +728,8 @@ public class BoostAdjuster implements IBoostAdjuster {
     
     public void boostThread(int tid) {
         mHandler.post(() -> {
-            Process.setThreadGroupAndCpuset(tid, AxUtils.THREAD_GROUP_SVP);
-            Process.setThreadAffinity(tid, 0);
+            Process.setThreadGroupAndCpuset(tid, Process.THREAD_GROUP_TOP_APP);
+            Process.setThreadAffinity(tid, 2);
             if (mModernKernel) {
                 Process.setThreadScheduler(tid, SCHED_RR | SCHED_RESET_ON_FORK, 1);
             }
