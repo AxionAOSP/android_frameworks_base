@@ -43,7 +43,6 @@ public class AxBurstEngine {
     private final HandlerThread mWorkerThread;
     private final Handler mHandler;
 
-    private final ConcurrentHashMap<Integer, ProcessState> mProcessStates = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, ThreadBoost> mBoostedThreads = new ConcurrentHashMap<>();
     
     private AxBurstEngine() {
@@ -66,6 +65,7 @@ public class AxBurstEngine {
 
     public static boolean scheduleProcess(int pid, int group, String name) {
         if (!isSupported()) return false;
+        if (name == null || !name.contains("systemui")) return false;
         return get().handleProcessScheduling(pid, group, name);
     }
 
@@ -80,89 +80,77 @@ public class AxBurstEngine {
     }
 
     private boolean handleProcessScheduling(int pid, int group, String name) {
-        ProcessState ps = getOrCreateProcessState(pid, name, group);
         try {
-            return setSchedulingPolicy(ps);
+            ProcessRecord pr = NtServiceInjector.getAm().getProcessRecordByPid(pid);
+            if (pr == null) return false;
+            
+            final boolean isTop = group == THREAD_GROUP_TOP_APP 
+                    || pr.mState.hasTopUi() 
+                    || pr.mState.isRunningRemoteAnimation();
+
+            return setSchedulingPolicy(pid, name, isTop);
         } catch (Exception e) {
             return false;
         }
     }
 
-    private ProcessState getOrCreateProcessState(int pid, String name, int targetGroup) {
-        return mProcessStates.compute(pid, (k, ps) -> {
-            if (ps == null) {
-                return new ProcessState(pid, name, targetGroup);
-            } else {
-                ps.updateFromRecord(targetGroup);
-                return ps;
-            }
-        });
-    }
-
-    private boolean setSchedulingPolicy(ProcessState ps) {
-        final boolean isPerfProcess = ps.isUiPerfPkg;
-        final boolean isTop = ps.isUiProc;
-        final boolean isPerfBlack = ps.isBlacklisted;
-        final int pid = ps.pid;
-
+    private boolean setSchedulingPolicy(int pid, String name, boolean isTop) {
         if (!AxUtils.checkTid(pid)) {
-            mProcessStates.remove(pid);
             return false;
         }
 
-        if (isPerfProcess) {
-            final int perfAffinity = isTop ? AFFINITY_BIG : AFFINITY_ALL;
-            final int perfGroup = isTop
-                    ? AxUtils.THREAD_GROUP_SVP
-                    : THREAD_GROUP_TOP_APP;
-                    
-            final int policy = isTop ? SCHED_RR | SCHED_RESET_ON_FORK : SCHED_OTHER;
-            final int prio = isTop ? 1 : THREAD_PRIORITY_URGENT_DISPLAY;
+        final int perfAffinity = isTop ? AFFINITY_BIG : AFFINITY_ALL;
+        final int perfGroup = isTop 
+                ? THREAD_GROUP_SVP
+                : THREAD_GROUP_TOP_APP;
+                
+        final int policy = isTop ? SCHED_RR | SCHED_RESET_ON_FORK : SCHED_OTHER;
+        final int prio = isTop ? 1 : THREAD_PRIORITY_URGENT_DISPLAY;
 
-            Process.setProcessGroup(pid, perfGroup);
-            Process.setThreadGroupAndCpuset(pid, perfGroup);
-            Process.setThreadAffinity(pid, perfAffinity);
-            Process.setThreadScheduler(pid, policy, prio);
+        Process.setProcessGroup(pid, perfGroup);
+        Process.setThreadGroupAndCpuset(pid, perfGroup);
+        Process.setThreadAffinity(pid, perfAffinity);
+        Process.setThreadScheduler(pid, policy, prio);
 
-            AxUtils.logger(TAG + ": " + "perfList → cgroup=" + perfGroup
-                    + " proc=" + ps.name);
-            return true;
-        }
-
-        return false;
+        AxUtils.logger(TAG + ": " + "perfList → cgroup=" + perfGroup
+                + " proc=" + name);
+        return true;
     }
 
     private void handleAnimationBoost(int pid, int renderTid, long duration) {
         mHandler.post(() -> {
-            ProcessState ps = getOrCreateProcessState(pid, "animator", THREAD_GROUP_SVP);
-            ps.updateFromRecord(THREAD_GROUP_SVP);
-            final int rtid = renderTid > 0 ? renderTid : ps.rtid;
+            ProcessRecord pr = NtServiceInjector.getAm().getProcessRecordByPid(pid);
+            if (pr == null) return;
+            
+            final boolean isSystemUI = pr.processName.contains("systemui");
+            final int rtid = renderTid > 0 ? renderTid : pr.getRenderThreadTid();
+
             if (duration >= 0) {
-                boostRenderThread(ps, rtid);
-                if (ps.isSystemUI) {
+                boostRenderThread(pid, rtid);
+                if (isSystemUI) {
                     AxExtServiceFactory.getBoostAdjuster().limitForegroundCpu(true);
                 }
                 AxUtils.logger(TAG + ": animation_start → pid=" + pid +
                         " rtid=" + rtid + " duration=" + duration + "ms");
             } else {
-                if (ps.isSystemUI) {
+                if (isSystemUI) {
                     AxExtServiceFactory.getBoostAdjuster().limitForegroundCpu(false);
                 }
                 AxUtils.logger(TAG + ": animation_end");
-                resetBoostedThreads(ps.pid);
+                resetBoostedThreads(pid);
             }
         });
     }
 
-    private void boostRenderThread(ProcessState ps, int rtid) {
+    private void boostRenderThread(int pid, int rtid) {
         if (rtid > 0) {
             mBoostedThreads.computeIfAbsent(rtid, 
-                tid -> new ThreadBoost(tid, ps.pid));
+                tid -> new ThreadBoost(tid, pid));
             setScheduler(rtid, SCHED_RR | SCHED_RESET_ON_FORK, 1);
             Process.setThreadGroupAndCpuset(rtid, THREAD_GROUP_SVP);
             Process.setThreadAffinity(rtid, AFFINITY_BIG);
         } else {
-            resetBoostedThreads(ps.pid);
+            resetBoostedThreads(pid);
         }
     }
 
@@ -181,7 +169,6 @@ public class AxBurstEngine {
 
     private void removeProcess(int pid) {
         resetBoostedThreads(pid);
-        mProcessStates.remove(pid);
         AxUtils.logger(TAG + ": CLEANUP → pid=" + pid);
     }
 

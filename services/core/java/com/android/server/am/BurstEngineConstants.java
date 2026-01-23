@@ -16,10 +16,6 @@
 package com.android.server.am;
 
 import static android.os.Process.*;
-import static com.android.server.am.AxUtils.THREAD_GROUP_NT_FOREGROUND;
-import static com.android.server.am.AxUtils.THREAD_GROUP_SVP;
-
-import android.util.SparseArray;
 
 public final class BurstEngineConstants {
     
@@ -27,8 +23,6 @@ public final class BurstEngineConstants {
     public static final int AFFINITY_LITTLE = 1;
     public static final int AFFINITY_ALL = 2;
     public static final int AFFINITY_BALANCED = 3;
-
-    public static final int OPT_ADJ_OOM_SCORE = 201;
 
     private BurstEngineConstants() {
     }
