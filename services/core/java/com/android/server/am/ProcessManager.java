@@ -221,11 +221,7 @@ public class ProcessManager implements IProcessManager {
                 && !r.isForeground
                 && !isProcessVisible(pRec)
                 && !isServiceCallFromTopApp(r)) {
-            long duration = serviceHasBindings(r) ? mShortDelayRestartDuration : mLongDelayRestartDuration;
-            if (isThermalHigh()) {
-                duration *= 2;
-            }
-            return duration;
+            return serviceHasBindings(r) ? mShortDelayRestartDuration : mLongDelayRestartDuration;
         }
 
         return mActivityManagerService.mConstants.SERVICE_RESTART_DURATION;
@@ -296,35 +292,5 @@ public class ProcessManager implements IProcessManager {
         logger("ProcessManager: ServiceRecord processName: " + r.processName
                 + ", binds: " + r.bindings.size());
         return !r.bindings.isEmpty();
-    }
-
-    public void freezeSwipedApp(String packageName, int userId) {
-        if (mActivityManagerService == null) {
-            return;
-        }
-        
-        try {
-            final int uid = mContext.getPackageManager().getPackageUidAsUser(packageName, userId);
-            
-            if (!mActivityManagerService.isBackgroundRestrictedNoCheck(uid, packageName)) {
-                logger("ProcessManager: Skip freeze, app unrestricted: " + packageName);
-                return;
-            }
-            
-            synchronized (mActivityManagerService) {
-                ProcessRecord app = mActivityManagerService.getProcessRecordLocked(packageName, uid);
-                if (app != null && !app.isKilled() && !app.isPersistent()) {
-                    if (app.mServices != null && app.mServices.hasForegroundServices()) {
-                        logger("ProcessManager: Skip freeze, has FGS: " + packageName);
-                        return;
-                    }
-                    
-                    logger("ProcessManager: Freezing swiped app: " + packageName);
-                    mActivityManagerService.mOomAdjuster.mCachedAppOptimizer.freezeAppAsyncLSP(app);
-                }
-            }
-        } catch (Exception e) {
-            Slog.w(TAG, "Failed to freeze swiped app: " + packageName, e);
-        }
     }
 }

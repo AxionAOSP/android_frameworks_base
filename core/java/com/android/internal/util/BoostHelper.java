@@ -63,4 +63,20 @@ public class BoostHelper {
             logException("boostThread", e);
         }
     }
+
+    public static void launcherItemsLoadingBoost(long duration) {
+        try {
+            ActivityManager.getService().launcherItemsLoadingBoost(duration);
+        } catch (Exception e) {
+            logException("launcherItemsLoadingBoost", e);
+        }
+    }
+
+    public static void systemThreadBoost(int tid, long duration) {
+        try {
+            ActivityManager.getService().systemThreadBoost(tid, duration);
+        } catch (Exception e) {
+            logException("systemThreadBoost", e);
+        }
+    }
 }

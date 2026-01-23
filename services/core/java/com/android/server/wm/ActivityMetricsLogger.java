@@ -778,11 +778,6 @@ class ActivityMetricsLogger {
         mTransitionInfoList.add(newInfo);
         mLastTransitionInfo.put(launchedActivity, newInfo);
         startLaunchTrace(newInfo);
-
-        final int boostDuration = processRunning ? 300 : 0;
-        com.android.server.AxExtServiceFactory.getBoostAdjuster().appLaunchBoost(
-                launchedActivity.packageName, boostDuration);
-        
         if (newInfo.isInterestingToLoggerAndObserver()) {
             launchObserverNotifyActivityLaunched(newInfo);
         } else {

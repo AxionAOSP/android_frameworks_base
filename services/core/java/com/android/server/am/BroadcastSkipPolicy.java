@@ -345,9 +345,6 @@ public class BroadcastSkipPolicy {
      * Determine if the given {@link BroadcastRecord} is eligible to launch processes.
      */
     public boolean disallowBackgroundStart(@NonNull BroadcastRecord r) {
-        if (com.android.server.AxExtServiceFactory.getProcessManager().isThermalHigh()) {
-            return true;
-        }
         return ((r.intent.getFlags() & Intent.FLAG_RECEIVER_EXCLUDE_BACKGROUND) != 0)
                 || (r.intent.getComponent() == null
                         && r.intent.getPackage() == null

@@ -753,6 +753,9 @@ class ProcessRecord implements WindowProcessListener {
             mOnewayThread = mThread;
         }
         mWindowProcessController.setThread(mThread);
+        if(mWindowProcessController.useRoundRobinUiScheduling()) {
+            mService.mSpecifiedRoundRobinProcesses.add(this);
+        }
         if (mWindowProcessController.useFifoUiScheduling()) {
             mService.mSpecifiedFifoProcesses.add(this);
         }
@@ -763,6 +766,9 @@ class ProcessRecord implements WindowProcessListener {
         mThread = null;
         mOnewayThread = null;
         mWindowProcessController.setThread(null);
+        if(mWindowProcessController.useRoundRobinUiScheduling()) {
+            mService.mSpecifiedRoundRobinProcesses.remove(this);
+        } 
         if (mWindowProcessController.useFifoUiScheduling()) {
             mService.mSpecifiedFifoProcesses.remove(this);
         }
@@ -774,6 +780,12 @@ class ProcessRecord implements WindowProcessListener {
         return mService.mUseFifoUiScheduling
                 || (mService.mAllowSpecifiedFifoScheduling
                         && mWindowProcessController.useFifoUiScheduling());
+    }
+
+    @GuardedBy(anyOf = {"mService", "mProcLock"})
+    boolean useRoundRobinUiScheduling() {
+        return mService.mAllowSpecifiedRoundRobinScheduling
+                && mWindowProcessController.useRoundRobinUiScheduling();
     }
 
     @GuardedBy("mService")

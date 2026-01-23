@@ -2598,24 +2598,20 @@ public final class ProcessList {
                         new String[]{PROC_START_SEQ_IDENT + app.getStartSeq()});
                 // By now the process group should have been created by zygote.
                 app.mProcessGroupCreated = true;
-                if (startResult.pid > 0 && app.getHostingRecord() != null) {
-                    sHandler.postDelayed(() -> {
-                        try {
-                            final boolean isTop = app.getHostingRecord().isTopApp();
-                            final boolean needsRestrict = app.uid % 100000 > 10000 
-                                        && !AxUtils.isInWhiteList(app.processName) 
-                                        && !AxUtils.isInPerfList(app.processName);
-                            final int fgGroup = needsRestrict 
-                                    ? AxUtils.THREAD_GROUP_NT_FOREGROUND 
-                                    : Process.THREAD_GROUP_DEFAULT;
-                            final int startGroup = isTop ? Process.THREAD_GROUP_TOP_APP : fgGroup;
-                            AxBurstEngine.scheduleProcess(
-                                startResult.pid, 
-                                startGroup, 
-                                app.processName);
-                        } catch (Exception e) {
-                        }
-                    }, 50L);
+                if (startResult.pid > 0 && app.getHostingRecord() != null && !app.getHostingRecord().isTopApp()) {
+                    final boolean needsRestrict = app.uid % 100000 > 10000 
+                                && !AxUtils.isInWhiteList(app.processName) 
+                                && !AxUtils.isInPerfList(app.processName);
+                    if (needsRestrict) {
+                        sHandler.postDelayed(() -> {
+                            try {
+                                Process.setProcessGroup(
+                                    startResult.pid, 
+                                    AxUtils.THREAD_GROUP_NT_FOREGROUND);
+                            } catch (Exception e) {
+                            }
+                        }, 50L);
+                    }
                 }
             }
 

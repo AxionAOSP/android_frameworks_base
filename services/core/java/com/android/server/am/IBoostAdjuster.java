@@ -52,7 +52,10 @@ public interface IBoostAdjuster {
     default void boostThread(int tid) {
     }
     
-    default void boostThreadLimited(int tid) {
+    default void systemThreadBoost(int tid, long duration) {
+    }
+
+    default void launcherItemsLoadingBoost(long duration) {
     }
     
     default void resourcesBoost(boolean enable) {
@@ -62,8 +65,5 @@ public interface IBoostAdjuster {
     }
     
     default void adjustBackground(boolean limit) {
-    }
-    
-    default void appLaunchBoost(String packageName, int durationHint) {
     }
 }

@@ -229,6 +229,8 @@ public class WindowProcessController extends ConfigurationContainer<Configuratio
      */
     private final boolean mUseFifoUiScheduling;
 
+    private final boolean mUseRoundRobinUiScheduling;
+
     /** Whether {@link #mActivities} is not empty. */
     private volatile boolean mHasActivities;
     /** All activities running in the process (exclude destroying). */
@@ -366,6 +368,7 @@ public class WindowProcessController extends ConfigurationContainer<Configuratio
 
         boolean isSysUiPackage = info.packageName.equals(
                 mAtm.getSysUiServiceComponentLocked().getPackageName());
+        boolean isLauncherPkg = info.packageName.contains("com.android.launcher3");
         if (isSysUiPackage || UserHandle.getAppId(mUid) == Process.SYSTEM_UID) {
             // This is a system owned process and should not use an activity config.
             // TODO(b/151161907): Remove after support for display-independent (raw) SysUi configs.
@@ -373,6 +376,7 @@ public class WindowProcessController extends ConfigurationContainer<Configuratio
         }
         mUseFifoUiScheduling = com.android.window.flags.Flags.fifoPriorityForMajorUiProcesses()
                 && (isSysUiPackage || mAtm.isCallerRecents(uid));
+        mUseRoundRobinUiScheduling = isSysUiPackage || isLauncherPkg;
     }
 
     public void setPid(int pid) {
@@ -1982,6 +1986,11 @@ public class WindowProcessController extends ConfigurationContainer<Configuratio
     /** Returns {@code true} if the process prefers to use fifo scheduling. */
     public boolean useFifoUiScheduling() {
         return mUseFifoUiScheduling;
+    }
+
+    /** Returns {@code true} if the process prefers to use round-robin scheduling. */
+    public boolean useRoundRobinUiScheduling() {
+        return mUseRoundRobinUiScheduling;
     }
 
     @HotPath(caller = HotPath.OOM_ADJUSTMENT)

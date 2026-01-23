@@ -2043,7 +2043,11 @@ public abstract class OomAdjuster {
                     // do nothing if we already switched to RT
                     if (oldSchedGroup != SCHED_GROUP_TOP_APP) {
                         app.getWindowProcessController().onTopProcChanged();
-                        if (app.useFifoUiScheduling()) {
+                        if (app.useRoundRobinUiScheduling()) {
+                            // Switch UI pipeline for app to SCHED_RR
+                            state.setSavedPriority(Process.getThreadPriority(app.getPid()));
+                            ActivityManagerService.setRoundRobinPriority(app, true /* enable */);
+                        } else if (app.useFifoUiScheduling()) {
                             // Switch UI pipeline for app to SCHED_FIFO
                             state.setSavedPriority(Process.getThreadPriority(app.getPid()));
                             ActivityManagerService.setFifoPriority(app, true /* enable */);
@@ -2064,7 +2068,11 @@ public abstract class OomAdjuster {
                 } else if (oldSchedGroup == SCHED_GROUP_TOP_APP
                         && curSchedGroup != SCHED_GROUP_TOP_APP) {
                     app.getWindowProcessController().onTopProcChanged();
-                    if (app.useFifoUiScheduling()) {
+                    if (app.useRoundRobinUiScheduling()) {
+                        // Reset UI pipeline to SCHED_OTHER
+                        ActivityManagerService.setRoundRobinPriority(app, false /* enable */);
+                        mInjector.setThreadPriority(app.getPid(), state.getSavedPriority());
+                    } else if (app.useFifoUiScheduling()) {
                         // Reset UI pipeline to SCHED_OTHER
                         ActivityManagerService.setFifoPriority(app, false /* enable */);
                         mInjector.setThreadPriority(app.getPid(), state.getSavedPriority());
@@ -2259,7 +2267,9 @@ public abstract class OomAdjuster {
                 // {@link SCHED_GROUP_TOP_APP}. We don't check render thread because it
                 // is not ready when attaching.
                 app.getWindowProcessController().onTopProcChanged();
-                if (app.useFifoUiScheduling()) {
+                if (app.useRoundRobinUiScheduling()) {
+                    mService.scheduleAsRoundRobinPriority(app.getPid(), true);
+                } else if (app.useFifoUiScheduling()) {
                     mService.scheduleAsFifoPriority(app.getPid(), true);
                 } else {
                     mInjector.setThreadPriority(app.getPid(), THREAD_PRIORITY_TOP_APP_BOOST);

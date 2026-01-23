@@ -34,7 +34,4 @@ public interface IProcessManager {
     default boolean isThermalHigh() {
         return false;
     }
-    
-    default void freezeSwipedApp(String packageName, int userId) {
-    }
 }
