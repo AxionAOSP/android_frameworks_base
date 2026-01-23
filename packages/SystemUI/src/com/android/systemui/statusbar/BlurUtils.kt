@@ -25,6 +25,7 @@ import android.os.Build
 import android.os.SystemProperties
 import android.os.Trace
 import android.os.Trace.TRACE_TAG_APP
+import android.os.UserHandle
 import android.util.IndentingPrintWriter
 import android.util.Log
 import android.util.MathUtils
@@ -41,8 +42,11 @@ import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.dump.DumpManager
 import com.android.systemui.keyguard.ui.transitions.BlurConfig
 import com.android.systemui.res.R
+import com.android.systemui.util.settings.SettingsProxyExt.observerFlow
+import com.android.systemui.util.settings.SecureSettings
 import java.io.PrintWriter
 import javax.inject.Inject
+import kotlinx.coroutines.flow.*
 
 @SysUISingleton
 open class BlurUtils
@@ -52,14 +56,17 @@ constructor(
     blurConfig: BlurConfig,
     private val crossWindowBlurListeners: CrossWindowBlurListeners,
     dumpManager: DumpManager,
+    private val secureSettings: SecureSettings,
 ) : Dumpable {
     val minBlurRadius = resources.getDimensionPixelSize(R.dimen.min_window_blur_radius).toFloat()
-    val maxBlurRadius =
-        if (Flags.notificationShadeBlur()) {
-            blurConfig.maxBlurRadiusPx
-        } else {
-            resources.getDimensionPixelSize(R.dimen.max_window_blur_radius).toFloat()
-        }
+    val maxBlurRadius: Float 
+        get() = secureSettings.getFloatForUser("system_blur_radius", 34f, UserHandle.USER_CURRENT)
+
+    val maxBlurRadiusFlow: Flow<Float> = secureSettings
+        .observerFlow("system_blur_radius")
+        .onStart { emit(Unit) }
+        .map { maxBlurRadius }
+        .distinctUntilChanged()
 
     private var lastAppliedBlur = 0
     private var lastTargetViewRootImpl: ViewRootImpl? = null

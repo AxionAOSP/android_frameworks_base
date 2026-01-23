@@ -29,6 +29,7 @@ import com.android.systemui.keyguard.ui.transitions.PrimaryBouncerTransition
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.ui.composable.transitions.TO_BOUNCER_FADE_FRACTION
+import com.android.systemui.util.settings.SecureSettings
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.flow.Flow
@@ -41,8 +42,11 @@ import kotlinx.coroutines.flow.emptyFlow
 @SysUISingleton
 class AlternateBouncerToPrimaryBouncerTransitionViewModel
 @Inject
-constructor(animationFlow: KeyguardTransitionAnimationFlow, blurConfig: BlurConfig) :
-    DeviceEntryIconTransition, PrimaryBouncerTransition {
+constructor(
+    animationFlow: KeyguardTransitionAnimationFlow,
+    blurConfig: BlurConfig,
+    private val secureSettings: SecureSettings,
+) : DeviceEntryIconTransition, PrimaryBouncerTransition {
     private val transitionAnimation =
         animationFlow
             .setup(
@@ -88,12 +92,15 @@ constructor(animationFlow: KeyguardTransitionAnimationFlow, blurConfig: BlurConf
             alphaFlow
         }
 
+    val maxBlurRadius: Float 
+        get() = secureSettings.getFloat("system_blur_radius", 34f)
+
     override val notificationBlurRadius: Flow<Float> =
         if (Flags.bouncerUiRevamp()) {
             transitionAnimation.sharedFlowWithShade(
                 duration = 1.milliseconds,
                 onStep = { _, isShadeExpanded ->
-                    if (isShadeExpanded) blurConfig.maxBlurRadiusPx else null
+                    if (isShadeExpanded) maxBlurRadius else null
                 },
             )
         } else {
@@ -109,14 +116,14 @@ constructor(animationFlow: KeyguardTransitionAnimationFlow, blurConfig: BlurConf
             onStep = { step, isShadeExpanded ->
                 if (isShadeExpanded) {
                     if (Flags.notificationShadeBlur()) {
-                        blurConfig.maxBlurRadiusPx
+                        maxBlurRadius
                     } else {
                         blurConfig.minBlurRadiusPx
                     }
                 } else {
                     transitionProgressToBlurRadius(
                         starBlurRadius = blurConfig.minBlurRadiusPx,
-                        endBlurRadius = blurConfig.maxBlurRadiusPx,
+                        endBlurRadius = maxBlurRadius,
                         transitionProgress = step,
                     )
                 }
@@ -125,7 +132,7 @@ constructor(animationFlow: KeyguardTransitionAnimationFlow, blurConfig: BlurConf
                 if (isShadeExpanded && !Flags.notificationShadeBlur()) {
                     blurConfig.minBlurRadiusPx
                 } else {
-                    blurConfig.maxBlurRadiusPx
+                    maxBlurRadius
                 }
             },
         )
