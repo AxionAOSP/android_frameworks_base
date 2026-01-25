@@ -98,6 +98,7 @@ import android.os.ParcelFileDescriptor;
 import android.os.ParcelableException;
 import android.os.PermissionEnforcer;
 import android.os.PersistableBundle;
+import com.android.server.wm.AxSandboxService;
 import android.os.Process;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
@@ -1730,7 +1731,8 @@ class StorageManagerService extends IStorageManager.Stub
         if (vol.getType() == VolumeInfo.TYPE_EMULATED) {
             if (newState != VolumeInfo.STATE_MOUNTED) {
                 mFuseMountedUser.remove(vol.getMountUserId());
-            } else if (mVoldAppDataIsolationEnabled){
+            } else if (mVoldAppDataIsolationEnabled
+                    || !AxSandboxService.get().getSandboxedPackages().isEmpty()){
                 final int userId = vol.getMountUserId();
                 // Async remount app storage so it won't block the main thread.
                 new Thread(() -> {
@@ -4649,6 +4651,9 @@ class StorageManagerService extends IStorageManager.Stub
             final long token = Binder.clearCallingIdentity();
             try {
                 if (mPmInternal.isInstantApp(packageName, UserHandle.getUserId(uid))) {
+                    return StorageManager.MOUNT_MODE_EXTERNAL_NONE;
+                }
+                if (AxSandboxService.get().isPackageSandboxed(packageName)) {
                     return StorageManager.MOUNT_MODE_EXTERNAL_NONE;
                 }
             } finally {

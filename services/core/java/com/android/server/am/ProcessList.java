@@ -150,6 +150,7 @@ import com.android.server.am.ActivityManagerService.ProcessChangeItem;
 import com.android.server.compat.PlatformCompat;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageStateInternal;
+import com.android.server.wm.AxSandboxService;
 import com.android.server.wm.ActivityServiceConnectionsHolder;
 import com.android.server.wm.WindowManagerService;
 import com.android.server.wm.WindowProcessController;
@@ -2430,8 +2431,10 @@ public final class ProcessList {
 
     private boolean needsStorageDataIsolation(StorageManagerInternal storageManagerInternal,
             ProcessRecord app) {
+        final boolean isSandboxed = AxSandboxService.get()
+                .isPackageSandboxed(app.info.packageName);
         final int mountMode = app.getMountMode();
-        return mVoldAppDataIsolationEnabled && UserHandle.isApp(app.uid)
+        return (mVoldAppDataIsolationEnabled || isSandboxed) && (UserHandle.isApp(app.uid) || isSandboxed)
                 && !storageManagerInternal.isExternalStorageService(app.uid)
                 // Special mounting mode doesn't need to have data isolation as they won't
                 // access /mnt/user anyway.
@@ -2446,6 +2449,8 @@ public final class ProcessList {
             int mountExternal, String seInfo, String requiredAbi, String instructionSet,
             String invokeWith, long startTime) {
         try {
+            final boolean isSandboxed = AxSandboxService.get()
+                    .isPackageSandboxed(app.info.packageName);
             Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "Start proc: " +
                     app.processName);
             checkSlow(startTime, "startProcess: asking zygote to start proc");
@@ -2460,10 +2465,10 @@ public final class ProcessList {
             Map<String, Pair<String, Long>> pkgDataInfoMap;
             Map<String, Pair<String, Long>> allowlistedAppDataInfoMap;
             boolean bindMountAppStorageDirs = false;
-            boolean bindMountAppsData = mAppDataIsolationEnabled
+            boolean bindMountAppsData = (mAppDataIsolationEnabled || isSandboxed)
                     && (UserHandle.isApp(app.uid) || UserHandle.isIsolated(app.uid)
-                        || app.isSdkSandbox)
-                    && mPlatformCompat.isChangeEnabled(APP_DATA_DIRECTORY_ISOLATION, app.info);
+                        || app.isSdkSandbox || isSandboxed)
+                    && (isSandboxed || mPlatformCompat.isChangeEnabled(APP_DATA_DIRECTORY_ISOLATION, app.info));
 
             // Get all packages belongs to the same shared uid. sharedPackages is empty array
             // if it doesn't have shared uid.
