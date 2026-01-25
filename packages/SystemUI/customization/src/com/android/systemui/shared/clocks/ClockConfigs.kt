@@ -105,6 +105,30 @@ object ClockConfigs {
             Position.BELOW,
             Align.CENTER,
             customHeightRes = R.dimen.large_clock_height
+        ),
+        "CyberpunkClockView" to ClockStyleConfig(
+            Position.ABOVE,
+            Align.CENTER,
+            customHeightRes = R.dimen.cyberpunk_clock_height,
+            customDateMarginTop = R.dimen.bitmap_digit_clocks_date_top_margin_v2
+        ),
+        "CyberpunkLargeClockView" to ClockStyleConfig(
+            Position.BELOW,
+            Align.CENTER,
+            customHeightRes = R.dimen.large_clock_height,
+            customDateMarginTop = R.dimen.large_clock_date_margin_top
+        ),
+        "AxionAgeClockView" to ClockStyleConfig(
+            Position.ABOVE,
+            Align.CENTER,
+            customHeightRes = R.dimen.axion_age_clock_height_small,
+            customDateMarginTop = R.dimen.bitmap_digit_clocks_date_top_margin_v2
+        ),
+        "AxionAgeLargeClockView" to ClockStyleConfig(
+            Position.BELOW,
+            Align.CENTER,
+            customHeightRes = R.dimen.large_clock_height,
+            customDateMarginTop = R.dimen.large_clock_date_margin_top
         )
     )
 }

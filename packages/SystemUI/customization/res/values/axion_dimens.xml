@@ -76,8 +76,11 @@
     <dimen name="clock_date_icon_margin">6dp</dimen>
     <dimen name="clock_date_element_spacing">8dp</dimen>
     <dimen name="bitmap_digit_clocks_height_v2">136dp</dimen>
-    <dimen name="bitmap_digit_clocks_date_top_margin_v2">28dp</dimen>
+    <dimen name="bitmap_digit_clocks_date_top_margin_v2">48dp</dimen>
     <dimen name="bitmap_digit_clocks_margin_top_v2">36dp</dimen>
+    <dimen name="large_clock_date_margin_top">24dp</dimen>
+    <dimen name="axion_age_clock_height_small">100dp</dimen>
+    <dimen name="cyberpunk_clock_height">136dp</dimen>
 
     <!-- Large Clock Dimensions -->
     <dimen name="large_clock_height">400dp</dimen>

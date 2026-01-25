@@ -59,6 +59,16 @@ enum class NTClockType(
         clockId = R.string.clock_id_polyline,
         viewId = R.layout.clock_polyline,
         largeViewId = R.layout.clock_polyline_large
+    ),
+    CYBERPUNK(
+        clockId = R.string.clock_id_cyberpunk,
+        viewId = R.layout.clock_cyberpunk,
+        largeViewId = R.layout.clock_cyberpunk_large
+    ),
+    AXION_AGE(
+        clockId = R.string.clock_id_axion_age,
+        viewId = R.layout.clock_axion_age,
+        largeViewId = R.layout.clock_axion_age_large
     );
 
     companion object {

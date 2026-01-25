@@ -22,7 +22,6 @@ import android.database.ContentObserver
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
-import android.provider.Settings
 import android.view.View
 import android.view.View.GONE
 import android.view.View.VISIBLE
@@ -50,7 +49,7 @@ import com.android.systemui.statusbar.ui.SystemBarUtilsState
 import com.android.systemui.util.ui.value
 import javax.inject.Inject
 import kotlinx.coroutines.DisposableHandle
-import org.json.JSONObject
+import com.android.systemui.shared.clocks.ClockHelper
 
 class AodNotificationIconsSection
 @Inject
@@ -77,23 +76,7 @@ constructor(
     }
     
     private fun updateShouldCenterNic() {
-        val clockFace = Settings.Secure.getString(
-            context.contentResolver,
-            "lock_screen_custom_clock_face"
-        )
-        
-        val newShouldCenter = if (clockFace != null) {
-            try {
-                val json = JSONObject(clockFace)
-                val clockId = json.optString("clockId", "")
-                !(clockId.equals("GENERAL", ignoreCase = true) || 
-                  clockId.equals("OLD_QUICKLOOK", ignoreCase = true))
-            } catch (e: Exception) {
-                true 
-            }
-        } else {
-            true 
-        }
+        val newShouldCenter = ClockHelper.shouldCenterIcons(context)
         
         if (shouldCenterNic != newShouldCenter) {
             shouldCenterNic = newShouldCenter
@@ -128,7 +111,7 @@ constructor(
         constraintLayout.addView(nic)
         
         context.contentResolver.registerContentObserver(
-            Settings.Secure.getUriFor("lock_screen_custom_clock_face"),
+            ClockHelper.clockFaceUri,
             false,
             clockSettingsObserver
         )

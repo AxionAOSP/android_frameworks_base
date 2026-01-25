@@ -29,7 +29,6 @@ import android.graphics.Rect;
 import android.graphics.drawable.Icon;
 import android.os.Handler;
 import android.os.Looper;
-import android.provider.Settings;
 import android.util.AttributeSet;
 import android.util.Property;
 import android.view.ContextThemeWrapper;
@@ -45,6 +44,7 @@ import com.android.app.animation.Interpolators;
 import com.android.internal.statusbar.StatusBarIcon;
 import com.android.settingslib.Utils;
 import com.android.systemui.res.R;
+import com.android.systemui.shared.clocks.ClockHelper;
 import com.android.systemui.statusbar.StatusBarIconView;
 import com.android.systemui.statusbar.headsup.shared.StatusBarNoHunBehavior;
 import com.android.systemui.statusbar.notification.stack.AnimationFilter;
@@ -54,8 +54,6 @@ import com.android.systemui.statusbar.notification.stack.ViewState;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.function.Consumer;
-
-import org.json.JSONObject;
 
 /**
  * A container for notification icons. It handles overflowing icons properly and positions them
@@ -930,7 +928,7 @@ public class NotificationIconContainer extends ViewGroup {
         super.onAttachedToWindow();
         
         getContext().getContentResolver().registerContentObserver(
-            Settings.Secure.getUriFor("lock_screen_custom_clock_face"),
+            ClockHelper.clockFaceUri,
             false,
             mClockSettingsObserver
         );
@@ -945,23 +943,7 @@ public class NotificationIconContainer extends ViewGroup {
     }
     
     private void updateShouldCenterIcons() {
-        String clockFace = Settings.Secure.getString(
-            getContext().getContentResolver(),
-            "lock_screen_custom_clock_face"
-        );
-        
-        boolean needsCenter = true;
-        if (clockFace != null) {
-            try {
-                JSONObject json = new JSONObject(clockFace);
-                String clockId = json.optString("clockId", "");
-                needsCenter = !(clockId.equalsIgnoreCase("GENERAL") || 
-                                  clockId.equalsIgnoreCase("OLD_QUICKLOOK"));
-            } catch (Exception e) {
-            }
-        }
-        
-        final boolean shouldCenter = needsCenter;
+        final boolean shouldCenter = ClockHelper.shouldCenterIcons(getContext());
         
         if (mShouldCenterIcons != shouldCenter) {
             mShouldCenterIcons = shouldCenter;

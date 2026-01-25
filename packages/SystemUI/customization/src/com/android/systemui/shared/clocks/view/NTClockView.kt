@@ -175,18 +175,18 @@ abstract class NTClockView @JvmOverloads constructor(
 
     private val iconPaint: Paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-    private enum class DisplayMode {
+    protected enum class DisplayMode {
         CALENDAR,
         NOW_PLAYING,
         WEATHER,
         DATE_ONLY
     }
 
-    private var displayMode: DisplayMode = DisplayMode.DATE_ONLY
-    private var displayText: String = ""
-    private var displayIcon: Bitmap? = null
-    private var displaySecondaryText: String = ""
-    private var displaySecondaryIcon: Bitmap? = null
+    protected var displayMode: DisplayMode = DisplayMode.DATE_ONLY
+    protected var displayText: String = ""
+    protected var displayIcon: Bitmap? = null
+    protected var displaySecondaryText: String = ""
+    protected var displaySecondaryIcon: Bitmap? = null
 
     init {
         setWillNotDraw(false)
@@ -252,7 +252,7 @@ abstract class NTClockView @JvmOverloads constructor(
 
     private var lastDozeEased: Float = 0f
 
-    fun onDozeAmountChanged(linear: Float, eased: Float) {
+    open fun onDozeAmountChanged(linear: Float, eased: Float) {
         if (eased == lastDozeEased) return
         lastDozeEased = eased
         if (isAnimating) return
@@ -277,7 +277,7 @@ abstract class NTClockView @JvmOverloads constructor(
         }
     }
 
-    fun onRegionDarknessChanged(regionDark: Boolean) {
+    open fun onRegionDarknessChanged(regionDark: Boolean) {
         if (isRegionDark != regionDark) {
             isRegionDark = regionDark
             refreshColor()
@@ -324,7 +324,7 @@ abstract class NTClockView @JvmOverloads constructor(
         dateStr = dateFormat.format(calendar.time)
     }
 
-    private fun updateDisplayContent() {
+    protected open fun updateDisplayContent() {
         val isCenterAligned = config?.align == ClockConfigs.Align.CENTER
         
         if (!isCenterAligned) {
@@ -687,7 +687,7 @@ abstract class NTClockView @JvmOverloads constructor(
         }
     }
 
-    fun animateFidgetTap(x: Float, y: Float) {
+    open fun animateFidgetTap(x: Float, y: Float) {
         Log.d(tag, "animateFidgetTap x=$x y=$y animScale=$animScale")
         currentAnimator?.cancel()
         isAnimating = true
