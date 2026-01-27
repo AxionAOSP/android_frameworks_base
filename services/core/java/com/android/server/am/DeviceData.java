@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 AxionOS
+ * Copyright (C) 2025-2026 AxionOS
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,10 @@ import android.provider.Settings;
 
 import com.android.server.NtServiceInjector;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.TreeSet;
 
 public final class DeviceData {
     private static final String TAG = "DeviceData";
@@ -32,6 +35,7 @@ public final class DeviceData {
     private static final String CPU_SYS_PATH = "/sys/devices/system/cpu/cpu";
     private static final String SCALING_MIN_FREQ_FILE = "/cpufreq/scaling_min_freq";
     private static final String SCALING_MAX_FREQ_FILE = "/cpufreq/scaling_max_freq";
+    private static final String CPUINFO_MAX_FREQ_FILE = "/cpufreq/cpuinfo_max_freq";
     private static final String SCALING_AVAILABLE_FREQ_FILE = "/cpufreq/scaling_available_frequencies";
 
     private static final String GPU_FREQS_PATH = AxUtils.prop("gpu_freqs_path", "");
@@ -270,42 +274,64 @@ public final class DeviceData {
         if (cpuCount <= 0) return null;
         
         int[] maxFreqs = new int[cpuCount];
+        TreeSet<Integer> uniqueFreqs = new TreeSet<>();
+        
         for (int i = 0; i < cpuCount; i++) {
-            String path = CPU_SYS_PATH + i + SCALING_MAX_FREQ_FILE;
-            AxUtils.write(path, s(Integer.MAX_VALUE));
-            maxFreqs[i] = AxUtils.readFreq(path);
-        }
-
-        int minFreq = Integer.MAX_VALUE, maxFreq = Integer.MIN_VALUE;
-        for (int f : maxFreqs) {
-            if (f > 0) {
-                if (f < minFreq) minFreq = f;
-                if (f > maxFreq) maxFreq = f;
+            String[] freqs = readAvailableFrequencies(String.valueOf(i));
+            int maxForCore = 0;
+            for (String f : freqs) {
+                try {
+                    int val = Integer.parseInt(f);
+                    if (val > maxForCore) maxForCore = val;
+                } catch (NumberFormatException ignored) {}
             }
-        }
-
-        int midFreq = -1;
-        for (int f : maxFreqs) {
-            if (f > minFreq && f < maxFreq) {
-                midFreq = f;
-                break;
+            
+            if (maxForCore <= 0) {
+                maxForCore = AxUtils.readFreq(CPU_SYS_PATH + i + CPUINFO_MAX_FREQ_FILE);
+                if (maxForCore <= 0) {
+                    maxForCore = AxUtils.readFreq(CPU_SYS_PATH + i + SCALING_MAX_FREQ_FILE);
+                }
             }
+            maxFreqs[i] = maxForCore;
+            if (maxForCore > 0) uniqueFreqs.add(maxForCore);
         }
 
+        if (uniqueFreqs.isEmpty()) return null;
+
+        List<Integer> sortedFreqs = new ArrayList<>(uniqueFreqs);
+        int freqCount = sortedFreqs.size();
+        
+        int minFreq = sortedFreqs.get(0);
+        int bigFreq = freqCount > 1 ? sortedFreqs.get(1) : -1;
+        int maxFreq = sortedFreqs.get(freqCount - 1);
+        
         StringBuilder small = new StringBuilder();
         StringBuilder big = new StringBuilder();
         StringBuilder prime = new StringBuilder();
 
         for (int i = 0; i < cpuCount; i++) {
             int f = maxFreqs[i];
-            if (f == minFreq) appendCpu(small, i);
-            else if (midFreq != -1 && f == midFreq) appendCpu(big, i);
-            else if (f == maxFreq) appendCpu(prime, i);
-        }
-
-        if (prime.length() == 0) {
-            if (big.length() > 0) prime.append(big);
-            else prime.append(small);
+            if (f == minFreq) {
+                appendCpu(small, i);
+            } else if (f == bigFreq) {
+                if (freqCount > 2) {
+                    appendCpu(big, i);
+                } else {
+                    appendCpu(big, i);
+                }
+            } else if (f == maxFreq) {
+                if (freqCount > 2) {
+                    appendCpu(prime, i);
+                } else {
+                    appendCpu(big, i);
+                }
+            } else {
+                if (f < maxFreq) {
+                    appendCpu(big, i);
+                } else {
+                    appendCpu(prime, i);
+                }
+            }
         }
 
         String sCores = small.toString();
@@ -317,23 +343,17 @@ public final class DeviceData {
         String bIndex = firstIndex(bCores);
         String pIndex = firstIndex(pCores);
 
-        String sMin = CPU_SYS_PATH + sIndex + SCALING_MIN_FREQ_FILE;
-        String bMin = CPU_SYS_PATH + bIndex + SCALING_MIN_FREQ_FILE;
-        String pMin = CPU_SYS_PATH + pIndex + SCALING_MIN_FREQ_FILE;
+        String sMin = sIndex != null ? CPU_SYS_PATH + sIndex + SCALING_MIN_FREQ_FILE : null;
+        String bMin = bIndex != null ? CPU_SYS_PATH + bIndex + SCALING_MIN_FREQ_FILE : null;
+        String pMin = pIndex != null ? CPU_SYS_PATH + pIndex + SCALING_MIN_FREQ_FILE : null;
 
-        String sMax = CPU_SYS_PATH + sIndex + SCALING_MAX_FREQ_FILE;
-        String bMax = CPU_SYS_PATH + bIndex + SCALING_MAX_FREQ_FILE;
-        String pMax = CPU_SYS_PATH + pIndex + SCALING_MAX_FREQ_FILE;
+        String sMax = sIndex != null ? CPU_SYS_PATH + sIndex + SCALING_MAX_FREQ_FILE : null;
+        String bMax = bIndex != null ? CPU_SYS_PATH + bIndex + SCALING_MAX_FREQ_FILE : null;
+        String pMax = pIndex != null ? CPU_SYS_PATH + pIndex + SCALING_MAX_FREQ_FILE : null;
         
-        propSet("cpu_small_index", sIndex);
-        propSet("cpu_big_index", bIndex);
-        propSet("cpu_prime_index", pIndex);
-
-        String sMaxFreq = readFile(sMax);
-        String bMaxFreq = readFile(bMax);
-        String pMaxFreq = readFile(pMax);
-
-        propSetF("persist.sys.ax_max_cpu_freqs", joinString(sMaxFreq, bMaxFreq, pMaxFreq));
+        if (sIndex != null) propSet("cpu_small_index", sIndex);
+        if (bIndex != null) propSet("cpu_big_index", bIndex);
+        if (pIndex != null) propSet("cpu_prime_index", pIndex);
 
         String[] sAvailableFreqs = readAvailableFrequencies(sIndex);
         String[] bAvailableFreqs = readAvailableFrequencies(bIndex);
@@ -360,6 +380,7 @@ public final class DeviceData {
         String fgCpus = allCores;
         String fgLimited = joinRanges(smallR, rangeTo(bCores, 2));
         String boostCpus = joinRanges(bigR, primeR);
+        if (boostCpus.isEmpty()) boostCpus = allCores;
 
         String bgLimit = rangeTo(sCores, 2);
         String uiLimit = rangeTo(sCores, 3);
@@ -381,7 +402,7 @@ public final class DeviceData {
                 " big=" + bCores +
                 " prime=" + pCores +
                 " boostCpus=" + boostCpus +
-                " freqs=" + minFreq + "," + (midFreq > 0 ? midFreq : maxFreq) + "," + maxFreq +
+                " uniqueFreqs=" + sortedFreqs +
                 " allCores=" + allCores +
                 " bgCpus=" + bgCpus +
                 " fgCpus=" + fgCpus +
@@ -428,6 +449,7 @@ public final class DeviceData {
     }
 
     private String[] readAvailableFrequencies(String cpuIndex) {
+        if (cpuIndex == null) return new String[0];
         String path = CPU_SYS_PATH + cpuIndex + SCALING_AVAILABLE_FREQ_FILE;
         String freqsStr = AxUtils.readBufFile(path);
         if (freqsStr == null || freqsStr.trim().isEmpty()) {

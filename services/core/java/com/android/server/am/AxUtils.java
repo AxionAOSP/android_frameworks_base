@@ -212,7 +212,7 @@ public class AxUtils {
     }
 
     public static String firstIndex(String cores) {
-        if (cores == null || cores.isEmpty()) return "0";
+        if (cores == null || cores.isEmpty()) return null;
         return cores.split(",")[0];
     }
 
