@@ -106,6 +106,7 @@ import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserHandle;
+import android.provider.Settings;
 import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.Slog;
@@ -405,6 +406,8 @@ public class DisplayPolicy {
 
     private final ForceShowNavBarSettingsObserver mForceShowNavBarSettingsObserver;
     private boolean mForceShowNavigationBarEnabled;
+    
+    private volatile boolean mAxPcModeEnabled;
 
     private class PolicyHandler extends Handler {
 
@@ -432,6 +435,9 @@ public class DisplayPolicy {
             ContentResolver resolver = mContext.getContentResolver();
             resolver.registerContentObserver(LineageSettings.System.getUriFor(
                     LineageSettings.System.FORCE_SHOW_NAVBAR), false, this,
+                    UserHandle.USER_ALL);
+            resolver.registerContentObserver(Settings.Secure.getUriFor(
+                    "ax_pc_mode"), false, this,
                     UserHandle.USER_ALL);
 
             updateSettings();
@@ -501,6 +507,9 @@ public class DisplayPolicy {
 
                 @Override
                 public void onSwipeFromTop() {
+                    if (mAxPcModeEnabled) {
+                        return;
+                    }
                     synchronized (mLock) {
                         requestTransientBars(mTopGestureHost,
                                 getControllableInsets(mTopGestureHost).top > 0);
@@ -509,6 +518,9 @@ public class DisplayPolicy {
 
                 @Override
                 public void onSwipeFromBottom() {
+                    if (mAxPcModeEnabled) {
+                        return;
+                    }
                     synchronized (mLock) {
                         requestTransientBars(mBottomGestureHost,
                                 getControllableInsets(mBottomGestureHost).bottom > 0);
@@ -516,12 +528,18 @@ public class DisplayPolicy {
                 }
 
                 private boolean allowsSideSwipe(Region excludedRegion) {
+                    if (mAxPcModeEnabled) {
+                        return false;
+                    }
                     return mNavigationBarAlwaysShowOnSideGesture
                             && !mSystemGestures.currentGestureStartedInRegion(excludedRegion);
                 }
 
                 @Override
                 public void onSwipeFromRight() {
+                    if (mAxPcModeEnabled) {
+                        return;
+                    }
                     final Region excludedRegion = Region.obtain();
                     synchronized (mLock) {
                         mDisplayContent.calculateSystemGestureExclusion(
@@ -537,6 +555,9 @@ public class DisplayPolicy {
 
                 @Override
                 public void onSwipeFromLeft() {
+                    if (mAxPcModeEnabled) {
+                        return;
+                    }
                     final Region excludedRegion = Region.obtain();
                     synchronized (mLock) {
                         mDisplayContent.calculateSystemGestureExclusion(
@@ -752,6 +773,9 @@ public class DisplayPolicy {
         mForceNavbar = LineageSettings.System.getIntForUser(resolver,
                 LineageSettings.System.FORCE_SHOW_NAVBAR, 0,
                 UserHandle.USER_CURRENT) == 1;
+
+        mAxPcModeEnabled = Settings.Secure.getIntForUser(resolver,
+                "ax_pc_mode", 0, UserHandle.USER_CURRENT) == 1;
     }
 
     private int getDisplayId() {
@@ -799,6 +823,10 @@ public class DisplayPolicy {
 
     public int getDockMode() {
         return mDockMode;
+    }
+
+    public boolean isAxPcModeEnabled() {
+        return mAxPcModeEnabled;
     }
 
     public boolean hasNavigationBar() {
@@ -1861,6 +1889,9 @@ public class DisplayPolicy {
      * @return Whether the top fullscreen app hides the given type of system bar.
      */
     boolean topAppHidesSystemBar(@InsetsType int type) {
+        if (mAxPcModeEnabled) {
+            return true;
+        }
         if (mTopFullscreenOpaqueWindowState == null
                 || getInsetsPolicy().areTypesForciblyShown(type)) {
             return false;
@@ -2468,6 +2499,9 @@ public class DisplayPolicy {
     @VisibleForTesting
     void requestTransientBars(WindowState swipeTarget, boolean isGestureOnSystemBar) {
         if (CLIENT_TRANSIENT) {
+            return;
+        }
+        if (mAxPcModeEnabled) {
             return;
         }
         if (swipeTarget == null || !mService.mPolicy.isUserSetupComplete()) {
@@ -3082,6 +3116,9 @@ public class DisplayPolicy {
         if (win == null) {
             return false;
         }
+        if (mAxPcModeEnabled) {
+            return true;
+        }
         if (win.mPolicy.getWindowLayerLw(win) > win.mPolicy.getWindowLayerFromTypeLw(
                 WindowManager.LayoutParams.TYPE_STATUS_BAR) || win.isActivityTypeDream()) {
             return false;
@@ -3101,7 +3138,7 @@ public class DisplayPolicy {
         @Override
         public void run() {
             synchronized (mLock) {
-                if (!mService.mPolicy.isUserSetupComplete()) {
+                if (!mService.mPolicy.isUserSetupComplete() || mAxPcModeEnabled) {
                     // Swipe-up for navigation bar is disabled during setup
                     return;
                 }

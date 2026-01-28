@@ -1396,15 +1396,27 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
 
         Intent homeIntent = null;
         ActivityInfo aInfo = null;
-        if (taskDisplayArea == getDefaultTaskDisplayArea()
-                || mWmService.shouldPlacePrimaryHomeOnDisplay(
-                        taskDisplayArea.getDisplayId(), userId)) {
-            homeIntent = mService.getHomeIntent();
+
+        if (taskDisplayArea.getDisplayContent() != null
+                && taskDisplayArea.getDisplayContent().getDisplayPolicy().isAxPcModeEnabled()) {
+            homeIntent = new Intent();
+            homeIntent.setComponent(new ComponentName("com.android.axion.axpcmode",
+                    "com.android.axion.axpcmode.activities.PcModeLauncherActivity"));
+            homeIntent.addCategory(Intent.CATEGORY_HOME);
             aInfo = resolveHomeActivity(userId, homeIntent);
-        } else if (shouldPlaceSecondaryHomeOnDisplayArea(taskDisplayArea)) {
-            Pair<ActivityInfo, Intent> info = resolveSecondaryHomeActivity(userId, taskDisplayArea);
-            aInfo = info.first;
-            homeIntent = info.second;
+        }
+
+        if (aInfo == null) {
+            if (taskDisplayArea == getDefaultTaskDisplayArea()
+                    || mWmService.shouldPlacePrimaryHomeOnDisplay(
+                            taskDisplayArea.getDisplayId(), userId)) {
+                homeIntent = mService.getHomeIntent();
+                aInfo = resolveHomeActivity(userId, homeIntent);
+            } else if (shouldPlaceSecondaryHomeOnDisplayArea(taskDisplayArea)) {
+                Pair<ActivityInfo, Intent> info = resolveSecondaryHomeActivity(userId, taskDisplayArea);
+                aInfo = info.first;
+                homeIntent = info.second;
+            }
         }
 
         if (aInfo == null || homeIntent == null) {

@@ -1100,6 +1100,10 @@ public class DisplayRotation {
     @Surface.Rotation
     int rotationForOrientation(@ScreenOrientation int orientation,
             @Surface.Rotation int lastRotation) {
+        if (mDisplayPolicy.isAxPcModeEnabled()) {
+            orientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
+        }
+
         ProtoLog.v(WM_DEBUG_ORIENTATION,
                 "rotationForOrientation(orient=%s (%d), last=%s (%d)); user=%s (%d) %s",
                 ActivityInfo.screenOrientationToString(orientation), orientation,

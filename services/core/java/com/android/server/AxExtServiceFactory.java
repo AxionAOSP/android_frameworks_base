@@ -32,6 +32,7 @@ public class AxExtServiceFactory {
     private static volatile INtMemoryManager sNtMemoryManager;
     private static volatile IUxPerformance sUxPerformance;
     private static volatile IProcessManager sProcessManager;
+    private static volatile IAxPcModeService sPcModeManager;
 
     private AxExtServiceFactory(Context context) {
         NtServiceInjector.get().setCtx(context);
@@ -110,6 +111,17 @@ public class AxExtServiceFactory {
                 }
                 instance = sProcessManager;
                 break;
+                
+            case PC_MODE_SERVICE:
+                if (sPcModeManager == null) {
+                    synchronized (sLock) {
+                        if (sPcModeManager == null) {
+                            sPcModeManager = new AxPcModeService();
+                        }
+                    }
+                }
+                instance = sPcModeManager;
+                break;
 
             default:
                 throw new IllegalArgumentException("Unknown ExtType: " + type);
@@ -122,6 +134,7 @@ public class AxExtServiceFactory {
         getProcessManager().systemReady();
         AxSandboxService.systemReady();
         GameSpaceService.systemReady();
+        getAxPcModeService().systemReady();
     }
     
     public static void onLateSystemReady() {
@@ -145,5 +158,9 @@ public class AxExtServiceFactory {
     
     public static IProcessManager getProcessManager() {
         return getOrCreate(IAxExtServiceFactory.ExtType.PROCESS_MANAGER);
+    }
+    
+    public static IAxPcModeService getAxPcModeService() {
+        return getOrCreate(IAxExtServiceFactory.ExtType.PC_MODE_SERVICE);
     }
 }

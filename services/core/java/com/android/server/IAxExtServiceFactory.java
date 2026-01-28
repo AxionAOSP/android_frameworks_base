@@ -22,7 +22,8 @@ public interface IAxExtServiceFactory {
         BOOST_ADJUSTER(IBoostAdjuster.class),
         NT_MEMORY_MANAGER(INtMemoryManager.class),
         UX_PERFORMANCE(IUxPerformance.class),
-        PROCESS_MANAGER(IProcessManager.class);
+        PROCESS_MANAGER(IProcessManager.class),
+        PC_MODE_SERVICE(IAxPcModeService.class);
 
         private final Class<?> clazz;
 

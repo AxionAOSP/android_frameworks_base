@@ -633,6 +633,9 @@ class InsetsPolicy {
     private @Nullable InsetsControlTarget getStatusControlTargetInner(
             @Nullable WindowState focusedWin,
             boolean fake) {
+        if (mPolicy.isAxPcModeEnabled()) {
+            return mHidingPermanentControlTarget;
+        }
         if (!fake && isTransient(Type.statusBars())) {
             return mShowingTransientControlTarget;
         }
@@ -691,6 +694,9 @@ class InsetsPolicy {
     private @Nullable InsetsControlTarget getNavControlTargetInner(@Nullable WindowState focusedWin,
             boolean fake) {
         final WindowState imeWin = mDisplayContent.mInputMethodWindow;
+        if (mPolicy.isAxPcModeEnabled()) {
+            return mHidingPermanentControlTarget;
+        }
         if (imeWin != null && imeWin.isVisible() && !mHideNavBarForKeyboard) {
             // Force showing navigation bar while IME is visible and if navigation bar is not
             // configured to be hidden by the IME.

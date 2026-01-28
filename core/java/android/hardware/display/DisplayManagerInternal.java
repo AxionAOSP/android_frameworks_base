@@ -70,6 +70,8 @@ public abstract class DisplayManagerInternal {
     
     public abstract void resumeAllFreeformDisplays();
 
+    public abstract boolean isDefaultDisplayMirrored();
+
     @IntDef(prefix = {"REFRESH_RATE_LIMIT_"}, value = {
             REFRESH_RATE_LIMIT_HIGH_BRIGHTNESS_MODE
     })

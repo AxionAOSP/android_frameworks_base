@@ -2298,6 +2298,7 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
         AxExtServiceFactory.getUxPerformance().setScreenState(isOff);
 
         if (mDisplayId == Display.DEFAULT_DISPLAY) {
+            AxExtServiceFactory.getAxPcModeService().onScreenStateChanged(isOff);
             DisplayManagerInternal dmi = LocalServices.getService(DisplayManagerInternal.class);
             if (dmi != null) {
                 if (isOff) {
