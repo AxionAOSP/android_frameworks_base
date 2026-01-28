@@ -17,6 +17,7 @@
 package com.android.systemui.dagger
 
 import com.android.systemui.CoreStartable
+import com.android.systemui.ax.AxPlatformHooksCoreStartable
 import com.android.systemui.doze.AodScheduleController
 import com.android.systemui.edgelight.EdgeLightViewController
 import com.android.systemui.media.MediaViewController
@@ -65,4 +66,10 @@ abstract class AxionStartableModule {
     @IntoMap
     @ClassKey(AxAppLockerHelper::class)
     abstract fun bindAxAppLockerHelper(impl: AxAppLockerHelper): CoreStartable
+
+    /** Inject into AxPlatformHooksCoreStartable. */
+    @Binds
+    @IntoMap
+    @ClassKey(AxPlatformHooksCoreStartable::class)
+    abstract fun bindAxPlatformHooksCoreStartable(impl: AxPlatformHooksCoreStartable): CoreStartable
 }

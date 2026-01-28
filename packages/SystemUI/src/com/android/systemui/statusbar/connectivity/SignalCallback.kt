@@ -155,6 +155,7 @@ data class MobileDataIndicators(
     @JvmField val roaming: Boolean,
     @JvmField val showTriangle: Boolean,
     @JvmField val isDefault: Boolean,
+    @JvmField val level: Int,
 ) {
     override fun toString(): String {
         return java.lang
