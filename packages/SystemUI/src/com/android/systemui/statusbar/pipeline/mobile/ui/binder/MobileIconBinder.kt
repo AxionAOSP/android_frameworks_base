@@ -267,6 +267,13 @@ object MobileIconBinder {
                         }
                     }
 
+                    // Set the roaming indicator (single SIM - end side)
+                    launch {
+                        viewModel.isRoamingVisible.distinctUntilChanged().collect { isRoaming ->
+                            endSideRoamingView.isVisible = isRoaming
+                        }
+                    }
+
                     if (statusBarStaticInoutIndicators()) {
                         // Set the opacity of the activity indicators
                         launch {
