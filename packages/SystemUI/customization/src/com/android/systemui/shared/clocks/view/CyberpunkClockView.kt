@@ -45,7 +45,6 @@ class CyberpunkClockView @JvmOverloads constructor(
     defStyleRes: Int = 0
 ) : AxClockView(context, attrs, defStyleAttr, defStyleRes) {
 
-    override val showSystemDate: Boolean = false
     override val useGlitchInteraction: Boolean = true
 
     @Composable

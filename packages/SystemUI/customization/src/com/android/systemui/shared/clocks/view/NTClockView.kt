@@ -84,6 +84,8 @@ abstract class NTClockView @JvmOverloads constructor(
     val isNowPlaying get() = isPlaying
     val clockColor get() = if (isDoze || isScreenOff || isRegionDark) Color.WHITE else Color.BLACK
 
+    protected open val isLargeClock = false
+
     var animScale: Float = 1f
         set(value) {
             field = value
@@ -141,6 +143,12 @@ abstract class NTClockView @JvmOverloads constructor(
         get() {
             val pattern = if (DateFormat.is24HourFormat(context)) CLOCK_PATTERN_24_STANDARD else "hh:mm"
             return SimpleDateFormat(pattern, Locale.ENGLISH).format(calendar.time)
+        }
+
+    val isSplitShade: Boolean
+        get() {
+             val resId = resources.getIdentifier("config_use_split_notification_shade", "bool", "com.android.systemui")
+             return if (resId != 0) resources.getBoolean(resId) else false
         }
 
     val dateTextX: Float

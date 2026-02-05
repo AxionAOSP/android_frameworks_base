@@ -43,8 +43,8 @@ class AxionAgeLargeClockView @JvmOverloads constructor(
     defStyleRes: Int = 0
 ) : AxClockView(context, attrs, defStyleAttr, defStyleRes) {
 
-    override val showSystemDate: Boolean = false
     override val useGlitchInteraction: Boolean = true
+    override val isLargeClock = true
 
     @Composable
     override fun Content() {
@@ -173,7 +173,7 @@ class AxionAgeLargeClockView @JvmOverloads constructor(
         )
         val borderAlpha = if (isDoze) 0.5f else (0.25f + fidgetValue * 0.15f)
         val strokeWidth = 1.5.dp
-        Canvas(modifier = Modifier.size(width = 90.dp, height = 160.dp)) {
+        Canvas(modifier = Modifier.size(width = 90.dp, height = 150.dp)) {
             drawAxDigits(char, brush, Color.White.copy(alpha = borderAlpha), strokeWidth.toPx(), Color.White, isDoze, fidgetValue)
         }
     }

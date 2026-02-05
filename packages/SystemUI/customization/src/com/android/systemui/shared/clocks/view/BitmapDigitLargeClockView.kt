@@ -21,6 +21,7 @@ import android.util.AttributeSet
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
+import androidx.constraintlayout.widget.ConstraintLayout
 import com.android.systemui.customization.R
 import com.android.systemui.shared.clocks.extensions.*
 import kotlin.math.min
@@ -103,15 +104,30 @@ abstract class BitmapDigitLargeClockView @JvmOverloads constructor(
         val dateAreaHeight = if (dateVisible) largeDateTopMargin + clockDateTextSize else 0f
         val totalContentHeight = clockContentHeight + dateAreaHeight
         
-        val startY = (height - totalContentHeight) / 2f
+        val location = IntArray(2)
+        getLocationOnScreen(location)
+        val viewY = location[1]
+        val screenHeight = context.resources.displayMetrics.heightPixels
+        val startY = (screenHeight - totalContentHeight) / 2f - viewY
         
-        drawLine(canvas, hours, scale, (width - hoursWidth) / 2f, startY)
-        drawLine(canvas, minutes, scale, (width - minutesWidth) / 2f, startY + digitHeight + lineSpacing)
+        val guidelineId = resources.getIdentifier("split_shade_guideline", "id", "com.android.systemui")
+        val params = layoutParams as? ConstraintLayout.LayoutParams
+        val isConstrainedToSplit = guidelineId != 0 && params?.endToEnd == guidelineId
+        
+        val screenWidth = context.resources.displayMetrics.widthPixels
+        val alignLeft = isSplitShade && isConstrainedToSplit
+        
+        val viewX = location[0]
+        val hoursX = if (alignLeft) 0f else (screenWidth - hoursWidth) / 2f - viewX
+        val minutesX = if (alignLeft) 0f else (screenWidth - minutesWidth) / 2f - viewX
+
+        drawLine(canvas, hours, scale, hoursX, startY)
+        drawLine(canvas, minutes, scale, minutesX, startY + digitHeight + lineSpacing)
         
         clockTopY = startY
         clockBottomY = startY + clockContentHeight
         val maxWidth = maxOf(hoursWidth, minutesWidth)
-        clockLeft = (width - maxWidth) / 2f
+        clockLeft = if (alignLeft) 0f else (width - maxWidth) / 2f
         clockRight = clockLeft + maxWidth
     }
     
@@ -169,9 +185,27 @@ abstract class BitmapDigitLargeClockView @JvmOverloads constructor(
         }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val width = ViewGroup.getDefaultSize(suggestedMinimumWidth, widthMeasureSpec)
-        val height = ViewGroup.getDefaultSize(suggestedMinimumHeight, heightMeasureSpec)
-        setMeasuredDimension(width, height)
+        if (!bitmapsReady) loadBitmaps()
+        
+        val time = timeStr
+        val (hours, minutes) = when (time.length) {
+            4 -> time.substring(0, 2) to time.substring(2, 4)
+            3 -> time.substring(0, 1) to time.substring(1, 3)
+            else -> "12" to "00"
+        }
+        
+        val scale = digitScale
+        val hWidth = computeLineWidth(hours, scale)
+        val mWidth = computeLineWidth(minutes, scale)
+        val contentWidth = maxOf(hWidth, mWidth).toInt() + paddingLeft + paddingRight
+        
+        val desiredWidth = contentWidth
+        val desiredHeight = largeClockHeight + paddingTop + paddingBottom + dateHeight
+
+        setMeasuredDimension(
+            resolveSize(desiredWidth, widthMeasureSpec),
+            resolveSize(desiredHeight, heightMeasureSpec)
+        )
     }
 
     override fun getContentBounds(): RectF? {

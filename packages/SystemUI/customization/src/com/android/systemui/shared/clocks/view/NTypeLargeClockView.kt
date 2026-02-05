@@ -25,10 +25,12 @@ class NTypeLargeClockView @JvmOverloads constructor(
     defStyleRes: Int = 0
 ) : BitmapDigitLargeClockView(context, attrs, defStyleAttr, defStyleRes) {
 
+    override val isLargeClock = true
+
     override val tagName = "NTypeLargeClockView"
 
     override val digitScale: Float
-        get() = largeClockScaleRatio * 1.4f
+        get() = largeClockScaleRatio * if (isSplitShade) 1.1f else 1.4f
 
     override val digitResIds = intArrayOf(
         R.drawable.ntype_0,

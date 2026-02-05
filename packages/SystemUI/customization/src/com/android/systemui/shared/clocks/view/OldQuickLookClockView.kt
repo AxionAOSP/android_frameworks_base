@@ -24,6 +24,7 @@ import android.view.View
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.constraintlayout.widget.ConstraintLayout
 import com.android.systemui.customization.R
 import com.android.systemui.plugins.clocks.*
 import com.android.systemui.shared.clocks.*
@@ -72,6 +73,8 @@ class OldQuickLookClockView @JvmOverloads constructor(
     private val alarmIconSize get() = context.scaledDimenInt(R.dimen.old_clock_alarm_icon_primary_size)
     private val primaryTextSize get() = context.scaledDimen(R.dimen.old_clock_primary_text_size)
     private val secondaryTextSize get() = context.scaledDimen(R.dimen.old_clock_secondary_text_size)
+
+    override val isLargeClock = id == R.id.old_quick_look_large_clock_view
 
     override fun getTag(): String = "OLDQuickLookClockView"
 
@@ -372,11 +375,32 @@ class OldQuickLookClockView @JvmOverloads constructor(
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         val childAt = getChildAt(0)
-        if (childAt != null) {
+
+        if (childAt == null) return
+
+        if (isLargeClock) {
+            val location = IntArray(2)
+            getLocationOnScreen(location)
+            val viewX = location[0]
+            val screenWidth = context.resources.displayMetrics.widthPixels
+                
+            val guidelineId = resources.getIdentifier("split_shade_guideline", "id", "com.android.systemui")
+            val params = layoutParams as? ConstraintLayout.LayoutParams
+            val isConstrainedToSplit = guidelineId != 0 && params?.endToEnd == guidelineId
+            val alignLeft = isSplitShade && isConstrainedToSplit
+            
             val w = (width - childAt.measuredWidth) / 2
-            val h = (height - childAt.measuredHeight) / 2
+            val viewY = location[1]
+            val screenHeight = context.resources.displayMetrics.heightPixels
+            val h = (screenHeight - childAt.measuredHeight) / 2 - viewY
+            
             childAt.layout(w, h, childAt.measuredWidth + w, childAt.measuredHeight + h)
-        }
+            return
+        } 
+
+        val w = (width - childAt.measuredWidth) / 2
+        val h = (height - childAt.measuredHeight) / 2
+        childAt.layout(w, h, childAt.measuredWidth + w, childAt.measuredHeight + h)
     }
 
     override fun onAttachedToWindow() {

@@ -29,7 +29,7 @@ class PolylineLargeClockView @JvmOverloads constructor(
     override val tagName = "PolylineLargeClockView"
 
     override val digitScale: Float
-        get() = largeClockScaleRatio * 1.5f
+        get() = largeClockScaleRatio * if (isSplitShade) 1.2f else 1.5f
         
     override val digitResIds = intArrayOf(
         R.drawable.polyline_0,

@@ -45,8 +45,8 @@ class CyberpunkLargeClockView @JvmOverloads constructor(
     defStyleRes: Int = 0
 ) : AxClockView(context, attrs, defStyleAttr, defStyleRes) {
 
-    override val showSystemDate: Boolean = false
     override val useGlitchInteraction: Boolean = true
+    override val isLargeClock = true
 
     @Composable
     override fun Content() {
@@ -56,12 +56,10 @@ class CyberpunkLargeClockView @JvmOverloads constructor(
         val icon by iconState
         val fidget by fidgetTrigger
         
-        
         val cpYellow = Color(0xFFFCEE0A)
         val cpCyan = Color(0xFF00F0FF)
         val primaryTimeColor = if (isDoze) Color.White else cpYellow
         val accentColor = if (isDoze) Color.White else cpCyan
-        
         
         val glitchProgress = remember { Animatable(0f) }
         

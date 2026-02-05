@@ -20,10 +20,10 @@ import android.graphics.Canvas
 import android.util.AttributeSet
 import android.view.ViewGroup
 import androidx.compose.runtime.*
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.geometry.Offset
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.axion.compose.lifecycle.repeatWhenAttached
@@ -45,7 +45,6 @@ abstract class AxClockView @JvmOverloads constructor(
     protected val regionDarkState = mutableStateOf(false)
     protected val fidgetTrigger = mutableStateOf(0L)
     protected val fidgetPosition = mutableStateOf(Offset.Zero)
-    protected open val showSystemDate: Boolean = true
     protected open val useGlitchInteraction: Boolean = false
 
     init {
@@ -66,7 +65,6 @@ abstract class AxClockView @JvmOverloads constructor(
         fidgetPosition.value = Offset(x, y)
         if (useGlitchInteraction) {
             fidgetTrigger.value = System.currentTimeMillis()
-            
             (context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator)?.vibrate(
                 android.os.VibrationEffect.createPredefined(android.os.VibrationEffect.EFFECT_CLICK)
             )
@@ -102,12 +100,8 @@ abstract class AxClockView @JvmOverloads constructor(
     }
 
     override fun onDraw(canvas: Canvas) {
-        if (showSystemDate) {
-            super.onDraw(canvas)
-        } else {
-            canvas.drawFilter = antiAliasFilter
-            drawClock(canvas)
-        }
+        canvas.drawFilter = antiAliasFilter
+        drawClock(canvas)
     }
 
     override fun onAttachedToWindow() {
@@ -145,15 +139,7 @@ abstract class AxClockView @JvmOverloads constructor(
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         val w = measuredWidth
-        val reservedHeight = if (showSystemDate) {
-            if (config?.position == ClockConfigs.Position.BELOW) {
-                dateHeight + dateMarginTop
-            } else {
-                dateHeight
-            }
-        } else 0
-        
-        val h = measuredHeight - reservedHeight
+        val h = measuredHeight
         if (w > 0 && h > 0) {
             composeView.measure(
                 MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
@@ -164,17 +150,36 @@ abstract class AxClockView @JvmOverloads constructor(
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         super.onLayout(changed, l, t, r, b)
-        if (!showSystemDate) {
+
+        if (!composeView.isAttachedToWindow()) return
+
+        if (!isLargeClock) {
             composeView.layout(0, 0, width, height)
             return
         }
 
-        val dateH = dateHeight
-        val dateM = dateMarginTop
-        if (config?.position == ClockConfigs.Position.ABOVE) {
-            composeView.layout(0, dateH, width, height)
-        } else {
-            composeView.layout(0, 0, width, height - (dateH + dateM))
-        }
+        val location = IntArray(2)
+        getLocationOnScreen(location)
+        val viewX = location[0]
+        val viewY = location[1]
+        
+        val displayMetrics = context.resources.displayMetrics
+        val screenW = displayMetrics.widthPixels
+        val screenH = displayMetrics.heightPixels
+
+        val guidelineId = resources.getIdentifier("split_shade_guideline", "id", "com.android.systemui")
+        val params = layoutParams as? ConstraintLayout.LayoutParams
+        val isConstrainedToSplit = guidelineId != 0 && params?.endToEnd == guidelineId
+        
+        val targetW = if (isSplitShade && isConstrainedToSplit) screenW / 2 else screenW
+
+        composeView.measure(
+            MeasureSpec.makeMeasureSpec(targetW, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(screenH, MeasureSpec.EXACTLY)
+        )
+        composeView.layout(0, 0, targetW, screenH)
+
+        composeView.translationX = -viewX.toFloat()
+        composeView.translationY = -viewY.toFloat()
     }
 }
