@@ -99,6 +99,7 @@ import static android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL;
 import static android.view.WindowManager.LayoutParams.INVALID_WINDOW_TYPE;
 import static android.view.WindowManager.LayoutParams.LAST_APPLICATION_WINDOW;
 import static android.view.WindowManager.LayoutParams.PRIVATE_FLAG_UNRESTRICTED_GESTURE_EXCLUSION;
+import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
 import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_STARTING;
 import static android.view.WindowManager.LayoutParams.TYPE_BASE_APPLICATION;
 import static android.view.WindowManager.LayoutParams.TYPE_BOOT_PROGRESS;
@@ -1006,6 +1007,11 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
         if (DEBUG_INPUT_METHOD && mUpdateImeLayeringTarget) {
             Slog.i(TAG_WM, "Checking window @" + w + " fl=0x"
                     + Integer.toHexString(w.mAttrs.flags));
+        }
+        if (w.mAttrs.type == TYPE_APPLICATION_OVERLAY 
+                && w.mAttrs.getTitle() != null
+                && w.mAttrs.getTitle().toString().startsWith("FreeformWindow_")) {
+            return true;
         }
         return w.canBeImeLayeringTarget();
     };
@@ -5635,6 +5641,11 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
                         // TODO: We need to use an extra level on the app surface to ensure
                         // this is always above SurfaceView but always below attached window.
                         1, forceUpdate);
+                return;
+            } else if (imeLayeringTarget.mAttrs.type == TYPE_APPLICATION_OVERLAY 
+                    && imeLayeringTarget.mAttrs.getTitle() != null
+                    && imeLayeringTarget.mAttrs.getTitle().toString().startsWith("FreeformWindow_")) {
+                mImeWindowsContainer.assignRelativeLayer(t, imeLayeringTarget.getSurfaceControl(), 1, forceUpdate);
                 return;
             }
         }
