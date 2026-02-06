@@ -89,6 +89,11 @@ public class WindowManagerWrapper implements WindowManager {
         mBase.bringViewToFront(view);
     }
 
+    @Override
+    public void bringToBack(@NonNull View view, @Nullable View targetView) {
+        mBase.bringToBack(view, targetView);
+    }
+
     @NonNull
     @Override
     public WindowMetrics getCurrentWindowMetrics() {

@@ -382,4 +382,5 @@ interface IWindowSession {
             in ImeTracker.Token statsToken);
     
     oneway void bringToFront(IWindow window);
+    oneway void bringToBack(IWindow window, IWindow targetWindow);
 }

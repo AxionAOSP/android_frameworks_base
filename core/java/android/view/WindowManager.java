@@ -822,6 +822,9 @@ public interface WindowManager extends ViewManager {
      */
     public void bringViewToFront(@NonNull View view);
 
+    /** @hide */
+    default void bringToBack(@NonNull View view, @Nullable View targetView) {}
+
     /**
      * Returns the {@link WindowMetrics} according to the current system state.
      * <p>

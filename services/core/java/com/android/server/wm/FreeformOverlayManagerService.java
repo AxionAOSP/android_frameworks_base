@@ -15,11 +15,13 @@
  */
 package com.android.server.wm;
 
+import android.app.ActivityManager;
 import android.app.ActivityOptions;
 import android.app.ActivityTaskManager;
 import android.app.IActivityTaskManager;
 import android.app.IFreeformDisplayCallback;
 import android.app.IFreeformOverlayManager;
+import android.app.WindowConfiguration;
 import android.content.Context;
 import android.content.Intent;
 import android.hardware.display.DisplayManagerInternal;
@@ -53,7 +55,10 @@ public class FreeformOverlayManagerService extends SystemService {
         private static final String EDGE_SERVICE_PACKAGE = "com.android.edge.bar";
         private static final String EDGE_SERVICE_CLASS = "com.android.edge.bar.EdgeService";
         private static final String ACTION_LAUNCH_FREEFORM = "com.android.edge.bar.ACTION_LAUNCH_FREEFORM";
+        private static final String ACTION_BRING_ALL_TO_BACK = "com.android.edge.bar.ACTION_BRING_ALL_TO_BACK";
+        private static final String ACTION_LAUNCH_DESKTOP_FREEFORM = "com.android.edge.bar.ACTION_LAUNCH_DESKTOP_FREEFORM";
         private static final String EXTRA_PACKAGE_NAME = "package_name";
+        private static final String EXTRA_ACTIVITY_NAME = "activity_name";
         
         @Override
         public void launchInFreeform(String packageName) {
@@ -67,7 +72,35 @@ public class FreeformOverlayManagerService extends SystemService {
                 Binder.restoreCallingIdentity(token);
             }
         }
-        
+
+        @Override
+        public void launchInFreeformActivity(String packageName, String activityName) {
+            final long token = Binder.clearCallingIdentity();
+            try {
+                Intent intent = new Intent(ACTION_LAUNCH_FREEFORM);
+                intent.setClassName(EDGE_SERVICE_PACKAGE, EDGE_SERVICE_CLASS);
+                intent.putExtra(EXTRA_PACKAGE_NAME, packageName);
+                if (activityName != null) {
+                    intent.putExtra(EXTRA_ACTIVITY_NAME, activityName);
+                }
+                getContext().startServiceAsUser(intent, UserHandle.CURRENT);
+            } finally {
+                Binder.restoreCallingIdentity(token);
+            }
+        }
+
+        @Override
+        public void bringAllWindowsToBack() {
+            final long token = Binder.clearCallingIdentity();
+            try {
+                Intent intent = new Intent(ACTION_BRING_ALL_TO_BACK);
+                intent.setClassName(EDGE_SERVICE_PACKAGE, EDGE_SERVICE_CLASS);
+                getContext().startServiceAsUser(intent, UserHandle.CURRENT);
+            } finally {
+                Binder.restoreCallingIdentity(token);
+            }
+        }
+
         @Override
         public void createFreeform(String name, IFreeformDisplayCallback callback,
                 int width, int height, int densityDpi, boolean secure,
@@ -164,7 +197,7 @@ public class FreeformOverlayManagerService extends SystemService {
         private void minimizeTaskOnDisplay(int displayId) {
             try {
                 IActivityTaskManager atm = ActivityTaskManager.getService();
-                List<android.app.ActivityManager.RunningTaskInfo> tasks = 
+                List<android.app.ActivityManager.RunningTaskInfo> tasks =
                         atm.getTasks(1, false, false, displayId);
                 if (tasks != null && !tasks.isEmpty()) {
                     int taskId = tasks.get(0).taskId;
@@ -173,6 +206,22 @@ public class FreeformOverlayManagerService extends SystemService {
                 }
             } catch (RemoteException e) {
                 Slog.e(TAG, "Failed to minimize task on display " + displayId, e);
+            }
+        }
+
+        @Override
+        public void launchDesktopApp(String packageName, String activityName) {
+            final long token = Binder.clearCallingIdentity();
+            try {
+                Intent intent = new Intent(ACTION_LAUNCH_DESKTOP_FREEFORM);
+                intent.setClassName(EDGE_SERVICE_PACKAGE, EDGE_SERVICE_CLASS);
+                intent.putExtra(EXTRA_PACKAGE_NAME, packageName);
+                if (activityName != null) {
+                    intent.putExtra(EXTRA_ACTIVITY_NAME, activityName);
+                }
+                getContext().startServiceAsUser(intent, UserHandle.CURRENT);
+            } finally {
+                Binder.restoreCallingIdentity(token);
             }
         }
     }

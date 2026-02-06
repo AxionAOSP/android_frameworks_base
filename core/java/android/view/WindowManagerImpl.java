@@ -254,6 +254,11 @@ public final class WindowManagerImpl implements WindowManager {
     }
 
     @Override
+    public void bringToBack(@NonNull View view, @Nullable View targetView) {
+        mGlobal.bringToBack(view, targetView);
+    }
+
+    @Override
     public void requestAppKeyboardShortcuts(
             final KeyboardShortcutsReceiver receiver, int deviceId) {
         IResultReceiver resultReceiver = new IResultReceiver.Stub() {

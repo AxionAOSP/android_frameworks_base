@@ -47,6 +47,34 @@ public class FreeformLauncher {
     }
 
     /** @hide */
+    public static void launch(String packageName, String activityName) {
+        try {
+            IFreeformOverlayManager service = getService();
+            if (service != null) {
+                if (activityName != null) {
+                    service.launchInFreeformActivity(packageName, activityName);
+                } else {
+                    service.launchInFreeform(packageName);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to launch in freeform", e);
+        }
+    }
+
+    /** @hide */
+    public static void bringAllWindowsToBack() {
+        try {
+            IFreeformOverlayManager service = getService();
+            if (service != null) {
+                service.bringAllWindowsToBack();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to bring all windows to back", e);
+        }
+    }
+
+    /** @hide */
     @SuppressWarnings("ReferencesHidden")
     public static void createFreeform(String name, IFreeformDisplayCallback callback,
             int width, int height, int densityDpi, boolean secure,
@@ -124,5 +152,26 @@ public class FreeformLauncher {
         } catch (Exception e) {
             Log.e(TAG, "Failed to release freeform display", e);
         }
+    }
+
+    /**
+     * @hide
+     */
+    public static void launchDesktopApp(String packageName, String activityName) {
+        try {
+            IFreeformOverlayManager service = getService();
+            if (service != null) {
+                service.launchDesktopApp(packageName, activityName);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to launch desktop app", e);
+        }
+    }
+
+    /**
+     * @hide
+     */
+    public static void launchDesktopApp(String packageName) {
+        launchDesktopApp(packageName, null);
     }
 }

@@ -12911,6 +12911,23 @@ public final class ViewRootImpl implements ViewParent,
         }
     }
 
+    /**
+     * @hide
+     */
+    public void bringToBack(View targetView) {
+        try {
+            if (targetView != null) {
+                final IBinder token = targetView.getWindowToken();
+                if (token != null) {
+                    mWindowSession.bringToBack(mWindow, IWindow.Stub.asInterface(token));
+                }
+            } else {
+                mWindowSession.bringToBack(mWindow, null);
+            }
+        } catch (RemoteException e) {
+        }
+    }
+
     private void registerCallbacksForSync(boolean syncBuffer,
             final SurfaceSyncGroup surfaceSyncGroup) {
         if (!isHardwareEnabled()) {
