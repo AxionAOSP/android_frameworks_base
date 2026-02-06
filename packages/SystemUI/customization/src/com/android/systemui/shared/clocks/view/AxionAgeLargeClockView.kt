@@ -28,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.*
 import androidx.compose.ui.geometry.*
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -82,22 +84,24 @@ class AxionAgeLargeClockView @JvmOverloads constructor(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (time.length >= 4) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            AxLargeDigit(char = time[0], isDoze = isDoze, fidgetValue = fidgetValue)
-                            AxLargeDigit(char = time[1], isDoze = isDoze, fidgetValue = fidgetValue)
-                        }
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                AxLargeDigit(char = time[0], isDoze = isDoze, fidgetValue = fidgetValue)
+                                AxLargeDigit(char = time[1], isDoze = isDoze, fidgetValue = fidgetValue)
+                            }
 
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            AxLargeDigit(char = time[2], isDoze = isDoze, fidgetValue = fidgetValue)
-                            AxLargeDigit(char = time[3], isDoze = isDoze, fidgetValue = fidgetValue)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                AxLargeDigit(char = time[2], isDoze = isDoze, fidgetValue = fidgetValue)
+                                AxLargeDigit(char = time[3], isDoze = isDoze, fidgetValue = fidgetValue)
+                            }
                         }
                     }
                 }

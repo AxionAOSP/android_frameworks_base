@@ -30,6 +30,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.*
 import androidx.compose.ui.geometry.*
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -90,13 +92,17 @@ class AxionAgeClockView @JvmOverloads constructor(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (time.length >= 4) {
-                        AxDigit(char = time[0], isDoze = isDoze, fidgetValue = fidgetValue)
-                        Spacer(modifier = Modifier.width(2.dp))
-                        AxDigit(char = time[1], isDoze = isDoze, fidgetValue = fidgetValue)
-                        Spacer(modifier = Modifier.width(2.dp))
-                        AxDigit(char = time[2], isDoze = isDoze, fidgetValue = fidgetValue)
-                        Spacer(modifier = Modifier.width(2.dp))
-                        AxDigit(char = time[3], isDoze = isDoze, fidgetValue = fidgetValue)
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                AxDigit(char = time[0], isDoze = isDoze, fidgetValue = fidgetValue)
+                                Spacer(modifier = Modifier.width(2.dp))
+                                AxDigit(char = time[1], isDoze = isDoze, fidgetValue = fidgetValue)
+                                Spacer(modifier = Modifier.width(2.dp))
+                                AxDigit(char = time[2], isDoze = isDoze, fidgetValue = fidgetValue)
+                                Spacer(modifier = Modifier.width(2.dp))
+                                AxDigit(char = time[3], isDoze = isDoze, fidgetValue = fidgetValue)
+                            }
+                        }
                     }
                 }
 
