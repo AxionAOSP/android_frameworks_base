@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 AxionOS
+ * Copyright (C) 2025 AxionOS Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,23 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.server;
+package com.android.server.am;
 
-import com.android.server.am.*;
-
-public interface IAxExtServiceFactory {
-    enum ExtType {
-        AX_BURST_ENGINE(IAxBurstEngine.class),
-        AX_MEMORY_MANAGER(IAxMemoryManager.class),
-        UX_PERFORMANCE(IUxPerformance.class);
-        private final Class<?> clazz;
-
-        ExtType(Class<?> clazz) {
-            this.clazz = clazz;
-        }
-
-        public Class<?> getClazz() {
-            return clazz;
-        }
-    }
+public interface IUxPerformance {
+    default void systemReady() {}
+    default void setScreenState(boolean off) {}
+    default void perfIOPrefetchStart(int pid, String packageName, String codePath) {}
 }
