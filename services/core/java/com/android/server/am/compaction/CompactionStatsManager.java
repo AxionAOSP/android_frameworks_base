@@ -116,6 +116,16 @@ public final class CompactionStatsManager {
         sInstance = new CompactionStatsManager();
     }
 
+    public void logPopulateCompactionPerformed(CachedAppOptimizer.CompactSource source,
+            String processName) {
+        AggregatedSourceCompactionStats perSourceStats =
+                getPerSourceAggregatedCompactStat(source);
+        AggregatedProcessCompactionStats perProcessStats =
+                getPerProcessAggregatedCompactStat(processName);
+
+        ++perSourceStats.mPopulateCompactPerformed;
+        ++perProcessStats.mPopulateCompactPerformed;
+    }
 
     public void logCompactionRequested(CachedAppOptimizer.CompactSource source,
             CachedAppOptimizer.CompactProfile compactProfile, String processName) {
@@ -131,6 +141,10 @@ public final class CompactionStatsManager {
             case FULL:
                 ++perProcStats.mFullCompactRequested;
                 ++perSourceStats.mFullCompactRequested;
+                break;
+            case POPULATE:
+                ++perProcStats.mPopulateCompactRequested;
+                ++perSourceStats.mPopulateCompactRequested;
                 break;
             default:
                 Slog.e(TAG,
@@ -264,10 +278,12 @@ public final class CompactionStatsManager {
         pw.println(" Per-Process Compaction Stats");
         long totalCompactPerformedSome = 0;
         long totalCompactPerformedFull = 0;
+        long totalCompactPerformedPopulate = 0;
         for (AggregatedProcessCompactionStats stats : mPerProcessCompactStats.values()) {
             pw.println("-----" + stats.mProcessName + "-----");
             totalCompactPerformedSome += stats.mSomeCompactPerformed;
             totalCompactPerformedFull += stats.mFullCompactPerformed;
+            totalCompactPerformedPopulate += stats.mPopulateCompactPerformed;
             stats.dump(pw);
             pw.println();
         }
@@ -281,7 +297,8 @@ public final class CompactionStatsManager {
         pw.println();
 
         pw.println("Total Compactions Performed by profile: " + totalCompactPerformedSome
-                + " some, " + totalCompactPerformedFull + " full");
+                + " some, " + totalCompactPerformedFull + " full, "
+                + totalCompactPerformedPopulate + " populate");
         pw.println("Total compactions downgraded: " + mTotalCompactionDowngrades);
         pw.println("Total compactions cancelled by reason: ");
         for (CachedAppOptimizer.CancelCompactReason reason : mTotalCompactionsCancelled.keySet()) {

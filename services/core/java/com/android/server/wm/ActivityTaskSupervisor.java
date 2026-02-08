@@ -2241,6 +2241,8 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         this.mStoppingActivities.remove(r);
         AxExtServiceFactory.getAxBurstEngine().getProcessesAndFrozen(r.packageName);
         AxExtServiceFactory.getAxBurstEngine().inputBoost();
+        AxExtServiceFactory.getMemoryManager().releaseMemoryAtScreenOn();
+        AxExtServiceFactory.getMemoryManager().loadProcessMemory("com.android.launcher3");
         Task rootTask = r.getRootTask();
         if (rootTask.getDisplayArea().allResumedActivitiesComplete()) {
             this.mRootWindowContainer.ensureActivitiesVisible();
