@@ -621,6 +621,18 @@ public class Process {
      * @hide
      **/
     public static final int THREAD_GROUP_FOREGROUND_WINDOW = 8;
+    
+    /**
+     * Thread group for important visual processes
+     * @hide
+     **/
+    public static final int THREAD_GROUP_SVP = 9;
+    
+    /**
+     * Thread group for foreground apps that can be limited to boost important processes
+     * @hide
+     **/
+    public static final int THREAD_GROUP_AX_FOREGROUND = 10;
 
     /** @hide */
     public static final int SIGNAL_DEFAULT = 0;
