@@ -103,6 +103,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.DropBoxManager;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
@@ -404,6 +405,9 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
     // To kill process groups asynchronously
     static KillHandler sKillHandler = null;
     static ServiceThread sKillThread = null;
+
+    static Handler sHandler = null;
+    static HandlerThread sHandlerThread = null;
 
     // These are the various interesting memory levels that we will give to
     // the OOM killer.  Note that the OOM killer only supports 6 slots, so we
@@ -906,6 +910,12 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
                 ANDROID_VOLD_APP_DATA_ISOLATION_ENABLED_PROPERTY, false);
         mAppDataIsolationAllowlistedApps = new ArrayList<>(
                 SystemConfig.getInstance().getAppDataIsolationWhitelistedApps());
+
+        if (sHandler == null) {
+            sHandlerThread = new HandlerThread("ax_fore", -2);
+            sHandlerThread.start();
+            sHandler = new Handler(sHandlerThread.getLooper());
+        }
 
         if (sKillHandler == null) {
             sKillThread = new ServiceThread(TAG + ":kill",
@@ -2605,6 +2615,19 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
                         new String[]{PROC_START_SEQ_IDENT + app.getStartSeq()});
                 // By now the process group should have been created by zygote.
                 app.mProcessGroupCreated = true;
+                final boolean needsRestrict = startResult.pid > 0 
+                    && !isTopApp
+                    && AxUtils.isRestrictedNeedSelfControll(app);
+                if (needsRestrict) {
+                    sHandler.postDelayed(() -> {
+                        try {
+                            Process.setProcessGroup(
+                                startResult.pid, 
+                                Process.THREAD_GROUP_AX_FOREGROUND);
+                        } catch (Exception e) {
+                        }
+                    }, 50L);
+                }
             }
 
             mAppStartInfoTracker.addTimestampToStart(app, forkTimeNs,

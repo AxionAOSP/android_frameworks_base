@@ -108,6 +108,7 @@ import static android.os.Process.PROC_SPACE_TERM;
 import static android.os.Process.ROOT_UID;
 import static android.os.Process.SCHED_FIFO;
 import static android.os.Process.SCHED_RESET_ON_FORK;
+import static android.os.Process.SCHED_RR;
 import static android.os.Process.SHELL_UID;
 import static android.os.Process.SIGNAL_USR1;
 import static android.os.Process.SYSTEM_UID;
@@ -730,6 +731,9 @@ public class ActivityManagerService extends IActivityManager.Stub
     /** Whether some specified important processes are allowed to use FIFO priority. */
     boolean mAllowSpecifiedFifoScheduling = true;
 
+    /** Whether some specified important processes are allowed to use Round Robin priority. */
+    boolean mAllowSpecifiedRoundRobinScheduling = true;
+
     @GuardedBy("mStrictModeCallbacks")
     private final SparseArray<IUnsafeIntentStrictModeCallback>
             mStrictModeCallbacks = new SparseArray<>();
@@ -1062,6 +1066,10 @@ public class ActivityManagerService extends IActivityManager.Stub
     /** The processes that are allowed to use SCHED_FIFO prorioty. */
     @GuardedBy("mProcLock")
     final ArrayList<ProcessRecord> mSpecifiedFifoProcesses = new ArrayList<>();
+
+    /** The processes that are allowed to use SCHED_RR prorioty. */
+    @GuardedBy("mProcLock")
+    final ArrayList<ProcessRecord> mSpecifiedRoundRobinProcesses = new ArrayList<>();
 
     /**
      * List of records for processes that someone had tried to start before the
@@ -8448,6 +8456,30 @@ public class ActivityManagerService extends IActivityManager.Stub
     }
 
     /**
+     * Schedule the given thread a round-robin scheduling priority.
+     *
+     * @param tid the tid of the thread to adjust the scheduling of.
+     * @param suppressLogs {@code true} if any error logging should be disabled.
+     *
+     * @return {@code true} if this succeeded.
+     */
+    public static boolean scheduleAsRoundRobinPriority(int tid, boolean suppressLogs) {
+        try {
+            Process.setThreadScheduler(tid, Process.SCHED_RR | Process.SCHED_RESET_ON_FORK, 1);
+            return true;
+        } catch (IllegalArgumentException e) {
+            if (!suppressLogs) {
+                Slog.w(TAG, "Failed to set scheduling policy, thread does not exist:\n" + e);
+            }
+        } catch (SecurityException e) {
+            if (!suppressLogs) {
+                Slog.w(TAG, "Failed to set scheduling policy, not allowed:\n" + e);
+            }
+        }
+        return false;
+    }
+
+    /**
      * Switches the priority between SCHED_FIFO and SCHED_OTHER for the main thread and render
      * thread of the given process.
      */
@@ -8459,6 +8491,27 @@ public class ActivityManagerService extends IActivityManager.Stub
             scheduleAsFifoPriority(pid, true /* suppressLogs */);
             if (renderThreadTid != 0) {
                 scheduleAsFifoPriority(renderThreadTid, true /* suppressLogs */);
+            }
+        } else {
+            scheduleAsRegularPriority(pid, true /* suppressLogs */);
+            if (renderThreadTid != 0) {
+                scheduleAsRegularPriority(renderThreadTid, true /* suppressLogs */);
+            }
+        }
+    }
+
+    /**
+     * Switches the priority between SCHED_RR and SCHED_OTHER for the main thread and render
+     * thread of the given process.
+     */
+    @GuardedBy("mProcLock")
+    static void setRoundRobinPriority(@NonNull ProcessRecordInternal app, boolean enable) {
+        final int pid = app.getPid();
+        final int renderThreadTid = app.getRenderThreadTid();
+        if (enable) {
+            scheduleAsRoundRobinPriority(pid, true /* suppressLogs */);
+            if (renderThreadTid != 0) {
+                scheduleAsRoundRobinPriority(renderThreadTid, true /* suppressLogs */);
             }
         } else {
             scheduleAsRegularPriority(pid, true /* suppressLogs */);
@@ -8493,7 +8546,10 @@ public class ActivityManagerService extends IActivityManager.Stub
                 // promote to FIFO now
                 if (proc.getCurrentSchedulingGroup() == ProcessList.SCHED_GROUP_TOP_APP) {
                     if (DEBUG_OOM_ADJ) Slog.d("UI_FIFO", "Promoting " + tid + "out of band");
-                    if (proc.useFifoUiScheduling()) {
+                    if (proc.useRoundRobinUiScheduling()) {
+                        setThreadScheduler(proc.getRenderThreadTid(),
+                                SCHED_RR | SCHED_RESET_ON_FORK, 1);
+                    } else if (proc.useFifoUiScheduling()) {
                         setThreadScheduler(proc.getRenderThreadTid(),
                                 SCHED_FIFO | SCHED_RESET_ON_FORK, 1);
                     } else {
@@ -15828,6 +15884,10 @@ public class ActivityManagerService extends IActivityManager.Stub
                 adjustFifoProcessesIfNeeded(uid, !active /* allowFifo */);
             }
         }
+        
+        synchronized (mProcLock) {
+            adjustRoundRobinProcessesIfNeeded(uid, !active /* allowRR */);
+        }
     }
 
     final boolean isCameraActiveForUid(@UserIdInt int uid) {
@@ -15861,6 +15921,31 @@ public class ActivityManagerService extends IActivityManager.Stub
                 continue;
             }
             setFifoPriority(proc, allowSpecifiedFifo /* enable */);
+        }
+    }
+
+    /**
+     * Similar to {@link #adjustFifoProcessesIfNeeded}, but for Round Robin scheduling.
+     */
+    @VisibleForTesting
+    @GuardedBy("mProcLock")
+    void adjustRoundRobinProcessesIfNeeded(int preemptiveUid, boolean allowSpecifiedRR) {
+        if (allowSpecifiedRR == mAllowSpecifiedRoundRobinScheduling) {
+            return;
+        }
+        if (!allowSpecifiedRR) {
+            final UidRecord uidRec = mProcessList.mActiveUids.get(preemptiveUid);
+            if (uidRec == null || uidRec.getCurProcState() > PROCESS_STATE_TOP) {
+                return;
+            }
+        }
+        mAllowSpecifiedRoundRobinScheduling = allowSpecifiedRR;
+        for (int i = mSpecifiedRoundRobinProcesses.size() - 1; i >= 0; i--) {
+            final ProcessRecord proc = mSpecifiedRoundRobinProcesses.get(i);
+            if (proc.getSetSchedGroup() != ProcessList.SCHED_GROUP_TOP_APP) {
+                continue;
+            }
+            setRoundRobinPriority(proc, allowSpecifiedRR /* enable */);
         }
     }
 

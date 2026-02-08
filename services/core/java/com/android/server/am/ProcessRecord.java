@@ -699,6 +699,9 @@ class ProcessRecord extends ProcessRecordInternal implements WindowProcessListen
             mOnewayThread = mThread;
         }
         mWindowProcessController.setThread(mThread);
+        if (mWindowProcessController.useRoundRobinUiScheduling()) {
+            mService.mSpecifiedRoundRobinProcesses.add(this);
+        }
         if (mWindowProcessController.useFifoUiScheduling()) {
             mService.mSpecifiedFifoProcesses.add(this);
         }
@@ -709,6 +712,9 @@ class ProcessRecord extends ProcessRecordInternal implements WindowProcessListen
         mThread = null;
         mOnewayThread = null;
         mWindowProcessController.setThread(null);
+        if (mWindowProcessController.useRoundRobinUiScheduling()) {
+            mService.mSpecifiedRoundRobinProcesses.remove(this);
+        }
         if (mWindowProcessController.useFifoUiScheduling()) {
             mService.mSpecifiedFifoProcesses.remove(this);
         }
@@ -728,6 +734,13 @@ class ProcessRecord extends ProcessRecordInternal implements WindowProcessListen
     @Override
     public void notifyTopProcChanged() {
         mWindowProcessController.onTopProcChanged();
+    }
+
+    @Override
+    @GuardedBy(anyOf = {"mService", "mProcLock"})
+    public boolean useRoundRobinUiScheduling() {
+        return mService.mAllowSpecifiedRoundRobinScheduling
+                && mWindowProcessController.useRoundRobinUiScheduling();
     }
 
     @GuardedBy("mService")

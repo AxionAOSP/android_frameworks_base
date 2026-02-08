@@ -277,6 +277,9 @@ public abstract class ProcessRecordInternal {
 
     /** Determines if UI scheduling for this process should use FIFO priority. */
     public abstract boolean useFifoUiScheduling();
+    
+    /** Determines if UI scheduling for this process should use RR priority. */
+    public abstract boolean useRoundRobinUiScheduling();
 
     /** Notifies the window process controller about a change in top process status. */
     public abstract void notifyTopProcChanged();
