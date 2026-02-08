@@ -7609,6 +7609,7 @@ public class ActivityManagerService extends IActivityManager.Stub
                 mCachedAppOptimizer.onWakefulnessChanged(wakefulness);
 
                 updateOomAdjLocked(OOM_ADJ_REASON_UI_VISIBILITY);
+                AxExtServiceFactory.getAxBurstEngine().onWakefulnessChanged(isAwake);
             }
         }
     }
@@ -19834,6 +19835,37 @@ public class ActivityManagerService extends IActivityManager.Stub
     @NonNull
     Freezer getFreezer() {
         return mFreezer;
+    }
+
+    @Override
+    public void adjustCpusetCpus(String group, String cpus, long duration) {
+        AxExtServiceFactory.getAxBurstEngine().adjustCpusetCpus(group, cpus, duration);
+    }
+
+    @Override
+    public void inputBoost() {
+        AxExtServiceFactory.getAxBurstEngine().inputBoost();
+    }
+
+    @Override
+    public void getProcessesAndFrozen(String currentResumePackage) {
+        AxExtServiceFactory.getAxBurstEngine().getProcessesAndFrozen(currentResumePackage);
+    }
+    
+    @Override
+    public void boostThread(int tid) {
+        AxExtServiceFactory.getAxBurstEngine().boostThread(tid);
+    }
+
+    @Override
+    public void launcherItemsLoadingBoost(long duration) {
+        AxExtServiceFactory.getAxBurstEngine().launcherItemsLoadingBoost(duration);
+    }
+    
+    @Override
+    public void systemThreadBoost(int tid, long duration) {
+        if (tid <= 0) return;
+        AxExtServiceFactory.getAxBurstEngine().systemThreadBoost(tid, duration);
     }
 
     // Set of IntentCreatorToken objects that are currently active.

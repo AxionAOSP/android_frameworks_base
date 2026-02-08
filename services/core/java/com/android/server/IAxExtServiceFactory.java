@@ -19,6 +19,7 @@ import com.android.server.am.*;
 
 public interface IAxExtServiceFactory {
     enum ExtType {
+        AX_BURST_ENGINE(IAxBurstEngine.class);
         private final Class<?> clazz;
 
         ExtType(Class<?> clazz) {

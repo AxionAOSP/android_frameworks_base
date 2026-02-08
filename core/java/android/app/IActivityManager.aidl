@@ -1056,4 +1056,19 @@ interface IActivityManager {
      */
     oneway void reportOptimizationInfo(in IBinder app, in String compilerFilter,
             in String compilationReason);
+
+    /**
+    * Axion Burst Engine
+    */
+    void adjustCpusetCpus(String group, String cpus, long duration);
+
+    void getProcessesAndFrozen(String resumePackageName);
+
+    void inputBoost();
+    
+    void boostThread(int tid);
+    
+    void launcherItemsLoadingBoost(long duration);
+    
+    void systemThreadBoost(int tid, long duration);
 }

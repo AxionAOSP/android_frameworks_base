@@ -161,6 +161,7 @@ import com.android.internal.content.ReferrerIntent;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.function.pooled.PooledLambda;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.LocalServices;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.am.HostingRecord;
@@ -2238,6 +2239,8 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
 
     boolean reportResumedActivityLocked(ActivityRecord r) {
         this.mStoppingActivities.remove(r);
+        AxExtServiceFactory.getAxBurstEngine().getProcessesAndFrozen(r.packageName);
+        AxExtServiceFactory.getAxBurstEngine().inputBoost();
         Task rootTask = r.getRootTask();
         if (rootTask.getDisplayArea().allResumedActivitiesComplete()) {
             this.mRootWindowContainer.ensureActivitiesVisible();
