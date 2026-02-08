@@ -17869,6 +17869,9 @@ public class ActivityManagerService extends IActivityManager.Stub
         public void startProcess(String processName, ApplicationInfo info, boolean knownToBeDead,
                 boolean isTop, String hostingType, ComponentName hostingName) {
             try {
+                if (AxUtils.isCamera(processName)) {
+                    AxExtServiceFactory.getMemoryManager().boostCamera(true);
+                }
                 if (Trace.isTagEnabled(Trace.TRACE_TAG_ACTIVITY_MANAGER)) {
                     Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "startProcess:"
                             + processName);
@@ -19866,6 +19869,14 @@ public class ActivityManagerService extends IActivityManager.Stub
     public void systemThreadBoost(int tid, long duration) {
         if (tid <= 0) return;
         AxExtServiceFactory.getAxBurstEngine().systemThreadBoost(tid, duration);
+    }
+
+    @Override
+    public void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera) {
+        mHandler.post(() -> {
+            AxExtServiceFactory.getMemoryManager().releaseMemory(
+                minAdj, maxKillCount, includeUIProcesses, skipCamera);
+        });
     }
 
     // Set of IntentCreatorToken objects that are currently active.

@@ -31,6 +31,8 @@ class AggregatedCompactionStats {
     public long mProcCompactionsTimeThrottled;
     public long mProcCompactionsRSSThrottled;
     public long mProcCompactionsMiscThrottled;
+    public long mPopulateCompactRequested;
+    public long mPopulateCompactPerformed;
 
     // Memory stats
     public long mTotalDeltaAnonRssKBs;

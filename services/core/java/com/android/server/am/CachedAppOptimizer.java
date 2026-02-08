@@ -262,6 +262,7 @@ public class CachedAppOptimizer {
     // Keeps these flags in sync with services/core/jni/com_android_server_am_CachedAppOptimizer.cpp
     private static final int COMPACT_ACTION_FILE_FLAG = 1;
     private static final int COMPACT_ACTION_ANON_FLAG = 2;
+    private static final int COMPACT_ACTION_POPULATE_FLAG = 1 << 2;
 
     private static final String ATRACE_COMPACTION_TRACK = "Compaction";
     public static final String ATRACE_FREEZER_TRACK = "Freezer";
@@ -332,7 +333,8 @@ public class CachedAppOptimizer {
         NONE, // No compaction
         SOME, // File compaction
         ANON, // Anon compaction
-        FULL // File+anon compaction
+        FULL, // File+anon compaction
+        POPULATE
     }
 
     // This indicates who initiated the compaction request
@@ -1837,6 +1839,9 @@ public class CachedAppOptimizer {
                                         totalCpuTimeMillis, rssAfter, procState, newOomAdj,
                                         oomAdjReason, proc.uid, pid, !forceCompaction);
                                 break;
+                            case POPULATE:
+                                mCompactStatsManager.logPopulateCompactionPerformed(compactSource, name);
+                                break;
                             default:
                                 // We likely missed adding this category, it needs to be added
                                 // if we end up here. In the meantime, gracefully fallback to
@@ -2250,6 +2255,8 @@ public class CachedAppOptimizer {
                 compactProcess(pid, COMPACT_ACTION_FILE_FLAG);
             } else if (profile == CompactProfile.ANON) {
                 compactProcess(pid, COMPACT_ACTION_ANON_FLAG);
+            } else if (profile == CompactProfile.POPULATE) {
+                compactProcess(pid, COMPACT_ACTION_POPULATE_FLAG);
             }
             mPidCompacting = -1;
         }

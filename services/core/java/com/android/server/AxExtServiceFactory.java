@@ -27,6 +27,7 @@ public class AxExtServiceFactory {
     private static final Object sLock = new Object();
     
     private static volatile IAxBurstEngine sAxBurstEngine;
+    private static volatile IAxMemoryManager sAxMemoryManager;
 
     private AxExtServiceFactory(Context context) {
         NtServiceInjector.get().setCtx(context);
@@ -73,6 +74,17 @@ public class AxExtServiceFactory {
                 instance = sAxBurstEngine;
                 break;
 
+            case AX_MEMORY_MANAGER:
+                if (sAxMemoryManager == null) {
+                    synchronized (sLock) {
+                        if (sAxMemoryManager == null) {
+                            sAxMemoryManager = new AxMemoryManagerImpl();
+                        }
+                    }
+                }
+                instance = sAxMemoryManager;
+                break;
+
             default:
                 throw new IllegalArgumentException("Unknown ExtType: " + type);
         }
@@ -86,9 +98,14 @@ public class AxExtServiceFactory {
     public static void onLateSystemReady() {
         OnlineConfigObserver.systemReady();
         getAxBurstEngine().systemReady();
+        getMemoryManager().systemReady();
     }
     
     public static IAxBurstEngine getAxBurstEngine() {
         return getOrCreate(IAxExtServiceFactory.ExtType.AX_BURST_ENGINE);
+    }
+    
+    public static IAxMemoryManager getMemoryManager() {
+        return getOrCreate(IAxExtServiceFactory.ExtType.AX_MEMORY_MANAGER);
     }
 }
