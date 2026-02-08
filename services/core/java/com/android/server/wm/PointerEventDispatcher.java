@@ -23,6 +23,7 @@ import android.view.InputEventReceiver;
 import android.view.MotionEvent;
 import android.view.WindowManagerPolicyConstants.PointerEventListener;
 
+import com.android.server.AxExtServiceFactory;
 import com.android.server.UiThread;
 
 import java.util.ArrayList;
@@ -38,6 +39,7 @@ public class PointerEventDispatcher extends InputEventReceiver {
     @Override
     public void onInputEvent(InputEvent event) {
         try {
+            AxExtServiceFactory.getAxBurstEngine().inputBoost();
             if (event instanceof MotionEvent
                     && (event.getSource() & InputDevice.SOURCE_CLASS_POINTER) != 0) {
                 MotionEvent motionEvent = (MotionEvent) event;

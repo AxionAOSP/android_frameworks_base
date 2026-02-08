@@ -130,6 +130,8 @@ import com.android.internal.policy.TransitionAnimation;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.protolog.WmProtoLogGroups;
 import com.android.internal.util.function.pooled.PooledLambda;
+import com.android.server.AnimationThread;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.inputmethod.InputMethodManagerInternal;
 import com.android.server.statusbar.StatusBarManagerInternal;
 
@@ -785,6 +787,7 @@ class Transition implements BLASTSyncEngine.TransactionReadyListener {
             // SyncGroup#finishNow), so do not revert the state to STATE_STARTED.
             return;
         }
+        AxExtServiceFactory.getAxBurstEngine().systemThreadBoost(AnimationThread.get().getThreadId(), 500L);
         mState = STATE_STARTED;
         ProtoLog.v(WmProtoLogGroups.WM_DEBUG_WINDOW_TRANSITIONS, "Starting Transition %d",
                 mSyncId);

@@ -214,6 +214,7 @@ import com.android.internal.util.IndentingPrintWriter;
 import com.android.internal.util.Preconditions;
 import com.android.modules.utils.TypedXmlPullParser;
 import com.android.modules.utils.TypedXmlSerializer;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.LocalServices;
 import com.android.server.Watchdog;
 import com.android.server.art.ArtManagedInstallFileHelper;
@@ -2055,6 +2056,7 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
     public ParcelFileDescriptor openWrite(String name, long offsetBytes, long lengthBytes) {
         assertCanWrite(false);
         try {
+            AxExtServiceFactory.getAxBurstEngine().boostInstall(true);
             return doWriteInternal(name, offsetBytes, lengthBytes, null);
         } catch (IOException e) {
             throw ExceptionUtils.wrap(e);
@@ -2312,6 +2314,7 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
 
     @Override
     public void commit(@NonNull IntentSender statusReceiver, boolean forTransfer) {
+        AxExtServiceFactory.getAxBurstEngine().boostInstall(false);
         assertNotChild("commit");
         boolean throwsExceptionCommitImmutableCheck = CompatChanges.isChangeEnabled(
                 THROW_EXCEPTION_COMMIT_WITH_IMMUTABLE_PENDING_INTENT, Binder.getCallingUid());
@@ -5672,6 +5675,7 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
 
     @Override
     public void abandon() {
+        AxExtServiceFactory.getAxBurstEngine().boostInstall(false);
         final Runnable r;
         synchronized (mLock) {
             assertNotChild("abandon");
