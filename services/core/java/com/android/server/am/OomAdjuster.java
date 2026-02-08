@@ -63,10 +63,12 @@ import static android.app.ActivityManagerInternal.OOM_ADJ_REASON_SYSTEM_INIT;
 import static android.app.ActivityManagerInternal.OOM_ADJ_REASON_UID_IDLE;
 import static android.app.ActivityManagerInternal.OOM_ADJ_REASON_UI_VISIBILITY;
 import static android.app.ActivityManagerInternal.OOM_ADJ_REASON_UNBIND_SERVICE;
+import static android.os.Process.THREAD_GROUP_AX_FOREGROUND;
 import static android.os.Process.THREAD_GROUP_BACKGROUND;
 import static android.os.Process.THREAD_GROUP_DEFAULT;
 import static android.os.Process.THREAD_GROUP_FOREGROUND_WINDOW;
 import static android.os.Process.THREAD_GROUP_RESTRICTED;
+import static android.os.Process.THREAD_GROUP_SVP;
 import static android.os.Process.THREAD_GROUP_TOP_APP;
 import static android.os.Process.THREAD_PRIORITY_DISPLAY;
 import static android.os.Process.THREAD_PRIORITY_TOP_APP_BOOST;
@@ -2151,16 +2153,34 @@ public abstract class OomAdjuster {
                     break;
                 case SCHED_GROUP_TOP_APP:
                 case SCHED_GROUP_TOP_APP_BOUND:
-                    processGroup = THREAD_GROUP_TOP_APP;
+                    if (AxUtils.isInPerfList(state.processName) 
+                            && !AxUtils.isCamera(state.processName)) {
+                        processGroup = THREAD_GROUP_SVP;
+                    } else {
+                        processGroup = THREAD_GROUP_TOP_APP;
+                    }
                     break;
                 case SCHED_GROUP_RESTRICTED:
-                    processGroup = THREAD_GROUP_RESTRICTED;
+                    if (AxUtils.isRestrictedNeedSelfControll(state)) {
+                        processGroup = THREAD_GROUP_AX_FOREGROUND;
+                    } else {
+                        processGroup = THREAD_GROUP_RESTRICTED;
+                    }
                     break;
                 case SCHED_GROUP_FOREGROUND_WINDOW:
-                    processGroup = THREAD_GROUP_FOREGROUND_WINDOW;
+                    if (AxUtils.isForegroundNeedSelfControll(oldSchedGroup, state)) {
+                        processGroup = THREAD_GROUP_AX_FOREGROUND;
+                    } else {
+                        processGroup = THREAD_GROUP_FOREGROUND_WINDOW;
+                    }
                     break;
+                case SCHED_GROUP_DEFAULT:
                 default:
-                    processGroup = THREAD_GROUP_DEFAULT;
+                    if (AxUtils.isForegroundNeedSelfControll(oldSchedGroup, state)) {
+                        processGroup = THREAD_GROUP_AX_FOREGROUND;
+                    } else {
+                        processGroup = THREAD_GROUP_DEFAULT;
+                    }
                     break;
             }
             setAppAndChildProcessGroup(state, processGroup);
@@ -2170,7 +2190,11 @@ public abstract class OomAdjuster {
                     // do nothing if we already switched to RT
                     if (oldSchedGroup != SCHED_GROUP_TOP_APP) {
                         state.notifyTopProcChanged();
-                        if (state.useFifoUiScheduling()) {
+                        if (state.useRoundRobinUiScheduling()) {
+                            // Switch UI pipeline for app to SCHED_RR
+                            state.setSavedPriority(Process.getThreadPriority(state.getPid()));
+                            ActivityManagerService.setRoundRobinPriority(state, true /* enable */);
+                        } else if (state.useFifoUiScheduling()) {
                             // Switch UI pipeline for app to SCHED_FIFO
                             state.setSavedPriority(Process.getThreadPriority(state.getPid()));
                             ActivityManagerService.setFifoPriority(state, true /* enable */);
@@ -2191,7 +2215,11 @@ public abstract class OomAdjuster {
                 } else if (oldSchedGroup == SCHED_GROUP_TOP_APP
                         && curSchedGroup != SCHED_GROUP_TOP_APP) {
                     state.notifyTopProcChanged();
-                    if (state.useFifoUiScheduling()) {
+                    if (state.useRoundRobinUiScheduling()) {
+                        // Reset UI pipeline to SCHED_OTHER
+                        ActivityManagerService.setRoundRobinPriority(state, false /* enable */);
+                        mInjector.setThreadPriority(state.getPid(), state.getSavedPriority());
+                    } else if (state.useFifoUiScheduling()) {
                         // Reset UI pipeline to SCHED_OTHER
                         ActivityManagerService.setFifoPriority(state, false /* enable */);
                         mInjector.setThreadPriority(state.getPid(), state.getSavedPriority());
@@ -2366,7 +2394,9 @@ public abstract class OomAdjuster {
                 // {@link SCHED_GROUP_TOP_APP}. We don't check render thread because it
                 // is not ready when attaching.
                 app.notifyTopProcChanged();
-                if (app.useFifoUiScheduling()) {
+                if (app.useRoundRobinUiScheduling()) {
+                    mService.scheduleAsRoundRobinPriority(app.getPid(), true);
+                } else if (app.useFifoUiScheduling()) {
                     mService.scheduleAsFifoPriority(app.getPid(), true);
                 } else {
                     mInjector.setThreadPriority(app.getPid(), THREAD_PRIORITY_TOP_APP_BOOST);
