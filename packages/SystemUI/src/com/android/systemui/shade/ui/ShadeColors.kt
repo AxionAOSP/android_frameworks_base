@@ -73,7 +73,11 @@ object ShadeColors {
 
     @JvmStatic
     private fun shadePanelFallback(context: Context): Int {
-        return context.getColor(R.color.shade_panel_fallback)
+        return ColorUtils.blendARGB(
+            context.resources.getColor(R.color.ax_scrim_behind_1, context.theme), 
+            context.resources.getColor(R.color.ax_scrim_behind_2, context.theme), 
+            0.5f
+        )
     }
 
     @JvmStatic
@@ -86,6 +90,9 @@ object ShadeColors {
 
     @JvmStatic
     private fun notificationScrimFallback(context: Context): Int {
-        return context.getColor(R.color.notification_scrim_fallback)
+        return context.resources.getColor(
+            com.android.internal.R.color.materialColorSurfaceContainer,
+            context.theme,
+        )
     }
 }

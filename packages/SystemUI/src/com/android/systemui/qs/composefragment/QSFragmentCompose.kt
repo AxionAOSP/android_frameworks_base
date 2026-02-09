@@ -95,6 +95,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.app.tracing.coroutines.launchTraced
+import androidx.compose.runtime.staticCompositionLocalOf
 import com.android.compose.animation.scene.ContentKey
 import com.android.compose.animation.scene.ContentScope
 import com.android.compose.animation.scene.ElementKey
@@ -160,6 +161,7 @@ import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shade.shared.flag.ShadeWindowGoesAround
 import com.android.systemui.statusbar.policy.ConfigurationController
 import com.android.systemui.statusbar.policy.ConfigurationController.ConfigurationListener
+import com.android.systemui.window.domain.interactor.WindowRootViewBlurInteractor
 import com.android.systemui.util.LifecycleFragment
 import com.android.systemui.util.animation.MeasurementInput
 import com.android.systemui.util.animation.UniqueObjectHostView
@@ -183,6 +185,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import lineageos.providers.LineageSettings
 
+val LocalBlurEnabled = staticCompositionLocalOf { false }
+
 @SuppressLint("ValidFragment")
 class QSFragmentCompose
 @Inject
@@ -193,6 +197,7 @@ constructor(
     @Background private val backgroundDispatcher: CoroutineDispatcher,
     private val mediaLogger: MediaViewLogger,
     @ShadeDisplayAware private val configurationController: ConfigurationController,
+    private val windowRootViewBlurInteractor: WindowRootViewBlurInteractor,
 ) : LifecycleFragment(), QS, Dumpable {
 
     private val scrollListener = MutableStateFlow<QS.ScrollListener?>(null)
@@ -285,6 +290,9 @@ constructor(
 
     @Composable
     private fun Content(modifier: Modifier = Modifier) {
+        val isBlurCurrentlySupported by
+            windowRootViewBlurInteractor.isBlurCurrentlySupported.collectAsStateWithLifecycle()
+        val blurEnabled = notificationShadeBlur() && isBlurCurrentlySupported
         PlatformTheme(isDarkTheme = if (notificationShadeBlur()) isSystemInDarkTheme() else true) {
             ProvideShortcutHelperIndication(interactionsConfig = interactionsConfig()) {
                 Box(
@@ -314,7 +322,11 @@ constructor(
                             // by the composables.
                             .thenIf(viewModel.showingMirror) { Modifier.gesturesDisabled() }
                 ) {
-                    CollapsableQuickSettingsSTL()
+                    CompositionLocalProvider(
+                        LocalBlurEnabled provides blurEnabled,
+                    ) {
+                        CollapsableQuickSettingsSTL()
+                    }
                 }
             }
         }

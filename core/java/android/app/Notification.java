@@ -16800,7 +16800,7 @@ public class Notification implements Parcelable
                         R.attr.colorControlHighlight
                 };
 
-                mBackgroundColor = ctx.getColor(R.color.materialColorSurfaceContainerHigh);
+                mBackgroundColor = ctx.getColor(R.color.materialColorSurfaceBright);
                 mPrimaryTextColor = ctx.getColor(R.color.materialColorOnSurface);
                 mSecondaryTextColor = Flags.notificationsRedesignFonts()
                         ? mPrimaryTextColor

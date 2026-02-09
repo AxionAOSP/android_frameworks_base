@@ -355,7 +355,7 @@ public abstract class NotificationViewWrapper implements TransformableView {
             return customBackgroundColor;
         }
         return mView.getContext().getColor(
-                com.android.internal.R.color.materialColorSurfaceContainerHigh);
+                com.android.internal.R.color.materialColorSurfaceBright);
     }
 
     public void setLegacy(boolean legacy) {
