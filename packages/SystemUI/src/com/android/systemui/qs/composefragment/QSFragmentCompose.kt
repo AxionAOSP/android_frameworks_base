@@ -34,6 +34,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.annotation.VisibleForTesting
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement.spacedBy
@@ -47,10 +48,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -65,7 +74,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.approachLayout
 import androidx.compose.ui.layout.layout
@@ -77,11 +88,14 @@ import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -89,12 +103,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.app.tracing.coroutines.launchTraced
 import androidx.compose.runtime.staticCompositionLocalOf
+import com.android.compose.animation.Expandable
 import com.android.compose.animation.scene.ContentKey
 import com.android.compose.animation.scene.ContentScope
 import com.android.compose.animation.scene.ElementKey
@@ -112,6 +128,10 @@ import com.android.compose.modifiers.padding
 import com.android.compose.modifiers.thenIf
 import com.android.compose.theme.PlatformTheme
 import com.android.mechanics.GestureContext
+import com.android.systemui.animation.Expandable
+import com.android.systemui.common.shared.model.Icon as IconModel
+import com.android.systemui.common.ui.compose.load
+import com.android.systemui.common.ui.icons.Edit
 import com.android.systemui.Dumpable
 import com.android.systemui.Flags
 import com.android.systemui.Flags.notificationShadeBlur
@@ -147,6 +167,9 @@ import com.android.systemui.qs.composefragment.ui.toEditMode
 import com.android.systemui.qs.composefragment.viewmodel.QSFragmentComposeViewModel
 import com.android.systemui.qs.flags.QSComposeFragment
 import com.android.systemui.qs.footer.ui.compose.FooterActions
+import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsButtonViewModel
+import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsForegroundServicesButtonViewModel
+import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsViewModel
 import com.android.systemui.qs.panels.shared.model.QSFragmentComposeClippingTableLog
 import com.android.systemui.qs.panels.ui.compose.EditMode
 import com.android.systemui.qs.panels.ui.compose.QuickQuickSettings
@@ -157,6 +180,7 @@ import com.android.systemui.qs.ui.composable.QuickSettingsShade.systemGestureExc
 import com.android.systemui.qs.ui.composable.QuickSettingsTheme
 import com.android.systemui.res.R
 import com.android.systemui.shade.ShadeDisplayAware
+import com.android.systemui.shade.ShadeViewProviderModule.Companion.SHADE_HEADER
 import com.android.systemui.shade.shared.flag.ShadeWindowGoesAround
 import com.android.systemui.statusbar.policy.ConfigurationController
 import com.android.systemui.statusbar.policy.ConfigurationController.ConfigurationListener
@@ -171,7 +195,9 @@ import com.android.systemui.util.printSection
 import com.android.systemui.util.println
 import java.io.PrintWriter
 import java.util.function.Consumer
+import androidx.constraintlayout.motion.widget.MotionLayout
 import javax.inject.Inject
+import javax.inject.Named
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.awaitCancellation
@@ -196,6 +222,7 @@ constructor(
     private val mediaLogger: MediaViewLogger,
     @ShadeDisplayAware private val configurationController: ConfigurationController,
     private val windowRootViewBlurInteractor: WindowRootViewBlurInteractor,
+    @Named(SHADE_HEADER) private val header: MotionLayout,
 ) : LifecycleFragment(), QS, Dumpable {
 
     private val scrollListener = MutableStateFlow<QS.ScrollListener?>(null)
@@ -230,6 +257,36 @@ constructor(
 
         setListenerCollections()
         lifecycleScope.launch { viewModel.activate() }
+
+        setupAxQsActions()
+    }
+
+    private fun setupAxQsActions() {
+        val axActionsView = header.findViewById<ComposeView>(R.id.ax_qs_actions) ?: return
+        val actionsEnabled = mutableStateOf(false)
+
+        header.addTransitionListener(object : MotionLayout.TransitionListener {
+            override fun onTransitionStarted(motionLayout: MotionLayout?, startId: Int, endId: Int) {}
+            override fun onTransitionChange(motionLayout: MotionLayout?, startId: Int, endId: Int, progress: Float) {
+                actionsEnabled.value = progress > 0.6f
+            }
+            override fun onTransitionCompleted(motionLayout: MotionLayout?, currentId: Int) {
+                actionsEnabled.value = currentId == R.id.qs_header_constraint
+            }
+            override fun onTransitionTrigger(motionLayout: MotionLayout?, triggerId: Int, positive: Boolean, progress: Float) {}
+        })
+
+        axActionsView.setContent {
+            PlatformTheme(isDarkTheme = if (notificationShadeBlur()) isSystemInDarkTheme() else true) {
+                AxQsActions(
+                    footerActionsViewModel = viewModel.footerActionsViewModel,
+                    onEditClick = {
+                        viewModel.containerViewModel.editModeViewModel.startEditing()
+                    },
+                    isEnabled = actionsEnabled.value,
+                )
+            }
+        }
     }
 
     override fun onCreateView(
@@ -320,7 +377,16 @@ constructor(
                             // by the composables.
                             .thenIf(viewModel.showingMirror) { Modifier.gesturesDisabled() }
                 ) {
+                    val currentDensity = LocalDensity.current
+                    val densityThreshold =
+                        remember(currentDensity) {
+                            Density(
+                                density = AX_QS_DENSITY_THRESHOLD,
+                                fontScale = AX_QS_FONT_SCALE_THRESHOLD,
+                            )
+                        }
                     CompositionLocalProvider(
+                        LocalDensity provides densityThreshold,
                         LocalBlurEnabled provides blurEnabled,
                     ) {
                         CollapsableQuickSettingsSTL()
@@ -791,7 +857,7 @@ constructor(
                                 // during expansion (available height changing due to squishiness),
                                 // We always allow the media here to be as tall as it wants.
                                 // (b/383085298)
-                                modifier = Modifier.requiredHeightIn(max = Dp.Infinity),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp).requiredHeightIn(max = Dp.Infinity),
                                 mediaHost = viewModel.qqsMediaHost,
                                 mediaLogger = mediaLogger,
                                 mediaPresentationStyle =
@@ -806,23 +872,33 @@ constructor(
                             )
                         }
                     }
-
                 if (viewModel.isQsEnabled) {
                     Box(
                         modifier =
-                            Modifier.collapseExpandSemanticAction(
+                            Modifier.fillMaxWidth()
+                                .collapseExpandSemanticAction(
                                     stringResource(
                                         id = R.string.accessibility_quick_settings_expand
                                     )
-                                )
-                                .padding(horizontal = qsHorizontalMargin())
+                                ),
+                        contentAlignment = Alignment.TopCenter,
                     ) {
-                        QuickQuickSettingsLayout(
-                            brightness = BrightnessSliderConfig(viewModel, BrightnessSlider),
-                            tiles = Tiles,
-                            media = Media,
-                            mediaInRow = viewModel.qqsMediaInRow,
-                        )
+                        val isTabletPortrait = viewModel.isTabletPortrait
+                        val maxWidth = if (isTabletPortrait) {
+                            Dp.Unspecified
+                        } else {
+                            AX_QS_CONTENT_MAX_WIDTH
+                        }
+                        Box(
+                            modifier = Modifier.widthIn(max = maxWidth)
+                        ) {
+                            QuickQuickSettingsLayout(
+                                brightness = BrightnessSliderConfig(viewModel, BrightnessSlider),
+                                tiles = Tiles,
+                                media = Media,
+                                mediaInRow = viewModel.qqsMediaInRow,
+                            )
+                        }
                     }
                 }
             }
@@ -833,7 +909,7 @@ constructor(
     @Composable
     private fun ContentScope.QuickSettingsElement(modifier: Modifier = Modifier) {
         val qqsPadding = viewModel.qqsHeaderHeight
-        val qsExtraPadding = dimensionResource(R.dimen.qs_panel_padding_top)
+        val qsExtraPadding = if (viewModel.isInSplitShade) 0.dp else dimensionResource(R.dimen.qs_panel_padding_top)
         Column(
             modifier =
                 modifier.collapseExpandSemanticAction(
@@ -914,6 +990,7 @@ constructor(
                                         viewModel = containerViewModel.tileGridViewModel,
                                         modifier = Modifier.fillMaxWidth(),
                                         listening = isListening,
+                                        showEdit = { viewModel.isInSplitShade },
                                     )
                                 }
                             }
@@ -921,6 +998,7 @@ constructor(
                             @Composable {
                                 if (viewModel.qsMediaVisible) {
                                     MediaObject(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
                                         mediaHost = viewModel.qsMediaHost,
                                         mediaLogger = mediaLogger,
                                         mediaViewModelFactory = viewModel.mediaViewModelFactory,
@@ -935,27 +1013,37 @@ constructor(
                             modifier =
                                 Modifier.fillMaxWidth()
                                     .sysuiResTag(ResIdTags.quickSettingsPanel)
-                                    .padding(
-                                        top = QuickSettingsShade.Dimensions.Padding,
-                                        start = qsHorizontalMargin(),
-                                        end = qsHorizontalMargin(),
-                                    )
+                                    .padding(top = QuickSettingsShade.Dimensions.Padding),
+                            contentAlignment = Alignment.TopCenter,
                         ) {
-                            QuickSettingsLayout(
-                                brightness = BrightnessSliderConfig(viewModel, BrightnessSlider),
-                                tiles = TileGrid,
-                                media = Media,
-                                mediaInRow = viewModel.qsMediaInRow,
-                            )
+                            val isTabletPortrait = viewModel.isTabletPortrait
+                            val maxWidth = if (isTabletPortrait) {
+                                Dp.Unspecified
+                            } else {
+                                AX_QS_CONTENT_MAX_WIDTH
+                            }
+                            Box(
+                                modifier = Modifier.widthIn(max = maxWidth)
+                            ) {
+                                QuickSettingsLayout(
+                                    brightness = BrightnessSliderConfig(viewModel, BrightnessSlider),
+                                    tiles = TileGrid,
+                                    media = Media,
+                                    mediaInRow = viewModel.qsMediaInRow,
+                                    needsOffset = !viewModel.isLargeScreenHeader,
+                                )
+                            }
                         }
                     }
                 }
-                QuickSettingsTheme {
-                    Element(
-                        Elements.FooterActions,
-                        Modifier.sysuiResTag(ResIdTags.qsFooterActions),
-                    ) {
-                        FooterActions(viewModel = viewModel.footerActionsViewModel)
+                if (viewModel.isInSplitShade) {
+                    QuickSettingsTheme {
+                        Element(
+                            Elements.FooterActions,
+                            Modifier.sysuiResTag(ResIdTags.qsFooterActions),
+                        ) {
+                            FooterActions(viewModel = viewModel.footerActionsViewModel)
+                        }
                     }
                 }
             }
@@ -993,7 +1081,7 @@ constructor(
                             Color.Transparent,
                             ContainerColors.defaultContainerColor,
                         ),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
                 )
             }
         }
@@ -1210,7 +1298,11 @@ private class ExpansionTransition(currentProgress: Float) :
     }
 }
 
-private const val EDIT_MODE_TIME_MILLIS = 500
+private const val EDIT_MODE_TIME_MILLIS = 400
+
+private const val AX_QS_DENSITY_THRESHOLD = 2.688f
+private const val AX_QS_FONT_SCALE_THRESHOLD = 1.0f
+private val AX_QS_CONTENT_MAX_WIDTH = 376.dp
 
 /**
  * Performs different touch handling based on the state of the ComposeView:
@@ -1512,14 +1604,26 @@ fun QuickQuickSettingsLayout(
     media: @Composable () -> Unit,
     mediaInRow: Boolean,
 ) {
-    Column(verticalArrangement = spacedBy(dimensionResource(R.dimen.qs_tile_margin_vertical))) {
+    val sliderAtBottom = brightness.showSlider == 2 && !brightness.sliderAtTop
+    val contentPadding = dimensionResource(R.dimen.ax_qs_content_padding)
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(
+            modifier = Modifier.height { contentPadding.roundToPx() }
+        )
+
         if (brightness.showSlider == 2 && brightness.sliderAtTop) {
             brightness()
+            Spacer(
+                modifier = Modifier.height { contentPadding.roundToPx() }
+            )
         }
 
         if (mediaInRow) {
             Row(
-                horizontalArrangement = spacedBy(dimensionResource(R.dimen.qs_tile_margin_vertical)),
+                horizontalArrangement = spacedBy(contentPadding),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(modifier = Modifier.weight(1f)) { tiles() }
@@ -1529,11 +1633,19 @@ fun QuickQuickSettingsLayout(
             tiles()
         }
 
-        if (brightness.showSlider == 2 && !brightness.sliderAtTop) {
+        if (sliderAtBottom) {
+            Spacer(
+                modifier = Modifier.height { contentPadding.roundToPx() }
+            )
             brightness()
         }
 
         if (!mediaInRow) {
+            if (!sliderAtBottom) {
+                Spacer(
+                    modifier = Modifier.height { contentPadding.roundToPx() }
+                )
+            }
             media()
         }
     }
@@ -1547,13 +1659,24 @@ fun QuickSettingsLayout(
     tiles: @Composable () -> Unit,
     media: @Composable () -> Unit,
     mediaInRow: Boolean,
+    needsOffset: Boolean,
 ) {
+    val contentPadding = dimensionResource(R.dimen.ax_qs_content_padding)
+    val offset = dimensionResource(R.dimen.ax_qs_panel_offset)
+
     Column(
-        verticalArrangement = spacedBy(dimensionResource(R.dimen.qs_tile_margin_vertical)),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        if (needsOffset) {
+            Spacer(
+                modifier = Modifier.height { offset.roundToPx() }
+            )
+        }
         if (brightness.showSlider >= 1 && brightness.sliderAtTop) {
             brightness()
+            Spacer(
+                modifier = Modifier.height { contentPadding.roundToPx() }
+            )
         }
 
         if (mediaInRow) {
@@ -1574,6 +1697,132 @@ fun QuickSettingsLayout(
 
         if (!mediaInRow) {
             media()
+        }
+    }
+}
+
+@Composable
+private fun AxQsActions(
+    footerActionsViewModel: FooterActionsViewModel,
+    onEditClick: () -> Unit,
+    isEnabled: Boolean = true,
+) {
+    val context = LocalContext.current
+    var foregroundServices by remember {
+        mutableStateOf<FooterActionsForegroundServicesButtonViewModel?>(null)
+    }
+    var settings by remember { mutableStateOf<FooterActionsButtonViewModel?>(null) }
+
+    LaunchedEffect(footerActionsViewModel) {
+        launch { footerActionsViewModel.foregroundServices.collect { foregroundServices = it } }
+        launch { footerActionsViewModel.settings.collect { settings = it } }
+    }
+
+    if (!isEnabled) return
+
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+
+    val iconSize = dimensionResource(R.dimen.ax_qs_action_icon_size)
+
+    Row(
+        modifier = Modifier.padding(horizontal = 4.dp),
+        horizontalArrangement = spacedBy(2.dp, Alignment.End),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        foregroundServices?.let { fgs ->
+            AxHeaderButton(
+                onClick = if (isEnabled) { expandable -> fgs.onClick(context, expandable) } else null,
+                contentColor = onSurfaceColor,
+            ) {
+                Text(
+                    text = fgs.foregroundServicesCount.toString(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = onSurfaceColor,
+                    modifier = Modifier
+                        .border(1.dp, onSurfaceColor, CircleShape)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+        }
+
+        AxHeaderButton(
+            onClick = if (isEnabled) { _ -> onEditClick() } else null,
+            contentColor = onSurfaceColor,
+        ) {
+            Icon(
+                imageVector = if (Flags.iconRefresh2025()) Edit else Icons.Default.Edit,
+                contentDescription = stringResource(R.string.accessibility_quick_settings_edit),
+                modifier = Modifier.size(iconSize),
+            )
+        }
+
+        settings?.let { settingsModel ->
+            AxHeaderButton(
+                onClick = if (isEnabled) settingsModel.onClick else null,
+                contentColor = onSurfaceColor,
+            ) {
+                AxChipIcon(icon = settingsModel.icon, modifier = Modifier.size(iconSize))
+            }
+        }
+
+        footerActionsViewModel.power?.let { powerModel ->
+            AxHeaderButton(
+                onClick = if (isEnabled) powerModel.onClick else null,
+                contentColor = onSurfaceColor,
+            ) {
+                AxChipIcon(icon = powerModel.icon, modifier = Modifier.size(iconSize))
+            }
+        }
+    }
+}
+
+@Composable
+private fun AxHeaderButton(
+    onClick: ((Expandable) -> Unit)?,
+    contentColor: Color,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    Expandable(
+        color = Color.Transparent,
+        shape = CircleShape,
+        contentColor = contentColor,
+        onClick = onClick,
+        modifier = modifier
+            .size(dimensionResource(R.dimen.ax_qs_action_btn_size)),
+        useModifierBasedImplementation = true,
+    ) { _: Expandable ->
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            CompositionLocalProvider(LocalContentColor provides contentColor) {
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun AxChipIcon(
+    icon: IconModel,
+    modifier: Modifier = Modifier.size(20.dp),
+) {
+    val contentDescription = icon.contentDescription?.load()
+    when (icon) {
+        is IconModel.Loaded -> {
+            Icon(
+                bitmap = icon.drawable.toBitmap().asImageBitmap(),
+                contentDescription = contentDescription,
+                modifier = modifier,
+            )
+        }
+        is IconModel.Resource -> {
+            Icon(
+                painter = painterResource(icon.resId),
+                contentDescription = contentDescription,
+                modifier = modifier,
+            )
         }
     }
 }

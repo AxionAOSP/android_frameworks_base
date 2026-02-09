@@ -32,6 +32,7 @@ fun ContentScope.TileGrid(
     modifier: Modifier = Modifier,
     listening: () -> Boolean = { true },
     enableRevealEffect: Boolean = false,
+    showEdit: () -> Boolean = { true }
 ) {
     val gridLayout = viewModel.gridLayout
     val tiles = viewModel.tileViewModels
@@ -41,6 +42,7 @@ fun ContentScope.TileGrid(
             modifier = modifier,
             listening = listening,
             enableRevealEffect = enableRevealEffect,
+            showEdit = showEdit,
         )
     }
 }

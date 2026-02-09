@@ -147,7 +147,6 @@ fun LargeTileContent(
                 Modifier.size(CommonTileDefaults.ToggleTargetSize).thenIf(isDualTarget) {
                     Modifier.borderOnFocus(color = focusBorderColor, iconShape.topEnd)
                         .clip(iconShape)
-                        .verticalSquish(squishiness)
                         .drawBehind { drawRect(animatedBackgroundColor) }
                         .combinedClickable(
                             onClick = toggleClick!!,
@@ -411,18 +410,20 @@ object TileBounceMotionTestKeys {
 }
 
 object CommonTileDefaults {
-    val IconSize = 32.dp
-    val LargeTileIconSize = 28.dp
+    val IconSize = 24.dp
+    val LargeTileIconSize = 24.dp
     val SideIconWidth = 32.dp
     val SideIconHeight = 20.dp
     val ChevronSize = 14.dp
     val ToggleTargetSize = 56.dp
     val TileHeight = 72.dp
+    val SmallTileSize = 72.dp
     val TileStartPadding = 8.dp
     val TileEndPadding = 12.dp
     val TileDualTargetEndPadding = 8.dp
-    val TileArrangementPadding = 6.dp
-    val InactiveCornerRadius = 50.dp
+    val TileColumnSpacing = 20.dp
+    val TileRowSpacing = 20.dp
+    val InactiveCornerRadius = 36.dp
     val TileLabelBlurWidth = 32.dp
     const val TILE_MARQUEE_ITERATIONS = 1
     const val TILE_INITIAL_DELAY_MILLIS = 2000

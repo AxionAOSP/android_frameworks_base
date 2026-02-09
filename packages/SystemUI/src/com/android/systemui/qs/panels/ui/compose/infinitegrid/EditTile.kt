@@ -178,7 +178,8 @@ import com.android.systemui.qs.panels.ui.compose.dragAndDropRemoveZone
 import com.android.systemui.qs.panels.ui.compose.dragAndDropTileList
 import com.android.systemui.qs.panels.ui.compose.dragAndDropTileSource
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.InactiveCornerRadius
-import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileArrangementPadding
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileColumnSpacing
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileRowSpacing
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileHeight
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.ToggleTargetSize
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.EditModeTileDefaults.AUTO_SCROLL_DISTANCE
@@ -674,7 +675,7 @@ private fun CurrentTilesGrid(
     val totalRows = listState.tiles.lastOrNull()?.row ?: 0
     val totalHeight by
         animateDpAsState(
-            gridHeight(totalRows + 1, TileHeight, TileArrangementPadding, CurrentTilesGridPadding),
+            gridHeight(totalRows + 1, TileHeight, TileRowSpacing, CurrentTilesGridPadding),
             label = "QSEditCurrentTilesGridHeight",
         )
     val gridState = rememberLazyGridState()
@@ -852,7 +853,7 @@ private fun AvailableTileGrid(
                     )
                     tileSpecs.chunked(columns).forEach { row ->
                         Row(
-                            horizontalArrangement = spacedBy(TileArrangementPadding),
+                            horizontalArrangement = spacedBy(TileColumnSpacing),
                             modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
                         ) {
                             for (tileSpec in row) {
@@ -1002,7 +1003,7 @@ private fun LazyGridItemScope.TileGridCell(
         }
     }
 
-    val tilePadding = with(LocalDensity.current) { TileArrangementPadding.roundToPx() }
+    val tilePadding = with(LocalDensity.current) { TileColumnSpacing.roundToPx() }
     LaunchedEffect(gridState) {
         snapshotFlow { gridState.layoutInfo }
             .map { layoutInfo ->
@@ -1366,9 +1367,7 @@ fun EditTile(
     ) {
         // Icon
         Box(
-            Modifier.size(ToggleTargetSize).thenIf(tile.isDualTarget) {
-                Modifier.drawBehind { drawCircle(colors.iconBackground, alpha = progress()) }
-            }
+            Modifier.size(ToggleTargetSize)
         ) {
             SmallTileContent(
                 iconProvider = { tile.icon },

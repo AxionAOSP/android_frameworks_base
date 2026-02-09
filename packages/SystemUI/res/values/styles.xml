@@ -166,10 +166,14 @@
         <item name="android:letterSpacing">0.01</item>
         <item name="android:lineHeight">20sp</item>
         <item name="android:fontFamily">@*android:string/config_bodyFontFamilyMedium</item>
+        <item name="android:textFontWeight">500</item>
     </style>
 
     <style name="TextAppearance.QS.TileLabel.Secondary">
+        <item name="android:textSize">14sp</item>
         <item name="android:fontFamily">@*android:string/config_bodyFontFamily</item>
+        <item name="android:lineHeight">18sp</item>
+        <item name="android:textFontWeight">400</item>
     </style>
 
     <style name="TextAppearance.QS.UserSwitcher">
@@ -556,6 +560,31 @@
         <item name="shadeDisabled">@androidprv:color/customColorShadeDisabled</item>
         <item name="underSurface">@androidprv:color/customColorUnderSurface</item>
         <item name="android:itemTextAppearance">@style/Control.MenuItem</item>
+    </style>
+
+    <style name="TextAppearance.QS.Status.AX_BATTERY" parent="@style/TextAppearance.QS.Status">
+        <item name="android:textSize">14dp</item>
+        <item name="android:textColor">@color/shade_header_text_color</item>
+        <item name="android:letterSpacing">0.01</item>
+        <item name="android:lineHeight">20dp</item>
+        <item name="android:textFontWeight">700</item>
+    </style>
+    <style name="TextAppearance.QS.Status.AX_CLOCK_Roboto" parent="@style/TextAppearance.QS.Status">
+        <item name="android:textSize">14dp</item>
+        <item name="android:textColor">@color/shade_header_text_color</item>
+        <item name="android:fontFamily" android:featureFlag="!com.android.systemui.shade_header_font_update">@*android:string/config_headlineFontFamily</item>
+        <item name="android:fontFamily" android:featureFlag="com.android.systemui.shade_header_font_update">variable-display-small-emphasized</item>
+        <item name="android:letterSpacing">0.01</item>
+        <item name="android:lineHeight">20dp</item>
+        <item name="android:textFontWeight">600</item>
+    </style>
+    <style name="TextAppearance.QS.Status.AX_DATE_Roboto" parent="@style/TextAppearance.QS.Status">
+        <item name="android:textSize">14dp</item>
+        <item name="android:textColor">@color/shade_header_text_color</item>
+        <item name="android:fontFamily" android:featureFlag="!com.android.systemui.shade_header_font_update">@*android:string/config_headlineFontFamily</item>
+        <item name="android:fontFamily" android:featureFlag="com.android.systemui.shade_header_font_update">variable-body-medium-emphasized</item>
+        <item name="android:lineHeight">20dp</item>
+        <item name="android:textFontWeight">600</item>
     </style>
 
     <!-- Cannot double inherit. Use Theme.SystemUI.QuickSettings in code to match -->

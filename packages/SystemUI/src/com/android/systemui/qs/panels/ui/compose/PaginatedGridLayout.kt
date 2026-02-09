@@ -68,6 +68,7 @@ constructor(
         modifier: Modifier,
         listening: () -> Boolean,
         enableRevealEffect: Boolean,
+        showEdit: () -> Boolean,
     ) {
         val viewModel =
             rememberViewModel(traceName = "PaginatedGridLayout-TileGrid") {
@@ -145,6 +146,7 @@ constructor(
                         modifier = Modifier,
                         listening = listening,
                         enableRevealEffect = false,
+                        showEdit = showEdit,
                     )
                 }
             }
@@ -153,14 +155,15 @@ constructor(
                 pagerState = pagerState,
                 showArrowsInPager = viewModel.showArrowsInPagerDots,
                 editButtonViewModelFactory = viewModel.editModeButtonViewModelFactory,
-                isVisible = { listening() && layoutState.isIdle() },
+                isVisible = { listening() && layoutState.isIdle() && showEdit() },
+                showEdit = showEdit
             )
         }
     }
 }
 
 private object Dimensions {
-    val FooterHeight = 48.dp
+    val FooterHeight = 40.dp
     val InterPageSpacing = 16.dp
 }
 
@@ -171,7 +174,10 @@ private fun FooterBar(
     showArrowsInPager: Boolean,
     editButtonViewModelFactory: EditModeButtonViewModel.Factory,
     isVisible: () -> Boolean = { true },
+    showEdit: () -> Boolean = { true },
 ) {
+    val footerHeight = if (showEdit()) FooterHeight else 24.dp
+
     val editButtonViewModel =
         rememberViewModel(traceName = "PaginatedGridLayout-editButtonViewModel") {
             editButtonViewModelFactory.create()
@@ -186,24 +192,24 @@ private fun FooterBar(
     // * On the end side, we place the edit mode button, with the same constraints as for
     //   BuildNumber (but it will usually fit, as it's just a square button).
     Row(
-        modifier = Modifier.requiredHeight(FooterHeight).fillMaxWidth(),
+        modifier = Modifier.requiredHeight(footerHeight).fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = spacedBy(8.dp),
     ) {
         Row(Modifier.weight(1f)) {
-            BuildNumber(viewModelFactory = buildNumberViewModelFactory)
+            //BuildNumber(viewModelFactory = buildNumberViewModelFactory)
             Spacer(modifier = Modifier.weight(1f))
         }
         PagerDots(
             pagerState = pagerState,
             activeColor = MaterialTheme.colorScheme.primary,
-            nonActiveColor = MaterialTheme.colorScheme.surfaceBright.copy(alpha = 0.5f),
+            nonActiveColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
             modifier = Modifier.wrapContentWidth(),
             showArrows = showArrowsInPager,
         )
         Row(Modifier.weight(1f)) {
             Spacer(modifier = Modifier.weight(1f))
-            EditModeButton(viewModel = editButtonViewModel, isVisible = isVisible())
+            if (showEdit()) EditModeButton(viewModel = editButtonViewModel, isVisible = isVisible())
         }
     }
 }

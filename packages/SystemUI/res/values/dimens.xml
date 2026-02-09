@@ -345,7 +345,7 @@
     <dimen name="notification_min_interaction_height">40dp</dimen>
 
     <!-- Radius for notifications corners without adjacent notifications -->
-    <dimen name="notification_corner_radius">28dp</dimen>
+    <dimen name="notification_corner_radius">16dp</dimen>
 
     <!-- Stroke width for notifications focus state overlay, see id/notification_focus_outline -->
     <dimen name="notification_focus_stroke_width">3dp</dimen>
@@ -555,7 +555,7 @@
     present in quick settings (e.g. in split shade) and it's useful to be able to override this
     value in such cases.
          -->
-    <dimen name="qs_header_system_icons_area_height">@*android:dimen/quick_qs_offset_height</dimen>
+    <dimen name="qs_header_system_icons_area_height">4dp</dimen>
 
     <!-- The height of the container that holds the system icons in the quick settings header in the
          car setting. -->
@@ -730,9 +730,9 @@
     <dimen name="qs_tile_margin_top_bottom">4dp</dimen>
     <dimen name="qs_brightness_margin_top">8dp</dimen>
     <dimen name="qs_brightness_margin_bottom">16dp</dimen>
-    <dimen name="qqs_layout_margin_top">16dp</dimen>
-    <dimen name="qqs_layout_padding_bottom">24dp</dimen>
-    <item name="qqs_expand_clock_scale" format="float" type="dimen">2.57</item>
+    <dimen name="qqs_layout_margin_top">13dp</dimen>
+    <dimen name="qqs_layout_padding_bottom">12dp</dimen>
+    <item name="qqs_expand_clock_scale" format="float" type="dimen">2</item>
 
     <!-- Most of the time it should be the same as notification_side_paddings as it's vertically
          aligned with notifications. The exception is split shade when this value becomes
@@ -764,12 +764,12 @@
          Scaled @dimen/qs_page_indicator-width by .4f.
     -->
     <dimen name="qs_page_indicator_dot_width">6.4dp</dimen>
-    <dimen name="qs_tile_text_size">14sp</dimen>
+    <dimen name="qs_tile_text_size">16sp</dimen>
     <dimen name="qs_panel_padding">16dp</dimen>
     <dimen name="qs_dual_tile_padding_horizontal">6dp</dimen>
     <dimen name="qs_panel_elevation">4dp</dimen>
     <dimen name="qs_panel_padding_bottom">@dimen/footer_actions_height</dimen>
-    <dimen name="qs_panel_padding_top">80dp</dimen>
+    <dimen name="qs_panel_padding_top">17dp</dimen>
 
     <!-- Size is in sp because the icon is inlined in text -->
     <dimen name="qs_edit_mode_app_icon">14sp</dimen>
@@ -780,8 +780,8 @@
     <dimen name="qs_header_mobile_icon_size">@dimen/status_bar_icon_drawing_size</dimen>
     <dimen name="qs_header_carrier_separator_width">6dp</dimen>
     <dimen name="qs_carrier_margin_width">4dp</dimen>
-    <dimen name="qs_header_height">@dimen/status_bar_height</dimen>
-    <dimen name="qs_header_row_min_height">@dimen/status_bar_height</dimen>
+    <dimen name="qs_header_height">78dp</dimen>
+    <dimen name="qs_header_row_min_height">48dp</dimen>
 
     <dimen name="qs_header_non_clickable_element_height">24sp</dimen>
     <dimen name="new_qs_header_non_clickable_element_height">24sp</dimen>
@@ -1610,6 +1610,9 @@
 
     <!-- Opacity at which the background for the shutdown UI will be drawn. -->
     <item name="shutdown_scrim_behind_alpha" format="float" type="dimen">0.95</item>
+
+    <!-- Alpha value for the shade panel scrim percent -->
+    <item name="config_shadePanelAlpha" format="float" type="dimen">0.8</item>
 
     <!-- Output switcher panel related dimensions -->
     <dimen name="media_output_dialog_list_max_height">355dp</dimen>

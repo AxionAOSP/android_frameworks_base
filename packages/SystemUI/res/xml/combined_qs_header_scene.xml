@@ -68,16 +68,6 @@
                 app:framePosition="50"
                 app:sizePercent="1"
                 app:curveFit="linear" />
-            <KeyAttribute
-                app:motionTarget="@id/shade_header_system_icons"
-                app:framePosition="@integer/fade_out_complete_frame"
-                android:alpha="0"
-                />
-            <KeyAttribute
-                app:motionTarget="@id/shade_header_system_icons"
-                app:framePosition="@integer/fade_in_start_frame"
-                android:alpha="0"
-                />
             <KeyPosition
                 app:motionTarget="@id/carrier_group"
                 app:percentX="1"
@@ -93,6 +83,14 @@
                 android:alpha="0" />
             <KeyAttribute
                 app:motionTarget="@id/carrier_group"
+                app:framePosition="@integer/fade_in_start_frame"
+                android:alpha="0" />
+            <KeyAttribute
+                app:motionTarget="@id/ax_qs_actions"
+                app:framePosition="0"
+                android:alpha="0" />
+            <KeyAttribute
+                app:motionTarget="@id/ax_qs_actions"
                 app:framePosition="@integer/fade_in_start_frame"
                 android:alpha="0" />
         </KeyFrameSet>

@@ -26,9 +26,11 @@
         <Layout
             android:layout_width="wrap_content"
             android:layout_height="@dimen/large_screen_shade_header_min_height"
+            android:layout_marginTop="@dimen/qs_status_bar_margin_top"
+            android:layout_marginEnd="12dp"
+            app:layout_constraintWidth_min="48dp"
             app:layout_constraintEnd_toEndOf="@id/end_guide"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toTopOf="@id/carrier_group"
             app:layout_constraintHorizontal_bias="1"
             />
     </Constraint>
@@ -36,15 +38,19 @@
     <Constraint
         android:id="@+id/clock">
         <Layout
+            android:layout_marginStart="12dp"
             android:layout_width="wrap_content"
             android:layout_height="@dimen/large_screen_shade_header_min_height"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/privacy_container"
-            app:layout_constraintBottom_toBottomOf="@id/carrier_group"
+            app:layout_constraintStart_toStartOf="@id/begin_guide"
+            app:layout_constraintTop_toTopOf="parent"
         />
+        <CustomAttribute
+            app:attributeName="letterSpacing"
+            app:customFloatValue="0"/>
         <Transform
             android:scaleX="@dimen/qqs_expand_clock_scale"
             android:scaleY="@dimen/qqs_expand_clock_scale"
+            android:translationY="34dp"
             />
     </Constraint>
 
@@ -52,11 +58,30 @@
         android:id="@+id/date">
         <Layout
             android:layout_width="wrap_content"
-            android:layout_height="@dimen/new_qs_header_non_clickable_element_height"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/carrier_group"
+            android:layout_height="@dimen/large_screen_shade_header_min_height"
+            android:layout_marginStart="12dp"
+            app:layout_constraintWidth_min="48dp"
+            app:layout_constraintStart_toStartOf="@id/begin_guide"
+            app:layout_constraintTop_toBottomOf="@id/clock"
         />
+        <Transform
+            android:translationY="@dimen/qs_status_bar_date_margin_top"
+            />
+    </Constraint>
+
+    <Constraint
+        android:id="@+id/ax_qs_actions">
+        <Layout
+            android:layout_width="wrap_content"
+            android:layout_height="0dp"
+            app:layout_constraintEnd_toEndOf="@id/end_guide"
+            app:layout_constraintTop_toTopOf="@id/date"
+            app:layout_constraintBottom_toBottomOf="@id/date"
+        />
+        <PropertySet android:alpha="1" />
+        <Transform
+            android:translationY="@dimen/qs_status_bar_date_margin_top"
+            />
     </Constraint>
 
     <!-- ShadeHeaderController helps with managing clock width to layout this view -->
@@ -68,25 +93,29 @@
             app:layout_constraintWidth_min="48dp"
             app:layout_constraintWidth_default="wrap"
             app:layout_constraintStart_toStartOf="@id/clock"
-            app:layout_constraintTop_toBottomOf="@id/privacy_container"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintBottom_toTopOf="@id/batteryRemainingIcon"
+            app:layout_constraintBottom_toBottomOf="@id/privacy_container"
             />
         <PropertySet
-            android:alpha="1"
+            android:alpha="0"
             />
     </Constraint>
 
     <Constraint
         android:id="@+id/shade_header_system_icons">
         <Layout
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="@dimen/new_qs_header_non_clickable_element_height"
-            app:layout_constraintWidth_default="wrap"
-            app:layout_constraintStart_toEndOf="@id/date"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="@id/date"
-            app:layout_constraintBottom_toBottomOf="@id/date"
+            android:layout_marginEnd="12dp"
+            app:layout_constraintHeight_min="@dimen/new_qs_header_non_clickable_element_height"
+            app:layout_constraintWidth_min="48dp"
+            app:layout_constraintEnd_toEndOf="@id/end_guide"
+            app:layout_constraintTop_toTopOf="@id/clock"
+            app:layout_constraintBottom_toBottomOf="@id/clock"
+            app:layout_constraintHorizontal_bias="1"
+            />
+        <Transform
+            android:translationY="34dp"
             />
     </Constraint>
 

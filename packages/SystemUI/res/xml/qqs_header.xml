@@ -26,26 +26,31 @@
         <Layout
             android:layout_width="wrap_content"
             android:layout_height="@dimen/large_screen_shade_header_min_height"
+            android:layout_marginTop="@dimen/qqs_status_bar_margin_top"
+            android:layout_marginStart="12dp"
             app:layout_constraintStart_toStartOf="@id/begin_guide"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="@id/qqs_header_bottom_guideline"
-            app:layout_constraintEnd_toStartOf="@id/date"
             app:layout_constraintHorizontal_bias="0"
             app:layout_constraintHorizontal_chainStyle="packed"
         />
+        <CustomAttribute
+            app:attributeName="letterSpacing"
+            app:customFloatValue="0"/>
         <Transform
             android:scaleX="1"
             android:scaleY="1"
+            android:translationY="0dp"
             />
     </Constraint>
 
     <Constraint
         android:id="@+id/date">
         <Layout
+            android:textSize="@dimen/qqs_status_bar_text_size"
             android:layout_width="wrap_content"
             android:layout_height="@dimen/new_qs_header_non_clickable_element_height"
-            android:layout_marginStart="8dp"
-            app:layout_constrainedWidth="true"
+            android:layout_marginStart="2dp"
+            app:layout_constraintWidth_min="48dp"
             app:layout_constraintStart_toEndOf="@id/clock"
             app:layout_constraintEnd_toStartOf="@id/barrier"
             app:layout_constraintBaseline_toBaselineOf="@id/clock"
@@ -58,13 +63,17 @@
         <Layout
             android:layout_width="wrap_content"
             android:layout_height="@dimen/new_qs_header_non_clickable_element_height"
+            android:layout_marginEnd="12dp"
             app:layout_constraintHeight_min="@dimen/new_qs_header_non_clickable_element_height"
+            app:layout_constraintWidth_min="48dp"
             app:layout_constraintStart_toEndOf="@id/date"
             app:layout_constraintEnd_toEndOf="@id/end_guide"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="@id/qqs_header_bottom_guideline"
+            app:layout_constraintBottom_toBottomOf="@id/date"
             app:layout_constraintHorizontal_bias="1"
             app:layout_constraintHorizontal_chainStyle="packed"
+            />
+        <Transform
+            android:translationY="0dp"
             />
     </Constraint>
 
@@ -87,11 +96,26 @@
         <Layout
             android:layout_width="wrap_content"
             android:layout_height="@dimen/large_screen_shade_header_min_height"
+            android:layout_marginEnd="12dp"
+            app:layout_constraintWidth_min="48dp"
             app:layout_constraintStart_toEndOf="@id/date"
             app:layout_constraintEnd_toEndOf="@id/end_guide"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="@id/qqs_header_bottom_guideline"
             app:layout_constraintHorizontal_bias="1"
         />
+    </Constraint>
+
+    <Constraint
+        android:id="@+id/ax_qs_actions">
+        <Layout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintEnd_toEndOf="@id/end_guide"
+            app:layout_constraintTop_toTopOf="parent"
+        />
+        <Transform
+            android:translationY="0dp"
+            />
+        <PropertySet android:alpha="0" />
     </Constraint>
 </ConstraintSet>

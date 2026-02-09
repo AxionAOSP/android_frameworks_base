@@ -187,6 +187,28 @@ constructor(
 
     var squishinessFraction by mutableStateOf(1f)
 
+    val isLargeScreenHeader by
+        hydrator.hydratedStateOf(
+            traceName = "isLargeScreenHeader",
+            initialValue = false,
+            source =
+                configurationInteractor.onAnyConfigurationChange.map {
+                    val isLargeScreenHeader = LargeScreenUtils.shouldUseLargeScreenShadeHeader(resources)
+                    isLargeScreenHeader
+                },
+        )
+
+    val isTabletPortrait by
+        hydrator.hydratedStateOf(
+            traceName = "isTabletPortrait",
+            initialValue = false,
+            source =
+                configurationInteractor.onAnyConfigurationChange.map {
+                    val isLargeScreenHeader = LargeScreenUtils.shouldUseLargeScreenShadeHeader(resources)
+                    isLargeScreenHeader && !isInSplitShade
+                },
+        )
+
     val qqsHeaderHeight by
         hydrator.hydratedStateOf(
             traceName = "qqsHeaderHeight",

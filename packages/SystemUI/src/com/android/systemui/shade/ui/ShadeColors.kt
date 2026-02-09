@@ -17,6 +17,7 @@
 package com.android.systemui.shade.ui
 
 import android.content.Context
+import android.graphics.Color
 import com.android.internal.graphics.ColorUtils
 import com.android.systemui.res.R
 
@@ -56,19 +57,18 @@ object ShadeColors {
 
     @JvmStatic
     fun shadePanelScrimBehind(context: Context): Int {
-        return context.resources.getColor(
-            com.android.internal.R.color.shade_panel_scrim,
-            context.theme,
-        )
+        return Color.TRANSPARENT
     }
 
     @JvmStatic
     private fun shadePanelStandard(context: Context): Int {
-        val layerAbove =
-            context.resources.getColor(com.android.internal.R.color.shade_panel_fg, context.theme)
-        val layerBelow =
-            context.resources.getColor(com.android.internal.R.color.shade_panel_bg, context.theme)
-        return ColorUtils.compositeColors(layerAbove, layerBelow)
+        val color = ColorUtils.blendARGB(
+            context.resources.getColor(R.color.ax_scrim_behind_blur_1, context.theme), 
+            context.resources.getColor(R.color.ax_scrim_behind_blur_2, context.theme), 
+            0.5f
+        )
+        val alpha = context.resources.getFloat(R.dimen.config_shadePanelAlpha)
+        return ColorUtils.setAlphaComponent(color, (alpha * 255).toInt())
     }
 
     @JvmStatic
@@ -83,7 +83,10 @@ object ShadeColors {
     @JvmStatic
     private fun notificationScrimStandard(context: Context): Int {
         return ColorUtils.setAlphaComponent(
-            context.getColor(R.color.notification_scrim_base),
+            context.resources.getColor(
+                com.android.internal.R.color.materialColorSurfaceContainer,
+                context.theme,
+            ),
             (0.5f * 255).toInt(),
         )
     }

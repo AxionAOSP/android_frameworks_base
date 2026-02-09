@@ -307,7 +307,7 @@ constructor(
             override fun onConfigChanged(newConfig: Configuration?) {
                 val left =
                     header.resources.getDimensionPixelSize(
-                        R.dimen.large_screen_shade_header_left_padding
+                        R.dimen.qs_header_padding
                     )
                 header.setPadding(
                     left,
@@ -517,6 +517,7 @@ constructor(
             .setDuration(duration)
             .alpha(if (show) 0f else 1f)
             .setInterpolator(if (show) Interpolators.ALPHA_OUT else Interpolators.ALPHA_IN)
+            .translationY(if (show) -getResources().getDimension(R.dimen.qqs_status_bar_margin_top) else 0.0f)
             .setListener(CustomizerAnimationListener(show))
             .start()
     }
@@ -714,7 +715,8 @@ constructor(
     private fun updateResources() {
         roundedCorners = resources.getDimensionPixelSize(R.dimen.rounded_corner_content_padding)
         val padding = resources.getDimensionPixelSize(R.dimen.qs_panel_padding)
-        header.setPadding(padding, header.paddingTop, padding, header.paddingBottom)
+        val headerPadding = resources.getDimensionPixelSize(R.dimen.qs_header_padding)
+        header.setPadding(headerPadding, header.paddingTop, padding, header.paddingBottom)
         updateQQSPaddings()
         qsBatteryModeController.updateResources()
     }

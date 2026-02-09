@@ -20,4 +20,17 @@
     <dimen name="qs_media_session_enabled_seekbar_vertical_padding_bottom">9.2989dp</dimen>
     <dimen name="qs_media_text_size_12">9.2989dp</dimen>
     <dimen name="qs_media_action_48">37.1956dp</dimen>
+    
+    <!-- QS -->
+    <dimen name="ax_qs_action_btn_size">32dp</dimen>
+    <dimen name="ax_qs_action_icon_size">18dp</dimen>
+    <dimen name="ax_qs_content_padding">10dp</dimen>
+    <dimen name="ax_qs_panel_offset">36dp</dimen>
+    <dimen name="qs_header_padding">16dp</dimen>
+    <dimen name="qs_status_bar_margin_top">8dp</dimen>
+    <dimen name="qs_status_bar_date_margin_top">20dp</dimen>
+    <dimen name="qs_status_bar_large_screen_date_margin_start">9dp</dimen>
+    <dimen name="qs_status_bar_large_screen_date_privacy_margin">24dp</dimen>
+    <dimen name="qqs_status_bar_margin_top">4dp</dimen>
+    <dimen name="qqs_status_bar_text_size">15dp</dimen>
 </resources>

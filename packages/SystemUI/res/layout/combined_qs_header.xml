@@ -74,7 +74,7 @@ frame when animating QS <-> QQS transition
         android:layout_height="wrap_content"
         android:id="@+id/barrier"
         app:barrierDirection="start"
-        app:constraint_referenced_ids="shade_header_system_icons,privacy_container" />
+        app:constraint_referenced_ids="shade_header_system_icons"/>
 
     <com.android.systemui.statusbar.policy.Clock
         android:id="@+id/clock"
@@ -85,11 +85,12 @@ frame when animating QS <-> QQS transition
         android:paddingEnd="@dimen/status_bar_left_clock_end_padding"
         android:singleLine="true"
         android:textDirection="locale"
-        android:textAppearance="@style/TextAppearance.QS.Status.Clock"
+        android:textAppearance="@style/TextAppearance.QS.Status.AX_CLOCK_Roboto"
         android:transformPivotX="0dp"
-        android:transformPivotY="24dp"
+        android:transformPivotY="0dp"
         android:scaleX="1"
         android:scaleY="1"
+        android:translationY="0dp"
     />
 
     <com.android.systemui.statusbar.policy.VariableDateView
@@ -100,7 +101,7 @@ frame when animating QS <-> QQS transition
         android:gravity="center_vertical"
         android:singleLine="true"
         android:textDirection="locale"
-        android:textAppearance="@style/TextAppearance.QS.Status"
+        android:textAppearance="@style/TextAppearance.QS.Status.AX_DATE_Roboto"
         app:longDatePattern="@string/abbrev_wday_month_day_no_year_alarm"
         app:shortDatePattern="@string/abbrev_month_day_no_year"
     />
@@ -108,6 +109,7 @@ frame when animating QS <-> QQS transition
     <include
         android:id="@+id/carrier_group"
         layout="@layout/shade_carrier_group"
+        android:visibility="invisible"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_gravity="end|center_vertical"
@@ -124,7 +126,8 @@ frame when animating QS <-> QQS transition
         android:layout_height="@dimen/shade_header_system_icons_height"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="@id/privacy_container"
-        app:layout_constraintTop_toTopOf="@id/clock">
+        app:layout_constraintTop_toTopOf="@id/clock"
+        android:translationY="0dp">
         <LinearLayout
             android:id="@+id/hover_system_icons_container"
             android:layout_width="wrap_content"
@@ -138,6 +141,8 @@ frame when animating QS <-> QQS transition
 
             <com.android.systemui.statusbar.phone.StatusIconContainer
                 android:id="@+id/statusIcons"
+                android:tag="qs"
+                android:clipChildren="false"
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="wrap_content"
@@ -148,11 +153,19 @@ frame when animating QS <-> QQS transition
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:visibility="gone"
-                app:textAppearance="@style/TextAppearance.QS.Status" />
+                app:textAppearance="@style/TextAppearance.QS.Status.AX_BATTERY" />
         </LinearLayout>
     </FrameLayout>
 
-    <FrameLayout
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/ax_qs_actions"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:alpha="0"
+        android:translationY="0dp"
+    />
+
+    <LinearLayout
         android:id="@+id/privacy_container"
         android:layout_width="wrap_content"
         android:layout_height="@dimen/large_screen_shade_header_min_height"
@@ -165,6 +178,6 @@ frame when animating QS <-> QQS transition
             android:layout_width="wrap_content"
             android:layout_height="match_parent" />
 
-    </FrameLayout>
+    </LinearLayout>
 
 </com.android.systemui.util.NoRemeasureMotionLayout>

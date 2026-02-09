@@ -26,4 +26,7 @@
     <!-- Accessibility floating menu -->
     <dimen name="accessibility_floating_menu_stroke_width">1dp</dimen>
     <dimen name="accessibility_floating_menu_stroke_inset">-2dp</dimen>
+    
+    <!-- Alpha value for the shade panel scrim percent -->
+    <item name="config_shadePanelAlpha" format="float" type="dimen">0.9</item>
 </resources>
