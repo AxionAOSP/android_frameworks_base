@@ -93,6 +93,7 @@ import com.android.systemui.common.shared.model.Icon
 import com.android.systemui.common.ui.compose.Icon
 import com.android.systemui.common.ui.compose.load
 import com.android.systemui.compose.modifiers.sysuiResTag
+import com.android.systemui.qs.composefragment.LocalBlurEnabled
 import com.android.systemui.qs.footer.ui.compose.FooterActionsDefaults.FOOTER_TEXT_FADE_DURATION_MILLIS
 import com.android.systemui.qs.footer.ui.compose.FooterActionsDefaults.FOOTER_TEXT_MINIMUM_SCALE_Y
 import com.android.systemui.qs.footer.ui.compose.FooterActionsDefaults.FooterButtonHeight
@@ -690,7 +691,7 @@ private object FooterActionsDefaults {
     fun inactiveButtonColors(): ButtonColors =
         ButtonColors(
             icon = MaterialTheme.colorScheme.onSurface,
-            background = LocalAndroidColorScheme.current.surfaceEffect1,
+            background = footerSurfaceColors(),
         )
 
     @Composable
@@ -698,7 +699,7 @@ private object FooterActionsDefaults {
     fun userSwitcherButtonColors(): ButtonColors =
         ButtonColors(
             icon = Color.Unspecified,
-            background = LocalAndroidColorScheme.current.surfaceEffect1,
+            background = footerSurfaceColors(),
         )
 
     @Composable
@@ -706,7 +707,7 @@ private object FooterActionsDefaults {
     fun blurTextButtonColors(): TextButtonColors =
         TextButtonColors(
             content = MaterialTheme.colorScheme.onSurface,
-            background = LocalAndroidColorScheme.current.surfaceEffect1,
+            background = footerSurfaceColors(),
             border = null,
         )
 
@@ -727,4 +728,15 @@ private object FooterActionsDefaults {
             background = colorAttr(R.attr.shadeInactive),
             border = null,
         )
+
+    @Composable
+    @ReadOnlyComposable
+    fun footerSurfaceColors(): Color {
+        val blurEnabled = LocalBlurEnabled.current
+        return if (blurEnabled) {
+            LocalAndroidColorScheme.current.surfaceEffect1
+        } else {
+            MaterialTheme.colorScheme.surfaceBright
+        }
+    }
 }

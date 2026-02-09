@@ -83,6 +83,7 @@ import com.android.compose.theme.LocalAndroidColorScheme
 import com.android.mechanics.compose.modifier.verticalFadeContentReveal
 import com.android.mechanics.compose.modifier.verticalTactileSurfaceReveal
 import com.android.systemui.Flags
+import com.android.systemui.qs.composefragment.LocalBlurEnabled
 import com.android.systemui.animation.Expandable
 import com.android.systemui.common.shared.model.Icon
 import com.android.systemui.haptics.msdl.qs.TileHapticsViewModel
@@ -482,6 +483,17 @@ private object TileDefaults {
     val ActiveIconCornerRadius = 16.dp
     val ActiveTileCornerRadius = 24.dp
 
+    @Composable
+    @ReadOnlyComposable
+    fun backgroundTileColors(): Color {
+        val blurEnabled = LocalBlurEnabled.current
+        return if (blurEnabled) {
+            LocalAndroidColorScheme.current.surfaceEffect1
+        } else {
+            MaterialTheme.colorScheme.surfaceBright
+        }
+    }
+
     /** An active tile uses the active color as background */
     @Composable
     @ReadOnlyComposable
@@ -499,7 +511,7 @@ private object TileDefaults {
     @ReadOnlyComposable
     fun activeDualTargetTileColors(): TileColors =
         TileColors(
-            background = LocalAndroidColorScheme.current.surfaceEffect1,
+            background = backgroundTileColors(),
             iconBackground = MaterialTheme.colorScheme.primary,
             label = MaterialTheme.colorScheme.onSurface,
             secondaryLabel = MaterialTheme.colorScheme.onSurface,
@@ -510,7 +522,7 @@ private object TileDefaults {
     @ReadOnlyComposable
     fun inactiveDualTargetTileColors(): TileColors =
         TileColors(
-            background = LocalAndroidColorScheme.current.surfaceEffect1,
+            background = backgroundTileColors(),
             iconBackground = LocalAndroidColorScheme.current.surfaceEffect2,
             label = MaterialTheme.colorScheme.onSurface,
             secondaryLabel = MaterialTheme.colorScheme.onSurface,
@@ -521,7 +533,7 @@ private object TileDefaults {
     @ReadOnlyComposable
     fun inactiveTileColors(): TileColors =
         TileColors(
-            background = LocalAndroidColorScheme.current.surfaceEffect1,
+            background = backgroundTileColors(),
             iconBackground = Color.Transparent,
             label = MaterialTheme.colorScheme.onSurface,
             secondaryLabel = MaterialTheme.colorScheme.onSurface,
@@ -531,15 +543,28 @@ private object TileDefaults {
     @Composable
     @ReadOnlyComposable
     fun unavailableTileColors(): TileColors {
-        val surfaceColor = MaterialTheme.colorScheme.surface.copy(alpha = .18f)
-        val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .38f)
-        return TileColors(
-            background = surfaceColor,
-            iconBackground = surfaceColor,
-            label = onSurfaceVariantColor,
-            secondaryLabel = onSurfaceVariantColor,
-            icon = onSurfaceVariantColor,
-        )
+        val blurEnabled = LocalBlurEnabled.current
+        if (blurEnabled) {
+            val surfaceColor = MaterialTheme.colorScheme.surface.copy(alpha = .18f)
+            val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .38f)
+            return TileColors(
+                background = surfaceColor,
+                iconBackground = surfaceColor,
+                label = onSurfaceVariantColor,
+                secondaryLabel = onSurfaceVariantColor,
+                icon = onSurfaceVariantColor,
+            )
+        } else {
+            val bgColor = MaterialTheme.colorScheme.surfaceBright.copy(alpha = .38f)
+            val textColor = MaterialTheme.colorScheme.onSurface.copy(alpha = .38f)
+            return TileColors(
+                background = bgColor,
+                iconBackground = bgColor,
+                label = textColor,
+                secondaryLabel = textColor,
+                icon = textColor,
+            )
+        }
     }
 
     @Composable
