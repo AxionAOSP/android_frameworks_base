@@ -45,8 +45,6 @@ final class BlurController {
     // drawing and only receives binder calls that don't need synchronization with the rest of WM
     private final Object mLock = new Object();
     private volatile boolean mBlurEnabled;
-    private boolean mInPowerSaveMode;
-    private boolean mDisabledByThermal;
     private boolean mBlurDisabledSetting;
     private boolean mTunnelModeEnabled = false;
 
@@ -62,21 +60,6 @@ final class BlurController {
     BlurController(Context context, PowerManager powerManager) {
         mContext = context;
 
-        IntentFilter filter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
-        filter.addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED);
-        context.registerReceiverForAllUsers(new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                if (PowerManager.ACTION_POWER_SAVE_MODE_CHANGED.equals(intent.getAction())) {
-                    // onReceive always gets called on the same thread, so there is no
-                    // multi-threaded execution here. Thus, we don't have to hold mLock here.
-                    mInPowerSaveMode = powerManager.isPowerSaveMode();
-                    updateBlurEnabled();
-                }
-            }
-        }, filter, null, null);
-        mInPowerSaveMode = powerManager.isPowerSaveMode();
-
         context.getContentResolver().registerContentObserver(
                 Settings.Global.getUriFor(Settings.Global.DISABLE_WINDOW_BLURS), false,
                 new ContentObserver(null) {
@@ -90,12 +73,6 @@ final class BlurController {
                     }
                 });
         mBlurDisabledSetting = getBlurDisabledSetting();
-
-        powerManager.addThermalStatusListener((status) -> {
-            mDisabledByThermal = status >= THERMAL_STATUS_SEVERE;
-            updateBlurEnabled();
-        });
-        mDisabledByThermal = powerManager.getCurrentThermalStatus() >= THERMAL_STATUS_SEVERE;
 
         TunnelModeEnabledListener.register(mTunnelModeListener);
 
@@ -120,7 +97,7 @@ final class BlurController {
     private void updateBlurEnabled() {
         synchronized (mLock) {
             final boolean newEnabled = CROSS_WINDOW_BLUR_SUPPORTED && !mBlurDisabledSetting
-                    && !mInPowerSaveMode && !mTunnelModeEnabled && !mDisabledByThermal;
+                     && !mTunnelModeEnabled;
             if (mBlurEnabled == newEnabled) {
                 return;
             }
