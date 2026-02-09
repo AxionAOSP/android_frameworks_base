@@ -33,6 +33,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -82,6 +83,7 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -98,6 +100,8 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.app.tracing.coroutines.launchTraced as launch
+import com.android.compose.PlatformSlider
+import com.android.compose.PlatformSliderDefaults
 import com.android.compose.modifiers.padding
 import com.android.compose.modifiers.sliderPercentage
 import com.android.compose.modifiers.thenIf
@@ -124,12 +128,15 @@ import com.android.systemui.haptics.slider.SeekableSliderTrackerConfig
 import com.android.systemui.haptics.slider.SliderHapticFeedbackConfig
 import com.android.systemui.haptics.slider.compose.ui.SliderHapticsViewModel
 import com.android.systemui.lifecycle.rememberViewModel
+import com.android.systemui.qs.composefragment.LocalBlurEnabled
 import com.android.systemui.qs.ui.compose.borderOnFocus
 import com.android.systemui.res.R
 import com.android.systemui.utils.PolicyRestriction
 import lineageos.providers.LineageSettings
 import platform.test.motion.compose.values.MotionTestValueKey
 import platform.test.motion.compose.values.motionTestValues
+
+private const val useAxBrightnessSlider = true
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -184,6 +191,92 @@ fun BrightnessSlider(
             }
         }
     val context = LocalContext.current
+
+    if (useAxBrightnessSlider) {
+        val axIconRes = if (autoMode) R.drawable.ic_qs_brightness_auto_on else iconRes
+        val axIconSize = 56.dp
+        val iconTapScope = rememberCoroutineScope()
+        val blurEnabled = LocalBlurEnabled.current
+        val sliderColors = if (blurEnabled) {
+            PlatformSliderDefaults.defaultPlatformSliderColors().copy(
+                trackColor = LocalAndroidColorScheme.current.surfaceEffect1,
+            )
+        } else {
+            PlatformSliderDefaults.defaultPlatformSliderColors().copy(
+                trackColor = MaterialTheme.colorScheme.surfaceBright,
+            )
+        }
+
+        Box(modifier = modifier) {
+            PlatformSlider(
+                value = animatedValue,
+                onValueChange = {
+                    if (enabled && !overriddenByAppState) {
+                        hapticsViewModel.onValueChange(it)
+                        value = it.toInt()
+                        onDrag(value)
+                    }
+                },
+                onValueChangeFinished = {
+                    if (enabled && !overriddenByAppState) {
+                        hapticsViewModel.onValueChangeEnded()
+                        onStop(value)
+                    }
+                },
+                valueRange = floatValueRange,
+                enabled = enabled,
+                interactionSource = interactionSource,
+                colors = sliderColors,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(axIconSize)
+                    .sysuiResTag("slider")
+                    .semantics(mergeDescendants = true) {
+                        this.text = AnnotatedString(contentDescription)
+                    }
+                    .sliderPercentage {
+                        (value - valueRange.first).toFloat() / (valueRange.last - valueRange.first)
+                    }
+                    .thenIf(isRestricted) {
+                        Modifier.clickable {
+                            if (restriction is PolicyRestriction.Restricted) {
+                                onRestrictedClick(restriction)
+                            }
+                        }
+                    },
+                icon = { _ ->
+                    Icon(
+                        painter = painterResource(axIconRes),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                    )
+                },
+            )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .size(axIconSize)
+                    .clip(CircleShape)
+                    .pointerInput(Unit) {
+                        detectTapGestures {
+                            iconTapScope.launch { onIconClick() }
+                        }
+                    }
+            )
+        }
+
+        val currentShowToast by rememberUpdatedState(showToast)
+        LaunchedEffect(interactionSource, overriddenByAppState) {
+            interactionSource.interactions.collect { interaction ->
+                if (interaction is DragInteraction.Start && overriddenByAppState) {
+                    currentShowToast()
+                }
+            }
+        }
+        return
+    }
+
     val painter: Painter by
         produceState<Painter>(
             initialValue = ColorPainter(Color.Transparent),
@@ -569,13 +662,15 @@ data class ContainerColors(val idleColor: Color, val mirrorColor: Color) {
         fun singleColor(color: Color) = ContainerColors(color, color)
 
         val defaultContainerColor: Color
-            @Composable @ReadOnlyComposable get() = colorResource(R.color.shade_panel_fallback)
+            @Composable @ReadOnlyComposable get() = colorResource(
+                com.android.internal.R.color.materialColorSurfaceContainer
+            )
     }
 }
 
 private object Dimensions {
     val SliderBackgroundFrameSize = DpSize(10.dp, 6.dp)
-    val SliderBackgroundRoundedCorner = 24.dp
+    val SliderBackgroundRoundedCorner = 100.dp
     val SliderTrackRoundedCorner = 12.dp
     val IconSize = DpSize(28.dp, 28.dp)
     val IconPadding = 6.dp
