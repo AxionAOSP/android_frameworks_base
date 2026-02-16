@@ -94,6 +94,7 @@ import com.android.systemui.statusbar.QsFrameTranslateController;
 import com.android.systemui.statusbar.StatusBarState;
 import com.android.systemui.statusbar.notification.domain.interactor.ActiveNotificationsInteractor;
 import com.android.systemui.statusbar.notification.stack.AmbientState;
+import com.android.systemui.statusbar.notification.stack.AxAmbientStateEx;
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayout;
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayoutController;
 import com.android.systemui.statusbar.notification.stack.StackStateAnimator;
@@ -1129,6 +1130,13 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         mDepthController.setQsPanelExpansion(qsExpansionFraction);
         mStatusBarKeyguardViewManager.setQsExpansion(qsExpansionFraction);
         mShadeRepository.setQsExpansion(qsExpansionFraction);
+
+        boolean qsExpanding = adjustedExpansionFraction != 0.0f
+                && adjustedExpansionFraction != 1.0f;
+        mNotificationStackScrollLayoutController.getView()
+                .updateProgressBarIndeterminateRunning(
+                        AxAmbientStateEx.getHideShelfForNotificationPanelExpandingNotComplete(),
+                        qsExpanding);
 
         // TODO (b/265193930): remove dependency on NPVC
         float shadeExpandedFraction = mBarState == KEYGUARD

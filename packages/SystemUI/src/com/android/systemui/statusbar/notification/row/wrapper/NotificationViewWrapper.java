@@ -439,4 +439,7 @@ public abstract class NotificationViewWrapper implements TransformableView {
      */
     public void setAnimationsRunning(boolean running) {
     }
+
+    public void setProgressBarIndeterminateAnimationRunning(boolean running) {
+    }
 }
