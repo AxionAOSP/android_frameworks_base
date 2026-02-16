@@ -153,7 +153,11 @@ public class ExpandableViewState extends ViewState {
 
             // apply height
             if (height != newHeight) {
-                expandableView.setFinalActualHeight(newHeight);
+                if (AxAmbientStateEx.getHideShelfForNotificationPanelExpandingNotComplete()) {
+                    expandableView.setActualHeight(newHeight, false);
+                } else {
+                    expandableView.setFinalActualHeight(newHeight);
+                }
             }
 
             // apply hiding sensitive

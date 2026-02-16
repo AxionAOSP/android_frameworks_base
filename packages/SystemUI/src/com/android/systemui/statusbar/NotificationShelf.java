@@ -21,6 +21,9 @@ import static com.android.systemui.Flags.notificationRowTransparency;
 import static com.android.systemui.Flags.physicalNotificationMovement;
 import static com.android.systemui.util.ColorUtilKt.hexColorString;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ObjectAnimator;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
@@ -105,6 +108,7 @@ public class NotificationShelf extends ActivatableNotificationView {
     private int mIndexOfFirstViewInShelf = -1;
     private float mCornerAnimationDistance;
     private float mActualWidth = -1;
+    private ObjectAnimator mFadeInAnimator;
     private int mMaxIconsOnLockscreen;
     private boolean mCanModifyColorOfNotifications;
     private boolean mCanInteract;
@@ -186,6 +190,46 @@ public class NotificationShelf extends ActivatableNotificationView {
 
     public NotificationIconContainer getShelfIcons() {
         return mShelfIcons;
+    }
+
+    public void setShelfIconsVisible(boolean visible) {
+        boolean currentlyVisible = mShelfIcons.getVisibility() == VISIBLE
+                && Float.compare(mShelfIcons.getAlpha(), 1.0f) == 0;
+
+        if (!visible && (currentlyVisible || mFadeInAnimator != null)) {
+            mShelfIcons.setVisibility(GONE);
+            if (mFadeInAnimator != null) {
+                mFadeInAnimator.cancel();
+                mFadeInAnimator = null;
+            }
+            mShelfIcons.setAlpha(1.0f);
+            return;
+        }
+
+        if (visible && !currentlyVisible && mFadeInAnimator == null) {
+            mFadeInAnimator = ObjectAnimator.ofFloat(mShelfIcons, View.ALPHA, 0.0f, 1.0f);
+            mFadeInAnimator.setDuration(200L);
+            mFadeInAnimator.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationStart(Animator animation) {
+                    mShelfIcons.setAlpha(0.0f);
+                    mShelfIcons.setVisibility(VISIBLE);
+                }
+
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    mShelfIcons.setAlpha(1.0f);
+                    mFadeInAnimator = null;
+                }
+
+                @Override
+                public void onAnimationCancel(Animator animation) {
+                    mShelfIcons.setAlpha(1.0f);
+                    mFadeInAnimator = null;
+                }
+            });
+            mFadeInAnimator.start();
+        }
     }
 
     @Override

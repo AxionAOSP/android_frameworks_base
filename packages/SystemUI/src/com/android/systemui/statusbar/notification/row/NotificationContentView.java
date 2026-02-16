@@ -2537,6 +2537,18 @@ public class NotificationContentView extends FrameLayout implements Notification
         return false;
     }
 
+    public void setProgressBarIndeterminateAnimationRunning(boolean running) {
+        if (mContractedWrapper != null) {
+            mContractedWrapper.setProgressBarIndeterminateAnimationRunning(running);
+        }
+        if (mExpandedWrapper != null) {
+            mExpandedWrapper.setProgressBarIndeterminateAnimationRunning(running);
+        }
+        if (mHeadsUpWrapper != null) {
+            mHeadsUpWrapper.setProgressBarIndeterminateAnimationRunning(running);
+        }
+    }
+
     public void setNotificationWhen(long whenMillis) {
         NotificationViewWrapper wrapper = getNotificationViewWrapper();
         if (wrapper instanceof NotificationHeaderViewWrapper headerViewWrapper) {

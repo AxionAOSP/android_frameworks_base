@@ -44,6 +44,7 @@ import com.android.internal.util.ContrastColorUtil;
 import com.android.internal.widget.NotificationActionListLayout;
 import com.android.systemui.Dependency;
 import com.android.systemui.UiOffloadThread;
+import com.android.systemui.statusbar.notification.stack.AxAmbientStateEx;
 import com.android.systemui.res.R;
 import com.android.systemui.statusbar.CrossFadeHelper;
 import com.android.systemui.statusbar.TransformableView;
@@ -190,6 +191,23 @@ public class NotificationTemplateViewWrapper extends NotificationHeaderViewWrapp
                 com.android.internal.R.id.notification_material_reply_container);
 
         updatePendingIntentCancellations();
+        setProgressBarIndeterminateAnimationRunning(
+                Dependency.get(AxAmbientStateEx.class)
+                        .isProgressBarIndeterminateAnimationRunning());
+    }
+
+    @Override
+    public void setProgressBarIndeterminateAnimationRunning(boolean running) {
+        if (mProgressBar == null) {
+            return;
+        }
+        StatusBarNotification sbn = NotificationBundleUi.isEnabled()
+                ? mRow.getEntryAdapter().getSbn()
+                : mRow.getEntryLegacy().getSbn();
+        if (sbn != null && sbn.getNotification().extras.getBoolean(
+                Notification.EXTRA_PROGRESS_INDETERMINATE, false)) {
+            mProgressBar.setIndeterminate(running);
+        }
     }
 
     @Nullable
