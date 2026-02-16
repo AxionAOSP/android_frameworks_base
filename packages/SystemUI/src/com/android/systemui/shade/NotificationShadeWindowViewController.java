@@ -74,7 +74,9 @@ import com.android.systemui.statusbar.NotificationShadeWindowController;
 import com.android.systemui.statusbar.SysuiStatusBarStateController;
 import com.android.systemui.statusbar.core.StatusBarConnectedDisplays;
 import com.android.systemui.statusbar.notification.domain.interactor.NotificationLaunchAnimationInteractor;
+import com.android.systemui.Dependency;
 import com.android.systemui.statusbar.notification.stack.AmbientState;
+import com.android.systemui.statusbar.notification.stack.AxAmbientStateEx;
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayout;
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayoutController;
 import com.android.systemui.statusbar.phone.CentralSurfaces;
@@ -459,6 +461,9 @@ public class NotificationShadeWindowViewController implements Dumpable {
                 if (mKeyguardUnlockAnimationController.isPlayingCannedUnlockAnimation()) {
                     // If this touch ended up unlocking the device, we want to cancel the touch
                     // immediately, so we don't cause swipe or expand animations afterwards.
+                    Log.w(TAG, "handleDispatchTouchEvent blocked by PlayingCannedUnlockAnimation");
+                    Dependency.get(AxAmbientStateEx.class)
+                            .setPlayingCannedUnlockAnimationCancelTouch(true);
                     cancelCurrentTouch();
                     return true;
                 }

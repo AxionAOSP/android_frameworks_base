@@ -137,8 +137,10 @@ import com.android.systemui.statusbar.notification.row.wrapper.NotificationViewW
 import com.android.systemui.statusbar.notification.shared.NotificationAddXOnHoverToDismiss;
 import com.android.systemui.statusbar.notification.shared.NotificationBundleUi;
 import com.android.systemui.statusbar.notification.shared.TransparentHeaderFix;
+import com.android.systemui.Dependency;
 import com.android.systemui.statusbar.notification.stack.AmbientState;
 import com.android.systemui.statusbar.notification.stack.AnimationProperties;
+import com.android.systemui.statusbar.notification.stack.AxAmbientStateEx;
 import com.android.systemui.statusbar.notification.stack.ExpandableViewState;
 import com.android.systemui.statusbar.notification.stack.MagneticRowListener;
 import com.android.systemui.statusbar.notification.stack.NotificationChildrenContainer;
@@ -4476,6 +4478,18 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
 
     @Override
     protected void dispatchDraw(Canvas canvas) {
+        if (getParent() instanceof NotificationStackScrollLayout) {
+            AmbientState ambientState = Dependency.get(AmbientState.class);
+            AxAmbientStateEx axAmbientStateEx = Dependency.get(AxAmbientStateEx.class);
+            if (!ambientState.isOnKeyguard()
+                    && (ambientState.isSwipingUp()
+                        || AxAmbientStateEx.getOptimizedNotificationPanelViewCollapse())
+                    && getViewState().getYTranslation() + getIntrinsicHeight() < 0.0f) {
+                axAmbientStateEx.setSkipDrawNotificationRowCount(
+                        axAmbientStateEx.getSkipDrawNotificationRowCount() + 1);
+                return;
+            }
+        }
         canvas.save();
         if (mExpandingClipPath != null && (mExpandAnimationRunning || mChildIsExpanding)) {
             // If we're launching a notification, let's clip if a clip rounded to the clipPath

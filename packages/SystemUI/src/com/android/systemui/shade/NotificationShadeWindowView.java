@@ -27,6 +27,7 @@ import android.annotation.DrawableRes;
 import android.annotation.LayoutRes;
 import android.annotation.Nullable;
 import android.content.Context;
+import android.util.Log;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -55,8 +56,10 @@ import android.view.accessibility.AccessibilityEvent;
 import com.android.app.viewcapture.ViewCaptureFactory;
 import com.android.internal.view.FloatingActionMode;
 import com.android.internal.widget.floatingtoolbar.FloatingToolbar;
+import com.android.systemui.Dependency;
 import com.android.systemui.scene.ui.view.WindowRootView;
 import com.android.systemui.shade.shared.flag.ShadeWindowGoesAround;
+import com.android.systemui.statusbar.notification.stack.AxAmbientStateEx;
 import com.android.systemui.statusbar.phone.ConfigurationForwarder;
 
 /**
@@ -69,6 +72,7 @@ public class NotificationShadeWindowView extends WindowRootView {
 
     // Implements the floating action mode for TextView's Cut/Copy/Past menu. Normally provided by
     // DecorView, but since this is a special window we have to roll our own.
+    private AxAmbientStateEx mAxAmbientStateEx;
     private View mFloatingActionModeOriginatingView;
     private ActionMode mFloatingActionMode;
     private FloatingToolbar mFloatingToolbar;
@@ -110,15 +114,37 @@ public class NotificationShadeWindowView extends WindowRootView {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (mAxAmbientStateEx == null) {
+            mAxAmbientStateEx = Dependency.get(AxAmbientStateEx.class);
+        }
+        AxAmbientStateEx axAmbientStateEx = mAxAmbientStateEx;
+        if (ev.getAction() == MotionEvent.ACTION_DOWN) {
+            axAmbientStateEx.setDispatchingDownTouchWithoutOtherEvent(true);
+        } else {
+            axAmbientStateEx.setDispatchingDownTouchWithoutOtherEvent(false);
+        }
+
         Boolean result = mInteractionEventHandler.handleDispatchTouchEvent(ev);
 
-        result = result != null ? result : super.dispatchTouchEvent(ev);
+        if (axAmbientStateEx.getPlayingCannedUnlockAnimationCancelTouch()
+                && ev.getAction() == MotionEvent.ACTION_DOWN
+                && (result == null || !result.booleanValue())) {
+            super.dispatchTouchEvent(ev);
+            axAmbientStateEx.setPlayingCannedUnlockAnimationCancelTouch(false);
+            Log.d(TAG, "run dispatchTouchEvent again to consume cancel");
+        }
 
-        TouchLogger.logDispatchTouch(TAG, ev, result);
+        try {
+            boolean handled = result != null ? result.booleanValue() : super.dispatchTouchEvent(ev);
+            TouchLogger.logDispatchTouch(TAG, ev, handled);
+            result = Boolean.valueOf(handled);
+        } catch (Exception e) {
+            Log.e(TAG, "dispatchTouchEvent error", e);
+        }
 
         mInteractionEventHandler.dispatchTouchEventComplete();
 
-        return result;
+        return result != null ? result.booleanValue() : true;
     }
 
     @Override

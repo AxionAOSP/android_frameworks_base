@@ -99,6 +99,7 @@ import com.android.keyguard.KeyguardUnfoldTransition;
 import com.android.keyguard.KeyguardUpdateMonitor;
 import com.android.keyguard.dagger.KeyguardStatusBarViewComponent;
 import com.android.systemui.DejankUtils;
+import com.android.systemui.Dependency;
 import com.android.systemui.Dumpable;
 import com.android.systemui.Flags;
 import com.android.systemui.Gefingerpoken;
@@ -180,6 +181,7 @@ import com.android.systemui.statusbar.notification.row.ExpandableView;
 import com.android.systemui.statusbar.notification.row.NotificationGutsManager;
 import com.android.systemui.statusbar.notification.stack.AmbientState;
 import com.android.systemui.statusbar.notification.stack.AnimationProperties;
+import com.android.systemui.statusbar.notification.stack.AxAmbientStateEx;
 import com.android.systemui.statusbar.notification.stack.NotificationListContainer;
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayout;
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayoutController;
@@ -550,6 +552,11 @@ public final class NotificationPanelViewController implements
     private boolean mInstantExpanding;
     private boolean mAnimateAfterExpanding;
     private boolean mIsFlinging;
+    private boolean mIsFlingToHeightAnimator;
+    private ValueAnimator mLastFlingAnimator;
+    private float mLastFlingVel;
+    private boolean mLastFlingExpand;
+    private boolean mTouchDownCancelAnimator;
     private String mViewName;
     private float mInitialExpandY;
     private float mInitialExpandX;
@@ -758,6 +765,7 @@ public final class NotificationPanelViewController implements
         mSplitShadeStateController = splitShadeStateController;
         mSplitShadeEnabled =
                 mSplitShadeStateController.shouldUseSplitNotificationShade(mResources);
+        Dependency.get(AxAmbientStateEx.class).setSplitShadeEnabled(mSplitShadeEnabled);
         mView.setWillNotDraw(!DEBUG_DRAWABLE);
         mShadeHeaderController = shadeHeaderController;
         mAnimateBack = predictiveBackAnimateShade();
@@ -1061,6 +1069,7 @@ public final class NotificationPanelViewController implements
                     mSplitShadeStateController.shouldUseSplitNotificationShade(mResources);
             final boolean splitShadeChanged = mSplitShadeEnabled != newSplitShadeEnabled;
             mSplitShadeEnabled = newSplitShadeEnabled;
+            Dependency.get(AxAmbientStateEx.class).setSplitShadeEnabled(mSplitShadeEnabled);
             mQsController.updateResources();
             mNotificationsQSContainerController.updateResources();
             updateKeyguardStatusViewAlignment();
@@ -1436,6 +1445,7 @@ public final class NotificationPanelViewController implements
             onFlingEnd(false /* cancelled */);
             return;
         }
+        boolean wasFlinging = mIsFlinging;
         mIsFlinging = true;
         // we want to perform an overshoot animation when flinging open
         final boolean addOverscroll =
@@ -1456,6 +1466,15 @@ public final class NotificationPanelViewController implements
             overshootAmount += mOverExpansion / mPanelFlingOvershootAmount;
         }
         ValueAnimator animator = createHeightAnimator(target, overshootAmount);
+        if (mHeightAnimator != null && mHeightAnimator == mLastFlingAnimator
+                && isSameFlingDirection(vel) && expand == mLastFlingExpand
+                && mHeightAnimator.isRunning()) {
+            mIsFlinging = wasFlinging;
+            return;
+        }
+        mLastFlingAnimator = animator;
+        mLastFlingVel = vel;
+        mLastFlingExpand = expand;
         if (expand) {
             maybeVibrateOnOpening(true /* openingWithTouch */);
             if (expandBecauseOfFalsing && vel < 0) {
@@ -1504,6 +1523,11 @@ public final class NotificationPanelViewController implements
 
             @Override
             public void onAnimationStart(Animator animation) {
+                if (!expand) {
+                    AxAmbientStateEx.setOptimizedNotificationPanelViewCollapse(true);
+                } else {
+                    AxAmbientStateEx.setHideShelfForPanelAnimation(true);
+                }
                 if (!mStatusBarStateController.isDozing()) {
                     mQsController.beginJankMonitoring(isFullyCollapsed());
                 }
@@ -1512,10 +1536,13 @@ public final class NotificationPanelViewController implements
             @Override
             public void onAnimationCancel(Animator animation) {
                 mCancelled = true;
+                AxAmbientStateEx.setHideShelfForPanelAnimation(false);
+                AxAmbientStateEx.setOptimizedNotificationPanelViewCollapse(false);
             }
 
             @Override
             public void onAnimationEnd(Animator animation) {
+                AxAmbientStateEx.setHideShelfForPanelAnimation(false);
                 if (shouldSpringBack && !mCancelled) {
                     // After the shade is flung open to an overscrolled state, spring back
                     // the shade by reducing section padding to 0.
@@ -1528,13 +1555,20 @@ public final class NotificationPanelViewController implements
         if (!mScrimController.isScreenOn()) {
             animator.setDuration(1);
         }
+        if (mIsFlingToHeightAnimator) {
+            stopHeightAnimator();
+        }
         setAnimator(animator);
         animator.start();
+        mIsFlingToHeightAnimator = true;
     }
 
     @VisibleForTesting
     void onFlingEnd(boolean cancelled) {
+        AxAmbientStateEx.setHideShelfForPanelAnimation(false);
+        AxAmbientStateEx.setOptimizedNotificationPanelViewCollapse(false);
         mIsFlinging = false;
+        mIsFlingToHeightAnimator = false;
         mExpectingSynthesizedDown = false;
         // No overshoot when the animation ends
         setOverExpansionInternal(0);
@@ -1552,6 +1586,19 @@ public final class NotificationPanelViewController implements
         // expandImmediate should be always reset at the end of animation
         mQsController.setExpandImmediate(false);
         mShadeRepository.setCurrentFling(null);
+    }
+
+    private void stopHeightAnimator() {
+        if (mHeightAnimator != null && mHeightAnimator.isRunning()) {
+            mHeightAnimator.cancel();
+        }
+    }
+
+    private boolean isSameFlingDirection(float vel) {
+        if (vel > 0.0f || mLastFlingVel > 0.0f) {
+            return vel >= 0.0f && mLastFlingVel >= 0.0f;
+        }
+        return true;
     }
 
     private boolean isInContentBounds(float x, float y) {
@@ -2848,6 +2895,11 @@ public final class NotificationPanelViewController implements
             mExpanding = true;
             mIsExpandingOrCollapsing = true;
             mQsController.onExpandingStarted(mQsController.getFullyExpanded());
+            AxAmbientStateEx.setHideShelfForNotificationPanelExpandingNotComplete(true);
+            mNotificationStackScrollLayoutController.getView()
+                    .updateProgressBarIndeterminateRunning(
+                            true /* panelExpanding */,
+                            false /* qsExpanding */);
         }
     }
 
@@ -2856,6 +2908,11 @@ public final class NotificationPanelViewController implements
         if (mExpanding) {
             mExpanding = false;
             onExpandingFinished();
+            AxAmbientStateEx.setHideShelfForNotificationPanelExpandingNotComplete(false);
+            mNotificationStackScrollLayoutController.getView()
+                    .updateProgressBarIndeterminateRunning(
+                            false /* panelExpanding */,
+                            false /* qsExpanding */);
         }
     }
 
@@ -3012,9 +3069,12 @@ public final class NotificationPanelViewController implements
             // touch has been intercepted already so flinging here is redundant
             if (mBarState == KEYGUARD && mExpandedFraction >= 1.0) {
                 mShadeLog.d("NPVC endMotionEvent - skipping fling on keyguard");
+            } else if (mTouchDownCancelAnimator && expand) {
+                fling(0.0f, false /* expand */, false /* isFalsing */);
             } else {
                 fling(vel, expand, isFalseTouch(x, y, interactionType));
             }
+            mTouchDownCancelAnimator = false;
             onTrackingStopped(expand);
             mUpdateFlingOnLayout = expand && mPanelClosedOnDown && !mHasLayoutedSinceDown;
             if (mUpdateFlingOnLayout) {
@@ -3742,10 +3802,21 @@ public final class NotificationPanelViewController implements
         public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft,
                 int oldTop, int oldRight, int oldBottom) {
             DejankUtils.startDetectingBlockingIpcs("NVP#onLayout");
-            updateExpandedHeightToMaxHeight();
+            boolean boundsChanged = left != oldLeft || top != oldTop
+                    || right != oldRight || bottom != oldBottom;
+            if (!boundsChanged && !mAmbientState.isOnKeyguard()
+                    && AxAmbientStateEx.getHideShelfForNotificationPanelExpandingNotComplete()) {
+                DejankUtils.stopDetectingBlockingIpcs("NVP#onLayout");
+                return;
+            }
+            if (!mKeyguardStateController.isShowing() || !mKeyguardStateController.isKeyguardGoingAway() || boundsChanged) {
+                updateExpandedHeightToMaxHeight();
+            }
             mHasLayoutedSinceDown = true;
             if (mUpdateFlingOnLayout) {
-                abortAnimations();
+                if (isTracking() || !mIsSpringBackAnimation || boundsChanged) {
+                    abortAnimations();
+                }
                 fling(mUpdateFlingVelocity);
                 mUpdateFlingOnLayout = false;
             }
@@ -3925,6 +3996,7 @@ public final class NotificationPanelViewController implements
                     mAnimatingOnDown = mHeightAnimator != null && !mIsSpringBackAnimation;
                     mMinExpandHeight = 0.0f;
                     mDownTime = mSystemClock.uptimeMillis();
+                    mTouchDownCancelAnimator = mAnimatingOnDown && isClosing();
                     if (mAnimatingOnDown && isClosing()) {
                         cancelHeightAnimator();
                         mTouchSlopExceeded = true;
@@ -4299,6 +4371,7 @@ public final class NotificationPanelViewController implements
                         // otherwise {@link NotificationStackScrollLayout}
                         // wrongly enables stack height updates at the start of lockscreen swipe-up
                         mAmbientState.setSwipingUp(h <= 0);
+                        stopHeightAnimator();
                         setExpandedHeightInternal(newHeight);
                     }
                     break;

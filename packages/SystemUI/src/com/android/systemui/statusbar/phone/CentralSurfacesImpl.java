@@ -107,6 +107,7 @@ import com.android.systemui.ActivityIntentHelper;
 import com.android.systemui.AutoReinflateContainer;
 import com.android.systemui.CoreStartable;
 import com.android.systemui.DejankUtils;
+import com.android.systemui.Dependency;
 import com.android.systemui.EventLogTags;
 import com.android.systemui.Flags;
 import com.android.systemui.InitController;
@@ -212,6 +213,7 @@ import com.android.systemui.statusbar.notification.headsup.HeadsUpManager;
 import com.android.systemui.statusbar.notification.init.NotificationsController;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow;
 import com.android.systemui.statusbar.notification.row.NotificationGutsManager;
+import com.android.systemui.statusbar.notification.stack.AxAmbientStateEx;
 import com.android.systemui.statusbar.notification.stack.NotificationListContainer;
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayout;
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayoutController;
@@ -2157,7 +2159,12 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
     private void updatePanelExpansionForKeyguard() {
         if (mState == StatusBarState.KEYGUARD && mBiometricUnlockController.getMode()
                 != BiometricUnlockController.MODE_WAKE_AND_UNLOCK && !mBouncerShowing) {
-            mShadeController.instantExpandShade();
+            AxAmbientStateEx axAmbientStateEx = Dependency.get(AxAmbientStateEx.class);
+            if (axAmbientStateEx.getIgnoreExpandShadeForKeyguard()) {
+                axAmbientStateEx.setIgnoreExpandShadeForKeyguard(false);
+            } else {
+                mShadeController.instantExpandShade();
+            }
         }
     }
 

@@ -57,11 +57,13 @@ import com.android.internal.logging.UiEventLogger;
 import com.android.settingslib.RestrictedLockUtils;
 import com.android.settingslib.RestrictedLockUtilsInternal;
 import com.android.settingslib.graph.SignalDrawable;
+import com.android.systemui.Dependency;
 import com.android.systemui.Dumpable;
 import com.android.systemui.animation.ActivityTransitionAnimator;
 import com.android.systemui.animation.Expandable;
 import com.android.systemui.plugins.ActivityStarter;
 import com.android.systemui.plugins.FalsingManager;
+import com.android.systemui.statusbar.notification.stack.AxAmbientStateEx;
 import com.android.systemui.plugins.qs.QSTile;
 import com.android.systemui.plugins.qs.QSTile.State;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
@@ -331,7 +333,10 @@ public abstract class QSTileImpl<TState extends State> implements QSTile, Lifecy
         final int eventId = mClickEventId++;
         mQSLogger.logTileLongClick(mTileSpec, mStatusBarStateController.getState(), mState.state,
                 eventId);
-        if (!mFalsingManager.isFalseLongTap(FalsingManager.LOW_PENALTY)) {
+        if (Dependency.get(AxAmbientStateEx.class).isDispatchingDownTouchWithoutOtherEvent()) {
+            mFalsingManager.isFalseLongTap(FalsingManager.LOW_PENALTY);
+            mHandler.obtainMessage(H.LONG_CLICK, eventId, 0, expandable).sendToTarget();
+        } else if (!mFalsingManager.isFalseLongTap(FalsingManager.LOW_PENALTY)) {
             mHandler.obtainMessage(H.LONG_CLICK, eventId, 0, expandable).sendToTarget();
         }
     }
