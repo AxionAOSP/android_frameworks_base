@@ -25,6 +25,7 @@ import androidx.annotation.Nullable;
 import com.android.internal.annotations.WeaklyReferencedCallback;
 import com.android.settingslib.fuelgauge.BatteryStatus;
 import com.android.systemui.plugins.keyguard.data.model.WeatherData;
+import com.android.systemui.plugins.keyguard.ui.clocks.ClockData;
 import com.android.systemui.statusbar.KeyguardIndicationController;
 
 import java.util.TimeZone;
@@ -342,4 +343,11 @@ public class KeyguardUpdateMonitorCallback {
      * On force is dismissible state changed.
      */
     public void onForceIsDismissibleChanged(boolean forceIsDismissible) { }
+    public void onClockDataChanged(ClockData data) { }
+    public void onQLPlaybackStateChanged(boolean play) { }
+    public void onQLMetadataChanged(String track, String artist, String packageName) { }
+    public void onNowPlayingUpdate(String nowPlayingText) { }
+    public void onNowPlayingUpdate(String nowPlayingText, android.app.PendingIntent tapAction) {
+        onNowPlayingUpdate(nowPlayingText);
+    }
 }

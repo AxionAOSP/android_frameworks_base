@@ -69,6 +69,14 @@ interface ClockEvents {
 
     /** Call with zen/dnd information */
     fun onZenDataChanged(data: ZenData)
+    fun onUiModeChanged(isDarkTheme: Boolean) {}
+    fun onDateChanged() {}
+    fun onClockDataChanged(data: ClockData) {}
+    fun onMetadataChanged(track: String, artist: String, packageName: String) {}
+    fun onPlaybackStateChanged(playing: Boolean) {}
+    fun onNowPlayingUpdate(nowPlayingText: String) {}
+    fun onClockLayoutChanged(isCentered: Boolean, isLargeClockVisible: Boolean) {}
+    fun onDepthEffectVisibilityChanged(visible: Boolean) {}
 }
 
 class ClockEventListeners {

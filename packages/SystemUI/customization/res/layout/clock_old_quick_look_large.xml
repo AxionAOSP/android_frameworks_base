@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.android.systemui.shared.clocks.view.OldQuickLookClockView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/old_quick_look_large_clock_view"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"/>

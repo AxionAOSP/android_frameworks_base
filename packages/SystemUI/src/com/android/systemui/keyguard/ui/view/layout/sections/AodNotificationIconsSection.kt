@@ -18,6 +18,10 @@
 package com.android.systemui.keyguard.ui.view.layout.sections
 
 import android.content.Context
+import android.database.ContentObserver
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.view.View.GONE
 import android.view.View.VISIBLE
@@ -45,6 +49,7 @@ import com.android.systemui.statusbar.ui.SystemBarUtilsState
 import com.android.systemui.util.ui.value
 import javax.inject.Inject
 import kotlinx.coroutines.DisposableHandle
+import com.android.systemui.shared.clocks.ClockSettingsRepository
 
 class AodNotificationIconsSection
 @Inject
@@ -62,13 +67,36 @@ constructor(
     private var nicBindingDisposable: DisposableHandle? = null
     private val nicId = R.id.aod_notification_icon_container
     private lateinit var nic: NotificationIconContainer
+    private var shouldCenterNic = true
+    private val clockSettingsObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean, uri: Uri?) {
+            updateShouldCenterNic()
+        }
+    }
+    private fun updateShouldCenterNic() {
+        val newShouldCenter = ClockSettingsRepository.shouldCenterIcons(context)
+        if (shouldCenterNic != newShouldCenter) {
+            shouldCenterNic = newShouldCenter
+            if (::nic.isInitialized) {
+                nic.setPaddingRelative(
+                    if (shouldCenterNic) 0
+                    else context.resources.getDimensionPixelSize(R.dimen.below_clock_padding_start_icons),
+                    0,
+                    0,
+                    0,
+                )
+            }
+        }
+    }
 
     override fun addViews(constraintLayout: ConstraintLayout) {
+        updateShouldCenterNic()
         nic =
             NotificationIconContainer(context, null).apply {
                 id = nicId
                 setPaddingRelative(
-                    resources.getDimensionPixelSize(R.dimen.below_clock_padding_start_icons),
+                    if (shouldCenterNic) 0
+                    else resources.getDimensionPixelSize(R.dimen.below_clock_padding_start_icons),
                     0,
                     resources.getDimensionPixelOffset(R.dimen.shelf_icon_container_padding),
                     0,
@@ -77,6 +105,17 @@ constructor(
             }
 
         constraintLayout.addView(nic)
+        ClockSettingsRepository.init(context)
+        context.contentResolver.registerContentObserver(
+            ClockSettingsRepository.clockFaceUri,
+            false,
+            clockSettingsObserver
+        )
+        context.contentResolver.registerContentObserver(
+            ClockSettingsRepository.alignmentUri,
+            false,
+            clockSettingsObserver
+        )
     }
 
     override fun bindData(constraintLayout: ConstraintLayout) {
@@ -111,12 +150,14 @@ constructor(
             setGoneMargin(nicId, BOTTOM, bottomMargin)
             setVisibility(nicId, if (isVisible.value) VISIBLE else GONE)
 
+            clear(nicId, START)
+            clear(nicId, END)
             if (PromotedNotificationUi.isEnabled && !isFullWidthShade) {
                 // Don't create a start constraint, so the icons can hopefully right-align.
             } else {
-                connect(nicId, START, PARENT_ID, START, horizontalMargin)
+                connect(nicId, START, PARENT_ID, START)
             }
-            connect(nicId, END, PARENT_ID, END, horizontalMargin)
+            connect(nicId, END, PARENT_ID, END)
 
             constrainHeight(nicId, height)
         }
@@ -125,5 +166,6 @@ constructor(
     override fun removeViews(constraintLayout: ConstraintLayout) {
         constraintLayout.removeView(nicId)
         nicBindingDisposable?.dispose()
+        context.contentResolver.unregisterContentObserver(clockSettingsObserver)
     }
 }

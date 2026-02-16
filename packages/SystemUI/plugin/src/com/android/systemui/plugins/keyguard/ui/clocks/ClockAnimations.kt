@@ -19,31 +19,31 @@ import com.android.systemui.plugins.annotations.ProtectedInterface
 @ProtectedInterface
 interface ClockAnimations {
     /** Runs an enter animation (if any) */
-    fun enter()
+    fun enter() {}
 
     /** Sets how far into AOD the device currently is. */
-    fun doze(fraction: Float)
+    fun doze(fraction: Float) {}
 
     /** Sets how far into the folding animation the device is. */
-    fun fold(fraction: Float)
+    fun fold(fraction: Float) {}
 
     /** Runs the battery animation (if any). */
-    fun charge()
+    fun charge() {}
 
     /** Runs when the clock's position changed during the move animation. */
-    fun onPositionAnimated(anim: ClockPositionAnimationArgs)
+    fun onPositionAnimated(anim: ClockPositionAnimationArgs) {}
 
     /**
      * Runs when swiping clock picker, swipingFraction: 1.0 -> clock is scaled up in the preview,
      * 0.0 -> clock is scaled down in the shade; previewRatio is previewSize / screenSize
      */
-    fun onPickerCarouselSwiping(swipingFraction: Float)
+    fun onPickerCarouselSwiping(swipingFraction: Float) {}
 
     /** Runs when an animation when the view is tapped on the lockscreen */
-    fun onFidgetTap(x: Float, y: Float)
+    fun onFidgetTap(x: Float, y: Float) {}
 
     /** Update reactive axes for this clock */
-    fun onFontAxesChanged(style: ClockAxisStyle)
+    fun onFontAxesChanged(style: ClockAxisStyle) {}
 }
 
 data class ClockPositionAnimationArgs(val fromLeft: Int, val direction: Int, val fraction: Float)

@@ -16,6 +16,7 @@
 package com.android.keyguard
 
 import android.R
+import android.app.PendingIntent
 import android.app.NotificationManager.zenModeFromInterruptionFilter
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -62,9 +63,12 @@ import com.android.systemui.plugins.keyguard.ui.clocks.ClockController
 import com.android.systemui.plugins.keyguard.ui.clocks.ClockEventListener
 import com.android.systemui.plugins.keyguard.ui.clocks.ClockFaceController
 import com.android.systemui.plugins.keyguard.ui.clocks.ClockFaceController.Companion.updateTheme
+import com.android.systemui.plugins.keyguard.ui.clocks.ClockData
+import com.android.systemui.shared.clocks.view.AxClockView
 import com.android.systemui.plugins.keyguard.ui.clocks.ClockMessageBuffers
 import com.android.systemui.plugins.keyguard.ui.clocks.ClockTickRate
 import com.android.systemui.plugins.keyguard.ui.clocks.TimeFormatKind
+import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.res.R as SysuiR
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.settings.UserTracker
@@ -74,6 +78,7 @@ import com.android.systemui.statusbar.policy.BatteryController.BatteryStateChang
 import com.android.systemui.statusbar.policy.ConfigurationController
 import com.android.systemui.statusbar.policy.ZenModeController
 import com.android.systemui.statusbar.policy.domain.interactor.ZenModeInteractor
+import com.android.systemui.util.ScrimUtils
 import com.android.systemui.util.annotations.DeprecatedSysuiVisibleForTesting
 import com.android.systemui.util.concurrency.DelayableExecutor
 import dagger.Lazy
@@ -102,6 +107,7 @@ constructor(
     private val keyguardUpdateMonitor: KeyguardUpdateMonitor,
     // TODO b/362719719 - We should use the configuration controller associated with the display.
     private val configurationController: ConfigurationController,
+    private val statusBarStateController: StatusBarStateController,
     @DisplaySpecific private val resources: Resources,
     @DisplaySpecific val context: Context,
     @Main private val mainExecutor: DelayableExecutor,
@@ -132,6 +138,8 @@ constructor(
         if (clock == null) {
             return
         }
+        (clock.smallClock.view as? AxClockView)?.onFidgetTapListener = null
+        (clock.largeClock.view as? AxClockView)?.onFidgetTapListener = null
         smallClockOnAttachStateChangeListener?.let {
             clock.smallClock.view.removeOnAttachStateChangeListener(it)
             smallClockFrame?.viewTreeObserver?.removeOnGlobalLayoutListener(onGlobalLayoutListener)
@@ -150,6 +158,9 @@ constructor(
 
         clock.eventListeners.attach(clockListener)
         clock.initialize(isDarkTheme(), dozeAmount.value, 0f)
+
+        (clock.smallClock.view as? AxClockView)?.onFidgetTapListener = ::handleFidgetTap
+        (clock.largeClock.view as? AxClockView)?.onFidgetTapListener = ::handleFidgetTap
 
         if (!regionSamplingEnabled) {
             updateColors()
@@ -187,6 +198,16 @@ constructor(
         }
         zenData?.let { clock.events.onZenDataChanged(it) }
         alarmData?.let { clock.events.onAlarmDataChanged(it) }
+        quickLookClockData?.let { clock.events.onClockDataChanged(it) }
+        if (qlMediaPlaying || qlTrack.isNotEmpty()) {
+            clock.events.onPlaybackStateChanged(qlMediaPlaying)
+            clock.events.onMetadataChanged(qlTrack, qlArtist, qlMediaPackage)
+        }
+        if (qlNowPlaying.isNotEmpty()) {
+            clock.events.onNowPlayingUpdate(qlNowPlaying)
+            (clock.smallClock.view as? AxClockView)?.quickLook?.nowPlayingTapActionFlow?.value = qlNowPlayingAction
+            (clock.largeClock.view as? AxClockView)?.quickLook?.nowPlayingTapActionFlow?.value = qlNowPlayingAction
+        }
 
         smallClockOnAttachStateChangeListener =
             object : OnAttachStateChangeListener {
@@ -257,6 +278,9 @@ constructor(
         context.theme.resolveAttribute(R.attr.isLightTheme, isLightTheme, true)
         return isLightTheme.data == 0
     }
+    private fun onClockUiModeChanged() {
+        clock?.run { events.onUiModeChanged(isDarkTheme()) }
+    }
 
     private fun updateColors() {
         val isDarkTheme = isDarkTheme()
@@ -276,6 +300,10 @@ constructor(
             logger.i({ "updateColors(isThemeDark = $bool1)" }) { bool1 = isDarkTheme }
             smallClock.updateTheme { it.copy(isDarkTheme = isDarkTheme) }
             largeClock.updateTheme { it.copy(isDarkTheme = isDarkTheme) }
+        }
+        clock?.run {
+            smallClock.events.onRegionDarknessChanged(isDarkTheme)
+            largeClock.events.onRegionDarknessChanged(isDarkTheme)
         }
     }
 
@@ -312,6 +340,13 @@ constructor(
     private var weatherData: WeatherData? = null
     private var zenData: ZenData? = null
     private var alarmData: AlarmData? = null
+    private var quickLookClockData: ClockData? = null
+    private var qlMediaPlaying: Boolean = false
+    private var qlTrack: String = ""
+    private var qlArtist: String = ""
+    private var qlMediaPackage: String = ""
+    private var qlNowPlaying: String = ""
+    private var qlNowPlayingAction: PendingIntent? = null
 
     private val clockListener =
         object : ClockEventListener {
@@ -337,6 +372,9 @@ constructor(
                 logger.i("onDensityOrFontScaleChanged")
                 updateFontSizes()
             }
+            override fun onUiModeChanged() {
+                onClockUiModeChanged()
+            }
         }
 
     private val batteryCallback =
@@ -355,9 +393,16 @@ constructor(
     private val localeBroadcastReceiver =
         object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
-                clock?.run {
-                    events.onLocaleChanged(Locale.getDefault())
-                    events.onTimeFormatChanged(getTimeFormatKind())
+                when (intent.action) {
+                    Intent.ACTION_LOCALE_CHANGED -> {
+                        clock?.run {
+                            events.onLocaleChanged(Locale.getDefault())
+                            events.onTimeFormatChanged(getTimeFormatKind())
+                        }
+                    }
+                    Intent.ACTION_DATE_CHANGED -> {
+                        clock?.run { events.onDateChanged() }
+                    }
                 }
             }
         }
@@ -391,6 +436,42 @@ constructor(
             override fun onWeatherDataChanged(data: WeatherData) {
                 weatherData = data
                 clock?.run { events.onWeatherDataChanged(data) }
+            }
+            override fun onClockDataChanged(data: ClockData) {
+                quickLookClockData = data
+                clock?.run { events.onClockDataChanged(data) }
+            }
+            override fun onQLPlaybackStateChanged(play: Boolean) {
+                qlMediaPlaying = play
+                clock?.run { events.onPlaybackStateChanged(play) }
+            }
+            override fun onQLMetadataChanged(track: String, artist: String, packageName: String) {
+                qlTrack = track
+                qlArtist = artist
+                qlMediaPackage = packageName
+                clock?.run {
+                    events.onMetadataChanged(track, artist, packageName)
+                }
+            }
+            override fun onNowPlayingUpdate(nowPlayingText: String, tapAction: PendingIntent?) {
+                qlNowPlaying = nowPlayingText
+                qlNowPlayingAction = tapAction
+                clock?.run {
+                    events.onNowPlayingUpdate(nowPlayingText)
+                    (smallClock.view as? AxClockView)?.quickLook?.nowPlayingTapActionFlow?.value = tapAction
+                    (largeClock.view as? AxClockView)?.quickLook?.nowPlayingTapActionFlow?.value = tapAction
+                }
+            }
+            override fun onStartedWakingUp() {
+                clock?.smallClock?.events?.onStartedWakingUp()
+                clock?.largeClock?.events?.onStartedWakingUp()
+            }
+            override fun onStartedGoingToSleep(why: Int) {
+                clock?.smallClock?.events?.onScreenOff(true)
+                clock?.largeClock?.events?.onScreenOff(true)
+                val keyguardVisible = ScrimUtils.get().isKeyguardShowing()
+                clock?.smallClock?.events?.onStartedGoingToSleep(keyguardVisible)
+                clock?.largeClock?.events?.onStartedGoingToSleep(keyguardVisible)
             }
 
             override fun onTimeChanged() {
@@ -436,6 +517,61 @@ constructor(
             }
         }
 
+    private val dozeCallback =
+            object : StatusBarStateController.StateListener {
+                override fun onDozingChanged(isDozing: Boolean) {
+                    clock?.smallClock?.events?.onDozeChanged(isDozing)
+                    clock?.largeClock?.events?.onDozeChanged(isDozing)
+                }
+                override fun onDozeAmountChanged(linear: Float, eased: Float) {
+                    clock?.smallClock?.events?.onDozeAmountChanged(linear, eased)
+                    clock?.largeClock?.events?.onDozeAmountChanged(linear, eased)
+                }
+                override fun onPulsingChanged(pulsing: Boolean) {
+                    clock?.smallClock?.events?.onPulsingChanged(pulsing)
+                    clock?.largeClock?.events?.onPulsingChanged(pulsing)
+                }
+            }
+    private var depthBlockedByFading = false
+    private var depthBlockedByGoingAway = false
+    private var depthBlockedByBouncer = false
+    private var depthBlockedByAlpha = false
+    private var depthBlockedByDozeAmount = false
+    private val depthScrimListener = object : ScrimUtils.ScrimEventListener {
+        override fun onKeyguardFadingAwayChanged(fadingAway: Boolean) {
+            depthBlockedByFading = fadingAway
+            updateDepthVisibility()
+        }
+        override fun onKeyguardGoingAwayChanged(goingAway: Boolean) {
+            depthBlockedByGoingAway = goingAway
+            updateDepthVisibility()
+        }
+        override fun onPrimaryBouncerShowingChanged(showing: Boolean) {
+            depthBlockedByBouncer = showing
+            updateDepthVisibility()
+        }
+        override fun onDozingChanged() {
+            updateDepthVisibility()
+        }
+        override fun onKeyguardShowingChanged(showing: Boolean) {
+            updateDepthVisibility()
+        }
+        override fun onKeyguardAlphaChanged(alpha: Float) {
+            depthBlockedByAlpha = alpha < 1f
+            updateDepthVisibility()
+        }
+    }
+    private fun updateDepthVisibility() {
+        val scrim = ScrimUtils.get()
+        val visible = scrim.isKeyguardShowing()
+            && !scrim.isDozing()
+            && !depthBlockedByFading
+            && !depthBlockedByGoingAway
+            && !depthBlockedByBouncer
+            && !depthBlockedByAlpha
+            && !depthBlockedByDozeAmount
+        clock?.events?.onDepthEffectVisibilityChanged(visible)
+    }
     private fun handleZenMode(zen: Int) {
         val mode = ZenMode.fromInt(zen)
         if (mode == null) {
@@ -478,14 +614,20 @@ constructor(
         isRegistered = true
         logger.i("registerListeners(isPreview = $isPreview)")
 
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_LOCALE_CHANGED)
+            addAction(Intent.ACTION_DATE_CHANGED)
+        }
         broadcastDispatcher.registerReceiver(
             localeBroadcastReceiver,
-            IntentFilter(Intent.ACTION_LOCALE_CHANGED),
+            filter,
         )
+        statusBarStateController.addCallback(dozeCallback)
         configurationController.addCallback(configListener)
         batteryController.addCallback(batteryCallback)
         keyguardUpdateMonitor.registerCallback(keyguardUpdateMonitorCallback)
         zenModeController.addCallback(zenModeCallback)
+        ScrimUtils.get().addListener(depthScrimListener)
         if (SceneContainerFlag.isEnabled) {
             handleDoze(
                 when (AOD) {
@@ -510,10 +652,12 @@ constructor(
         logger.i("unregisterListeners(isPreview = $isPreview)")
 
         broadcastDispatcher.unregisterReceiver(localeBroadcastReceiver)
+        statusBarStateController.removeCallback(dozeCallback)
         configurationController.removeCallback(configListener)
         batteryController.removeCallback(batteryCallback)
         keyguardUpdateMonitor.removeCallback(keyguardUpdateMonitorCallback)
         zenModeController.removeCallback(zenModeCallback)
+        ScrimUtils.get().removeListener(depthScrimListener)
         smallRegionSampler?.stopRegionSampler()
         largeRegionSampler?.stopRegionSampler()
         smallTimeListener?.stop()
@@ -579,7 +723,7 @@ constructor(
     }
 
     fun handleFidgetTap(x: Float, y: Float) {
-        if (isPreview) return
+        if (isPreview || isCharging) return
         clock?.run {
             smallClock.animations.onFidgetTap(x, y)
             largeClock.animations.onFidgetTap(x, y)
@@ -603,6 +747,12 @@ constructor(
         smallTimeListener?.update(doze < DOZE_TICKRATE_THRESHOLD)
         largeTimeListener?.update(doze < DOZE_TICKRATE_THRESHOLD)
         dozeAmount.value = doze
+
+        val blocked = doze > 0f && doze < 1f
+        if (depthBlockedByDozeAmount != blocked) {
+            depthBlockedByDozeAmount = blocked
+            updateDepthVisibility()
+        }
     }
 
     @DeprecatedSysuiVisibleForTesting

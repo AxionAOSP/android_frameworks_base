@@ -518,6 +518,7 @@ android_library {
         "//frameworks/libs/systemui:compilelib",
         "com.android.systemui.pods-api-aosp-handheld",
         "ax_platform_hooks",
+        "axquicklook-client",
         "SystemUI-res",
         "WifiTrackerLib",
         "WindowManager-Shell",

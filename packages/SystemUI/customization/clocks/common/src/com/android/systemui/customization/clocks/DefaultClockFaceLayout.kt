@@ -204,17 +204,13 @@ open class DefaultClockFaceLayout(val view: View) : ClockFaceLayout {
                 }
 
             constrainWidth(ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL, WRAP_CONTENT)
-            constrainHeight(
-                ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL,
-                res.getDimensionPixelSize(clocksR.dimen.small_clock_height),
-            )
+            constrainHeight(ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL, WRAP_CONTENT)
             connect(
                 ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL,
                 START,
                 PARENT_ID,
                 START,
-                res.getDimensionPixelSize(clocksR.dimen.clock_padding_start) +
-                    clockPreviewConfig.statusViewMarginHorizontal,
+                0,
             )
 
             val smallClockTopMargin = clockPreviewConfig.getSmallClockTopPadding()
