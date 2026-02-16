@@ -14,19 +14,13 @@
  * limitations under the License.
  */
 
-package com.android.systemui.dagger
+package com.android.systemui.ax
 
-import com.android.systemui.CoreStartable
-import com.android.systemui.ax.AxPlatformServiceImpl
-import dagger.Binds
-import dagger.Module
-import dagger.multibindings.ClassKey
-import dagger.multibindings.IntoMap
+import android.app.Service
+import android.content.Intent
+import android.os.IBinder
 
-@Module
-abstract class AxionStartableModule {
-    @Binds
-    @IntoMap
-    @ClassKey(AxPlatformServiceImpl::class)
-    abstract fun bindAxPlatformService(impl: AxPlatformServiceImpl): CoreStartable
+class AxPlatformBinderService : Service() {
+
+    override fun onBind(intent: Intent?): IBinder? = AxPlatformServiceImpl.sBinder
 }
