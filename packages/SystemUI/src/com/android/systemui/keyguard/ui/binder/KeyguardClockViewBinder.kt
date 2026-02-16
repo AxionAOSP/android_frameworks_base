@@ -113,15 +113,20 @@ object KeyguardClockViewBinder {
                     }
 
                     launch {
-                        viewModel.clockShouldBeCentered.collect {
-                            viewModel.currentClock.value?.let {
-                                if (it.largeClock.config.hasCustomPositionUpdatedAnimation) {
-                                    blueprintInteractor.refreshBlueprint(Type.DefaultClockStepping)
-                                } else {
-                                    blueprintInteractor.refreshBlueprint(Type.DefaultTransition)
+                        combine(
+                            viewModel.clockShouldBeCentered,
+                            viewModel.isLargeClockVisible
+                        ) { centered, large -> centered to large }
+                            .collect { (isCentered, isLargeVisible) ->
+                                viewModel.currentClock.value?.let { clock ->
+                                    clock.events.onClockLayoutChanged(isCentered, isLargeVisible)
+                                    if (clock.largeClock.config.hasCustomPositionUpdatedAnimation) {
+                                        blueprintInteractor.refreshBlueprint(Type.DefaultClockStepping)
+                                    } else {
+                                        blueprintInteractor.refreshBlueprint(Type.DefaultTransition)
+                                    }
                                 }
                             }
-                        }
                     }
 
                     launch {
@@ -277,7 +282,7 @@ object KeyguardClockViewBinder {
         clockSection.applyConstraints(constraintSet)
         if (animated) {
             set?.let { TransitionManager.beginDelayedTransition(rootView, it) }
-                ?: run { TransitionManager.beginDelayedTransition(rootView, defaultTransition) }
+                ?: run { TransitionManager.beginDelayedTransition(rootView) }
         }
         constraintSet.applyTo(rootView)
     }

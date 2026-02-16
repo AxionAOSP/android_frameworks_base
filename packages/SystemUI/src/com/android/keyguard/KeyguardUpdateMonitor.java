@@ -130,6 +130,7 @@ import com.android.systemui.biometrics.AuthController;
 import com.android.systemui.biometrics.FingerprintInteractiveToAuthProvider;
 import com.android.systemui.bouncer.domain.interactor.AlternateBouncerInteractor;
 import com.android.systemui.broadcast.BroadcastDispatcher;
+import com.android.systemui.quicklook.QuickLookClient;
 import com.android.systemui.communal.domain.interactor.CommunalSceneInteractor;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Background;
@@ -153,6 +154,7 @@ import com.android.systemui.keyguard.domain.interactor.ShowWhileAwakeReason;
 import com.android.systemui.keyguard.shared.constants.TrustAgentUiEvent;
 import com.android.systemui.log.SessionTracker;
 import com.android.systemui.plugins.keyguard.data.model.WeatherData;
+import com.android.systemui.plugins.keyguard.ui.clocks.ClockData;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
 import com.android.systemui.res.R;
 import com.android.systemui.scene.domain.interactor.SceneInteractor;
@@ -323,6 +325,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
         }
     };
     private final FaceWakeUpTriggersConfig mFaceWakeUpTriggersConfig;
+    private final QuickLookClient mQuickLookClient;
 
     private final Object mSimDataLockObject = new Object();
     HashMap<Integer, SimData> mSimDatasBySlotId = new HashMap<>();
@@ -449,6 +452,44 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
 
     private final Handler mHandler;
 
+    private final QuickLookClient.Callback mQuickLookCallback = new QuickLookClient.Callback() {
+        @Override
+        public void onClockDataChanged(ClockData data) {
+            for (int i = 0; i < mCallbacks.size(); i++) {
+                KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
+                if (cb != null) {
+                    cb.onClockDataChanged(data);
+                }
+            }
+        }
+        @Override
+        public void onQLPlaybackStateChanged(boolean play) {
+            for (int i = 0; i < mCallbacks.size(); i++) {
+                KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
+                if (cb != null) {
+                    cb.onQLPlaybackStateChanged(play);
+                }
+            }
+        }
+        @Override
+        public void onQLMetadataChanged(String track, String artist, String packageName) {
+            for (int i = 0; i < mCallbacks.size(); i++) {
+                KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
+                if (cb != null) {
+                    cb.onQLMetadataChanged(track, artist, packageName);
+                }
+            }
+        }
+        @Override
+        public void onNowPlayingUpdate(String nowPlayingText, android.app.PendingIntent tapAction) {
+            for (int i = 0; i < mCallbacks.size(); i++) {
+                KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
+                if (cb != null) {
+                    cb.onNowPlayingUpdate(nowPlayingText, tapAction);
+                }
+            }
+        }
+    };
     private final IBiometricEnabledOnKeyguardCallback mBiometricEnabledCallback =
             new IBiometricEnabledOnKeyguardCallback.Stub() {
                 @Override
@@ -834,6 +875,12 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
         if (occlusionChanged || showingChanged) {
             updateFingerprintListeningState(BIOMETRIC_ACTION_UPDATE);
         }
+        if (!showingChanged) return;
+        if (mKeyguardShowing) {
+            mQuickLookClient.addCallback(mQuickLookCallback);
+        } else {
+            mQuickLookClient.removeCallback(mQuickLookCallback);
+        }
     }
 
     /**
@@ -917,7 +964,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
         return containsFlag(mStrongAuthTracker.getStrongAuthForUser(userId),
                 STRONG_BIOMETRIC_AUTH_REQUIRED_FOR_SECURE_LOCK_DEVICE);
     }
-
 
     @VisibleForTesting
     public void onFingerprintAuthenticated(int userId, boolean isStrongBiometric) {
@@ -1495,7 +1541,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
                 FACE);
         return fingerprintAllowed || unlockedByFace;
     }
-
 
     /**
      * Returns whether the user is unlocked with face.
@@ -2271,7 +2316,8 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
             Provider<SceneInteractor> sceneInteractor,
             Provider<CommunalSceneInteractor> communalSceneInteractor,
             Provider<KeyguardServiceShowLockscreenInteractor>
-                    keyguardServiceShowLockscreenInteractor) {
+                    keyguardServiceShowLockscreenInteractor,
+            QuickLookClient quickLookClient) {
         mContext = context;
         mSubscriptionManager = subscriptionManager;
         mUserTracker = userTracker;
@@ -2325,6 +2371,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
         mSceneInteractor = sceneInteractor;
         mCommunalSceneInteractor = communalSceneInteractor;
         mKeyguardServiceShowLockscreenInteractor = keyguardServiceShowLockscreenInteractor;
+        mQuickLookClient = quickLookClient;
 
         mHandler = new Handler(mainLooper) {
             @Override
@@ -2663,7 +2710,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
         setAlternateBouncerShowing(isAlternateBouncerVisible);
     }
 
-
     @VisibleForTesting
     void onTransitionStateChanged(ObservableTransitionState transitionState) {
         int primaryBouncerFullyShown = isPrimaryBouncerFullyShown(transitionState) ? 1 : 0;
@@ -2920,7 +2966,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
                     dismissKeyguard);
         }
     }
-
 
     /**
      * Attempts to trigger active unlock from trust agent.
@@ -3203,7 +3248,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
     public boolean shouldListenForFace() {
         return getFaceAuthInteractor() != null && getFaceAuthInteractor().canFaceAuthRun();
     }
-
 
     private void logListenerModelData(@NonNull KeyguardListenModel model) {
         mLogger.logKeyguardListenerModel(model);

@@ -15,6 +15,7 @@ package com.android.systemui.plugins.keyguard.ui.clocks
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Point
 import android.graphics.Rect
 import com.android.systemui.monet.ColorScheme
 import com.android.systemui.plugins.annotations.ProtectedInterface
@@ -53,6 +54,14 @@ interface ClockFaceEvents {
 
     /** Called to notify the clock about its display. */
     fun onSecondaryDisplayChanged(onSecondaryDisplay: Boolean)
+    fun onStartedWakingUp() {}
+    fun onStartedGoingToSleep(isKeyguardVisible: Boolean) {}
+    fun onWakefulnessStateChanged(isWakingUp: Boolean, tapPosition: Point?) {}
+    fun onRegionDarknessChanged(isRegionDark: Boolean) {}
+    fun onScreenOff(screenOff: Boolean) {}
+    fun onDozeChanged(dozing: Boolean) {}
+    fun onDozeAmountChanged(linear: Float, eased: Float) {}
+    fun onPulsingChanged(pulsing: Boolean) {}
 }
 
 /** Contains Theming information for the clock face */
