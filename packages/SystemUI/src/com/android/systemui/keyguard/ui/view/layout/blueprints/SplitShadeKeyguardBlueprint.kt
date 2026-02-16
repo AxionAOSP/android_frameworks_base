@@ -31,8 +31,6 @@ import com.android.systemui.keyguard.ui.view.layout.sections.DefaultSettingsPopu
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultShortcutsSection
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultStatusBarSection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSectionsModule
-import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSliceViewSection
-import com.android.systemui.keyguard.ui.view.layout.sections.SmartspaceSection
 import com.android.systemui.keyguard.ui.view.layout.sections.SplitShadeGuidelines
 import com.android.systemui.keyguard.ui.view.layout.sections.SplitShadeMediaSection
 import com.android.systemui.keyguard.ui.view.layout.sections.SplitShadeNotificationStackScrollLayoutSection
@@ -65,9 +63,7 @@ constructor(
     aodNotificationIconsSection: AodNotificationIconsSection,
     aodBurnInSection: AodBurnInSection,
     clockSection: ClockSection,
-    smartspaceSection: SmartspaceSection,
     mediaSection: SplitShadeMediaSection,
-    keyguardSliceViewSection: KeyguardSliceViewSection,
 ) : KeyguardBlueprint {
     override val id: String = ID
 
@@ -84,10 +80,8 @@ constructor(
             splitShadeGuidelines,
             aodPromotedNotificationSection,
             aodNotificationIconsSection,
-            smartspaceSection,
             aodBurnInSection,
             clockSection,
-            keyguardSliceViewSection,
             mediaSection,
             defaultDeviceEntrySection, // Add LAST: Intentionally has z-order above other views.
         )
