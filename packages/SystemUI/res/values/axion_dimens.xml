@@ -33,4 +33,10 @@
     <dimen name="qs_status_bar_large_screen_date_privacy_margin">24dp</dimen>
     <dimen name="qqs_status_bar_margin_top">4dp</dimen>
     <dimen name="qqs_status_bar_text_size">15dp</dimen>
+
+    <!-- Lockscreen Widgets Grid -->
+    <dimen name="kg_widget_cell_gap">6dp</dimen>
+    <dimen name="kg_widget_side_padding">16dp</dimen>
+    <dimen name="kg_widget_top_padding">16dp</dimen>
+    <dimen name="kg_widget_corner_radius">16dp</dimen>
 </resources>

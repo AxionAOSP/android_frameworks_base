@@ -5962,6 +5962,9 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
                     && isDifferentPackageFromProvider(widget.provider, packageName)
                     && widget.host != null
                     && isDifferentPackageFromHost(widget.host, packageName)) {
+                if (widget.host.id != null && widget.host.id.uid == uid) {
+                    return true;
+                }
                 // An AppWidget can only be accessed by either
                 // 1. The package that provides the AppWidget.
                 // 2. The package that hosts the AppWidget.
