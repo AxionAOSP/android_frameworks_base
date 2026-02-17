@@ -92,6 +92,8 @@ constructor(
 
     var clock: ClockController? by keyguardClockRepository.clockEventController::clock
 
+    val areLockscreenWidgetsEnabled: Boolean
+        get() = keyguardClockRepository.areLockscreenWidgetsEnabled
     val isAodPromotedNotificationPresent: Flow<Boolean> =
         if (PromotedNotificationUi.isEnabled) {
             aodPromotedNotificationInteractor.isPresent
@@ -135,7 +137,9 @@ constructor(
     val clockSize: StateFlow<ClockSize> =
         selectedClockSize
             .flatMapLatestConflated { selectedSize ->
-                if (selectedSize == ClockSizeSetting.SMALL) {
+                if (selectedSize == ClockSizeSetting.SMALL ||
+                    keyguardClockRepository.areLockscreenWidgetsEnabled
+                ) {
                     flowOf(ClockSize.SMALL)
                 } else {
                     dynamicClockSize
