@@ -33,6 +33,7 @@ import com.android.systemui.keyguard.ui.view.layout.sections.DefaultShortcutsSec
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultStatusBarSection
 import com.android.systemui.keyguard.ui.view.layout.sections.DefaultUdfpsAccessibilityOverlaySection
 import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardSectionsModule.Companion.KEYGUARD_AMBIENT_INDICATION_AREA_SECTION
+import com.android.systemui.keyguard.ui.view.layout.sections.KeyguardWidgetViewSection
 import java.util.Optional
 import javax.inject.Inject
 import javax.inject.Named
@@ -61,6 +62,7 @@ constructor(
     aodNotificationIconsSection: AodNotificationIconsSection,
     aodBurnInSection: AodBurnInSection,
     clockSection: ClockSection,
+    keyguardWidgetViewSection: KeyguardWidgetViewSection,
     udfpsAccessibilityOverlaySection: DefaultUdfpsAccessibilityOverlaySection,
 ) : KeyguardBlueprint {
     override val id: String = DEFAULT
@@ -78,6 +80,7 @@ constructor(
             aodPromotedNotificationSection,
             aodBurnInSection,
             clockSection,
+            keyguardWidgetViewSection,
             defaultDeviceEntrySection,
             udfpsAccessibilityOverlaySection, // Add LAST: Intentionally has z-order above others
         )

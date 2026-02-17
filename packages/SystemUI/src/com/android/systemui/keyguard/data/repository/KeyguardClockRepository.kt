@@ -76,6 +76,7 @@ interface KeyguardClockRepository {
 
     val forcedClockSize: Flow<ClockSize?>
 
+    val areLockscreenWidgetsEnabled: Boolean
     fun setClockSize(size: ClockSize)
 }
 
@@ -160,10 +161,28 @@ constructor(
                 initialValue = null,
             )
 
+    override val areLockscreenWidgetsEnabled: Boolean
+        get() {
+            val isEnabled = Settings.System.getIntForUser(
+                context.contentResolver,
+                "lockscreen_widgets_enabled",
+                0,
+                UserHandle.USER_CURRENT
+            ) == 1
+            val widgetConfig = Settings.System.getStringForUser(
+                context.contentResolver,
+                "lockscreen_widgets_config",
+                UserHandle.USER_CURRENT
+            ) ?: ""
+            return isEnabled && widgetConfig.isNotEmpty()
+        }
     private fun getClockSize(): ClockSizeSetting {
         return ClockSizeSetting.fromSettingValue(
             secureSettings.getIntForUser(
                 Settings.Secure.LOCKSCREEN_USE_DOUBLE_LINE_CLOCK,
+                context.resources.getInteger(
+                    com.android.internal.R.integer.config_doublelineClockDefault
+                ),
                 UserHandle.USER_CURRENT,
             )
         )

@@ -308,4 +308,8 @@
     <item type="id" name="screen_off_animation_guard_set" />
     <item type="id" name="screen_off_animation_guard_reported_wtf" />
     <item type="id" name="screen_off_animation_guard_screen_off_updates" />
+
+    <!-- Lockscreen widgets -->
+    <item type="id" name="keyguard_widgets_area" />
+    <item type="id" name="clock_bottom_barrier" />
 </resources>

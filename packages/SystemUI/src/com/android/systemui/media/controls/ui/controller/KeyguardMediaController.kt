@@ -27,6 +27,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.systemui.Dumpable
+import com.android.systemui.keyguard.data.repository.KeyguardClockRepository
 import com.android.systemui.classifier.Classifier
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
@@ -84,6 +85,7 @@ constructor(
     private val mediaViewModelFactory: MediaViewModel.Factory,
     private val mediaCarouselInteractor: MediaCarouselInteractor,
     private val falsingSystem: MediaFalsingSystem,
+    private val keyguardClockRepository: KeyguardClockRepository,
 ) : Dumpable {
     private var lastUsedStatusBarState = -1
 
@@ -177,6 +179,7 @@ constructor(
 
     private fun updateResources() {
         useSplitShade = splitShadeStateController.shouldUseSplitNotificationShade(context.resources)
+            && !keyguardClockRepository.areLockscreenWidgetsEnabled
     }
 
     @VisibleForTesting

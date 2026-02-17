@@ -68,6 +68,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.PowerManager;
 import android.os.Trace;
+import android.os.UserHandle;
+import android.provider.Settings;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
 import android.util.MathUtils;
@@ -1232,13 +1234,25 @@ public final class NotificationPanelViewController implements
     }
 
     private ClockSize computeDesiredClockSizeForSingleShade() {
-        if (hasVisibleNotifications()) {
+        if (hasVisibleNotifications() || areLockscreenWidgetsEnabled()) {
             return ClockSize.SMALL;
         }
         return ClockSize.LARGE;
     }
 
+    private boolean areLockscreenWidgetsEnabled() {
+        int enabled = Settings.System.getIntForUser(
+                mContentResolver, "lockscreen_widgets_enabled", 0,
+                UserHandle.USER_CURRENT);
+        String config = Settings.System.getStringForUser(
+                mContentResolver, "lockscreen_widgets_config",
+                UserHandle.USER_CURRENT);
+        return enabled == 1 && config != null && !config.isEmpty();
+    }
     private ClockSize computeDesiredClockSizeForSplitShade() {
+        if (areLockscreenWidgetsEnabled()) {
+            return ClockSize.SMALL;
+        }
         // Media is not visible to the user on AOD.
         boolean isMediaVisibleToUser =
                 mMediaDataManager.hasActiveMedia() && !isOnAod();
@@ -3365,7 +3379,6 @@ public final class NotificationPanelViewController implements
     private void updateVisibility() {
         mView.setVisibility(shouldPanelBeVisible() ? VISIBLE : INVISIBLE);
     }
-
 
     @Override
     public void updateExpansionAndVisibility() {

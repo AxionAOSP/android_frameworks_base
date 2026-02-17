@@ -52,6 +52,7 @@ class FakeKeyguardClockRepository() : KeyguardClockRepository {
 
     override val clockEventController: ClockEventController = mock()
 
+    override val areLockscreenWidgetsEnabled: Boolean = false
     override fun setClockSize(size: ClockSize) {
         _clockSize.value = size
         _forcedClockSize.value = size

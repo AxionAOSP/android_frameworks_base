@@ -878,6 +878,11 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".lockscreen.KeyguardWidgetConfigActivity"
+                  android:exported="false"
+                  android:excludeFromRecents="true"
+                  android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <activity
             android:name=".user.CreateUserActivity"
             android:excludeFromRecents="true"
