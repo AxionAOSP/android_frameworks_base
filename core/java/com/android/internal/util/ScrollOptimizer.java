@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Locale;
 
+import dalvik.system.VMRuntime;
 public class ScrollOptimizer {
 
     /** @hide */
@@ -96,6 +97,7 @@ public class ScrollOptimizer {
     private static boolean sFeatureEnabled = false;
     private static boolean sTemporarilyDisabled = false;
     private static boolean sLastUseVsync = true;
+    private static boolean sGcSuppressed = false;
 
     private static void logger(String msg) {
         if (sDebugEnabled) {
@@ -178,6 +180,11 @@ public class ScrollOptimizer {
         sMotionType = PROP_UNSET;
         mLastFlingFlg = 0;
         sTimerSlackUpdated = false;
+        if (sGcSuppressed) {
+            VMRuntime.getRuntime().setTargetHeapUtilization(0.75f);
+            VMRuntime.getRuntime().requestConcurrentGC();
+            sGcSuppressed = false;
+        }
     }
 
     private static void updateExpectedFromPreRender() {
@@ -307,6 +314,11 @@ public class ScrollOptimizer {
                 }
                 sNeedUpdateBuffer = false;
                 sLastFlingStartMs = SystemClock.uptimeMillis();
+                if (!sGcSuppressed) {
+                    VMRuntime.getRuntime().requestConcurrentGC();
+                    VMRuntime.getRuntime().setTargetHeapUtilization(0.95f);
+                    sGcSuppressed = true;
+                }
                 logger("Fling start.");
             } else {
                 logger("Fling without touch");
