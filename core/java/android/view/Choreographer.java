@@ -183,6 +183,7 @@ public final class Choreographer {
     private static final int MSG_DO_FRAME = 0;
     private static final int MSG_DO_SCHEDULE_VSYNC = 1;
     private static final int MSG_DO_SCHEDULE_CALLBACK = 2;
+    private static final int MSG_DO_ANIM_AHEAD = 3;
 
     // All frame callbacks posted by applications have this token or VSYNC_CALLBACK_TOKEN.
     private static final Object FRAME_CALLBACK_TOKEN = new Object() {
@@ -841,7 +842,6 @@ public final class Choreographer {
         return mFrameData.getPreferredFrameTimeline().getExpectedPresentationTimeNanos();
     }
 
-
     /**
      * Same as {@link #getExpectedPresentationTimeNanos()} but with millisecond precision.
      *
@@ -1169,7 +1169,14 @@ public final class Choreographer {
             doCallbacks(Choreographer.CALLBACK_INPUT, frameIntervalNanos);
 
             mFrameInfo.markAnimationsStart();
-            doCallbacks(Choreographer.CALLBACK_ANIMATION, frameIntervalNanos);
+            if (ScrollOptimizer.isAnimAheadActive()) {
+                ScrollOptimizer.setAnimAheadState(false);
+                synchronized (mLock) {
+                    scheduleFrameLocked(SystemClock.uptimeMillis());
+                }
+            } else {
+                doCallbacks(Choreographer.CALLBACK_ANIMATION, frameIntervalNanos);
+            }
             doCallbacks(Choreographer.CALLBACK_INSETS_ANIMATION, frameIntervalNanos);
 
             mFrameInfo.markPerformTraversalsStart();
@@ -1177,6 +1184,9 @@ public final class Choreographer {
 
             doCallbacks(Choreographer.CALLBACK_COMMIT, frameIntervalNanos);
             ScrollOptimizer.setUITaskStatus(false);
+            if (ScrollOptimizer.shouldScheduleAnimAhead(frameIntervalNanos)) {
+                postAnimAheadMsg();
+            }
         } finally {
             AnimationUtils.unlockAnimationClock();
             mInDoFrameCallback = false;
@@ -1279,6 +1289,38 @@ public final class Choreographer {
         }
     }
 
+    private void postAnimAheadMsg() {
+        Message msg = mHandler.obtainMessage(MSG_DO_ANIM_AHEAD);
+        msg.setAsynchronous(true);
+        mHandler.sendMessageAtFrontOfQueue(msg);
+    }
+    private void doAnimAheadCallback() {
+        final long frameIntervalNanos;
+        final long nextFrameTimeNanos;
+        synchronized (mLock) {
+            frameIntervalNanos = mLastFrameIntervalNanos;
+            nextFrameTimeNanos = mLastFrameTimeNanos + frameIntervalNanos;
+        }
+        if (frameIntervalNanos <= 0) {
+            return;
+        }
+        if (!ScrollOptimizer.shouldScheduleAnimAhead(frameIntervalNanos)) {
+            return;
+        }
+        try {
+            if (Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
+                Trace.traceBegin(Trace.TRACE_TAG_VIEW, "Choreographer#doAnimAhead");
+            }
+            ScrollOptimizer.setAnimAheadState(true);
+            AnimationUtils.lockAnimationClock(nextFrameTimeNanos / TimeUtils.NANOS_PER_MS);
+            doCallbacks(Choreographer.CALLBACK_ANIMATION, frameIntervalNanos);
+        } finally {
+            AnimationUtils.unlockAnimationClock();
+            if (Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
+                Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+            }
+        }
+    }
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     private void scheduleVsyncLocked() {
         try {
@@ -1557,6 +1599,9 @@ public final class Choreographer {
                     break;
                 case MSG_DO_SCHEDULE_CALLBACK:
                     doScheduleCallback(msg.arg1);
+                    break;
+                case MSG_DO_ANIM_AHEAD:
+                    doAnimAheadCallback();
                     break;
             }
         }
