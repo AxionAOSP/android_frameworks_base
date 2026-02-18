@@ -40,6 +40,7 @@ public class ScrollOptimizer {
     private static final String PROP_SCROLL_OPT = "persist.sys.perf.scroll_opt";
     private static final String PROP_SCROLL_OPT_HEAVY_APP = "persist.sys.perf.scroll_opt.heavy_app";
     private static final String PROP_DEBUG = "persist.sys.perf.scroll_opt_debug";
+    private static final String PROP_ANIM_AHEAD = "persist.sys.perf.anim_ahead";
 
     private static final String TIMER_SLACK_CONTENT = "50000";
 
@@ -47,6 +48,7 @@ public class ScrollOptimizer {
     private static final long DEFAULT_FRAME_DELAY_MS = 10L;
     private static final long OPTIMIZED_FRAME_DELAY_MS = 3L;
     private static final long FLING_END_TIMEOUT_MS = 3000L;
+    private static final long ANIM_AHEAD_MARGIN_NS = 2_000_000L;
 
     private static int sInitialUndequeued = 4;
     private static int sFallbackUndequeued = 3;
@@ -96,6 +98,8 @@ public class ScrollOptimizer {
     private static boolean sFeatureEnabled = false;
     private static boolean sTemporarilyDisabled = false;
     private static boolean sLastUseVsync = true;
+    private static boolean sAnimAheadEnabled = false;
+    private static boolean sAnimAheadActive = false;
 
     private static void logger(String msg) {
         if (sDebugEnabled) {
@@ -127,6 +131,7 @@ public class ScrollOptimizer {
             sHeavyAppProp = prop;
             sHeavyApp = prop;
             sDebugEnabled = SystemProperties.getBoolean(PROP_DEBUG, false);
+            sAnimAheadEnabled = SystemProperties.getBoolean(PROP_ANIM_AHEAD, true);
 
             Class<?> clazz = Class.forName("android.graphics.BLASTBufferQueue");
             sSetUndequeuedMethod = clazz.getMethod("setUndequeuedBufferCount", Integer.TYPE);
@@ -177,6 +182,7 @@ public class ScrollOptimizer {
         sHeavyFrameCount = 0;
         sMotionType = PROP_UNSET;
         mLastFlingFlg = 0;
+        sAnimAheadActive = false;
         sTimerSlackUpdated = false;
     }
 
@@ -478,5 +484,34 @@ public class ScrollOptimizer {
             sLastUseVsync = result;
         }
         return result;
+    }
+    public static boolean shouldScheduleAnimAhead(long frameIntervalNanos) {
+        if (!sFeatureEnabled || !sAnimAheadEnabled || Process.myTid() != sPid) {
+            return false;
+        }
+        if (mLastFlingFlg != FLING_START) {
+            return false;
+        }
+        if (sAnimAheadActive) {
+            return false;
+        }
+        long nowNs = System.nanoTime();
+        long timeSinceVsync = nowNs - sLastVsyncTimeNs;
+        long timeToNextVsync = frameIntervalNanos - timeSinceVsync;
+        if (timeToNextVsync < ANIM_AHEAD_MARGIN_NS) {
+            logger("animAhead: not enough time, timeToNext="
+                    + (timeToNextVsync / 1_000_000f) + "ms");
+            return false;
+        }
+        logger("animAhead: scheduling, timeToNext="
+                + (timeToNextVsync / 1_000_000f) + "ms");
+        return true;
+    }
+    public static void setAnimAheadState(boolean active) {
+        sAnimAheadActive = active;
+        logger("animAhead: state=" + active);
+    }
+    public static boolean isAnimAheadActive() {
+        return sAnimAheadActive && sFeatureEnabled;
     }
 }
