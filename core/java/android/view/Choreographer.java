@@ -184,6 +184,7 @@ public final class Choreographer {
     private static final int MSG_DO_SCHEDULE_VSYNC = 1;
     private static final int MSG_DO_SCHEDULE_CALLBACK = 2;
     private static final int MSG_DO_ANIM_AHEAD = 3;
+    private static final int MSG_DO_FRAME_INSERT = 4;
 
     // All frame callbacks posted by applications have this token or VSYNC_CALLBACK_TOKEN.
     private static final Object FRAME_CALLBACK_TOKEN = new Object() {
@@ -236,6 +237,9 @@ public final class Choreographer {
             new DisplayEventReceiver.VsyncEventData();
     private final FrameData mFrameData = new FrameData();
     private volatile boolean mInDoFrameCallback = false;
+    private boolean mFrameInsertPending = false;
+    private int mFrameInsertCount = 0;
+    private static final int MAX_FRAME_INSERTS = 1;
 
     private static class BufferStuffingState {
         enum RecoveryAction {
@@ -1202,6 +1206,13 @@ public final class Choreographer {
             if (ScrollOptimizer.shouldScheduleAnimAhead(frameIntervalNanos)) {
                 postAnimAheadMsg();
             }
+            if (!mFrameInsertPending && mFrameInsertCount < MAX_FRAME_INSERTS
+                    && ScrollOptimizer.shouldInsertFrame()) {
+                mFrameInsertPending = true;
+                Message msg = mHandler.obtainMessage(MSG_DO_FRAME_INSERT);
+                msg.setAsynchronous(true);
+                mHandler.sendMessageAtFrontOfQueue(msg);
+            }
         } finally {
             AnimationUtils.unlockAnimationClock();
             mInDoFrameCallback = false;
@@ -1331,6 +1342,40 @@ public final class Choreographer {
             doCallbacks(Choreographer.CALLBACK_ANIMATION, frameIntervalNanos);
         } finally {
             AnimationUtils.unlockAnimationClock();
+            if (Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
+                Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+            }
+        }
+    }
+    private void doFrameInsert() {
+        mFrameInsertPending = false;
+        if (mFrameInsertCount >= MAX_FRAME_INSERTS || !ScrollOptimizer.shouldInsertFrame()) {
+            return;
+        }
+        final long frameIntervalNanos;
+        final long nextFrameTimeNanos;
+        final DisplayEventReceiver.VsyncEventData insertData;
+        synchronized (mLock) {
+            frameIntervalNanos = mLastFrameIntervalNanos;
+            nextFrameTimeNanos = mLastFrameTimeNanos + frameIntervalNanos;
+            insertData = new DisplayEventReceiver.VsyncEventData();
+            insertData.copyFrom(mLastVsyncEventData);
+        }
+        if (frameIntervalNanos <= 0) {
+            return;
+        }
+        insertData.preferredFrameTimelineIndex++;
+        if (insertData.preferredFrameTimelineIndex >= insertData.frameTimelinesLength) {
+            return;
+        }
+        mFrameInsertCount++;
+        mFrameScheduled = true;
+        try {
+            if (Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
+                Trace.traceBegin(Trace.TRACE_TAG_VIEW, "Choreographer#doFrameInsert");
+            }
+            doFrame(nextFrameTimeNanos, 0, insertData);
+        } finally {
             if (Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
                 Trace.traceEnd(Trace.TRACE_TAG_VIEW);
             }
@@ -1618,6 +1663,9 @@ public final class Choreographer {
                 case MSG_DO_ANIM_AHEAD:
                     doAnimAheadCallback();
                     break;
+                case MSG_DO_FRAME_INSERT:
+                    doFrameInsert();
+                    break;
             }
         }
     }
@@ -1684,6 +1732,8 @@ public final class Choreographer {
         @Override
         public void run() {
             mHavePendingVsync = false;
+            Choreographer.this.mFrameInsertCount = 0;
+            Choreographer.this.mFrameInsertPending = false;
             doFrame(mTimestampNanos, mFrame, mLastVsyncEventData);
         }
     }
