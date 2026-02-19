@@ -46,6 +46,7 @@ public class AxUtils {
     public static final ArrayList<String> sAppPerfList = new ArrayList<>();
     public static final ArrayList<String> sCameraList = new ArrayList<>();
     public static final ArrayList<String> sPerfBlackList = new ArrayList<>();
+    public static final HashSet<String> sVipHBgSet = new HashSet<>();
 
     static {
         sAppWhiteList.add("com.google.android.providers.media.module");
@@ -65,6 +66,10 @@ public class AxUtils {
         sPerfBlackList.add("co.aospa.sense");
         sPerfBlackList.add("io.chaldeaprjkt.gamespace");
         sPerfBlackList.add("com.android.edge.bar");
+        sVipHBgSet.add("com.android.launcher3");
+        sVipHBgSet.add("com.google.android.apps.nexuslauncher");
+        sVipHBgSet.add("com.google.android.inputmethod.latin");
+        sVipHBgSet.add("com.android.inputmethod.latin");
     }
 
     AxUtils() {
@@ -111,6 +116,12 @@ public class AxUtils {
         return processName != null && sPerfBlackList.contains(processName) || isInLowPrioList(processName);
     }
 
+    public static boolean isSystemUi(String processName) {
+        return "com.android.systemui".equals(processName);
+    }
+    public static boolean isVipHBackground(String processName) {
+        return processName != null && sVipHBgSet.contains(processName);
+    }
     public static boolean isInLowPrioList(String processName) {
         if (processName == null) return false;
         return processName.contains("google");

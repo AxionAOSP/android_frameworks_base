@@ -67,7 +67,10 @@ import static android.os.Process.THREAD_GROUP_AX_FOREGROUND;
 import static android.os.Process.THREAD_GROUP_BACKGROUND;
 import static android.os.Process.THREAD_GROUP_DEFAULT;
 import static android.os.Process.THREAD_GROUP_FOREGROUND_WINDOW;
+import static android.os.Process.THREAD_GROUP_H_BACKGROUND;
+import static android.os.Process.THREAD_GROUP_L_BACKGROUND;
 import static android.os.Process.THREAD_GROUP_RESTRICTED;
+import static android.os.Process.THREAD_GROUP_SYSTEMUI;
 import static android.os.Process.THREAD_GROUP_SVP;
 import static android.os.Process.THREAD_GROUP_TOP_APP;
 import static android.os.Process.THREAD_PRIORITY_DISPLAY;
@@ -2149,7 +2152,12 @@ public abstract class OomAdjuster {
             int processGroup;
             switch (curSchedGroup) {
                 case SCHED_GROUP_BACKGROUND:
-                    processGroup = THREAD_GROUP_BACKGROUND;
+                    if (state.getCurAdj() >= ProcessList.CACHED_APP_MIN_ADJ
+                            && !AxUtils.isVipHBackground(state.processName)) {
+                        processGroup = THREAD_GROUP_L_BACKGROUND;
+                    } else {
+                        processGroup = THREAD_GROUP_H_BACKGROUND;
+                    }
                     break;
                 case SCHED_GROUP_TOP_APP:
                 case SCHED_GROUP_TOP_APP_BOUND:
@@ -2182,6 +2190,11 @@ public abstract class OomAdjuster {
                         processGroup = THREAD_GROUP_DEFAULT;
                     }
                     break;
+            }
+            if (processGroup != THREAD_GROUP_TOP_APP
+                    && processGroup != THREAD_GROUP_SVP
+                    && AxUtils.isSystemUi(state.processName)) {
+                processGroup = THREAD_GROUP_SYSTEMUI;
             }
             setAppAndChildProcessGroup(state, processGroup);
             try {

@@ -44,8 +44,9 @@ public final class DeviceData {
     public static final String CPU_AX_FG = AxUtils.cpuPath("ax_foreground");
     public static final String CPU_SVP = AxUtils.cpuPath("svp");
     public static final String CPU_DEX2OAT = AxUtils.cpuPath("dex2oat");
-    public static final String CPU_DISPLAY = AxUtils.cpuPath("display");
     public static final String CPU_TOP_APP = AxUtils.cpuPath("top-app");
+    public static final String CPU_L_BG = AxUtils.cpuPath("l-background");
+    public static final String CPU_H_BG = AxUtils.cpuPath("h-background");
 
     public static final String RESTRICTED_UC_MAX = AxUtils.cpuCtlPath("restricted", "/cpu.uclamp.max");
     public static final String RESTRICTED_UC_MIN = AxUtils.cpuCtlPath("restricted", "/cpu.uclamp.min");
@@ -327,8 +328,8 @@ public final class DeviceData {
         String primeR = toRange(pCores);
 
         String bgCpus = rangeTo(sCores, 3);
-        String fgCpus = allCores;
         String fgLimited = joinRanges(smallR, rangeTo(bCores, 2));
+        String fgCpus = fgLimited;
         String boostCpus = joinRanges(bigR, primeR);
         if (boostCpus.isEmpty()) boostCpus = allCores;
 

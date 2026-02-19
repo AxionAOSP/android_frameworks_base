@@ -635,6 +635,12 @@ public class Process {
     public static final int THREAD_GROUP_AX_FOREGROUND = 10;
 
     /** @hide */
+    public static final int THREAD_GROUP_L_BACKGROUND = 11;
+    /** @hide */
+    public static final int THREAD_GROUP_H_BACKGROUND = 12;
+    /** @hide */
+    public static final int THREAD_GROUP_SYSTEMUI = 13;
+    /** @hide */
     public static final int SIGNAL_DEFAULT = 0;
     public static final int SIGNAL_QUIT = 3;
     public static final int SIGNAL_KILL = 9;
@@ -1314,7 +1320,6 @@ public class Process {
      * in time.
      */
     public static final native int[] getExclusiveCores();
-
 
     /**
      * Get the CPU affinity masks from sched_getaffinity.
