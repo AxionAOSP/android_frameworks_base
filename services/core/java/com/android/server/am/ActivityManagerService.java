@@ -1982,7 +1982,6 @@ public class ActivityManagerService extends IActivityManager.Stub
         }
     }
 
-
     public void setSystemProcess() {
         try {
             ServiceManager.addService(Context.ACTIVITY_SERVICE, this, /* allowIsolated= */ true,
@@ -2710,7 +2709,6 @@ public class ActivityManagerService extends IActivityManager.Stub
         // one or more allowed associations was found, therefore the package is restricted.
         return true;
     }
-
 
     /** Sets up allowed associations for system prebuilt packages from system config (if needed). */
     private void ensureAllowedAssociations() {
@@ -10297,7 +10295,6 @@ public class ActivityManagerService extends IActivityManager.Stub
         return new ParceledListSlice<ApplicationStartInfo>(results);
     }
 
-
     @Override
     public void addApplicationStartInfoCompleteListener(
             IApplicationStartInfoCompleteListener listener,
@@ -10316,7 +10313,6 @@ public class ActivityManagerService extends IActivityManager.Stub
         mProcessList.getAppStartInfoTracker().addStartInfoCompleteListener(listener,
                 UserHandle.getUid(userId, UserHandle.getAppId(callingUid)));
     }
-
 
     @Override
     public void removeApplicationStartInfoCompleteListener(
@@ -18045,7 +18041,6 @@ public class ActivityManagerService extends IActivityManager.Stub
             return uid >= 0 && cachedUid == uid;
         }
 
-
         @Override
         public void setProfileOwnerUid(ArraySet<Integer> profileOwnerUids) {
             synchronized (mProfileOwnerUids) {
@@ -19645,7 +19640,6 @@ public class ActivityManagerService extends IActivityManager.Stub
         }
     }
 
-
     CachedAppOptimizer getCachedAppOptimizer() {
         return mCachedAppOptimizer;
     }
@@ -19871,6 +19865,11 @@ public class ActivityManagerService extends IActivityManager.Stub
         AxExtServiceFactory.getAxBurstEngine().systemThreadBoost(tid, duration);
     }
 
+    @Override
+    public void boostGcThread(int pid, boolean boost) {
+        if (pid <= 0) return;
+        AxExtServiceFactory.getAxBurstEngine().boostGcThread(pid, boost);
+    }
     @Override
     public void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera) {
         mHandler.post(() -> {

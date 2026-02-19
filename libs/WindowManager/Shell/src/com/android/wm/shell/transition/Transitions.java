@@ -54,6 +54,7 @@ import android.database.ContentObserver;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Process;
 import android.os.RemoteException;
 import android.os.SystemProperties;
 import android.os.Trace;
@@ -80,6 +81,7 @@ import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.jank.InteractionJankMonitor;
 import com.android.internal.protolog.ProtoLog;
+import com.android.internal.util.BoostHelper;
 import com.android.wm.shell.RootTaskDisplayAreaOrganizer;
 import com.android.wm.shell.ShellTaskOrganizer;
 import com.android.wm.shell.common.DisplayController;
@@ -243,6 +245,8 @@ public class Transitions implements RemoteCallable<Transitions>,
 
     private float mTransitionAnimationScaleSetting = 1.0f;
 
+    private boolean mGcBoosted = false;
+    private final int mMyPid = Process.myPid();
     /**
      * How much time we allow for an animation to finish itself on sync. If it takes longer, we
      * will force-finish it (on this end) which may leave it in a bad state but won't hang the
@@ -400,6 +404,16 @@ public class Transitions implements RemoteCallable<Transitions>,
         mShellCommandHandler.addDumpCallback(this::dump, this);
     }
 
+    private void boostGcPriority() {
+        if (mGcBoosted) return;
+        BoostHelper.boostGcThread(mMyPid, true);
+        mGcBoosted = true;
+    }
+    private void restoreGcPriority() {
+        if (!mGcBoosted) return;
+        BoostHelper.boostGcThread(mMyPid, false);
+        mGcBoosted = false;
+    }
     private float getTransitionAnimationScaleSetting() {
         return fixScale(Settings.Global.getFloat(mContext.getContentResolver(),
                 Settings.Global.TRANSITION_ANIMATION_SCALE, mContext.getResources().getFloat(
@@ -716,6 +730,7 @@ public class Transitions implements RemoteCallable<Transitions>,
     /** @see ITransitionPlayer#onTransitionReady */
     public void onTransitionReady(@NonNull IBinder transitionToken, @NonNull TransitionInfo info,
             @NonNull SurfaceControl.Transaction t, @NonNull SurfaceControl.Transaction finishT) {
+        boostGcPriority();
         info.setUnreleasedWarningCallSiteForAllSurfaces("Transitions.onTransitionReady");
         ProtoLog.v(WM_SHELL_TRANSITIONS, "onTransitionReady (#%d) %s: %s",
                 info.getDebugId(), transitionToken, info.toString("    " /* prefix */));
@@ -1165,6 +1180,7 @@ public class Transitions implements RemoteCallable<Transitions>,
 
     private void onFinish(IBinder token, @Nullable WindowContainerTransaction wct) {
         mMainExecutor.assertCurrentThread();
+        restoreGcPriority();
 
         final ActiveTransition active = mKnownTransitions.get(token);
         if (active == null) {

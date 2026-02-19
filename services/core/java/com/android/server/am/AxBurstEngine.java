@@ -31,7 +31,9 @@ import android.util.Slog;
 import com.android.server.NtServiceInjector;
 import com.android.server.UiThread;
 import com.android.internal.util.ScrollOptimizer;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -611,9 +613,41 @@ public class AxBurstEngine implements IAxBurstEngine {
         });
     }
     
+    private final HashMap<Integer, Integer> mGcThreadIds = new HashMap<>();
+    public void boostGcThread(int pid, boolean boost) {
+        if (pid <= 0) return;
+        mHandler.post(() -> {
+            int gcTid = findGcThread(pid);
+            if (gcTid <= 0) return;
+            applyThreadPriorityBoost(gcTid, boost ? 0 : -1);
+        });
+    }
+    private int findGcThread(int pid) {
+        Integer cached = mGcThreadIds.get(pid);
+        if (cached != null) return cached;
+        try {
+            File[] tasks = new File("/proc/" + pid + "/task").listFiles();
+            if (tasks == null) return -1;
+            for (File task : tasks) {
+                try (BufferedReader r = new BufferedReader(
+                        new FileReader(new File(task, "comm")))) {
+                    String name = r.readLine();
+                    if (name == null) continue;
+                    name = name.trim();
+                    if (name.contains("GC") || name.equals("HeapTaskDaemon")) {
+                        int tid = Integer.parseInt(task.getName());
+                        mGcThreadIds.put(pid, tid);
+                        return tid;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return -1;
+    }
     public void systemThreadBoost(int tid, long duration) {
         if (tid <= 0) return;
-        
         boostSf(duration);
 
         applyThreadPriorityBoost(tid, duration);
