@@ -42,6 +42,7 @@ public class ScrollOptimizer {
     private static final String PROP_SCROLL_OPT_HEAVY_APP = "persist.sys.perf.scroll_opt.heavy_app";
     private static final String PROP_DEBUG = "persist.sys.perf.scroll_opt_debug";
     private static final String PROP_ANIM_AHEAD = "persist.sys.perf.anim_ahead";
+    private static final String PROP_FRAME_INSERT = "persist.sys.perf.frame_insert";
 
     private static final String TIMER_SLACK_CONTENT = "50000";
 
@@ -103,6 +104,7 @@ public class ScrollOptimizer {
     private static boolean sAnimAheadEnabled = false;
     private static boolean sAnimAheadActive = false;
 
+    private static boolean sFrameInsertEnabled = false;
     private static void logger(String msg) {
         if (sDebugEnabled) {
             Log.d(TAG, msg);
@@ -134,6 +136,7 @@ public class ScrollOptimizer {
             sHeavyApp = prop;
             sDebugEnabled = SystemProperties.getBoolean(PROP_DEBUG, false);
             sAnimAheadEnabled = SystemProperties.getBoolean(PROP_ANIM_AHEAD, true);
+            sFrameInsertEnabled = SystemProperties.getBoolean(PROP_FRAME_INSERT, true);
 
             Class<?> clazz = Class.forName("android.graphics.BLASTBufferQueue");
             sSetUndequeuedMethod = clazz.getMethod("setUndequeuedBufferCount", Integer.TYPE);
@@ -525,5 +528,20 @@ public class ScrollOptimizer {
     }
     public static boolean isAnimAheadActive() {
         return sAnimAheadActive && sFeatureEnabled;
+    }
+    public static boolean shouldInsertFrame() {
+        if (!sFeatureEnabled || !sFrameInsertEnabled || Process.myTid() != sPid) {
+            return false;
+        }
+        if (mLastFlingFlg != FLING_START) {
+            return false;
+        }
+        int buffers = getUndequeuedBufferCount();
+        if (buffers < 1) {
+            logger("frameInsert: no buffer slots available");
+            return false;
+        }
+        logger("frameInsert: eligible, buffers=" + buffers);
+        return true;
     }
 }
