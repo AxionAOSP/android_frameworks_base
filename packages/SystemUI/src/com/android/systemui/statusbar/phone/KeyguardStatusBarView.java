@@ -112,7 +112,6 @@ public class KeyguardStatusBarView extends RelativeLayout {
     private int mRoundedCornerPadding = 0;
     // right and left padding applied to this view to account for cutouts and rounded corners
     private Insets mPadding = Insets.of(0, 0, 0, 0);
-
     /**
      * The clipping on the top
      */
@@ -217,6 +216,10 @@ public class KeyguardStatusBarView extends RelativeLayout {
         mCarrierLabel.setLayoutParams(lp);
     }
 
+    int getCarrierLabelEndPx() {
+        if (mCarrierLabel == null || mCarrierLabel.getVisibility() != View.VISIBLE) return 0;
+        return mCarrierLabel.getRight();
+    }
     void loadDimens() {
         Resources res = getResources();
         mSystemIconsSwitcherHiddenExpandedMargin = res.getDimensionPixelSize(

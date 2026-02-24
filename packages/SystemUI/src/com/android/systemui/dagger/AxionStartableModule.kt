@@ -18,10 +18,14 @@ package com.android.systemui.dagger
 
 import com.android.systemui.CoreStartable
 import com.android.systemui.ax.AxPlatformServiceImpl
+import com.android.systemui.axdynamicbar.domain.AxDynamicBarChipsRefiner
+import com.android.systemui.axdynamicbar.ui.AxDynamicBarManager
+import com.android.systemui.statusbar.chips.ui.viewmodel.OngoingActivityChipsRefiner
 import dagger.Binds
 import dagger.Module
 import dagger.multibindings.ClassKey
 import dagger.multibindings.IntoMap
+import dagger.multibindings.IntoSet
 
 @Module
 abstract class AxionStartableModule {
@@ -29,4 +33,11 @@ abstract class AxionStartableModule {
     @IntoMap
     @ClassKey(AxPlatformServiceImpl::class)
     abstract fun bindAxPlatformService(impl: AxPlatformServiceImpl): CoreStartable
+    @Binds
+    @IntoMap
+    @ClassKey(AxDynamicBarManager::class)
+    abstract fun bindAxDynamicBarManager(impl: AxDynamicBarManager): CoreStartable
+    @Binds
+    @IntoSet
+    abstract fun bindDynamicBarChipsRefiner(impl: AxDynamicBarChipsRefiner): OngoingActivityChipsRefiner
 }

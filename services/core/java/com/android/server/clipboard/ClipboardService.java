@@ -1228,7 +1228,6 @@ public class ClipboardService extends SystemService {
 
         final long ident = Binder.clearCallingIdentity();
         try {
-            // This will throw SecurityException if caller can't grant
             mUgmInternal.checkGrantUriPermission(sourceUid, null,
                     ContentProvider.getUriWithoutUserId(uri),
                     Intent.FLAG_GRANT_READ_URI_PERMISSION,
