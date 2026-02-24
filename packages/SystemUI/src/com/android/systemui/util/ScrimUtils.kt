@@ -168,9 +168,15 @@ class ScrimUtils private constructor() {
     private var keyguardRootView: View? = null
     private var layoutChangePending = false
     private var layoutStableRunnable: Runnable? = null
+    private val preDrawActions = mutableListOf<Runnable>()
 
     private val keyguardPreDrawListener = ViewTreeObserver.OnPreDrawListener {
         val root = keyguardRootView ?: return@OnPreDrawListener true
+
+        for (action in preDrawActions) {
+            action.run()
+        }
+
         if (mKeyguardShowing == true && root.isDirty) {
             if (!layoutChangePending) {
                 layoutChangePending = true
@@ -181,6 +187,14 @@ class ScrimUtils private constructor() {
             mainHandler.postDelayed(layoutStableRunnable!!, LAYOUT_STABLE_DELAY)
         }
         true
+    }
+
+    fun addKeyguardPreDrawAction(action: Runnable) {
+        if (!preDrawActions.contains(action)) preDrawActions.add(action)
+    }
+
+    fun removeKeyguardPreDrawAction(action: Runnable) {
+        preDrawActions.remove(action)
     }
 
     fun attachKeyguardView(view: View) {
