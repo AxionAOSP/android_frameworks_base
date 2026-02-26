@@ -4538,7 +4538,8 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
                                 if (DEBUG) {
                                     Objects.requireNonNull(providerInfo);
                                 }
-                                provider.setInfoLocked(info);
+                                // avoids stale resource IDs
+                                provider.setPartialInfoLocked(info);
                             }
                         }
 
