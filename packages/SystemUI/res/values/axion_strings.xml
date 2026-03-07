@@ -93,4 +93,8 @@
     <string name="screenrecord_delete_label">Delete</string>
     <!-- A toast message shown after successfully deleting a screen recording [CHAR LIMIT=NONE] -->
     <string name="screenrecord_delete_description">Screen recording deleted</string>
+
+    <!-- QS panel component reorder -->
+    <string name="qs_reorder_components_title">Customize</string>
+    <string name="qs_reorder_components_subtitle">Long press and drag to reorder</string>
 </resources>

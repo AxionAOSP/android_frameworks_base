@@ -61,6 +61,7 @@ import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.qs.FooterActionsController
 import com.android.systemui.qs.QSEvent
 import com.android.systemui.qs.composefragment.dagger.QSFragmentComposeLog
+import com.android.systemui.qs.composefragment.model.QSPanelComponent
 import com.android.systemui.qs.composefragment.dagger.QSFragmentComposeModule
 import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsViewModel
 import com.android.systemui.qs.panels.domain.interactor.TileSquishinessInteractor
@@ -230,18 +231,43 @@ constructor(
             .flowOn(backgroundDispatcher)
     )
     
-    val sliderAtTop by hydrator.hydratedStateOf(
-        traceName = "sliderAtTop",
-        initialValue = false,
+    val componentOrder by hydrator.hydratedStateOf(
+        traceName = "componentOrder",
+        initialValue = QSPanelComponent.DEFAULT_ORDER,
         source = secureSettings
-            .observerFlow("qs_brightness_slider_top")
+            .observerFlow("qs_panel_component_order")
             .onStart { emit(Unit) }
-            .map { secureSettings.getIntForUser("qs_brightness_slider_top", 0, UserHandle.USER_CURRENT) }
-            .map { value -> value >= 1 }
+            .map {
+                val csv = secureSettings.getStringForUser(
+                    "qs_panel_component_order", UserHandle.USER_CURRENT
+                )
+                if (csv.isNullOrBlank()) {
+                    val sliderTop = secureSettings.getIntForUser(
+                        "qs_brightness_slider_top", 0, UserHandle.USER_CURRENT
+                    ) >= 1
+                    if (sliderTop) {
+                        listOf(QSPanelComponent.BRIGHTNESS, QSPanelComponent.TILES, QSPanelComponent.MEDIA)
+                    } else {
+                        QSPanelComponent.DEFAULT_ORDER
+                    }
+                } else {
+                    QSPanelComponent.fromCsv(csv)
+                }
+            }
             .distinctUntilChanged()
             .flowOn(backgroundDispatcher)
     )
 
+    fun setComponentOrder(order: List<QSPanelComponent>) {
+        secureSettings.putStringForUser(
+            "qs_panel_component_order",
+            QSPanelComponent.toCsv(order),
+            null,
+            false,
+            UserHandle.USER_CURRENT,
+            true,
+        )
+    }
     val animateBrightnessSlider: Boolean
         get() = showSlider == 2 && isBrightnessSliderVisible
 

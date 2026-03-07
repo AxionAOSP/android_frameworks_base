@@ -289,19 +289,34 @@ private fun SingleTopBarAction(
     editTopBarActionViewModel: EditTopBarActionViewModel,
     modifier: Modifier = Modifier,
 ) {
-    IconButton(
-        onClick = { editTopBarActionViewModel.onClick() },
-        colors =
-            IconButtonDefaults.iconButtonColors(
-                containerColor = Color.Transparent,
-                contentColor = MaterialTheme.colorScheme.onSurface,
+    if (editTopBarActionViewModel.showAsText) {
+        TextButton(
+            onClick = { editTopBarActionViewModel.onClick() },
+            colors = ButtonDefaults.textButtonColors(
+                contentColor = MaterialTheme.colorScheme.primary,
             ),
-        modifier = modifier,
-    ) {
-        Icon(
-            editTopBarActionViewModel.icon,
-            contentDescription = stringResource(id = editTopBarActionViewModel.labelId),
-        )
+            modifier = modifier,
+        ) {
+            Text(
+                text = stringResource(id = editTopBarActionViewModel.labelId),
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+    } else {
+        IconButton(
+            onClick = { editTopBarActionViewModel.onClick() },
+            colors =
+                IconButtonDefaults.iconButtonColors(
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+            modifier = modifier,
+        ) {
+            Icon(
+                editTopBarActionViewModel.icon!!,
+                contentDescription = stringResource(id = editTopBarActionViewModel.labelId),
+            )
+        }
     }
 }
 
@@ -373,8 +388,10 @@ private fun DropdownMenuElement(
                 )
             }
         },
-        leadingIcon = {
-            Icon(action.icon, contentDescription = null, modifier = Modifier.size(20.dp))
+        leadingIcon = action.icon?.let { icon ->
+            {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+            }
         },
         colors = menuItemColors(),
         contentPadding = PaddingValues(16.dp),

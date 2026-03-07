@@ -16,19 +16,23 @@
 
 package com.android.systemui.qs.panels.ui.compose.infinitegrid
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.util.fastMap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.compose.animation.scene.ContentScope
@@ -39,6 +43,7 @@ import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.qs.flags.QSMaterialExpressiveTiles
 import com.android.systemui.qs.panels.shared.model.SizedTileImpl
 import com.android.systemui.qs.panels.ui.compose.ButtonGroupGrid
+import com.android.systemui.qs.panels.ui.compose.ComponentReorderScreen
 import com.android.systemui.qs.panels.ui.compose.EditTileListState
 import com.android.systemui.qs.panels.ui.compose.PaginatableGridLayout
 import com.android.systemui.qs.panels.ui.compose.TileListener
@@ -46,6 +51,7 @@ import com.android.systemui.qs.panels.ui.compose.bounceableInfo
 import com.android.systemui.qs.panels.ui.viewmodel.BounceableTileViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.DetailsViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.EditTileViewModel
+import com.android.systemui.qs.panels.ui.viewmodel.EditTopBarActionViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.IconTilesViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.InfiniteGridViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.TextFeedbackContentViewModel
@@ -65,6 +71,7 @@ constructor(
     override val viewModelFactory: InfiniteGridViewModel.Factory,
     private val textFeedbackContentViewModelFactory: TextFeedbackContentViewModel.Factory,
     private val tileHapticsViewModelFactoryProvider: TileHapticsViewModelFactoryProvider,
+    private val componentReorderViewModelFactory: com.android.systemui.qs.panels.ui.viewmodel.ComponentReorderViewModel.Factory,
 ) : PaginatableGridLayout {
 
     @Composable
@@ -201,8 +208,28 @@ constructor(
                     coroutineScope.launch { scrollState.animateScrollTo(0) }
                 }
             }
+        val configuration = LocalConfiguration.current
+        var showReorderScreen by remember { mutableStateOf(false) }
+        val componentReorderViewModel =
+            rememberViewModel(traceName = "InfiniteGridLayout.ComponentReorder") {
+                componentReorderViewModelFactory.create()
+            }
+        LaunchedEffect(configuration.orientation) {
+            if (showReorderScreen) {
+                showReorderScreen = false
+            }
+        }
+        val reorderAction = remember {
+            EditTopBarActionViewModel(
+                labelId = R.string.qs_reorder_components_title,
+                onClick = { showReorderScreen = true },
+                showAsText = true,
+            )
+        }
         val actions =
-            remember(topBarActionsViewModel) { topBarActionsViewModel.actions.toMutableStateList() }
+            remember(topBarActionsViewModel) {
+                (listOf(reorderAction) + topBarActionsViewModel.actions).toMutableStateList()
+            }
         val columns = columnsViewModel.columns
         val largeTilesSpan = columnsViewModel.largeSpan
         val largeTiles by viewModel.iconTilesViewModel.largeTilesState
@@ -219,38 +246,44 @@ constructor(
             }
         LaunchedEffect(currentTiles, largeTiles) { listState.updateTiles(currentTiles, largeTiles) }
 
-        DefaultEditTileGrid(
-            listState = listState,
-            allTiles = tiles,
-            modifier = modifier,
-            scrollState = scrollState,
-            snapshotViewModel = snapshotViewModel,
-            onStopEditing = onStopEditing,
-            topBarActions = actions,
-        ) { action ->
-            // Opening the dialog doesn't require a snapshot
-            if (action != EditAction.ResetGrid) {
-                snapshotViewModel.takeSnapshot(currentTiles.map { it.tileSpec }, largeTiles)
-            }
-
-            when (action) {
-                is EditAction.AddTile -> {
-                    onAddTile(action.tileSpec, listState.tileSpecs().size)
+        if (showReorderScreen) {
+            ComponentReorderScreen(
+                viewModel = componentReorderViewModel,
+                onBack = { showReorderScreen = false },
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            DefaultEditTileGrid(
+                listState = listState,
+                allTiles = tiles,
+                modifier = modifier,
+                scrollState = scrollState,
+                snapshotViewModel = snapshotViewModel,
+                onStopEditing = onStopEditing,
+                topBarActions = actions,
+            ) { action ->
+                if (action != EditAction.ResetGrid) {
+                    snapshotViewModel.takeSnapshot(currentTiles.map { it.tileSpec }, largeTiles)
                 }
-                is EditAction.InsertTile -> {
-                    onAddTile(action.tileSpec, action.position)
-                }
-                is EditAction.RemoveTile -> {
-                    onRemoveTile(action.tileSpec)
-                }
-                EditAction.ResetGrid -> {
-                    dialogDelegate.showDialog()
-                }
-                is EditAction.ResizeTile -> {
-                    iconTilesViewModel.resize(action.tileSpec, action.toIcon)
-                }
-                is EditAction.SetTiles -> {
-                    onSetTiles(action.tileSpecs)
+                when (action) {
+                    is EditAction.AddTile -> {
+                        onAddTile(action.tileSpec, listState.tileSpecs().size)
+                    }
+                    is EditAction.InsertTile -> {
+                        onAddTile(action.tileSpec, action.position)
+                    }
+                    is EditAction.RemoveTile -> {
+                        onRemoveTile(action.tileSpec)
+                    }
+                    EditAction.ResetGrid -> {
+                        dialogDelegate.showDialog()
+                    }
+                    is EditAction.ResizeTile -> {
+                        iconTilesViewModel.resize(action.tileSpec, action.toIcon)
+                    }
+                    is EditAction.SetTiles -> {
+                        onSetTiles(action.tileSpecs)
+                    }
                 }
             }
         }
