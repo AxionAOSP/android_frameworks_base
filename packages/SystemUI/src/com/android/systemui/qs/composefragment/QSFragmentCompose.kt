@@ -170,8 +170,12 @@ import com.android.systemui.qs.footer.ui.compose.FooterActions
 import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsButtonViewModel
 import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsForegroundServicesButtonViewModel
 import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsViewModel
+import com.android.systemui.qs.composefragment.model.QSPanelComponent
 import com.android.systemui.qs.panels.shared.model.QSFragmentComposeClippingTableLog
+import com.android.systemui.qs.panels.ui.compose.BrightnessSliderPreview
 import com.android.systemui.qs.panels.ui.compose.EditMode
+import com.android.systemui.qs.panels.ui.compose.EditStyleTileGrid
+import com.android.systemui.qs.panels.ui.compose.LocalComponentPreviews
 import com.android.systemui.qs.panels.ui.compose.QuickQuickSettings
 import com.android.systemui.qs.panels.ui.compose.TileGrid
 import com.android.systemui.qs.shared.ui.QuickSettings.Elements
@@ -897,6 +901,8 @@ constructor(
                                 tiles = Tiles,
                                 media = Media,
                                 mediaInRow = viewModel.qqsMediaInRow,
+                                mediaVisible = viewModel.qqsMediaVisible,
+                                componentOrder = viewModel.componentOrder,
                             )
                         }
                     }
@@ -1030,7 +1036,9 @@ constructor(
                                     tiles = TileGrid,
                                     media = Media,
                                     mediaInRow = viewModel.qsMediaInRow,
+                                    mediaVisible = viewModel.qsMediaVisible,
                                     needsOffset = !viewModel.isLargeScreenHeader,
+                                    componentOrder = viewModel.componentOrder,
                                 )
                             }
                         }
@@ -1088,16 +1096,47 @@ constructor(
     }
 
     @Composable
-    private fun EditModeElement(modifier: Modifier = Modifier) {
-        // No need for top padding, the Scaffold inside takes care of the correct insets
-        EditMode(
-            viewModel = viewModel.containerViewModel.editModeViewModel,
-            modifier =
-                modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = { QuickSettingsShade.Dimensions.Padding.roundToPx() })
-                    .padding(top = { viewModel.qqsHeaderHeight }),
-        )
+    private fun ContentScope.EditModeElement(modifier: Modifier = Modifier) {
+        val context = LocalContext.current
+        val configuration = LocalConfiguration.current
+        val qqsVm = viewModel.quickQuickSettingsViewModel
+        val columns by remember(configuration) {
+            derivedStateOf {
+                if (viewModel.isInSplitShade) {
+                    context.resources.getInteger(R.integer.quick_settings_split_shade_num_columns)
+                } else {
+                    qqsVm.columns
+                }
+            }
+        }
+        val tileViewModels by remember { derivedStateOf { qqsVm.tileViewModels } }
+        val componentPreviews = remember(
+            viewModel,
+            columns,
+            tileViewModels
+        ) {
+            mapOf<QSPanelComponent, @Composable () -> Unit>(
+                QSPanelComponent.BRIGHTNESS to {
+                    BrightnessSliderPreview()
+                },
+                QSPanelComponent.TILES to {
+                    EditStyleTileGrid(
+                        tiles = tileViewModels,
+                        columns = columns,
+                    )
+                },
+            )
+        }
+        CompositionLocalProvider(LocalComponentPreviews provides componentPreviews) {
+            EditMode(
+                viewModel = viewModel.containerViewModel.editModeViewModel,
+                modifier =
+                    modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = { QuickSettingsShade.Dimensions.Padding.roundToPx() })
+                        .padding(top = { viewModel.qqsHeaderHeight }),
+            )
+        }
     }
 
     private fun Modifier.collapseExpandSemanticAction(label: String): Modifier {
@@ -1603,50 +1642,64 @@ fun QuickQuickSettingsLayout(
     tiles: @Composable () -> Unit,
     media: @Composable () -> Unit,
     mediaInRow: Boolean,
+    mediaVisible: Boolean,
+    componentOrder: List<QSPanelComponent>,
 ) {
-    val sliderAtBottom = brightness.showSlider == 2 && !brightness.sliderAtTop
     val contentPadding = dimensionResource(R.dimen.ax_qs_content_padding)
+    val brightnessIsFirst = brightness.showSlider == 2 &&
+        componentOrder.firstOrNull() == QSPanelComponent.BRIGHTNESS
+    val topPadding = if (brightnessIsFirst) (contentPadding - 6.dp).coerceAtLeast(0.dp)
+        else contentPadding
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(
-            modifier = Modifier.height { contentPadding.roundToPx() }
+            modifier = Modifier.height { topPadding.roundToPx() }
         )
 
-        if (brightness.showSlider == 2 && brightness.sliderAtTop) {
-            brightness()
-            Spacer(
-                modifier = Modifier.height { contentPadding.roundToPx() }
-            )
-        }
-
-        if (mediaInRow) {
-            Row(
-                horizontalArrangement = spacedBy(contentPadding),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(modifier = Modifier.weight(1f)) { tiles() }
-                Box(modifier = Modifier.weight(1f)) { media() }
+        var lastRendered: QSPanelComponent? = null
+        for (component in componentOrder) {
+            when (component) {
+                QSPanelComponent.BRIGHTNESS -> {
+                    if (brightness.showSlider == 2) {
+                        if (lastRendered != null) {
+                            Spacer(modifier = Modifier.height { contentPadding.roundToPx() })
+                        }
+                        brightness()
+                        lastRendered = QSPanelComponent.BRIGHTNESS
+                    }
+                }
+                QSPanelComponent.TILES -> {
+                    if (lastRendered != null) {
+                        Spacer(modifier = Modifier.height { contentPadding.roundToPx() })
+                    }
+                    if (mediaInRow) {
+                        Row(
+                            horizontalArrangement = spacedBy(contentPadding),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) { tiles() }
+                            Box(modifier = Modifier.weight(1f)) { media() }
+                        }
+                    } else {
+                        tiles()
+                    }
+                    lastRendered = QSPanelComponent.TILES
+                }
+                QSPanelComponent.MEDIA -> {
+                    if (!mediaInRow && mediaVisible) {
+                        if (lastRendered != null && lastRendered != QSPanelComponent.BRIGHTNESS) {
+                            Spacer(modifier = Modifier.height { contentPadding.roundToPx() })
+                        }
+                        media()
+                        if (lastRendered == null) {
+                            Spacer(modifier = Modifier.height { (contentPadding / 2).roundToPx() })
+                        }
+                        lastRendered = QSPanelComponent.MEDIA
+                    }
+                }
             }
-        } else {
-            tiles()
-        }
-
-        if (sliderAtBottom) {
-            Spacer(
-                modifier = Modifier.height { contentPadding.roundToPx() }
-            )
-            brightness()
-        }
-
-        if (!mediaInRow) {
-            if (!sliderAtBottom) {
-                Spacer(
-                    modifier = Modifier.height { contentPadding.roundToPx() }
-                )
-            }
-            media()
         }
     }
 }
@@ -1659,44 +1712,67 @@ fun QuickSettingsLayout(
     tiles: @Composable () -> Unit,
     media: @Composable () -> Unit,
     mediaInRow: Boolean,
+    mediaVisible: Boolean,
     needsOffset: Boolean,
+    componentOrder: List<QSPanelComponent>,
 ) {
     val contentPadding = dimensionResource(R.dimen.ax_qs_content_padding)
     val offset = dimensionResource(R.dimen.ax_qs_panel_offset)
+    val brightnessIsFirst = brightness.showSlider >= 1 &&
+        componentOrder.firstOrNull() == QSPanelComponent.BRIGHTNESS
+    val adjustedOffset = if (brightnessIsFirst) (offset - 6.dp).coerceAtLeast(0.dp) else offset
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (needsOffset) {
             Spacer(
-                modifier = Modifier.height { offset.roundToPx() }
-            )
-        }
-        if (brightness.showSlider >= 1 && brightness.sliderAtTop) {
-            brightness()
-            Spacer(
-                modifier = Modifier.height { contentPadding.roundToPx() }
+                modifier = Modifier.height { adjustedOffset.roundToPx() }
             )
         }
 
-        if (mediaInRow) {
-            Row(
-                horizontalArrangement = spacedBy(QuickSettingsShade.Dimensions.Padding),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(modifier = Modifier.weight(1f)) { tiles() }
-                Box(modifier = Modifier.weight(1f)) { media() }
+        var lastRendered: QSPanelComponent? = null
+        for (component in componentOrder) {
+            when (component) {
+                QSPanelComponent.BRIGHTNESS -> {
+                    if (brightness.showSlider >= 1) {
+                        if (lastRendered != null) {
+                            Spacer(modifier = Modifier.height { contentPadding.roundToPx() })
+                        }
+                        brightness()
+                        lastRendered = QSPanelComponent.BRIGHTNESS
+                    }
+                }
+                QSPanelComponent.TILES -> {
+                    if (lastRendered != null) {
+                        Spacer(modifier = Modifier.height { contentPadding.roundToPx() })
+                    }
+                    if (mediaInRow) {
+                        Row(
+                            horizontalArrangement = spacedBy(QuickSettingsShade.Dimensions.Padding),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) { tiles() }
+                            Box(modifier = Modifier.weight(1f)) { media() }
+                        }
+                    } else {
+                        tiles()
+                    }
+                    lastRendered = QSPanelComponent.TILES
+                }
+                QSPanelComponent.MEDIA -> {
+                    if (!mediaInRow && mediaVisible) {
+                        if (lastRendered != null && lastRendered != QSPanelComponent.BRIGHTNESS) {
+                            Spacer(modifier = Modifier.height { contentPadding.roundToPx() })
+                        }
+                        media()
+                        if (lastRendered == null) {
+                            Spacer(modifier = Modifier.height { (contentPadding / 2).roundToPx() })
+                        }
+                        lastRendered = QSPanelComponent.MEDIA
+                    }
+                }
             }
-        } else {
-            tiles()
-        }
-
-        if (brightness.showSlider >= 1 && !brightness.sliderAtTop) {
-            brightness()
-        }
-
-        if (!mediaInRow) {
-            media()
         }
     }
 }
@@ -1879,7 +1955,6 @@ class BrightnessSliderConfig(
     private val vm: QSFragmentComposeViewModel,
     private val content: @Composable () -> Unit,
 ) {
-    val sliderAtTop: Boolean = vm.sliderAtTop
     val showSlider: Int = vm.showSlider
 
     @Composable
