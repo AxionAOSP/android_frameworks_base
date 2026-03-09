@@ -20,4 +20,12 @@
     <!-- QS panel component reorder -->
     <string name="qs_reorder_components_title">Customize</string>
     <string name="qs_reorder_components_subtitle">Long press and drag to reorder</string>
+
+    <!-- Smart Pixels -->
+    <string name="quick_settings_smart_pixels_label">Smart Pixels</string>
+    <string name="quick_settings_smart_pixels_on">On</string>
+    <string name="quick_settings_smart_pixels_off">Off</string>
+    <string name="smart_pixels_dialog_title">Smart Pixels</string>
+    <string name="smart_pixels_percent_label">Pixel percentage</string>
+    <string name="smart_pixels_percent_format"><xliff:g id="percent" example="25">%d</xliff:g>%%</string>
 </resources>
