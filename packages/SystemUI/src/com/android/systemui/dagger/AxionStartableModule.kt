@@ -21,11 +21,22 @@ import com.android.systemui.ax.AxPlatformServiceImpl
 import com.android.systemui.axdynamicbar.domain.AxDynamicBarChipsRefiner
 import com.android.systemui.axdynamicbar.ui.AxDynamicBarManager
 import com.android.systemui.statusbar.chips.ui.viewmodel.OngoingActivityChipsRefiner
+import com.android.systemui.axsmartpixel.ui.AxSmartPixelManager
+import com.android.systemui.axsmartpixel.ui.AxSmartPixelTile
+import com.android.systemui.qs.QsEventLogger
+import com.android.systemui.qs.pipeline.shared.TileSpec
+import com.android.systemui.qs.shared.model.TileCategory
+import com.android.systemui.qs.tileimpl.QSTileImpl
+import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
+import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
+import com.android.systemui.res.R
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.multibindings.ClassKey
 import dagger.multibindings.IntoMap
 import dagger.multibindings.IntoSet
+import dagger.multibindings.StringKey
 
 @Module
 abstract class AxionStartableModule {
@@ -40,4 +51,29 @@ abstract class AxionStartableModule {
     @Binds
     @IntoSet
     abstract fun bindDynamicBarChipsRefiner(impl: AxDynamicBarChipsRefiner): OngoingActivityChipsRefiner
+    @Binds
+    @IntoMap
+    @ClassKey(AxSmartPixelManager::class)
+    abstract fun bindAxSmartPixelManager(impl: AxSmartPixelManager): CoreStartable
+    @Binds
+    @IntoMap
+    @StringKey(AxSmartPixelTile.TILE_SPEC)
+    abstract fun bindAxSmartPixelTile(tile: AxSmartPixelTile): QSTileImpl<*>
+
+    companion object {
+        @JvmStatic
+        @Provides
+        @IntoMap
+        @StringKey(AxSmartPixelTile.TILE_SPEC)
+        fun provideSmartPixelsTileConfig(uiEventLogger: QsEventLogger): QSTileConfig =
+            QSTileConfig(
+                tileSpec = TileSpec.create(AxSmartPixelTile.TILE_SPEC),
+                uiConfig = QSTileUIConfig.Resource(
+                    iconRes = R.drawable.qs_smart_pixels_icon_off,
+                    labelRes = R.string.quick_settings_smart_pixels_label,
+                ),
+                instanceId = uiEventLogger.getNewInstanceId(),
+                category = TileCategory.DISPLAY,
+            )
+    }
 }
