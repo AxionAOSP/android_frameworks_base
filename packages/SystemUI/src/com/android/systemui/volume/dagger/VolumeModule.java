@@ -35,6 +35,8 @@ import com.android.systemui.statusbar.policy.DevicePostureController;
 import com.android.systemui.statusbar.policy.DeviceProvisionedController;
 import com.android.systemui.util.settings.SecureSettings;
 import com.android.systemui.util.time.SystemClock;
+import com.android.systemui.axion.volume.AxionVolumeDialogPlugin;
+import com.android.systemui.axion.volume.dagger.AxionVolumeSubcomponentModule;
 import com.android.systemui.volume.CsdWarningDialog;
 import com.android.systemui.volume.VolumeComponent;
 import com.android.systemui.volume.VolumeDialogComponent;
@@ -69,6 +71,7 @@ import dagger.multibindings.IntoSet;
                 CaptioningModule.class,
                 MediaDevicesModule.class,
                 SpatializerModule.class,
+                AxionVolumeSubcomponentModule.class,
         },
         subcomponents = {
                 VolumePanelComponent.class,
@@ -111,6 +114,7 @@ public interface VolumeModule {
     /**  */
     @Provides
     static VolumeDialog provideVolumeDialog(
+            Lazy<AxionVolumeDialogPlugin> axionVolumeDialogPlugin,
             Lazy<VolumeDialogPlugin> volumeDialogProvider,
             Context context,
             VolumeDialogController volumeDialogController,
@@ -130,7 +134,10 @@ public interface VolumeModule {
             MSDLPlayer msdlPlayer,
             SystemClock systemClock,
             VolumeDialogInteractor interactor) {
-        if (Flags.volumeRedesign()) {
+        final boolean useAxionVolumeDialog = true;
+        if (useAxionVolumeDialog) {
+            return axionVolumeDialogPlugin.get();
+        } else if (Flags.volumeRedesign()) {
             return volumeDialogProvider.get();
         } else {
             VolumeDialogImpl impl = new VolumeDialogImpl(
