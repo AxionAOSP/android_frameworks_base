@@ -26,13 +26,20 @@ import android.os.Process;
 import android.os.SystemProperties;
 import android.util.Slog;
 
+import android.app.pinner.PinnedFileStat;
+
+import com.android.server.LocalServices;
 import com.android.server.am.CachedAppOptimizer;
+import com.android.server.pinner.PinnedFile;
+import com.android.server.pinner.PinnerService;
 import com.android.server.wm.WindowManagerService;
 import com.android.server.NtServiceInjector;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -417,6 +424,79 @@ public class AxMemoryManagerImpl implements IAxMemoryManager {
                 + " (disksize=" + disksize.trim() + ")");
     }
 
+    private static final String PINNER_GROUP = "axion";
+    private static final String[] PINNER_CANDIDATES = {
+        "/vendor/lib64/egl/libGLES_mali.so",
+        "/vendor/lib64/egl/libEGL_adreno.so",
+        "/vendor/lib64/egl/libGLESv2_adreno.so",
+        "/vendor/lib64/hw/gralloc.default.so",
+        "/vendor/lib64/hw/vulkan.mali.so",
+        "/vendor/lib64/hw/mapper.pixel.so",
+        "/vendor/lib64/hw/android.hardware.graphics.allocator-aidl-impl.so",
+        "/vendor/lib64/libexynosdisplay.so",
+        "/vendor/lib/lib_aion_buffer.so",
+        "/vendor/lib64/lib_aion_buffer.so",
+        "/system/lib64/libhwui.so",
+        "/system/lib64/libRenderEngine.so",
+        "/system/lib64/libandroid_runtime.so",
+        "/system/lib64/libandroid_servers.so",
+        "/system/lib64/libandroidfw.so",
+        "/system/lib64/libandroid.so",
+        "/system/lib64/libjpeg.so",
+        "/system/lib64/libutils.so",
+        "/system/lib64/libbinder.so",
+        "/system/lib64/libbinder_ndk.so",
+        "/system/lib64/libgui.so",
+        "/system/lib64/libmedia.so",
+        "/apex/com.android.art/lib64/libart.so",
+        "/apex/com.android.art/lib64/libartbase.so",
+        "/apex/com.android.art/javalib/okhttp.jar",
+        "/apex/com.android.art/javalib/bouncycastle.jar",
+        "/apex/com.android.media/javalib/updatable-media.jar",
+        "/system_ext/priv-app/SystemUI/SystemUI.apk",
+        "/system/framework/ext.jar",
+        "/system/framework/telephony-common.jar",
+        "/system/framework/arm64/boot-framework.oat",
+        "/system/framework/arm64/boot-framework.vdex",
+        "/system/framework/arm64/boot.oat",
+        "/system/framework/arm64/boot.vdex",
+        "/system/framework/arm64/boot-core-libart.oat",
+        "/system/framework/arm64/boot-core-libart.vdex",
+        "/system/framework/arm64/boot-ext.vdex",
+    };
+
+    private void tunePinner() {
+        PinnerService pinner = LocalServices.getService(PinnerService.class);
+        if (pinner == null) {
+            Slog.w(TAG, "PinnerService not available");
+            return;
+        }
+
+        HashSet<String> alreadyPinned = new HashSet<>();
+        for (PinnedFileStat stat : pinner.getPinnerStats()) {
+            alreadyPinned.add(stat.getFilename());
+        }
+
+        int pinned = 0;
+        for (String path : PINNER_CANDIDATES) {
+            if (alreadyPinned.contains(path)) {
+                if (DEBUG) Slog.d(TAG, "Already pinned: " + path);
+                continue;
+            }
+            if (!new File(path).exists()) {
+                if (DEBUG) Slog.d(TAG, "Not found, skip: " + path);
+                continue;
+            }
+            PinnedFile pf = pinner.pinFile(path, Integer.MAX_VALUE,
+                    null, PINNER_GROUP, false);
+            if (pf != null) {
+                pinned++;
+                if (DEBUG) Slog.d(TAG, "Pinned: " + path + " (" + pf.bytesPinned + " bytes)");
+            }
+        }
+        Slog.d(TAG, "Pinner: pinned " + pinned + " additional files");
+    }
+
     public void systemReady() {
         mService = NtServiceInjector.getAm();
         mWindowService = NtServiceInjector.getWm();
@@ -426,6 +506,7 @@ public class AxMemoryManagerImpl implements IAxMemoryManager {
         loadBoostCamera();
         tuneExtraFree();
         tuneZramCompression();
+        tunePinner();
 
         OnlineConfigObserver.addConfigObserver(config -> {
             if (DEBUG) Slog.d(TAG, "Config update received");
