@@ -262,8 +262,10 @@ public final class PinnerService extends SystemService {
                 com.android.internal.R.bool.config_pinnerAssistantApp);
         mConfiguredWebviewPinBytes = context.getResources().getInteger(
                 com.android.internal.R.integer.config_pinnerWebviewPinBytes);
-        mConfiguredMaxPinnedMemoryPercentage = context.getResources().getInteger(
+        int defaultPct = context.getResources().getInteger(
                 com.android.internal.R.integer.config_pinnerMaxPinnedMemoryPercentage);
+        mConfiguredMaxPinnedMemoryPercentage = SystemProperties.getInt(
+                "persist.sys.pinner.quota_pct", defaultPct);
 
         mPinKeys = createPinKeys();
         mPinnerHandler = new PinnerHandler(BackgroundThread.get().getLooper());
