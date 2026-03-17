@@ -519,6 +519,7 @@ android_library {
         "com.android.systemui.pods-api-aosp-handheld",
         "ax_platform_hooks",
         "axquicklook-client",
+        "ax_compose",
         "SystemUI-res",
         "WifiTrackerLib",
         "WindowManager-Shell",
