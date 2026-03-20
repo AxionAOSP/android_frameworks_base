@@ -117,6 +117,9 @@ constructor(
         }
         mCoordinators.add(statsLoggerCoordinator)
         // Manually add Ordered Sections
+        if (NotificationBundleUi.isEnabled) {
+            mOrderedSections.add(bundleCoordinator.essentialSectioner) // Essential
+        }
         if (NotificationMinimalism.isEnabled) {
             mOrderedSections.add(lockScreenMinimalismCoordinator.topOngoingSectioner) // Top Ongoing
         }
