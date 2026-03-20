@@ -125,6 +125,9 @@ public final class ColorDisplayService extends SystemService {
     private static final int MSG_APPLY_GLOBAL_SATURATION = 4;
     private static final int MSG_APPLY_DISPLAY_WHITE_BALANCE = 5;
     private static final int MSG_APPLY_REDUCE_BRIGHT_COLORS = 6;
+    private static final int MSG_APPLY_BRAVIA_ENGINE = 7;
+
+    private static final String AX_BRAVIA_ENGINE_MODE = "ax_bravia_engine_mode";
 
     /**
      * Return value if a setting has not been set.
@@ -174,6 +177,8 @@ public final class ColorDisplayService extends SystemService {
             new NightDisplayTintController();
     private final TintController mGlobalSaturationTintController =
             new GlobalSaturationTintController();
+    private final AxBraviaEngineTintController mBraviaEngineTintController =
+            new AxBraviaEngineTintController();
     private final ReduceBrightColorsTintController mReduceBrightColorsTintController;
 
     @VisibleForTesting
@@ -396,6 +401,9 @@ public final class ColorDisplayService extends SystemService {
                                 onReduceBrightColorsActivationChanged(/*userInitiated*/ true);
                                 mHandler.sendEmptyMessage(MSG_APPLY_REDUCE_BRIGHT_COLORS);
                                 break;
+                            case AX_BRAVIA_ENGINE_MODE:
+                                onBraviaEngineChanged();
+                                break;
                             case Secure.REDUCE_BRIGHT_COLORS_LEVEL:
                                 onReduceBrightColorsStrengthLevelChanged();
                                 mHandler.sendEmptyMessage(MSG_APPLY_REDUCE_BRIGHT_COLORS);
@@ -430,6 +438,8 @@ public final class ColorDisplayService extends SystemService {
         cr.registerContentObserver(Secure.getUriFor(Secure.REDUCE_BRIGHT_COLORS_ACTIVATED),
                 false /* notifyForDescendants */, mContentObserver, mCurrentUser);
         cr.registerContentObserver(Secure.getUriFor(Secure.REDUCE_BRIGHT_COLORS_LEVEL),
+                false /* notifyForDescendants */, mContentObserver, mCurrentUser);
+        cr.registerContentObserver(Secure.getUriFor(AX_BRAVIA_ENGINE_MODE),
                 false /* notifyForDescendants */, mContentObserver, mCurrentUser);
         if (Flags.enableColorCorrectionSaturation()) {
             cr.registerContentObserver(
@@ -483,6 +493,10 @@ public final class ColorDisplayService extends SystemService {
                 mHandler.sendEmptyMessage(MSG_APPLY_REDUCE_BRIGHT_COLORS);
             }
         }
+
+        if (mBraviaEngineTintController.isAvailable(getContext())) {
+            onBraviaEngineChanged();
+        }
     }
 
     private void tearDown() {
@@ -508,6 +522,10 @@ public final class ColorDisplayService extends SystemService {
             mGlobalSaturationTintController.setActivated(null);
         }
 
+        if (mBraviaEngineTintController.isAvailable(getContext())) {
+            mBraviaEngineTintController.setActivated(null);
+        }
+
         if (mReduceBrightColorsTintController.isAvailable(getContext())) {
             mReduceBrightColorsTintController.setActivated(null);
         }
@@ -518,6 +536,7 @@ public final class ColorDisplayService extends SystemService {
     void cancelAllAnimators() {
         mNightDisplayTintController.cancelAnimator();
         mGlobalSaturationTintController.cancelAnimator();
+        mBraviaEngineTintController.cancelAnimator();
         mReduceBrightColorsTintController.cancelAnimator();
         mDisplayWhiteBalanceTintController.cancelAnimator();
     }
@@ -1063,6 +1082,16 @@ public final class ColorDisplayService extends SystemService {
         final Message message = mHandler.obtainMessage(MSG_APPLY_GLOBAL_SATURATION);
         message.arg1 = saturationLevel;
         mHandler.sendMessage(message);
+    }
+
+    private void onBraviaEngineChanged() {
+        int mode = Secure.getIntForUser(getContext().getContentResolver(),
+                AX_BRAVIA_ENGINE_MODE, 0, mCurrentUser);
+        final Message message = mHandler.obtainMessage(MSG_APPLY_BRAVIA_ENGINE);
+        message.arg1 = mode;
+        mHandler.sendMessage(message);
+        boolean sharpening = mode == AxBraviaEngineTintController.MODE_VIVID;
+        SystemProperties.set("persist.sys.ax.sharpening", sharpening ? "1" : "0");
     }
 
     boolean setAppSaturationLevelInternal(String callingPackageName,
@@ -1817,6 +1846,10 @@ public final class ColorDisplayService extends SystemService {
                     break;
                 case MSG_APPLY_REDUCE_BRIGHT_COLORS:
                     applyTint(mReduceBrightColorsTintController, true);
+                    break;
+                case MSG_APPLY_BRAVIA_ENGINE:
+                    mBraviaEngineTintController.setMatrix(msg.arg1);
+                    applyTint(mBraviaEngineTintController, false);
                     break;
                 case MSG_APPLY_NIGHT_DISPLAY_IMMEDIATE:
                     applyTint(mNightDisplayTintController, true);
