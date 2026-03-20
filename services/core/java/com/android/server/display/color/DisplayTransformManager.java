@@ -56,6 +56,10 @@ public class DisplayTransformManager {
      */
     public static final int LEVEL_COLOR_MATRIX_SATURATION = 150;
     /**
+     * Color transform level used by the AxBraviaEngine.
+     */
+    public static final int LEVEL_COLOR_MATRIX_BRAVIA_ENGINE = 175;
+    /**
      * Color transform level used by A11y services to make the display monochromatic.
      */
     public static final int LEVEL_COLOR_MATRIX_GRAYSCALE = 200;
