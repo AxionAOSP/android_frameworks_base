@@ -200,5 +200,10 @@ interface ISystemUiProxy {
      */
     oneway void onSleepEvent(in MotionEvent event) = 61;
 
-    // Next id = 62
+    /**
+     * Force stops the given package for the given user.
+     */
+    oneway void forceStopPackage(String packageName, int userId) = 62;
+
+    // Next id = 63
 }
