@@ -44,6 +44,7 @@ import static com.android.systemui.shared.system.QuickStepContract.addInterface;
 
 import android.annotation.FloatRange;
 import android.annotation.Nullable;
+import android.app.ActivityManager;
 import android.app.ActivityTaskManager;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -533,6 +534,16 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
                             .goToSleep(event.getEventTime());
                     event.recycle();
                 });
+            });
+        }
+
+        @Override
+        public void forceStopPackage(String packageName, int userId) {
+            verifyCallerAndClearCallingIdentityPostMain("forceStopPackage", () -> {
+                ActivityManager am = mContext.getSystemService(ActivityManager.class);
+                if (am != null) {
+                    am.forceStopPackageAsUser(packageName, userId);
+                }
             });
         }
 
