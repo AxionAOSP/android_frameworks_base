@@ -154,6 +154,12 @@ constructor(
             .toState(true, nameTag("MobileIconsInteractorKairosImpl.dataDisabledIndicatorEnabled"))
     }
 
+    private val show4gForLteEnabled: State<Boolean> = buildState {
+        secureSettingsRepository
+            .boolSetting(SHOW_4G_FOR_LTE, false)
+            .toState(false, nameTag("MobileIconsInteractorKairosImpl.show4gForLteEnabled"))
+    }
+
     override val mobileIsDefault: State<Boolean> =
         combine(
                 mobileConnectionsRepo.mobileIsDefault,
@@ -371,8 +377,13 @@ constructor(
      * Mapping from network type to [MobileIconGroup] using the config generated for the default
      * subscription Id. This mapping is the same for every subscription.
      */
-    override val defaultMobileIconMapping: State<Map<String, MobileIconGroup>>
-        get() = mobileConnectionsRepo.defaultMobileIconMapping
+    override val defaultMobileIconMapping: State<Map<String, MobileIconGroup>> =
+        combine(
+            mobileConnectionsRepo.defaultMobileIconMapping,
+            show4gForLteEnabled,
+        ) { mapping, show4g ->
+            if (show4g) mapping.swapLteTo4g() else mapping.swap4gToLte()
+        }
 
     override val alwaysShowDataRatIcon: State<Boolean> =
         mobileConnectionsRepo.defaultDataSubRatConfig.map { it.alwaysShowDataRatIcon }
