@@ -256,6 +256,7 @@ import com.android.server.DockObserverInternal;
 import com.android.server.ExtconStateObserver;
 import com.android.server.ExtconUEventObserver;
 import com.android.server.gesture.shake.ShakeGestureImpl;
+import com.android.server.gesture.threefinger.NtGestureImpl;
 import com.android.server.GestureLauncherService;
 import com.android.server.IAxPcModeService;
 import com.android.server.LocalServices;
@@ -275,6 +276,7 @@ import com.android.server.wm.DisplayPolicy;
 import com.android.server.wm.DisplayRotation;
 import com.android.server.wm.WindowManagerInternal;
 import com.android.server.wm.WindowManagerInternal.AppTransitionListener;
+import com.android.server.wm.WindowManagerService;
 
 import dalvik.system.PathClassLoader;
 
@@ -706,6 +708,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private Action mAppSwitchLongPressAction;
     private Action mEdgeLongSwipeAction;
     private Action mShakeAction;
+    private Action mThreeFingersSwipeAction;
 
     // support for activating the lock screen while the screen is on
     private HashSet<Integer> mAllowLockscreenWhenOnDisplays = new HashSet<>();
@@ -789,6 +792,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private GestureLauncherService mGestureLauncherService;
     private ButtonOverridePermissionChecker mButtonOverridePermissionChecker;
     private ShakeGestureImpl mShakeGestureImpl;
+
+    private NtGestureImpl mNtGestureImpl;
 
     private boolean mLockNowPending = false;
 
@@ -1089,6 +1094,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     UserHandle.USER_ALL);
             resolver.registerContentObserver(Settings.Secure.getUriFor(
                     "shake_gestures_action"), false, this,
+                    UserHandle.USER_ALL);
+            resolver.registerContentObserver(Settings.Secure.getUriFor(
+                    "nothing_three_finger_screenshot"), false, this,
                     UserHandle.USER_ALL);
             updateSettings();
         }
@@ -3394,6 +3402,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
         mShakeAction = Action.fromIntSafe(Settings.Secure.getIntForUser(
                 resolver, "shake_gestures_action",
+                0, UserHandle.USER_CURRENT));
+
+        mThreeFingersSwipeAction = Action.fromIntSafe(Settings.Secure.getIntForUser(
+                resolver, "nothing_three_finger_screenshot",
                 0, UserHandle.USER_CURRENT));
 
         mShortPressOnWindowBehavior = SHORT_PRESS_WINDOW_NOTHING;
@@ -6061,6 +6073,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 mDefaultDisplayRotation.onUserSwitch();
                 mWindowManagerFuncs.onUserSwitched();
                 mShakeGestureImpl.onUserSwitching();
+                mNtGestureImpl.onUserSwitching();
             }
         }
     };
@@ -6834,6 +6847,22 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, "Shake Gesture");
             }
         });
+
+        mNtGestureImpl = new NtGestureImpl(mContext, (WindowManagerService) mWindowManagerFuncs,
+                new NtGestureImpl.Callbacks() {
+                    @Override
+                    public void onThreeFingerSwipe() {
+                        if (mThreeFingersSwipeAction == Action.NOTHING)
+                            return;
+                        long now = SystemClock.uptimeMillis();
+                        KeyEvent event = new KeyEvent(now, now, KeyEvent.ACTION_DOWN,
+                                KeyEvent.KEYCODE_SYSRQ, 0, 0, KeyCharacterMap.VIRTUAL_KEYBOARD, 0,
+                                KeyEvent.FLAG_FROM_SYSTEM, InputDevice.SOURCE_TOUCHSCREEN);
+                        performKeyAction(mThreeFingersSwipeAction, event);
+                        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS,
+                                "Three Fingers Swipe");
+                    }
+                });
     }
 
     /** {@inheritDoc} */

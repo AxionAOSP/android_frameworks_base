@@ -297,6 +297,7 @@ import com.android.internal.policy.DecorView;
 import com.android.internal.policy.PhoneFallbackEventHandler;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.FastPrintWriter;
+import com.android.internal.util.NtThreeFingerGestureHelper;
 import com.android.internal.view.BaseSurfaceHolder;
 import com.android.internal.view.RootViewSurfaceTaker;
 import com.android.internal.view.SurfaceCallbackHelper;
@@ -1282,6 +1283,8 @@ public final class ViewRootImpl implements ViewParent,
 
     private final boolean mIsSubscribeGranularDisplayEventsEnabled;
 
+    private final NtThreeFingerGestureHelper mNtThreeFingerGestureHelper;
+
     public ViewRootImpl(Context context, Display display) {
         this(context, display, WindowManagerGlobal.getWindowSession(), new WindowLayout());
     }
@@ -1369,6 +1372,8 @@ public final class ViewRootImpl implements ViewParent,
             preInitBufferAllocator();
             sPreInitializedBufferAllocator = true;
         }
+
+        mNtThreeFingerGestureHelper = new NtThreeFingerGestureHelper(context);
     }
 
     public static void addFirstDrawHandler(Runnable callback) {
@@ -8010,6 +8015,10 @@ public final class ViewRootImpl implements ViewParent,
 
         private int processPointerEvent(QueuedInputEvent q) {
             final MotionEvent event = (MotionEvent)q.mEvent;
+
+            if (mNtThreeFingerGestureHelper.processPointerEvent(getView(), event)) {
+                return 1;
+            }
 
             // Translate the pointer event for compatibility, if needed.
             if (mTranslator != null) {
