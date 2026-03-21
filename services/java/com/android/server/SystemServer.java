@@ -174,6 +174,7 @@ import com.android.server.credentials.CredentialManagerService;
 import com.android.server.criticalevents.CriticalEventLog;
 import com.android.server.devicepolicy.DevicePolicyManagerService;
 import com.android.server.devicestate.DeviceStateManagerService;
+import com.android.server.display.brightness.HbmService;
 import com.android.server.display.DisplayManagerService;
 import com.android.server.display.color.ColorDisplayService;
 import com.android.server.dreams.DreamManagerService;
@@ -2910,8 +2911,14 @@ public final class SystemServer implements Dumpable {
             }
 
             if (SystemProperties.getBoolean(
-                    "persist.sys.target_enables_ims_override", false)) {
+                    "persist.sys.ax_ims_ovrrde", false)) {
                 mSystemServiceManager.startService(ImsConfigOverrideService.class);
+            }
+
+            boolean hbmSupported = SystemProperties.getBoolean("persist.sys.ax_hbm_supp", false);
+            String hbmFile = SystemProperties.get("persist.sys.ax_hbm_file");
+            if (hbmSupported && hbmFile != null && !hbmFile.isEmpty()) {
+                mSystemServiceManager.startService(HbmService.class);
             }
         }
 
