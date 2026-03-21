@@ -73,6 +73,7 @@ import com.android.systemui.statusbar.policy.SmartReplyConstants;
 import com.android.systemui.statusbar.policy.dagger.RemoteInputViewSubcomponent;
 import com.android.systemui.util.time.SystemClock;
 import com.android.systemui.window.domain.interactor.WindowRootViewBlurInteractor;
+import com.android.systemui.statusbar.NTForbiddenSwipeDownQSController;
 import com.axion.applocker.AxAppLockerHelper;
 
 import com.google.android.msdl.data.model.MSDLToken;
@@ -132,6 +133,7 @@ public class ExpandableNotificationRowController implements NotifViewController 
     private final WindowRootViewBlurInteractor mWindowRootViewBlurInteractor;
     private final NotificationActivityStarter mNotificationActivityStarter;
     private final AxAppLockerHelper mAxAppLockerHelper;
+    private final NTForbiddenSwipeDownQSController mForbiddenSwipeDownQSController;
     private final Context mContext;
 
     @VisibleForTesting
@@ -301,7 +303,8 @@ public class ExpandableNotificationRowController implements NotifViewController 
             WindowRootViewBlurInteractor windowRootViewBlurInteractor,
             BundleInteractionLogger bundleInteractionLogger,
             NotificationActivityStarter notificationActivityStarter,
-            AxAppLockerHelper axAppLockerHelper) {
+            AxAppLockerHelper axAppLockerHelper,
+            NTForbiddenSwipeDownQSController forbiddenSwipeDownQSController) {
         mView = view;
         mContext = context;
         mListContainer = listContainer;
@@ -342,6 +345,7 @@ public class ExpandableNotificationRowController implements NotifViewController 
         mBundleInteractionLogger = bundleInteractionLogger;
         mNotificationActivityStarter = notificationActivityStarter;
         mAxAppLockerHelper = axAppLockerHelper;
+        mForbiddenSwipeDownQSController = forbiddenSwipeDownQSController;
     }
 
     String loadsGutsAppName(Context context, PipelineEntry pipelineEntry) {
@@ -409,7 +413,8 @@ public class ExpandableNotificationRowController implements NotifViewController 
                 mNotificationRebindingTracker,
                 mBundleInteractionLogger,
                 mNotificationActivityStarter,
-                mAxAppLockerHelper
+                mAxAppLockerHelper,
+                mForbiddenSwipeDownQSController
         );
         mView.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         if (mAllowLongPress) {

@@ -59,6 +59,7 @@ import com.android.systemui.keyguard.KeyguardUnlockAnimationController;
 import com.android.systemui.keyguard.KeyguardViewMediator;
 import com.android.systemui.keyguard.WindowManagerLockscreenVisibilityManager;
 import com.android.systemui.keyguard.WindowManagerOcclusionManager;
+import com.android.systemui.statusbar.NTForbiddenSwipeDownQSController;
 import com.android.systemui.keyguard.data.quickaffordance.KeyguardDataQuickAffordanceModule;
 import com.android.systemui.keyguard.data.repository.DeviceEntryFaceAuthModule;
 import com.android.systemui.keyguard.data.repository.KeyguardRepositoryModule;
@@ -188,7 +189,8 @@ public interface KeyguardModule {
             KeyguardTransitionBootInteractor transitionBootInteractor,
             Lazy<CommunalSceneInteractor> communalSceneInteractor,
             Lazy<CommunalSettingsInteractor> communalSettingsInteractor,
-            WindowManagerOcclusionManager windowManagerOcclusionManager) {
+            WindowManagerOcclusionManager windowManagerOcclusionManager,
+            NTForbiddenSwipeDownQSController ntForbiddenSwipeDownQSController) {
         return new KeyguardViewMediator(
                 context,
                 uiEventLogger,
@@ -241,7 +243,8 @@ public interface KeyguardModule {
                 transitionBootInteractor,
                 communalSceneInteractor,
                 communalSettingsInteractor,
-                windowManagerOcclusionManager);
+                windowManagerOcclusionManager,
+                ntForbiddenSwipeDownQSController);
     }
 
     /** */

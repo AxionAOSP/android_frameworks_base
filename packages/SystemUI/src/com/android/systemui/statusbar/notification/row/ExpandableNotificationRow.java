@@ -149,6 +149,7 @@ import com.android.systemui.statusbar.notification.stack.NotificationChildrenCon
 import com.android.systemui.statusbar.notification.stack.NotificationChildrenContainerLogger;
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayout;
 import com.android.systemui.statusbar.notification.stack.SwipeableView;
+import com.android.systemui.statusbar.NTForbiddenSwipeDownQSController;
 import com.android.systemui.statusbar.phone.KeyguardBypassController;
 import com.android.systemui.statusbar.policy.InflatedSmartReplyState;
 import com.android.systemui.statusbar.policy.RemoteInputView;
@@ -221,6 +222,7 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
     private PeopleNotificationIdentifier mPeopleNotificationIdentifier;
     private NotificationActivityStarter mNotificationActivityStarter;
     private AxAppLockerHelper mAxAppLockerHelper;
+    private NTForbiddenSwipeDownQSController mForbiddenSwipeDownQSController;
     private MetricsLogger mMetricsLogger;
     private NotificationChildrenContainerLogger mChildrenContainerLogger;
     private ColorUpdateLogger mColorUpdateLogger;
@@ -421,8 +423,8 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
             promptAppUnlock();
             return;
         }
-        if (isBundle()
-                || (!shouldShowPublic() && (!mIsMinimized || isExpanded()) && isGroupRoot())) {
+        if ((isBundle()
+                || (!shouldShowPublic() && (!mIsMinimized || isExpanded()) && isGroupRoot())) && !mForbiddenSwipeDownQSController.getForbiddenSwipeDownQS()) {
             mGroupExpansionChanging = true;
 
             if (NotificationBundleUi.isEnabled()) {
@@ -2318,7 +2320,8 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
             NotificationRebindingTracker notificationRebindingTracker,
             BundleInteractionLogger bundleInteractionLogger,
             NotificationActivityStarter notificationActivityStarter,
-            AxAppLockerHelper axAppLockerHelper) {
+            AxAppLockerHelper axAppLockerHelper,
+            NTForbiddenSwipeDownQSController forbiddenSwipeDownQSController) {
 
         if (NotificationBundleUi.isEnabled()) {
             mEntryAdapter = entryAdapter;
@@ -2335,6 +2338,7 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
         mRebindingTracker = notificationRebindingTracker;
         mNotificationActivityStarter = notificationActivityStarter;
         mAxAppLockerHelper = axAppLockerHelper;
+        mForbiddenSwipeDownQSController = forbiddenSwipeDownQSController;
         if (mMenuRow == null) {
             mMenuRow = new NotificationMenuRow(
                     mContext, peopleNotificationIdentifier, mNotificationActivityStarter);
