@@ -45,6 +45,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -164,6 +165,22 @@ constructor(
         secureSettingsRepository
             .boolSetting(SHOW_DATA_DISABLED_ICON, true)
             .stateIn(scope, SharingStarted.WhileSubscribed(), true)
+
+    private val show4gForLteEnabled: StateFlow<Boolean> =
+        secureSettingsRepository
+            .boolSetting(SHOW_4G_FOR_LTE, false)
+            .stateIn(scope, SharingStarted.WhileSubscribed(), false)
+
+    init {
+        scope.launch {
+            val existing = secureSettingsRepository.getInt(SHOW_4G_FOR_LTE, -1)
+            if (existing == -1) {
+                val config = mobileConnectionsRepo.defaultDataSubRatConfig.value
+                val carrierUses4g = config.show4gForLte || config.show4glteForLte
+                secureSettingsRepository.setBoolean(SHOW_4G_FOR_LTE, carrierUses4g)
+            }
+        }
+    }
 
     override val mobileIsDefault =
         combine(
@@ -366,11 +383,17 @@ constructor(
      * subscription Id. This mapping is the same for every subscription.
      */
     override val defaultMobileIconMapping: StateFlow<Map<String, MobileIconGroup>> =
-        mobileConnectionsRepo.defaultMobileIconMapping.stateIn(
-            scope,
-            SharingStarted.WhileSubscribed(),
-            initialValue = mapOf(),
-        )
+        combine(
+            mobileConnectionsRepo.defaultMobileIconMapping,
+            show4gForLteEnabled,
+        ) { mapping, show4g ->
+            if (show4g) mapping.swapLteTo4g() else mapping.swap4gToLte()
+        }
+            .stateIn(
+                scope,
+                SharingStarted.WhileSubscribed(),
+                initialValue = mapOf(),
+            )
 
     override val alwaysShowDataRatIcon: StateFlow<Boolean> =
         mobileConnectionsRepo.defaultDataSubRatConfig
@@ -463,3 +486,22 @@ constructor(
 }
 
 internal const val SHOW_DATA_DISABLED_ICON = "status_bar_show_data_disabled"
+internal const val SHOW_4G_FOR_LTE = "status_bar_show_4g_for_lte"
+
+private val LTE_TO_4G = mapOf(
+    TelephonyIcons.LTE to TelephonyIcons.FOUR_G,
+    TelephonyIcons.LTE_PLUS to TelephonyIcons.FOUR_G_PLUS,
+)
+
+private val FOUR_G_TO_LTE = mapOf(
+    TelephonyIcons.FOUR_G to TelephonyIcons.LTE,
+    TelephonyIcons.FOUR_G_PLUS to TelephonyIcons.LTE_PLUS,
+    TelephonyIcons.FOUR_G_LTE to TelephonyIcons.LTE,
+    TelephonyIcons.FOUR_G_LTE_PLUS to TelephonyIcons.LTE_PLUS,
+)
+
+internal fun Map<String, MobileIconGroup>.swapLteTo4g(): Map<String, MobileIconGroup> =
+    mapValues { (_, iconGroup) -> LTE_TO_4G[iconGroup] ?: iconGroup }
+
+internal fun Map<String, MobileIconGroup>.swap4gToLte(): Map<String, MobileIconGroup> =
+    mapValues { (_, iconGroup) -> FOUR_G_TO_LTE[iconGroup] ?: iconGroup }

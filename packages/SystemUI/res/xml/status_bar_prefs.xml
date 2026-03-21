@@ -113,6 +113,12 @@
         android:title="@string/status_bar_data_disabled_indicator"
         sysui:defValue="true" />
 
+    <com.android.systemui.tuner.TunerSwitch
+        android:icon="@drawable/ic_statusbar_mobile_network"
+        android:key="status_bar_show_4g_for_lte"
+        android:title="@string/status_bar_show_4g_for_lte"
+        sysui:defValue="false" />
+
     <com.android.systemui.tuner.StatusBarSwitch
         android:icon="@drawable/ic_statusbar_airplanemode"
         android:key="airplane"
