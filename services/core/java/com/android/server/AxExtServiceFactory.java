@@ -19,6 +19,7 @@ import android.content.Context;
 
 import com.android.server.am.*;
 import com.android.server.pm.*;
+import com.android.server.wm.AxSandboxService;
 import com.android.server.wm.GameSpaceService;
 import com.android.server.wm.WindowManagerService;
 
@@ -119,6 +120,7 @@ public class AxExtServiceFactory {
 
     public static void systemReady() {
         GameSpaceService.systemReady();
+        AxSandboxService.systemReady();
         getAxPcModeService().systemReady();
     }
     
