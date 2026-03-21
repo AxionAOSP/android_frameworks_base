@@ -18,6 +18,10 @@ package com.android.systemui.overlay
 import android.view.View
 import android.widget.FrameLayout
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.android.systemui.edgelight.EdgeLight
+import com.android.systemui.edgelight.EdgeLightInteractor
 import com.android.systemui.CoreStartable
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.res.R
@@ -27,9 +31,15 @@ import javax.inject.Inject
 @SysUISingleton
 class KeyguardOverlayViewManager @Inject constructor(
     private val windowView: NotificationShadeWindowView,
+    private val edgeLightInteractor: EdgeLightInteractor,
 ) : CoreStartable {
 
     override fun start() {
+        val edgeLightView = createOverlayHost()
+        KeyguardOverlayViewBinder.bind(edgeLightView) {
+            val state by edgeLightInteractor.uiState.collectAsState()
+            EdgeLight(state = state)
+        }
     }
 
     fun createOverlayHost(): ComposeView {
