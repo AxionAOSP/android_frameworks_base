@@ -26,6 +26,7 @@ import android.view.ViewConfiguration
 import com.android.systemui.log.TouchHandlingViewLogger
 import kotlin.math.pow
 import kotlin.math.sqrt
+import com.android.systemui.util.TapPositionUtil
 import kotlinx.coroutines.DisposableHandle
 
 /** Encapsulates logic to handle complex touch interactions with a [TouchHandlingView]. */
@@ -103,6 +104,7 @@ class TouchHandlingViewInteractionHandler(
                 lastDoubleTapDownEventTime?.let { time ->
                     if (event.eventTime - time < doubleTapTimeoutMillis) {
                         cancelScheduledLongPress()
+                        TapPositionUtil.INSTANCE().setTapPos(event.rawX.toInt(), event.rawY.toInt())
                         onDoubleTapDetected()
                     }
                 }
@@ -193,7 +195,7 @@ class TouchHandlingViewInteractionHandler(
         if (!isAttachedToWindow()) {
             return
         }
-
+        TapPositionUtil.INSTANCE().setTapPos(x, y)
         onSingleTapDetected(x, y)
     }
 

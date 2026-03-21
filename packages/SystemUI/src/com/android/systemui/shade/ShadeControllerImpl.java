@@ -39,6 +39,7 @@ import com.android.systemui.statusbar.notification.row.NotificationGutsManager;
 import com.android.systemui.statusbar.policy.DeviceProvisionedController;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.statusbar.window.StatusBarWindowControllerStore;
+import com.android.systemui.util.ScreenAnimationController;
 
 import dagger.Lazy;
 
@@ -140,6 +141,9 @@ public final class ShadeControllerImpl extends BaseShadeControllerImpl {
             mNotificationShadeWindowController.setNotificationShadeFocusable(false);
 
             mNotifShadeWindowViewController.get().cancelExpandHelper();
+            if (ScreenAnimationController.INSTANCE().isPanelExpandedWhenScreenOff()) {
+                delayed = true;
+            }
             getNpvc().collapse(true, delayed, speedUpFactor);
         }
     }
