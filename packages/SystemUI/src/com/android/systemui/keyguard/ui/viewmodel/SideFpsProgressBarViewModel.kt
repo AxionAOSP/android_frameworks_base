@@ -17,8 +17,10 @@
 package com.android.systemui.keyguard.ui.viewmodel
 
 import android.animation.ValueAnimator
+import android.app.ActivityManager
 import android.content.Context
 import android.graphics.Point
+import android.hardware.display.AmbientDisplayConfiguration
 import androidx.annotation.VisibleForTesting
 import androidx.core.animation.addListener
 import com.android.app.tracing.coroutines.launchTraced as launch
@@ -77,6 +79,7 @@ constructor(
     @Main private val mainDispatcher: CoroutineDispatcher,
     @Application private val applicationScope: CoroutineScope,
     private val powerInteractor: PowerInteractor,
+    private val ambientDisplayConfiguration: AmbientDisplayConfiguration,
 ) {
     private val _progress = MutableStateFlow(0.0f)
     private val _visible = MutableStateFlow(false)
@@ -213,7 +216,9 @@ constructor(
                                 when (authStatus) {
                                     is AcquiredFingerprintAuthenticationStatus -> {
                                         if (authStatus.fingerprintCaptureStarted) {
-                                            if (keyguardInteractor.isDozing.value) {
+                                            if (keyguardInteractor.isDozing.value
+                                                    || ambientDisplayConfiguration.sideFpsPulseMode(
+                                                        ActivityManager.getCurrentUser())) {
                                                 dozeServiceHost.fireSideFpsAcquisitionStarted()
                                             } else {
                                                 powerInteractor
