@@ -44,6 +44,7 @@ import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Background;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.doze.AlwaysOnDisplayPolicy;
+import com.android.systemui.doze.AodScheduleController;
 import com.android.systemui.doze.DozeScreenState;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.keyguard.domain.interactor.DozeInteractor;
@@ -96,6 +97,7 @@ public class DozeParameters implements
     private final UserTracker mUserTracker;
     private final SecureSettings mSecureSettings;
     private final Optional<MinModeManager> mMinModeManager;
+    private final AodScheduleController mAodScheduleController;
 
     private boolean mDozeAlwaysOn;
     private boolean mControlScreenOffAnimation;
@@ -143,7 +145,8 @@ public class DozeParameters implements
             DozeInteractor dozeInteractor,
             KeyguardTransitionInteractor transitionInteractor,
             SecureSettings secureSettings,
-            Optional<MinModeManager> minModeManager) {
+            Optional<MinModeManager> minModeManager,
+            AodScheduleController aodScheduleController) {
         mResources = resources;
         mAmbientDisplayConfiguration = ambientDisplayConfiguration;
         mAlwaysOnPolicy = alwaysOnDisplayPolicy;
@@ -160,6 +163,12 @@ public class DozeParameters implements
         mTransitionInteractor = transitionInteractor;
         mSecureSettings = secureSettings;
         mMinModeManager = minModeManager;
+        mAodScheduleController = aodScheduleController;
+
+        mAodScheduleController.addCallback(() -> {
+            updateControlScreenOff();
+            dispatchAlwaysOnEvent();
+        });
 
         keyguardUpdateMonitor.registerCallback(mKeyguardVisibilityCallback);
         tunerService.addTunable(
@@ -290,7 +299,10 @@ public class DozeParameters implements
      * @return {@code true} if enabled and available.
      */
     public boolean getAlwaysOn() {
-        return (mDozeAlwaysOn && !mBatteryController.isAodPowerSave()) || isMinModeActive();
+        boolean aodEnabled = mAodScheduleController.isScheduleMode()
+                ? mAodScheduleController.shouldShowAod()
+                : mDozeAlwaysOn;
+        return (aodEnabled && !mBatteryController.isAodPowerSave()) || isMinModeActive();
     }
 
     /**

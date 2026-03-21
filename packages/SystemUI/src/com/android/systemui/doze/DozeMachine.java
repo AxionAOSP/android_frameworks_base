@@ -172,6 +172,7 @@ public class DozeMachine {
     private final DozeHost mDozeHost;
     private final DockManager mDockManager;
     private final Optional<MinModeManager> mMinModeManager;
+    private final AodScheduleController mAodScheduleController;
     private final Part[] mParts;
     private final UserTracker mUserTracker;
     private final ArrayList<State> mQueuedRequests = new ArrayList<>();
@@ -184,7 +185,8 @@ public class DozeMachine {
             AmbientDisplayConfiguration ambientDisplayConfig,
             WakeLock wakeLock, WakefulnessLifecycle wakefulnessLifecycle,
             DozeLog dozeLog, DockManager dockManager, Optional<MinModeManager> minModeManager,
-            DozeHost dozeHost, Part[] parts, UserTracker userTracker) {
+            DozeHost dozeHost, Part[] parts, UserTracker userTracker,
+            AodScheduleController aodScheduleController) {
         mDozeService = service;
         mAmbientDisplayConfig = ambientDisplayConfig;
         mWakefulnessLifecycle = wakefulnessLifecycle;
@@ -195,15 +197,20 @@ public class DozeMachine {
         mDozeHost = dozeHost;
         mParts = parts;
         mUserTracker = userTracker;
+        mAodScheduleController = aodScheduleController;
+
         for (Part part : parts) {
             part.setDozeMachine(this);
         }
+
+        mAodScheduleController.addCallback(mAodScheduleCallback);
     }
 
     /**
      * Clean ourselves up.
      */
     public void destroy() {
+        mAodScheduleController.removeCallback(mAodScheduleCallback);
         for (Part part : mParts) {
             part.destroy();
         }
@@ -458,10 +465,18 @@ public class DozeMachine {
                     nextState = State.FINISH;
                 } else if (mDockManager.isDocked()) {
                     nextState = mDockManager.isHidden() ? State.DOZE : State.DOZE_AOD_DOCKED;
-                } else if (mAmbientDisplayConfig.alwaysOnEnabled(mUserTracker.getUserId())) {
-                    nextState = State.DOZE_AOD;
                 } else {
-                    nextState = State.DOZE;
+                    boolean alwaysOn = mAmbientDisplayConfig.alwaysOnEnabled(mUserTracker.getUserId());
+                    boolean isScheduleMode = mAodScheduleController.isScheduleMode();
+                    boolean showAod;
+
+                    if (isScheduleMode) {
+                        showAod = mAodScheduleController.shouldShowAod();
+                    } else {
+                        showAod = alwaysOn;
+                    }
+
+                    nextState = showAod ? State.DOZE_AOD : State.DOZE;
                 }
 
                 transitionTo(nextState, DozeLog.PULSE_REASON_NONE);
@@ -470,6 +485,28 @@ public class DozeMachine {
                 break;
         }
     }
+
+    private void onAodScheduleChanged() {
+        if (!mAodScheduleController.isScheduleMode()) {
+            return;
+        }
+        if (isUninitializedOrFinished()) {
+            return;
+        }
+
+        boolean shouldShow = mAodScheduleController.shouldShowAod();
+        if (shouldShow) {
+            if (mState == State.DOZE) {
+                requestState(State.DOZE_AOD);
+            }
+        } else {
+            if (mState == State.DOZE_AOD || mState == State.DOZE_AOD_PAUSED || mState == State.DOZE_AOD_PAUSING) {
+                requestState(State.DOZE);
+            }
+        }
+    }
+
+    private final Runnable mAodScheduleCallback = this::onAodScheduleChanged;
 
     /** Dumps the current state */
     public void dump(PrintWriter pw) {
