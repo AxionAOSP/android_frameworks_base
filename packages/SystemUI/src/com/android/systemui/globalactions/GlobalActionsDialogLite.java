@@ -145,6 +145,8 @@ import com.android.systemui.dagger.qualifiers.Background;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.display.data.repository.DisplayWindowPropertiesRepository;
 import com.android.systemui.display.shared.model.DisplayWindowProperties;
+import com.android.keyguard.KeyguardSecurityContainerController;
+import com.android.systemui.bouncer.domain.interactor.PrimaryBouncerInteractor;
 import com.android.systemui.globalactions.domain.interactor.GlobalActionsInteractor;
 import com.android.systemui.plugins.ActivityStarter;
 import com.android.systemui.plugins.GlobalActions.GlobalActionsManager;
@@ -300,6 +302,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
     private final ControlsComponent mControlsComponent;
     private final Lazy<DisplayWindowPropertiesRepository> mDisplayWindowPropertiesRepositoryLazy;
     private final PowerManager mPowerManager;
+    private final PrimaryBouncerInteractor mPrimaryBouncerInteractor;
     private int mGlobalActionDialogTimeout;
     private final Handler mHandler;
 
@@ -437,7 +440,8 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             GlobalActionsInteractor interactor,
             ControlsComponent controlsComponent,
             Lazy<DisplayWindowPropertiesRepository> displayWindowPropertiesRepository,
-            PowerManager powerManager) {
+            PowerManager powerManager,
+            PrimaryBouncerInteractor primaryBouncerInteractor) {
         mContext = context;
         mWindowManagerFuncs = windowManagerFuncs;
         mAudioManager = audioManager;
@@ -477,6 +481,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         mInteractor = interactor;
         mDisplayWindowPropertiesRepositoryLazy = displayWindowPropertiesRepository;
         mPowerManager = powerManager;
+        mPrimaryBouncerInteractor = primaryBouncerInteractor;
 
         mHandler = new Handler(mMainHandler.getLooper()) {
             public void handleMessage(Message msg) {
@@ -993,6 +998,14 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         return mIsTv;
     }
 
+    private boolean checkShouldPowerOffVerify() {
+        boolean enabled = mSecureSettings.getIntForUser(
+                "power_off_verify", 0, UserHandle.USER_CURRENT) == 1;
+        boolean keyguardShowing = mKeyguardStateController.isShowing();
+        boolean isSecure = mKeyguardUpdateMonitor.isSecure();
+        return enabled && keyguardShowing && isSecure;
+    }
+
     @VisibleForTesting
     protected final class PowerOptionsAction extends SinglePressAction {
         private PowerOptionsAction() {
@@ -1035,6 +1048,13 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             mUiEventLogger.log(GlobalActionsEvent.GA_SHUTDOWN_LONG_PRESS);
             if (!mUserManager.hasUserRestriction(UserManager.DISALLOW_SAFE_BOOT,
                     getCurrentUser().getUserHandle())) {
+                if (checkShouldPowerOffVerify()) {
+                    KeyguardSecurityContainerController.setSecurityFinishAction(
+                            () -> mWindowManagerFuncs.reboot(true, null));
+                    mPrimaryBouncerInteractor.show(true,
+                            "PowerOffVerify-ShutDownAction-onLongPress");
+                    return true;
+                }
                 mWindowManagerFuncs.reboot(true, null);
                 return true;
             }
@@ -1059,8 +1079,15 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
                 return;
             }
             mUiEventLogger.log(GlobalActionsEvent.GA_SHUTDOWN_PRESS);
-            // shutdown by making sure radio and power are handled accordingly.
-            mWindowManagerFuncs.shutdown();
+            if (checkShouldPowerOffVerify()) {
+                KeyguardSecurityContainerController.setSecurityFinishAction(
+                        () -> mWindowManagerFuncs.shutdown());
+                mPrimaryBouncerInteractor.show(true,
+                        "PowerOffVerify-ShutDownAction-onPress");
+            } else {
+                // shutdown by making sure radio and power are handled accordingly.
+                mWindowManagerFuncs.shutdown();
+            }
         }
     }
 
@@ -1187,6 +1214,13 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             mUiEventLogger.log(GlobalActionsEvent.GA_REBOOT_LONG_PRESS);
             if (!mUserManager.hasUserRestriction(UserManager.DISALLOW_SAFE_BOOT,
                     getCurrentUser().getUserHandle())) {
+                if (checkShouldPowerOffVerify()) {
+                    KeyguardSecurityContainerController.setSecurityFinishAction(
+                            () -> mWindowManagerFuncs.reboot(true, null));
+                    mPrimaryBouncerInteractor.show(true,
+                            "PowerOffVerify-RestartAction-onLongPress");
+                    return true;
+                }
                 mWindowManagerFuncs.reboot(true, null);
                 return true;
             }
@@ -1213,6 +1247,11 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             mUiEventLogger.log(GlobalActionsEvent.GA_REBOOT_PRESS);
             if (mDialog != null && shouldShowRestartSubmenu()) {
                 mDialog.showRestartOptionsMenu();
+            } else if (checkShouldPowerOffVerify()) {
+                KeyguardSecurityContainerController.setSecurityFinishAction(
+                        () -> mWindowManagerFuncs.reboot(false, null));
+                mPrimaryBouncerInteractor.show(true,
+                        "PowerOffVerify-RestartAction-onPress");
             } else {
                 mWindowManagerFuncs.reboot(false, null);
             }
@@ -1228,6 +1267,13 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         @Override
         public boolean onLongPress() {
             if (!mUserManager.hasUserRestriction(UserManager.DISALLOW_SAFE_BOOT)) {
+                if (checkShouldPowerOffVerify()) {
+                    KeyguardSecurityContainerController.setSecurityFinishAction(
+                            () -> mWindowManagerFuncs.reboot(true, null));
+                    mPrimaryBouncerInteractor.show(true,
+                            "PowerOffVerify-RestartSystemAction-onLongPress");
+                    return true;
+                }
                 mWindowManagerFuncs.reboot(true, null);
                 return true;
             }
@@ -1246,7 +1292,14 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
 
         @Override
         public void onPress() {
-            mWindowManagerFuncs.reboot(false, null);
+            if (checkShouldPowerOffVerify()) {
+                KeyguardSecurityContainerController.setSecurityFinishAction(
+                        () -> mWindowManagerFuncs.reboot(false, null));
+                mPrimaryBouncerInteractor.show(true,
+                        "PowerOffVerify-RestartSystemAction-onPress");
+            } else {
+                mWindowManagerFuncs.reboot(false, null);
+            }
         }
     }
 
@@ -1268,7 +1321,14 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
 
         @Override
         public void onPress() {
-            mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_RECOVERY);
+            if (checkShouldPowerOffVerify()) {
+                KeyguardSecurityContainerController.setSecurityFinishAction(
+                        () -> mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_RECOVERY));
+                mPrimaryBouncerInteractor.show(true,
+                        "PowerOffVerify-RestartRecoveryAction-onPress");
+            } else {
+                mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_RECOVERY);
+            }
         }
     }
 
@@ -1290,7 +1350,14 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
 
         @Override
         public void onPress() {
-            mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_BOOTLOADER);
+            if (checkShouldPowerOffVerify()) {
+                KeyguardSecurityContainerController.setSecurityFinishAction(
+                        () -> mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_BOOTLOADER));
+                mPrimaryBouncerInteractor.show(true,
+                        "PowerOffVerify-RestartBootloaderAction-onPress");
+            } else {
+                mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_BOOTLOADER);
+            }
         }
     }
 
@@ -1312,7 +1379,14 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
 
         @Override
         public void onPress() {
-            mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_FASTBOOT);
+            if (checkShouldPowerOffVerify()) {
+                KeyguardSecurityContainerController.setSecurityFinishAction(
+                        () -> mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_FASTBOOT));
+                mPrimaryBouncerInteractor.show(true,
+                        "PowerOffVerify-RestartFastbootAction-onPress");
+            } else {
+                mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_FASTBOOT);
+            }
         }
     }
 
@@ -1334,7 +1408,14 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
 
         @Override
         public void onPress() {
-            mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_DOWNLOAD);
+            if (checkShouldPowerOffVerify()) {
+                KeyguardSecurityContainerController.setSecurityFinishAction(
+                        () -> mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_DOWNLOAD));
+                mPrimaryBouncerInteractor.show(true,
+                        "PowerOffVerify-RestartDownloadAction-onPress");
+            } else {
+                mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_DOWNLOAD);
+            }
         }
     }
 
