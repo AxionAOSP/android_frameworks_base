@@ -55,6 +55,7 @@ import com.android.systemui.statusbar.pipeline.shared.ui.view.ModernStatusBarVie
 import com.android.systemui.statusbar.pipeline.wifi.ui.WifiUiAdapter;
 import com.android.systemui.statusbar.pipeline.wifi.ui.view.ModernStatusBarWifiView;
 import com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.LocationBasedWifiViewModel;
+import com.android.systemui.statusbar.WifiStandardViewController;
 import com.android.systemui.statusbar.phone.StatusBarIconControllerImplEx;
 import com.android.systemui.util.Assert;
 
@@ -84,6 +85,7 @@ public class IconManager implements DemoModeCommandReceiver {
     private final KairosNetwork mKairosNetwork;
     private final CoroutineScope mAppScope;
     protected final StatusBarIconControllerImplEx mIconControllerEx;
+    protected final WifiStandardViewController.Factory mWifiStandardFactory;
     private final MutableIntObjectMap<Job> mBindingJobs = new MutableIntObjectMap<>();
 
     /**
@@ -114,7 +116,8 @@ public class IconManager implements DemoModeCommandReceiver {
             MobileContextProvider mobileContextProvider,
             KairosNetwork kairosNetwork,
             CoroutineScope appScope,
-            StatusBarIconControllerImplEx iconControllerEx
+            StatusBarIconControllerImplEx iconControllerEx,
+            WifiStandardViewController.Factory wifiStandardFactory
     ) {
         mGroup = group;
         mMobileContextProvider = mobileContextProvider;
@@ -123,6 +126,7 @@ public class IconManager implements DemoModeCommandReceiver {
         mKairosNetwork = kairosNetwork;
         mAppScope = appScope;
         mIconControllerEx = iconControllerEx;
+        mWifiStandardFactory = wifiStandardFactory;
 
         reloadDimens();
 
@@ -252,7 +256,7 @@ public class IconManager implements DemoModeCommandReceiver {
     }
 
     private ModernStatusBarWifiView onCreateModernStatusBarWifiView(String slot) {
-        return ModernStatusBarWifiView.constructAndBind(mContext, slot, mWifiViewModel);
+        return ModernStatusBarWifiView.constructAndBind(mContext, slot, mWifiViewModel, mWifiStandardFactory);
     }
 
     private ModernStatusBarMobileView onCreateModernStatusBarMobileView(
@@ -396,7 +400,8 @@ public class IconManager implements DemoModeCommandReceiver {
                 mIconSize,
                 mMobileUiAdapterKairos,
                 mKairosNetwork,
-                mAppScope
+                mAppScope,
+                mWifiStandardFactory
         );
     }
 }

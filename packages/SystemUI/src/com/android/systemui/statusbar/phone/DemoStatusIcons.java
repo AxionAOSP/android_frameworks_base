@@ -46,6 +46,7 @@ import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsVi
 import com.android.systemui.statusbar.pipeline.shared.ui.view.ModernStatusBarView;
 import com.android.systemui.statusbar.pipeline.wifi.ui.view.ModernStatusBarWifiView;
 import com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.LocationBasedWifiViewModel;
+import com.android.systemui.statusbar.WifiStandardViewController;
 
 import dagger.Lazy;
 
@@ -81,6 +82,7 @@ public class DemoStatusIcons extends StatusIconContainer implements DemoMode, Da
     private final CoroutineScope mAppScope;
 
     private final MutableIntObjectMap<Job> mBindingJobs = new MutableIntObjectMap<>();
+    private final WifiStandardViewController.Factory mWifiStandardFactory;
 
     public DemoStatusIcons(
             LinearLayout statusIcons,
@@ -89,7 +91,8 @@ public class DemoStatusIcons extends StatusIconContainer implements DemoMode, Da
             int iconSize,
             Lazy<MobileUiAdapterKairos> mobileUiAdapterKairos,
             KairosNetwork kairosNetwork,
-            CoroutineScope appScope
+            CoroutineScope appScope,
+            WifiStandardViewController.Factory wifiStandardFactory
     ) {
         super(statusIcons.getContext());
         mStatusIcons = statusIcons;
@@ -101,6 +104,7 @@ public class DemoStatusIcons extends StatusIconContainer implements DemoMode, Da
         mContrastColor = DarkIconDispatcher.DEFAULT_INVERSE_ICON_TINT;
         mMobileIconsViewModel = mobileIconsViewModel;
         mLocation = location;
+        mWifiStandardFactory = wifiStandardFactory;
 
         if (statusIcons instanceof StatusIconContainer) {
             setShouldRestrictIcons(((StatusIconContainer) statusIcons).isRestrictingIcons());
@@ -312,7 +316,7 @@ public class DemoStatusIcons extends StatusIconContainer implements DemoMode, Da
     public void addModernWifiView(LocationBasedWifiViewModel viewModel) {
         Log.d(TAG, "addModernDemoWifiView: ");
         ModernStatusBarWifiView view = ModernStatusBarWifiView
-                .constructAndBind(mContext, "wifi", viewModel);
+                .constructAndBind(mContext, "wifi", viewModel, mWifiStandardFactory);
 
         int viewIndex = getChildCount();
         // If we have mobile views, put wifi before them
