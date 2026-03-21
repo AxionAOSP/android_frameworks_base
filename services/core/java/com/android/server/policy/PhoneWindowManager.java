@@ -817,9 +817,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     // Lineage additions
     private static final int MSG_TOGGLE_TORCH = 100;
     private static final int MSG_CAMERA_LONG_PRESS = 101;
+    private static final int MSG_TORCH_POWER_SHORT_PRESS = 102;
 
     private CameraManager mCameraManager;
     private String mRearFlashCameraId;
+    private boolean mTorchPowerButtonTurnOff;
     private boolean mTorchLongPressPowerEnabled;
     private boolean mTorchEnabled;
     private int mTorchTimeout;
@@ -912,6 +914,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     mDeferredKeyActionExecutor.setActionsExecutable(keyCode, downTime);
                     break;
                 case MSG_TOGGLE_TORCH:
+                    toggleTorch();
+                    break;
+                case MSG_TORCH_POWER_SHORT_PRESS:
                     toggleTorch();
                     break;
                 case MSG_CAMERA_LONG_PRESS:
@@ -1071,6 +1076,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     UserHandle.USER_ALL);
             resolver.registerContentObserver(LineageSettings.System.getUriFor(
                     LineageSettings.System.VOLUME_ANSWER_CALL), false, this,
+                    UserHandle.USER_ALL);
+            resolver.registerContentObserver(Settings.Secure.getUriFor(
+                    "torch_power_button_turn_off"), false, this,
                     UserHandle.USER_ALL);
             updateSettings();
         }
@@ -3353,6 +3361,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             mTorchTimeout = LineageSettings.System.getIntForUser(
                     resolver, LineageSettings.System.TORCH_LONG_PRESS_POWER_TIMEOUT, 0,
                     UserHandle.USER_CURRENT);
+            mTorchPowerButtonTurnOff = Settings.Secure.getIntForUser(
+                    resolver, "torch_power_button_turn_off", 1,
+                    UserHandle.USER_CURRENT) == 1;
             mWakeOnHomeKeyPress = (LineageSettings.System.getIntForUser(resolver,
                     LineageSettings.System.HOME_WAKE_SCREEN, 1, UserHandle.USER_CURRENT) == 1)
                     && ((mDeviceHardwareWakeKeys & KEY_MASK_HOME) != 0);
@@ -5025,7 +5036,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             }
 
             if (isWakeKey) {
-                wakeUpFromWakeKey(event, true);
+                wakeUpFromWakeKey(event, true, (event.getFlags() & KeyEvent.FLAG_LONG_PRESS) != 0);
             }
             return result;
         }
@@ -5579,7 +5590,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
         if (isWakeKey) {
             // Check proximity only on wake key
-            wakeUpFromWakeKey(event, event.getKeyCode() == KeyEvent.KEYCODE_WAKEUP);
+            wakeUpFromWakeKey(event,
+                event.getKeyCode() == KeyEvent.KEYCODE_WAKEUP,
+                (event.getFlags() & KeyEvent.FLAG_LONG_PRESS) != 0);
         }
 
         // If the key event is targeted to a specific display, then the user is interacting with
@@ -6264,23 +6277,44 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 event.getEventTime(),
                 event.getKeyCode(),
                 event.getAction() == KeyEvent.ACTION_DOWN,
-                false);
+                false,
+                (event.getFlags() & KeyEvent.FLAG_LONG_PRESS) != 0);
     }
 
-    private void wakeUpFromWakeKey(KeyEvent event, boolean withProximityCheck) {
+    private void wakeUpFromWakeKey(KeyEvent event, boolean withProximityCheck,
+            boolean isLongPress) {
         wakeUpFromWakeKey(
                 event.getEventTime(),
                 event.getKeyCode(),
                 event.getAction() == KeyEvent.ACTION_DOWN,
-                withProximityCheck);
+                withProximityCheck,
+                isLongPress);
     }
 
     private void wakeUpFromWakeKey(long eventTime, int keyCode, boolean isDown) {
-        wakeUpFromWakeKey(eventTime, keyCode, isDown, false);
+        wakeUpFromWakeKey(eventTime, keyCode, isDown, false, false);
     }
 
     private void wakeUpFromWakeKey(long eventTime, int keyCode, boolean isDown,
-            boolean withProximityCheck) {
+            boolean withProximityCheck, boolean isLongPress) {
+        if (DEBUG_WAKEUP) {
+            Log.d(TAG, "wakeUpFromWakeKey: eventTime=" + eventTime
+                    + ", keyCode=" + KeyEvent.keyCodeToString(keyCode)
+                    + ", isDown=" + isDown
+                    + ", withProximityCheck=" + withProximityCheck
+                    + ", isLongPress=" + isLongPress
+                    + ", mTorchEnabled=" + mTorchEnabled
+                    + ", mTorchPowerButtonTurnOff=" + mTorchPowerButtonTurnOff
+                    + ", isScreenOn=" + isScreenOn());
+        }
+        if (keyCode == KEYCODE_POWER && mTorchEnabled
+                && mTorchPowerButtonTurnOff && !isLongPress) {
+            mHandler.removeMessages(MSG_TORCH_POWER_SHORT_PRESS);
+            Message msg = mHandler.obtainMessage(MSG_TORCH_POWER_SHORT_PRESS);
+            msg.setAsynchronous(true);
+            msg.sendToTarget();
+            return;
+        }
         if (mWindowWakeUpPolicy.wakeUpFromKey(DEFAULT_DISPLAY, eventTime, keyCode, isDown,
                 withProximityCheck)) {
             final boolean keyCanLaunchHome = keyCode == KEYCODE_HOME || keyCode == KEYCODE_POWER;
@@ -7394,8 +7428,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private class TorchModeCallback extends CameraManager.TorchCallback {
         @Override
         public void onTorchModeChanged(String cameraId, boolean enabled) {
-            if (!cameraId.equals(mRearFlashCameraId)) return;
             mTorchEnabled = enabled;
+            Log.d("TorchModeCallback", "mTorchEnabled=" + mTorchEnabled);
+            if (!cameraId.equals(mRearFlashCameraId)) return;
             if (!mTorchEnabled) {
                 cancelTorchOff();
             }
