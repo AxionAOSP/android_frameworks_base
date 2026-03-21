@@ -49,6 +49,17 @@ public class AmbientDisplayConfiguration {
     private final boolean mTapGestureEnabledByDefault;
     private final boolean mDoubleTapGestureEnabledByDefault;
 
+    private static final String AX_DOZE_TAP_PULSE = "ax_doze_tap_pulse";
+    private static final String AX_DOZE_DOUBLE_TAP_PULSE = "ax_doze_double_tap_pulse";
+    private static final String AX_DOZE_PICKUP_PULSE = "ax_doze_pickup_pulse";
+    private static final String AX_DOZE_SIDE_FPS_PULSE = "ax_doze_side_fps_pulse";
+    private static final String AX_DOZE_NOTIFICATION_PULSE = "ax_doze_notification_pulse";
+
+    private static final String PROP_AX_DOZE_TAP_PULSE = "persist.sys.ax_doze_tap_pulse_supported";
+    private static final String PROP_AX_DOZE_DOUBLE_TAP_PULSE = "persist.sys.ax_doze_double_tap_pulse_supported";
+    private static final String PROP_AX_DOZE_PICKUP_PULSE = "persist.sys.ax_doze_pickup_pulse_supported";
+    private static final String PROP_AX_DOZE_SIDE_FPS_PULSE = "persist.sys.ax_doze_side_fps_pulse_supported";
+
     /** Copied from android.provider.Settings.Secure since these keys are hidden. */
     private static final String[] DOZE_SETTINGS = {
             Settings.Secure.DOZE_ENABLED,
@@ -58,7 +69,12 @@ public class AmbientDisplayConfiguration {
             Settings.Secure.DOZE_DOUBLE_TAP_GESTURE,
             Settings.Secure.DOZE_WAKE_LOCK_SCREEN_GESTURE,
             Settings.Secure.DOZE_WAKE_DISPLAY_GESTURE,
-            Settings.Secure.DOZE_TAP_SCREEN_GESTURE
+            Settings.Secure.DOZE_TAP_SCREEN_GESTURE,
+            AX_DOZE_TAP_PULSE,
+            AX_DOZE_DOUBLE_TAP_PULSE,
+            AX_DOZE_PICKUP_PULSE,
+            AX_DOZE_SIDE_FPS_PULSE,
+            AX_DOZE_NOTIFICATION_PULSE
     };
 
     /** Non-user configurable doze settings */
@@ -100,7 +116,8 @@ public class AmbientDisplayConfiguration {
                 || tapGestureEnabled(user)
                 || doubleTapGestureEnabled(user)
                 || quickPickupSensorEnabled(user)
-                || screenOffUdfpsEnabled(user);
+                || screenOffUdfpsEnabled(user)
+                || anyPulseModeEnabled(user);
     }
 
     /** @hide */
@@ -172,6 +189,60 @@ public class AmbientDisplayConfiguration {
                 && mContext.getResources().getBoolean(R.bool.config_screen_off_udfps_default_on)
                 ? boolSettingDefaultOn(SCREEN_OFF_UNLOCK_UDFPS_ENABLED, user)
                 : boolSettingDefaultOff(SCREEN_OFF_UNLOCK_UDFPS_ENABLED, user));
+    }
+
+    /** @hide */
+    public boolean tapPulseModeSupported() {
+        return SystemProperties.getBoolean(PROP_AX_DOZE_TAP_PULSE, false);
+    }
+
+    /** @hide */
+    public boolean doubleTapPulseModeSupported() {
+        return SystemProperties.getBoolean(PROP_AX_DOZE_DOUBLE_TAP_PULSE, false);
+    }
+
+    /** @hide */
+    public boolean pickupPulseModeSupported() {
+        return SystemProperties.getBoolean(PROP_AX_DOZE_PICKUP_PULSE, false);
+    }
+
+    /** @hide */
+    public boolean sideFpsPulseModeSupported() {
+        return SystemProperties.getBoolean(PROP_AX_DOZE_SIDE_FPS_PULSE, false);
+    }
+
+    /** @hide */
+    public boolean tapPulseMode(int user) {
+        return boolSettingDefaultOff(AX_DOZE_TAP_PULSE, user) && tapPulseModeSupported();
+    }
+
+    /** @hide */
+    public boolean doubleTapPulseMode(int user) {
+        return boolSettingDefaultOff(AX_DOZE_DOUBLE_TAP_PULSE, user)
+                && doubleTapPulseModeSupported();
+    }
+
+    /** @hide */
+    public boolean pickupPulseMode(int user) {
+        return boolSettingDefaultOff(AX_DOZE_PICKUP_PULSE, user) && pickupPulseModeSupported();
+    }
+
+    /** @hide */
+    public boolean sideFpsPulseMode(int user) {
+        return boolSettingDefaultOff(AX_DOZE_SIDE_FPS_PULSE, user)
+                && sideFpsPulseModeSupported();
+    }
+
+    /** @hide */
+    public boolean notificationPulseMode(int user) {
+        return boolSettingDefaultOff(AX_DOZE_NOTIFICATION_PULSE, user);
+    }
+
+    /** @hide */
+    public boolean anyPulseModeEnabled(int user) {
+        return tapPulseMode(user) || doubleTapPulseMode(user)
+                || pickupPulseMode(user) || sideFpsPulseMode(user)
+                || notificationPulseMode(user);
     }
 
     /** @hide */
