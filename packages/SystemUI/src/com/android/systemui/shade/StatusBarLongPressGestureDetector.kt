@@ -22,6 +22,7 @@ import android.view.GestureDetector.SimpleOnGestureListener
 import android.view.MotionEvent
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.statusbar.NTForbiddenSwipeDownQSController
 import com.android.systemui.statusbar.policy.DeviceProvisionedController
 import javax.inject.Inject
 
@@ -35,6 +36,7 @@ constructor(
     val shadeViewController: ShadeViewController,
     val shadeController: ShadeController,
     val deviceProvisionedController: DeviceProvisionedController,
+    val forbiddenSwipeDownQSController: NTForbiddenSwipeDownQSController,
 ) {
     val gestureDetector =
         GestureDetector(
@@ -43,7 +45,8 @@ constructor(
                 override fun onLongPress(event: MotionEvent) {
                     if (
                         shadeController.isShadeEnabled() &&
-                            deviceProvisionedController.isDeviceProvisioned()
+                            deviceProvisionedController.isDeviceProvisioned() &&
+                            !forbiddenSwipeDownQSController.getForbiddenSwipeDownQS()
                     ) {
                         shadeViewController.onStatusBarLongPress(event)
                     }
