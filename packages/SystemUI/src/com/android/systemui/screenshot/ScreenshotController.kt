@@ -486,7 +486,7 @@ internal constructor(
      */
     private fun saveScreenshotAndToast(screenshot: ScreenshotData, finisher: Consumer<Uri?>) {
         // Play the shutter sound to notify that we've taken a screenshot
-        screenshotSoundController.playScreenshotSoundAsync()
+        playScreenShotSound()
 
         saveScreenshotInBackground(screenshot, UUID.randomUUID(), finisher) {
             result: ImageExporter.Result ->
@@ -515,12 +515,22 @@ internal constructor(
             viewProxy.createScreenshotDropInAnimation(screenRect, showFlash).apply {
                 doOnEnd { onAnimationComplete?.run() }
                 // Play the shutter sound to notify that we've taken a screenshot
-                screenshotSoundController.playScreenshotSoundAsync()
+                playScreenShotSound()
                 if (LogConfig.DEBUG_ANIM) {
                     Log.d(TAG, "starting post-screenshot animation")
                 }
                 start()
             }
+    }
+
+    private fun playScreenShotSound() {
+        if (!isScreenShotSoundEnabled()) return
+        screenshotSoundController.playScreenshotSoundAsync()
+    }
+
+    private fun isScreenShotSoundEnabled(): Boolean {
+        return Settings.System.getIntForUser(context.contentResolver,
+                 "screenshot_sound_enabled", 1, UserHandle.USER_CURRENT) == 1
     }
 
     /** Reset screenshot view and then call onCompleteRunnable */
