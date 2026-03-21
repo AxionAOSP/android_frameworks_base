@@ -22,6 +22,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.android.systemui.edgelight.EdgeLight
 import com.android.systemui.edgelight.EdgeLightInteractor
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.android.systemui.media.MediaArt
+import com.android.systemui.media.MediaArtInteractor
 import com.android.systemui.CoreStartable
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.res.R
@@ -31,11 +34,17 @@ import javax.inject.Inject
 @SysUISingleton
 class KeyguardOverlayViewManager @Inject constructor(
     private val windowView: NotificationShadeWindowView,
+    private val mediaArtInteractor: MediaArtInteractor,
     private val edgeLightInteractor: EdgeLightInteractor,
 ) : CoreStartable {
 
     override fun start() {
+        val mediaArtView = createOverlayHost()
         val edgeLightView = createOverlayHost()
+        KeyguardOverlayViewBinder.bind(mediaArtView) {
+            val state by mediaArtInteractor.uiState.collectAsStateWithLifecycle()
+            MediaArt(state = state)
+        }
         KeyguardOverlayViewBinder.bind(edgeLightView) {
             val state by edgeLightInteractor.uiState.collectAsState()
             EdgeLight(state = state)
