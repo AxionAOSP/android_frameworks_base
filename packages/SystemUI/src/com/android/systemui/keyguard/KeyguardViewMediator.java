@@ -169,6 +169,7 @@ import com.android.systemui.shared.system.QuickStepContract;
 import com.android.systemui.statusbar.CommandQueue;
 import com.android.systemui.statusbar.NotificationShadeDepthController;
 import com.android.systemui.statusbar.NotificationShadeWindowController;
+import com.android.systemui.statusbar.NTForbiddenSwipeDownQSController;
 import com.android.systemui.statusbar.SysuiStatusBarStateController;
 import com.android.systemui.statusbar.phone.BiometricUnlockController;
 import com.android.systemui.statusbar.phone.CentralSurfaces;
@@ -1573,6 +1574,7 @@ public class KeyguardViewMediator implements CoreStartable,
     private final Lazy<WindowManagerLockscreenVisibilityManager> mWmLockscreenVisibilityManager;
 
     private WindowManagerOcclusionManager mWmOcclusionManager;
+    private final NTForbiddenSwipeDownQSController mForbiddenSwipeDownQSController;
     /**
 
      * Injected constructor. See {@link KeyguardModule}.
@@ -1627,7 +1629,8 @@ public class KeyguardViewMediator implements CoreStartable,
             KeyguardTransitionBootInteractor transitionBootInteractor,
             Lazy<CommunalSceneInteractor> communalSceneInteractor,
             Lazy<CommunalSettingsInteractor> communalSettingsInteractor,
-            WindowManagerOcclusionManager wmOcclusionManager) {
+            WindowManagerOcclusionManager wmOcclusionManager,
+            NTForbiddenSwipeDownQSController ntForbiddenSwipeDownQSController) {
         mContext = context;
         mUserTracker = userTracker;
         mFalsingCollector = falsingCollector;
@@ -1708,6 +1711,7 @@ public class KeyguardViewMediator implements CoreStartable,
         mShowKeyguardWakeLock.setReferenceCounted(false);
 
         mWmOcclusionManager = wmOcclusionManager;
+        mForbiddenSwipeDownQSController = ntForbiddenSwipeDownQSController;
     }
 
     public void userActivity() {
@@ -3910,6 +3914,10 @@ public class KeyguardViewMediator implements CoreStartable,
                     flags |= StatusBarManager.DISABLE_HOME;
                 }
                 flags |= StatusBarManager.DISABLE_RECENT;
+            }
+
+            if (mForbiddenSwipeDownQSController.getForbiddenSwipeDownQS() && this.mOccluded) {
+                flags |= StatusBarManager.DISABLE_EXPAND;
             }
 
             if (mPowerGestureIntercepted && mOccluded && isSecure()
