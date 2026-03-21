@@ -256,7 +256,9 @@ public class DozeTriggers implements DozeMachine.Part {
             return;
         }
         mNotificationPulseTime = SystemClock.elapsedRealtime();
-        if (!mConfig.pulseOnNotificationEnabled(mSelectedUserInteractor.getSelectedUserId())) {
+        int userId = mSelectedUserInteractor.getSelectedUserId();
+        if (!mConfig.pulseOnNotificationEnabled(userId)
+                && !mConfig.notificationPulseMode(userId)) {
             runIfNotNull(onPulseSuppressedListener);
             mDozeLog.tracePulseDropped("pulseOnNotificationsDisabled");
             return;
@@ -339,13 +341,26 @@ public class DozeTriggers implements DozeMachine.Part {
                 }
                 if (isDoubleTap || isTap) {
                     mDozeHost.onSlpiTap(screenX, screenY);
-                    gentleWakeUp(pulseReason);
+                    int userId = mSelectedUserInteractor.getSelectedUserId();
+                    boolean pulseMode = isTap
+                            ? mConfig.tapPulseMode(userId)
+                            : mConfig.doubleTapPulseMode(userId);
+                    if (pulseMode) {
+                        requestPulse(pulseReason, sensorPerformedProxCheck, null);
+                    } else {
+                        gentleWakeUp(pulseReason);
+                    }
                 } else if (isPickup) {
                     if (shouldDropPickupEvent())  {
                         mDozeLog.traceSensorEventDropped(pulseReason, "keyguard occluded");
                         return;
                     }
-                    gentleWakeUp(pulseReason);
+                    if (mConfig.pickupPulseMode(
+                            mSelectedUserInteractor.getSelectedUserId())) {
+                        requestPulse(pulseReason, sensorPerformedProxCheck, null);
+                    } else {
+                        gentleWakeUp(pulseReason);
+                    }
                 } else if (isUdfpsLongPress) {
                     if (canPulse(mMachine.getState(), true)) {
                         mDozeLog.d("updfsLongPress - setting aodInterruptRunnable to run when "

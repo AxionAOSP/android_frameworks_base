@@ -18,6 +18,7 @@ package com.android.systemui.keyguard.ui.viewmodel
 
 import android.content.applicationContext
 import android.hardware.biometrics.BiometricFingerprintConstants
+import android.hardware.display.AmbientDisplayConfiguration
 import android.os.PowerManager
 import android.testing.TestableLooper
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -190,5 +191,6 @@ class SideFpsProgressBarViewModelTest : SysuiTestCase() {
             kosmos.testDispatcher,
             kosmos.applicationCoroutineScope,
             kosmos.powerInteractor,
+            AmbientDisplayConfiguration(kosmos.applicationContext),
         )
 }
