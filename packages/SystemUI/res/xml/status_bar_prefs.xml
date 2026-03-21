@@ -107,6 +107,12 @@
         android:key="mobile"
         android:title="@string/quick_settings_cellular_detail_title" />
 
+    <com.android.systemui.tuner.TunerSwitch
+        android:icon="@drawable/ic_statusbar_mobile_network"
+        android:key="status_bar_show_data_disabled"
+        android:title="@string/status_bar_data_disabled_indicator"
+        sysui:defValue="true" />
+
     <com.android.systemui.tuner.StatusBarSwitch
         android:icon="@drawable/ic_statusbar_airplanemode"
         android:key="airplane"

@@ -38,6 +38,7 @@ import com.android.systemui.statusbar.pipeline.mobile.domain.model.SignalIconMod
 import com.android.systemui.statusbar.pipeline.shared.data.model.ConnectivitySlot
 import com.android.systemui.statusbar.pipeline.shared.data.repository.ConnectivityRepository
 import com.android.systemui.statusbar.policy.data.repository.UserSetupRepository
+import com.android.systemui.shared.settings.data.repository.SecureSettingsRepository
 import com.android.systemui.util.CarrierConfigTracker
 import java.lang.ref.WeakReference
 import javax.inject.Inject
@@ -153,10 +154,16 @@ constructor(
     @Background private val scope: CoroutineScope,
     private val context: Context,
     private val featureFlagsClassic: FeatureFlagsClassic,
+    secureSettingsRepository: SecureSettingsRepository,
 ) : MobileIconsInteractor {
 
     // Weak reference lookup for created interactors
     private val reuseCache = mutableMapOf<Int, WeakReference<MobileIconInteractor>>()
+
+    private val dataDisabledIndicatorEnabled: StateFlow<Boolean> =
+        secureSettingsRepository
+            .boolSetting(SHOW_DATA_DISABLED_ICON, true)
+            .stateIn(scope, SharingStarted.WhileSubscribed(), true)
 
     override val mobileIsDefault =
         combine(
@@ -446,6 +453,7 @@ constructor(
                 isForceHidden,
                 mobileConnectionsRepo.getRepoForSubId(subId),
                 context,
+                dataDisabledIndicatorEnabled = dataDisabledIndicatorEnabled,
             )
             .also { reuseCache[subId] = WeakReference(it) }
 
@@ -453,3 +461,5 @@ constructor(
         private const val LOGGING_PREFIX = "Intr"
     }
 }
+
+internal const val SHOW_DATA_DISABLED_ICON = "status_bar_show_data_disabled"
