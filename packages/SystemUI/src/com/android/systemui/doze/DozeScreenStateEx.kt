@@ -26,6 +26,7 @@ import android.util.Log
 import android.view.Display
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.media.MediaSessionManager
 import com.android.systemui.settings.DisplayTracker
 import com.android.systemui.statusbar.phone.UnlockedScreenOffAnimationControllerExt
 import com.android.systemui.statusbar.phone.ScreenOffAnimationCallback
@@ -57,15 +58,15 @@ class DozeScreenStateEx @Inject constructor(
     private var unlockAnimPlaying: Boolean = false
     private var curState: DozeMachine.State = DozeMachine.State.UNINITIALIZED
     private var screenStateConsumer: Consumer<Int>? = null
-    private var mutedForAnimation: Boolean = false
-    private val audioManager: AudioManager? =
-        context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    private var mutedForDoze: Boolean = false
+    private var savedVolume: Int = -1
+    private val audioManager: AudioManager =
+        context.getSystemService(AudioManager::class.java)
 
     private val screenOffAnimationCallback = object : ScreenOffAnimationCallback() {
         override fun onAnimationStart() {
             ScrimUtils.get().setBarState(KEYGUARD)
             ScrimUtils.get().onDozingChanged(true)
-            muteMediaStream(true)
         }
         override fun onAnimationEnd() {
             unlockAnimPlaying = false
@@ -74,10 +75,6 @@ class DozeScreenStateEx @Inject constructor(
                     || curState == DozeMachine.State.DOZE_AOD_PAUSING)) {
                 screenStateConsumer?.accept(Display.STATE_DOZE)
             }
-        }
-
-        override fun onAnimationCancel() {
-            muteMediaStream(false)
         }
 
         override fun onAnimateInKeyguardEnd() {
@@ -124,16 +121,19 @@ class DozeScreenStateEx @Inject constructor(
         }
     }
 
-    private fun muteMediaStream(mute: Boolean) {
-        val am = audioManager ?: return
-        if (mute && !mutedForAnimation) {
-            if (am.isMusicActive) {
-                am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
-                mutedForAnimation = true
+    fun muteMediaStream(mute: Boolean) {
+        if (mute && !mutedForDoze) {
+            if (!MediaSessionManager.get().isMediaPlaying) {
+                savedVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
+                mutedForDoze = true
             }
-        } else if (!mute && mutedForAnimation) {
-            am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
-            mutedForAnimation = false
+        } else if (!mute && mutedForDoze) {
+            if (savedVolume >= 0) {
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, savedVolume, 0)
+                savedVolume = -1
+            }
+            mutedForDoze = false
         }
     }
 }

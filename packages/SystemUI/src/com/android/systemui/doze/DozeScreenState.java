@@ -248,9 +248,19 @@ public class DozeScreenState implements DozeMachine.Part {
                 }
                 boolean showAodOnScreenOff = mSystemSettings.getIntForUser(
                         "screen_off_aod_enabled", 0, android.os.UserHandle.USER_CURRENT) == 1;
+                boolean animateAodTransition = mSystemSettings.getIntForUser(
+                        "screen_off_aod_animation", 1, android.os.UserHandle.USER_CURRENT) == 1;
                 boolean isUdfps = mAuthController.isUdfpsEnrolled(
                     mSelectedUserInteractor.getSelectedUserId());
-                long delay = showAodOnScreenOff ? ENTER_DOZE_DELAY : ENTER_SCREEN_OFF_WITH_ANIMATION_DELAY_NO_UDFPS;
+
+                int animationDelay = animateAodTransition ? ENTER_SCREEN_OFF_WITH_ANIMATION_DELAY_NO_UDFPS : 0;
+                int aodDuration = mSystemSettings.getIntForUser(
+                        "screen_off_aod_duration", ENTER_DOZE_DELAY,
+                        android.os.UserHandle.USER_CURRENT);
+                long delay = showAodOnScreenOff ? aodDuration : animationDelay;
+                if (showAodOnScreenOff) {
+                    mDozeScreenStateEx.muteMediaStream(true);
+                }
                 mHandler.postDelayed(mApplyPendingScreenState, delay);
             } else if (mIsLandscapeScreenOff) {
                 mDozeService.setDozeScreenState(Display.STATE_OFF);
@@ -279,6 +289,9 @@ public class DozeScreenState implements DozeMachine.Part {
 
         applyScreenState(mPendingScreenState);
         mPendingScreenState = Display.STATE_UNKNOWN;
+        mHandler.postDelayed(() -> {
+            mDozeScreenStateEx.muteMediaStream(false);
+        }, 250);
     }
 
     private void applyScreenState(int screenState) {
