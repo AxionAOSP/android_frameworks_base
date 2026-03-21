@@ -34,4 +34,7 @@
 
     <!-- Internet -->
     <string name="status_bar_settings_network_speed">Internet speed</string>
+
+    <!-- Wifi Standard. -->
+    <string name="status_bar_wifi_standard">Wifi Standard</string>
 </resources>

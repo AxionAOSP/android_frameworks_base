@@ -23,6 +23,12 @@
         android:key="rotate"
         android:title="@string/status_bar_settings_auto_rotation" />
 
+    <com.android.systemui.tuner.TunerSwitch
+        android:icon="@drawable/ic_statusbar_wifi"
+        android:key="wifi_standard_icon"
+        android:title="@string/status_bar_wifi_standard"
+        sysui:defValue="false" />
+
     <com.android.systemui.tuner.StatusBarSwitch
         android:icon="@drawable/nt_statusbar_icon_internet_speed"
         android:key="network_speed"

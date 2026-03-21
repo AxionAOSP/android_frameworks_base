@@ -29,6 +29,7 @@ import com.android.systemui.res.R
 import com.android.systemui.statusbar.StatusBarIconView
 import com.android.systemui.statusbar.core.NewStatusBarIcons
 import com.android.systemui.statusbar.pipeline.shared.ui.view.ModernStatusBarView
+import com.android.systemui.statusbar.WifiStandardViewController
 import com.android.systemui.statusbar.pipeline.wifi.ui.binder.WifiViewBinder
 import com.android.systemui.statusbar.pipeline.wifi.ui.viewmodel.LocationBasedWifiViewModel
 
@@ -58,13 +59,14 @@ class ModernStatusBarWifiView(context: Context, attrs: AttributeSet?) :
             context: Context,
             slot: String,
             wifiViewModel: LocationBasedWifiViewModel,
+            wifiStandardFactory: WifiStandardViewController.Factory,
         ): ModernStatusBarWifiView {
             return (LayoutInflater.from(context).inflate(R.layout.new_status_bar_wifi_group, null)
                     as ModernStatusBarWifiView)
                 .apply {
                     updateDimensions()
 
-                    initView(slot) { WifiViewBinder.bind(this, wifiViewModel) }
+                    initView(slot) { WifiViewBinder.bind(this, wifiViewModel, wifiStandardFactory) }
                 }
         }
     }
