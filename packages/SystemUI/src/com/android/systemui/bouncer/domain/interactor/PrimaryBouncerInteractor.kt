@@ -23,6 +23,7 @@ import android.os.Trace
 import android.util.Log
 import android.view.View
 import com.android.app.tracing.coroutines.launchTraced as launch
+import com.android.keyguard.KeyguardSecurityContainerController
 import com.android.keyguard.KeyguardSecurityModel
 import com.android.keyguard.KeyguardUpdateMonitor
 import com.android.systemui.DejankUtils
@@ -202,6 +203,7 @@ constructor(
                 SysUiStatsLog.KEYGUARD_BOUNCER_STATE_CHANGED__STATE__HIDDEN,
             )
             dismissCallbackRegistry.notifyDismissCancelled()
+            KeyguardSecurityContainerController.setSecurityFinishAction(null)
         }
 
         repository.setPrimaryStartDisappearAnimation(null)
