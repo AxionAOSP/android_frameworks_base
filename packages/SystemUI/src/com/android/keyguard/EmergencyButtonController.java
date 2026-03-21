@@ -171,6 +171,7 @@ public class EmergencyButtonController extends ViewController<EmergencyButton> {
      */
     @SuppressLint("MissingPermission")
     public void takeEmergencyCallAction() {
+        com.android.systemui.mistouch.MistouchInteractor.get().handleEmergencyButtonClick();
         mMetricsLogger.action(MetricsEvent.ACTION_EMERGENCY_CALL);
         if (msdlFeedback()) {
             mMSDLPlayer.playToken(MSDLToken.KEYPRESS_RETURN, null);

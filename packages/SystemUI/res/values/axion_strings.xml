@@ -37,4 +37,9 @@
 
     <!-- Wifi Standard. -->
     <string name="status_bar_wifi_standard">Wifi Standard</string>
+
+    <!-- Mistouch -->
+    <string name="keyguard_mistouch_description">Remove anything covering this area</string>
+    <string name="keyguard_mistouch_exit_desciption">Press volume up key to exit</string>
+    <string name="keyguard_mistouch_title">Mistouch prevention</string>
 </resources>

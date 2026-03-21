@@ -391,6 +391,7 @@ public class CentralSurfacesCommandQueueCallbacks implements CommandQueue.Callba
         }
 
         if (source == StatusBarManager.CAMERA_LAUNCH_SOURCE_POWER_DOUBLE_TAP) {
+            com.android.systemui.mistouch.MistouchInteractor.get().handleDoubleTapPowerGesture();
             Log.v(CentralSurfaces.TAG, "Camera launch");
             mKeyguardUpdateMonitor.onCameraLaunched();
         }
