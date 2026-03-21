@@ -52,6 +52,7 @@ import com.android.systemui.statusbar.pipeline.mobile.data.model.SubscriptionMod
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.MobileConnectionRepositoryKairos
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.MobileConnectionsRepositoryKairos
 import com.android.systemui.statusbar.pipeline.mobile.domain.model.SignalIconModel
+import com.android.systemui.shared.settings.data.repository.SecureSettingsRepository
 import com.android.systemui.statusbar.pipeline.shared.data.model.ConnectivitySlot
 import com.android.systemui.statusbar.pipeline.shared.data.repository.ConnectivityRepository
 import com.android.systemui.statusbar.policy.data.repository.UserSetupRepository
@@ -144,7 +145,14 @@ constructor(
     userSetupRepo: UserSetupRepository,
     private val context: Context,
     private val featureFlagsClassic: FeatureFlagsClassic,
+    secureSettingsRepository: SecureSettingsRepository,
 ) : MobileIconsInteractorKairos, KairosBuilder by kairosBuilder() {
+
+    private val dataDisabledIndicatorEnabled: State<Boolean> = buildState {
+        secureSettingsRepository
+            .boolSetting(SHOW_DATA_DISABLED_ICON, true)
+            .toState(true, nameTag("MobileIconsInteractorKairosImpl.dataDisabledIndicatorEnabled"))
+    }
 
     override val mobileIsDefault: State<Boolean> =
         combine(
@@ -448,6 +456,7 @@ constructor(
             isForceHidden,
             repo,
             context,
+            dataDisabledIndicatorEnabled = dataDisabledIndicatorEnabled,
         )
     }
 

@@ -36,6 +36,7 @@ import com.android.systemui.statusbar.pipeline.satellite.ui.model.SatelliteIconM
 import com.android.systemui.statusbar.pipeline.shared.data.model.DataActivityModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -150,6 +151,7 @@ class MobileIconInteractorImpl(
     connectionRepository: MobileConnectionRepository,
     private val context: Context,
     val carrierIdOverrides: MobileIconCarrierIdOverrides = MobileIconCarrierIdOverridesImpl(),
+    dataDisabledIndicatorEnabled: StateFlow<Boolean> = MutableStateFlow(true),
 ) : MobileIconInteractor {
     override val subscriptionId = connectionRepository.subId
 
@@ -309,11 +311,18 @@ class MobileIconInteractorImpl(
 
     /** Whether or not to show the error state of [SignalDrawable] */
     private val showExclamationMark: StateFlow<Boolean> =
-        combine(defaultSubscriptionHasDataEnabled, isDefaultConnectionFailed, isInService) {
-                isDefaultDataEnabled,
+        combine(
+                defaultSubscriptionHasDataEnabled,
                 isDefaultConnectionFailed,
-                isInService ->
-                !isDefaultDataEnabled || isDefaultConnectionFailed || !isInService
+                isInService,
+                dataDisabledIndicatorEnabled,
+            ) { isDefaultDataEnabled, isDefaultConnectionFailed, isInService, indicatorEnabled ->
+                val dataDisabled = !isDefaultDataEnabled
+                if (dataDisabled && !indicatorEnabled) {
+                    isDefaultConnectionFailed || !isInService
+                } else {
+                    dataDisabled || isDefaultConnectionFailed || !isInService
+                }
             }
             .stateIn(scope, SharingStarted.WhileSubscribed(), true)
 
