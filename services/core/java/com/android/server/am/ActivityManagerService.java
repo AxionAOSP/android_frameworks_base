@@ -3460,6 +3460,12 @@ public class ActivityManagerService extends IActivityManager.Stub
             info.putString("shortMsg", "Process crashed.");
             finishInstrumentationLocked(app, Activity.RESULT_CANCELED, info);
         });
+
+        if ("com.android.axion.axpcmode".equals(app.processName)) {
+            if (AxExtServiceFactory.getAxPcModeService().isPcModeEnabled()) {
+                AxExtServiceFactory.getAxPcModeService().onPcModeProcessDied();
+            }
+        }
     }
 
     @GuardedBy(anyOf = {"this", "mProcLock"})

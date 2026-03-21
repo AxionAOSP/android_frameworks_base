@@ -1347,6 +1347,7 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
 
         Intent homeIntent = null;
         ActivityInfo aInfo = null;
+
         if (taskDisplayArea == getDefaultTaskDisplayArea()
                 || mWmService.shouldPlacePrimaryHomeOnDisplay(
                         taskDisplayArea.getDisplayId(), userId)) {
@@ -2892,6 +2893,11 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
 
         startHomeOnDisplay(mCurrentUser, reason, displayContent.getDisplayId());
         displayContent.getDisplayPolicy().notifyDisplayAddSystemDecorations();
+
+        final int addedDisplayId = displayContent.getDisplayId();
+        if (addedDisplayId != DEFAULT_DISPLAY) {
+            AxExtServiceFactory.getAxPcModeService().onDisplayAdded(addedDisplayId);
+        }
     }
 
     @Override
@@ -2925,10 +2931,12 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
                         // Ensure the display content is removed even if the transition does not
                         // successfully finish.
                         removeDisplayContent(displayContent);
+                        AxExtServiceFactory.getAxPcModeService().onDisplayRemoved(displayId);
                     });
                 });
             } else {
                 removeDisplayContent(displayContent);
+                AxExtServiceFactory.getAxPcModeService().onDisplayRemoved(displayId);
             }
         }
     }

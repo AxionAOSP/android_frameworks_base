@@ -458,6 +458,8 @@ public abstract class DisplayManagerInternal {
      */
     public abstract DisplayWindowPolicyController getDisplayWindowPolicyController(int displayId);
 
+    public abstract boolean isDefaultDisplayMirrored();
+
     /**
      * Get DisplayPrimaries from SF for a particular display.
      */

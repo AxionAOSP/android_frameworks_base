@@ -16,9 +16,12 @@
 
 package com.android.systemui.recents;
 
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Handler;
 import android.os.RemoteException;
+import android.provider.Settings;
 import android.util.Log;
 
 import com.android.systemui.LauncherProxyService;
@@ -36,7 +39,13 @@ import javax.inject.Inject;
 public class OverviewProxyRecentsImpl implements RecentsImplementation {
 
     private final static String TAG = "OverviewProxyRecentsImpl";
+
+    private static final String AXPCMODE_PACKAGE = "com.android.axion.axpcmode";
+    private static final String TASKS_OVERVIEW_ACTIVITY =
+            "com.android.axion.axpcmode.activities.TasksOverviewActivity";
+
     private Handler mHandler;
+    private Context mContext;
     private final LauncherProxyService mLauncherProxyService;
     private final ActivityStarter mActivityStarter;
     private final KeyguardStateController mKeyguardStateController;
@@ -54,11 +63,36 @@ public class OverviewProxyRecentsImpl implements RecentsImplementation {
 
     @Override
     public void onStart(Context context) {
+        mContext = context;
         mHandler = new Handler();
+    }
+
+    private boolean isAxPcModeEnabled() {
+        try {
+            return Settings.Secure.getInt(mContext.getContentResolver(), "ax_pc_mode", 0) == 1;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void launchAxPcModeRecents() {
+        Intent intent = new Intent();
+        intent.setComponent(new ComponentName(AXPCMODE_PACKAGE, TASKS_OVERVIEW_ACTIVITY));
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            mContext.startActivity(intent);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to launch AxPcMode TasksOverviewActivity", e);
+        }
     }
 
     @Override
     public void showRecentApps(boolean triggeredFromAltTab) {
+        if (isAxPcModeEnabled()) {
+            launchAxPcModeRecents();
+            return;
+        }
+
         ILauncherProxy launcherProxy = mLauncherProxyService.getProxy();
         if (launcherProxy != null) {
             try {
@@ -83,6 +117,11 @@ public class OverviewProxyRecentsImpl implements RecentsImplementation {
 
     @Override
     public void toggleRecentApps() {
+        if (isAxPcModeEnabled()) {
+            launchAxPcModeRecents();
+            return;
+        }
+
         // If connected to launcher service, let it handle the toggle logic
         ILauncherProxy launcherProxy = mLauncherProxyService.getProxy();
         if (launcherProxy != null) {
