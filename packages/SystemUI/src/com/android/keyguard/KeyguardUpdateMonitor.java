@@ -4421,4 +4421,8 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreSt
             Trace.endSection();
         });
     }
+    
+    public boolean isSecure() {
+        return mLockPatternUtils.isSecure(mSelectedUserInteractor.getSelectedUserId());
+    }
 }

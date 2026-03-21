@@ -161,6 +161,7 @@ public class KeyguardSecurityContainerController extends ViewController<Keyguard
     private ActivityStarter.OnDismissAction mDismissAction;
     private Runnable mCancelAction;
     private boolean mWillRunDismissFromKeyguard;
+    private static Runnable sSecurityFinishAction;
 
     private int mLastOrientation;
 
@@ -757,6 +758,14 @@ public class KeyguardSecurityContainerController extends ViewController<Keyguard
         mKeyguardSecurityCallback.finish(currentUser);
     }
 
+    public static void setSecurityFinishAction(Runnable action) {
+        sSecurityFinishAction = action;
+    }
+
+    public static Runnable getSecurityFinishAction() {
+        return sSecurityFinishAction;
+    }
+
     /**
      * @return the text of the KeyguardMessageArea.
      */
@@ -1020,6 +1029,12 @@ public class KeyguardSecurityContainerController extends ViewController<Keyguard
         }
 
         if (finish) {
+            if (sSecurityFinishAction != null) {
+                Runnable action = sSecurityFinishAction;
+                sSecurityFinishAction = null;
+                action.run();
+                return finish;
+            }
             mKeyguardSecurityCallback.finish(targetUserId);
         }
         return finish;
