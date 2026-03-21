@@ -27,6 +27,7 @@ import com.android.systemui.kairos.State
 import com.android.systemui.kairos.combine
 import com.android.systemui.kairos.flatMap
 import com.android.systemui.kairos.map
+import com.android.systemui.kairos.stateOf
 import com.android.systemui.kairos.util.nameTag
 import com.android.systemui.kairosBuilder
 import com.android.systemui.log.table.TableLogBuffer
@@ -147,6 +148,7 @@ class MobileIconInteractorKairosImpl(
     private val context: Context,
     private val carrierIdOverrides: MobileIconCarrierIdOverrides =
         MobileIconCarrierIdOverridesImpl(),
+    dataDisabledIndicatorEnabled: State<Boolean> = stateOf(true),
 ) : MobileIconInteractorKairos, KairosBuilder by kairosBuilder() {
     override val subscriptionId: Int
         get() = connectionRepository.subId
@@ -302,11 +304,18 @@ class MobileIconInteractorKairosImpl(
 
     /** Whether or not to show the error state of [SignalDrawable] */
     private val showExclamationMark: State<Boolean> =
-        combine(defaultSubscriptionHasDataEnabled, isDefaultConnectionFailed, isInService) {
-            isDefaultDataEnabled,
+        combine(
+            defaultSubscriptionHasDataEnabled,
             isDefaultConnectionFailed,
-            isInService ->
-            !isDefaultDataEnabled || isDefaultConnectionFailed || !isInService
+            isInService,
+            dataDisabledIndicatorEnabled,
+        ) { isDefaultDataEnabled, isDefaultConnectionFailed, isInService, indicatorEnabled ->
+            val dataDisabled = !isDefaultDataEnabled
+            if (dataDisabled && !indicatorEnabled) {
+                isDefaultConnectionFailed || !isInService
+            } else {
+                dataDisabled || isDefaultConnectionFailed || !isInService
+            }
         }
 
     private val cellularShownLevel: State<Int> =
