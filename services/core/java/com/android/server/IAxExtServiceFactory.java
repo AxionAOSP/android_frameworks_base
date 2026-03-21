@@ -21,7 +21,8 @@ public interface IAxExtServiceFactory {
     enum ExtType {
         AX_BURST_ENGINE(IAxBurstEngine.class),
         AX_MEMORY_MANAGER(IAxMemoryManager.class),
-        UX_PERFORMANCE(IUxPerformance.class);
+        UX_PERFORMANCE(IUxPerformance.class),
+        PC_MODE_SERVICE(IAxPcModeService.class);
         private final Class<?> clazz;
 
         ExtType(Class<?> clazz) {

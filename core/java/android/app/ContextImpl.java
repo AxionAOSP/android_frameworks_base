@@ -85,6 +85,7 @@ import android.os.UserManager;
 import android.os.storage.StorageManager;
 import android.permission.PermissionControllerManager;
 import android.permission.PermissionManager;
+import android.provider.Settings;
 import android.ravenwood.annotation.RavenwoodIgnore;
 import android.ravenwood.annotation.RavenwoodKeep;
 import android.ravenwood.annotation.RavenwoodKeepPartialClass;
@@ -1196,14 +1197,42 @@ class ContextImpl extends Context {
                             + " context requires the FLAG_ACTIVITY_NEW_TASK flag."
                             + " Is this really what you want?");
         }
+        if (isHomeIntent(intent)) {
+            try {
+                int pcMode = Settings.Secure.getInt(getContentResolver(), "ax_pc_mode", 0);
+                if (pcMode == 1) {
+                    intent.setComponent(new ComponentName("com.android.axion.axpcmode",
+                            "com.android.axion.axpcmode.activities.PcModeLauncherActivity"));
+                    intent.removeCategory(Intent.CATEGORY_HOME);
+                }
+            } catch (Exception ignored) {}
+        }
+
         mMainThread.getInstrumentation().execStartActivity(
                 getOuterContext(), mMainThread.getApplicationThread(), null,
                 (Activity) null, intent, -1, applyLaunchDisplayIfNeeded(options));
     }
 
+    private boolean isHomeIntent(Intent intent) {
+        return intent != null && Intent.ACTION_MAIN.equals(intent.getAction())
+                && intent.hasCategory(Intent.CATEGORY_HOME);
+    }
+
     /** @hide */
     @Override
     public void startActivityAsUser(Intent intent, Bundle options, UserHandle user) {
+        if (isHomeIntent(intent)) {
+            try {
+                int pcMode = Settings.Secure.getIntForUser(getContentResolver(),
+                        "ax_pc_mode", 0, user.getIdentifier());
+                if (pcMode == 1) {
+                    intent.setComponent(new ComponentName("com.android.axion.axpcmode",
+                            "com.android.axion.axpcmode.activities.PcModeLauncherActivity"));
+                    intent.removeCategory(Intent.CATEGORY_HOME);
+                }
+            } catch (Exception ignored) {}
+        }
+
         try {
             intent.collectExtraIntentKeys();
             ActivityTaskManager.getService().startActivityAsUser(
