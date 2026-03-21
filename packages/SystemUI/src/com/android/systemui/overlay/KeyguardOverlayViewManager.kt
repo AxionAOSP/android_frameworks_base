@@ -15,35 +15,45 @@
  */
 package com.android.systemui.overlay
 
+
 import android.view.View
 import android.widget.FrameLayout
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import com.android.systemui.edgelight.EdgeLight
-import com.android.systemui.edgelight.EdgeLightInteractor
+import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.android.systemui.media.MediaArt
-import com.android.systemui.media.MediaArtInteractor
 import com.android.systemui.CoreStartable
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.edgelight.EdgeLight
+import com.android.systemui.edgelight.EdgeLightInteractor
+import com.android.systemui.media.MediaArt
+import com.android.systemui.media.MediaArtInteractor
+import com.android.systemui.pulse.PulseInteractor
+import com.android.systemui.pulse.PulseVisualizer
 import com.android.systemui.res.R
 import com.android.systemui.shade.NotificationShadeWindowView
 import javax.inject.Inject
-
 @SysUISingleton
 class KeyguardOverlayViewManager @Inject constructor(
     private val windowView: NotificationShadeWindowView,
     private val mediaArtInteractor: MediaArtInteractor,
+    private val pulseInteractor: PulseInteractor,
     private val edgeLightInteractor: EdgeLightInteractor,
 ) : CoreStartable {
 
     override fun start() {
-        val mediaArtView = createOverlayHost()
-        val edgeLightView = createOverlayHost()
+        val keyguardRoot = windowView.requireViewById<View>(R.id.keyguard_root_view)
+
+        val mediaArtView = createOverlayHost(windowView.indexOfChild(keyguardRoot))
+        val pulseView = createOverlayHost(windowView.indexOfChild(keyguardRoot))
+        val edgeLightView = createOverlayHost(windowView.indexOfChild(keyguardRoot))
         KeyguardOverlayViewBinder.bind(mediaArtView) {
             val state by mediaArtInteractor.uiState.collectAsStateWithLifecycle()
             MediaArt(state = state)
+        }
+        KeyguardOverlayViewBinder.bind(pulseView) {
+            val state by pulseInteractor.uiState.collectAsStateWithLifecycle()
+            PulseVisualizer(state = state)
         }
         KeyguardOverlayViewBinder.bind(edgeLightView) {
             val state by edgeLightInteractor.uiState.collectAsState()
@@ -51,9 +61,7 @@ class KeyguardOverlayViewManager @Inject constructor(
         }
     }
 
-    fun createOverlayHost(): ComposeView {
-        val keyguardRoot = windowView.requireViewById<View>(R.id.keyguard_root_view)
-        val index = windowView.indexOfChild(keyguardRoot)
+    private fun createOverlayHost(index: Int): ComposeView {
         val host = FrameLayout(windowView.context).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
