@@ -4151,6 +4151,7 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
 
         if (newFocus != null && isDefaultDisplay) {
             AxRefreshRateController.get().updateFocusedApp(newFocus);
+            GameSpaceService.get().onAppFocusChanged(newFocus, newTask);
         }
         getInputMonitor().setFocusedAppLw(newFocus);
         return true;

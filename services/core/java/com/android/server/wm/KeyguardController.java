@@ -246,6 +246,7 @@ class KeyguardController {
 
         if (displayId == DEFAULT_DISPLAY && keyguardChanged) {
             AxRefreshRateController.get().setKeyguardDone(!keyguardShowing);
+            GameSpaceService.get().onKeyguardChanged(keyguardShowing);
         }
 
         if (keyguardChanged || (mWindowManager.mFlags.mAodTransition && aodChanged)) {
