@@ -65,6 +65,7 @@ abstract class AxionStartableModule {
     @IntoMap
     @ClassKey(RoutinesManager::class)
     abstract fun bindRoutinesManager(impl: RoutinesManager): CoreStartable
+
     @Binds
     @IntoMap
     @ClassKey(KeyguardOverlayViewManager::class)
