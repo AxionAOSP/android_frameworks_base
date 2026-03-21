@@ -29,6 +29,7 @@ import com.android.systemui.statusbar.phone.DemoStatusIcons;
 import com.android.systemui.statusbar.phone.StatusBarIconHolder;
 import com.android.systemui.statusbar.phone.StatusBarLocation;
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapter;
+import com.android.systemui.statusbar.phone.StatusBarIconControllerImplEx;
 import com.android.systemui.statusbar.pipeline.mobile.ui.MobileUiAdapterKairos;
 import com.android.systemui.statusbar.pipeline.wifi.ui.WifiUiAdapter;
 
@@ -58,14 +59,16 @@ public class TintedIconManager extends IconManager {
             Lazy<MobileUiAdapterKairos> mobileUiAdapterKairos,
             MobileContextProvider mobileContextProvider,
             KairosNetwork kairosNetwork,
-            CoroutineScope appScope
+            CoroutineScope appScope,
+            StatusBarIconControllerImplEx iconControllerEx
     ) {
         super(group,
                 location,
                 wifiUiAdapter,
                 mobileUiAdapter,
                 mobileUiAdapterKairos,
-                mobileContextProvider, kairosNetwork, appScope);
+                mobileContextProvider, kairosNetwork, appScope,
+                iconControllerEx);
     }
 
     @Override
@@ -117,6 +120,7 @@ public class TintedIconManager extends IconManager {
         private final Lazy<MobileUiAdapterKairos> mMobileUiAdapterKairos;
         private final KairosNetwork mKairosNetwork;
         private final CoroutineScope mAppScope;
+        private final StatusBarIconControllerImplEx mIconControllerEx;
 
         @Inject
         public Factory(
@@ -125,7 +129,8 @@ public class TintedIconManager extends IconManager {
                 MobileContextProvider mobileContextProvider,
                 Lazy<MobileUiAdapterKairos> mobileUiAdapterKairos,
                 KairosNetwork kairosNetwork,
-                @Application CoroutineScope appScope
+                @Application CoroutineScope appScope,
+                StatusBarIconControllerImplEx iconControllerEx
         ) {
             mWifiUiAdapter = wifiUiAdapter;
             mMobileUiAdapter = mobileUiAdapter;
@@ -133,6 +138,7 @@ public class TintedIconManager extends IconManager {
             mMobileUiAdapterKairos = mobileUiAdapterKairos;
             mKairosNetwork = kairosNetwork;
             mAppScope = appScope;
+            mIconControllerEx = iconControllerEx;
         }
 
         /** Creates a new {@link TintedIconManager} for the given view group and location. */
@@ -145,7 +151,8 @@ public class TintedIconManager extends IconManager {
                     mMobileUiAdapterKairos,
                     mMobileContextProvider,
                     mKairosNetwork,
-                    mAppScope);
+                    mAppScope,
+                    mIconControllerEx);
         }
     }
 }

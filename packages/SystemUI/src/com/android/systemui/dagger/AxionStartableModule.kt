@@ -18,6 +18,7 @@ package com.android.systemui.dagger
 
 import com.android.systemui.CoreStartable
 import com.android.systemui.ax.AxPlatformServiceImpl
+import com.android.systemui.statusbar.policy.NetworkSpeedController
 import com.android.systemui.overlay.KeyguardOverlayViewManager
 import com.android.systemui.axdynamicbar.domain.AxDynamicBarChipsRefiner
 import com.android.systemui.axdynamicbar.ui.AxDynamicBarManager
@@ -65,6 +66,10 @@ abstract class AxionStartableModule {
     @IntoMap
     @ClassKey(RoutinesManager::class)
     abstract fun bindRoutinesManager(impl: RoutinesManager): CoreStartable
+    @Binds
+    @IntoMap
+    @ClassKey(NetworkSpeedController::class)
+    abstract fun bindNetworkSpeedController(impl: NetworkSpeedController): CoreStartable
 
     @Binds
     @IntoMap
