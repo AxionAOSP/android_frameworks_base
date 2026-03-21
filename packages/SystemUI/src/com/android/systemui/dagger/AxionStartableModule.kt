@@ -18,6 +18,7 @@ package com.android.systemui.dagger
 
 import com.android.systemui.CoreStartable
 import com.android.systemui.ax.AxPlatformServiceImpl
+import com.android.systemui.mistouch.MistouchPreventionWindowController
 import com.axion.applocker.AxAppLockerHelper
 import com.android.systemui.statusbar.policy.NetworkSpeedController
 import com.android.systemui.overlay.KeyguardOverlayViewManager
@@ -71,6 +72,10 @@ abstract class AxionStartableModule {
     @IntoMap
     @ClassKey(NetworkSpeedController::class)
     abstract fun bindNetworkSpeedController(impl: NetworkSpeedController): CoreStartable
+    @Binds
+    @IntoMap
+    @ClassKey(MistouchPreventionWindowController::class)
+    abstract fun bindMistouchPreventionWindowController(impl: MistouchPreventionWindowController): CoreStartable
 
     @Binds
     @IntoMap
