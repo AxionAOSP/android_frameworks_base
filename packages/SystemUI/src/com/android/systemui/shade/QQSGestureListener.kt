@@ -22,6 +22,7 @@ import android.os.PowerManager
 import android.view.GestureDetector
 import android.view.MotionEvent
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.mistouch.domain.interactor.MistouchInteractor
 import com.android.systemui.plugins.FalsingManager
 import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.statusbar.StatusBarState
@@ -71,6 +72,7 @@ class QQSGestureListener @Inject constructor(
                         !centralSurfaces.isBouncerShowing()) &&
                 !falsingManager.isFalseDoubleTap
         ) {
+            MistouchInteractor.get().handleKeyguardInteraction()
             powerManager.goToSleep(e.getEventTime())
             return true
         }

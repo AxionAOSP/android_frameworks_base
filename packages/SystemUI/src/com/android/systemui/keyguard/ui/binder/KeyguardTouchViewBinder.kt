@@ -30,6 +30,7 @@ import com.android.systemui.lifecycle.WindowLifecycleState
 import com.android.systemui.lifecycle.repeatWhenAttached
 import com.android.systemui.lifecycle.setSnapshotBinding
 import com.android.systemui.lifecycle.viewModel
+import com.android.systemui.mistouch.domain.interactor.MistouchInteractor
 import com.android.systemui.plugins.FalsingManager
 import com.android.systemui.res.R
 import kotlinx.coroutines.awaitCancellation
@@ -101,6 +102,7 @@ object KeyguardTouchViewBinder {
                                     return
                                 }
 
+                                MistouchInteractor.get().handleKeyguardInteraction()
                                 viewModel.onLongPress(isA11yAction)
                             }
 
@@ -109,6 +111,7 @@ object KeyguardTouchViewBinder {
                                     return
                                 }
 
+                                MistouchInteractor.get().handleKeyguardInteraction()
                                 onSingleTap(x, y)
                             }
 
@@ -117,6 +120,7 @@ object KeyguardTouchViewBinder {
                                     return
                                 }
 
+                                MistouchInteractor.get().handleKeyguardInteraction()
                                 viewModel.onDoubleClick()
                             }
                         }
