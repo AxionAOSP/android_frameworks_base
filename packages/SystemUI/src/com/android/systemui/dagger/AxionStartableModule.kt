@@ -29,6 +29,7 @@ import com.android.systemui.statusbar.chips.ui.viewmodel.OngoingActivityChipsRef
 import com.android.systemui.axsmartpixel.ui.AxSmartPixelManager
 import com.android.systemui.axsmartpixel.ui.AxSmartPixelTile
 import com.android.systemui.routines.ui.RoutinesManager
+import com.android.systemui.usb.UsbModePickerDialogDelegate
 import com.android.systemui.qs.QsEventLogger
 import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.shared.model.TileCategory
@@ -86,6 +87,10 @@ abstract class AxionStartableModule {
     @IntoMap
     @ClassKey(AxAppLockerHelper::class)
     abstract fun bindAxAppLockerHelper(impl: AxAppLockerHelper): CoreStartable
+    @Binds
+    @IntoMap
+    @ClassKey(UsbModePickerDialogDelegate::class)
+    abstract fun bindUsbModePickerDialogDelegate(impl: UsbModePickerDialogDelegate): CoreStartable
 
     @Binds
     @IntoMap
