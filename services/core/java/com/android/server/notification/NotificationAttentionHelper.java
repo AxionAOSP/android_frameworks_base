@@ -140,6 +140,7 @@ public final class NotificationAttentionHelper {
     static final int MUTE_REASON_OTHER_INSISTENT_PLAYING = 1 << 13;
     static final int MUTE_REASON_SUPPRESSED_BUBBLE = 1 << 14;
     static final int MUTE_REASON_COOLDOWN = 1 << 15;
+    static final int MUTE_REASON_SCREEN_ON = 1 << 16;
 
     @IntDef(prefix = { "MUTE_REASON_" }, value = {
         MUTE_REASON_NOT_MUTED,
@@ -154,6 +155,7 @@ public final class NotificationAttentionHelper {
         MUTE_REASON_OTHER_INSISTENT_PLAYING,
         MUTE_REASON_SUPPRESSED_BUBBLE,
         MUTE_REASON_COOLDOWN,
+        MUTE_REASON_SCREEN_ON,
     })
     @Retention(RetentionPolicy.SOURCE)
     @interface MuteReason {}
@@ -205,7 +207,11 @@ public final class NotificationAttentionHelper {
     private Binder mCallNotificationToken = null;
     private LineageNotificationLights mLineageNotificationLights;
 
+    private static final String NOTIFICATION_SOUND_SUPPRESS_SCREEN_ON =
+            "notification_sound_suppress_screen_on";
+
     // Settings flags
+    private boolean mSuppressSoundScreenOn;
     private boolean mNotificationCooldownEnabled;
     private boolean mNotificationCooldownForWorkEnabled;
     private boolean mNotificationCooldownApplyToAll;
@@ -385,6 +391,9 @@ public final class NotificationAttentionHelper {
         mContext.getContentResolver().registerContentObserver(
                 SettingsObserver.NOTIFICATION_LIGHT_PULSE_URI, false, mSettingsObserver,
                 UserHandle.USER_ALL);
+        mContext.getContentResolver().registerContentObserver(
+                SettingsObserver.SUPPRESS_SOUND_SCREEN_ON_URI, false, mSettingsObserver,
+                UserHandle.USER_ALL);
         if (Flags.politeNotifications()) {
             mContext.getContentResolver().registerContentObserver(
                     SettingsObserver.NOTIFICATION_COOLDOWN_ENABLED_URI, false, mSettingsObserver,
@@ -408,6 +417,9 @@ public final class NotificationAttentionHelper {
                 updateLightsLocked();
             }
         }
+
+        mSuppressSoundScreenOn = Settings.Secure.getIntForUser(mContext.getContentResolver(),
+                NOTIFICATION_SOUND_SUPPRESS_SCREEN_ON, 0, UserHandle.USER_CURRENT) != 0;
 
         if (Flags.politeNotifications()) {
             try {
@@ -709,6 +721,10 @@ public final class NotificationAttentionHelper {
         if (mUsageStats.isAlertRateLimited(pkg)) {
             Slog.e(TAG, "Muting recently noisy " + record.getKey());
             return MUTE_REASON_RATE_LIMIT;
+        }
+
+        if (mSuppressSoundScreenOn && mScreenOn) {
+            return MUTE_REASON_SCREEN_ON;
         }
 
         // A different looping ringtone, such as an incoming call is playing
@@ -1821,6 +1837,8 @@ public final class NotificationAttentionHelper {
                 Settings.System.NOTIFICATION_COOLDOWN_ALL);
         private static final Uri NOTIFICATION_COOLDOWN_VIBRATE_UNLOCKED_URI =
                 Settings.System.getUriFor(Settings.System.NOTIFICATION_COOLDOWN_VIBRATE_UNLOCKED);
+        private static final Uri SUPPRESS_SOUND_SCREEN_ON_URI =
+                Settings.Secure.getUriFor(NOTIFICATION_SOUND_SUPPRESS_SCREEN_ON);
         public SettingsObserver() {
             super(null);
         }
@@ -1839,6 +1857,12 @@ public final class NotificationAttentionHelper {
                         updateLightsLocked();
                     }
                 }
+            }
+            if (uri == null || SUPPRESS_SOUND_SCREEN_ON_URI.equals(uri)) {
+                mSuppressSoundScreenOn = Settings.Secure.getIntForUser(
+                        mContext.getContentResolver(),
+                        NOTIFICATION_SOUND_SUPPRESS_SCREEN_ON, 0,
+                        UserHandle.USER_CURRENT) != 0;
             }
             if (Flags.politeNotifications()) {
                 if (uri == null || NOTIFICATION_COOLDOWN_ENABLED_URI.equals(uri)) {
