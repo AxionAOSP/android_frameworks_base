@@ -96,6 +96,7 @@ public class Clock extends TextView implements
     private boolean mClockVisibleByUser = true;
 
     private boolean mAttached;
+    private boolean mListenersRegistered;
     private boolean mScreenReceiverRegistered;
     private Calendar mCalendar;
     private String mContentDescriptionFormatString;
@@ -209,37 +210,49 @@ public class Clock extends TextView implements
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-
-        if (!mAttached) {
-            mAttached = true;
-            IntentFilter filter = new IntentFilter();
-
-            filter.addAction(Intent.ACTION_TIME_TICK);
-            filter.addAction(Intent.ACTION_TIME_CHANGED);
-            filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);
-            filter.addAction(Intent.ACTION_CONFIGURATION_CHANGED);
-
-            // NOTE: This receiver could run before this method returns, as it's not dispatching
-            // on the main thread and BroadcastDispatcher may not need to register with Context.
-            // The receiver will return immediately if the view does not have a Handler yet.
-            mBroadcastDispatcher.registerReceiverWithHandler(mIntentReceiver, filter,
-                    Dependency.get(Dependency.TIME_TICK_HANDLER), UserHandle.ALL);
-            Dependency.get(TunerService.class).addTunable(this, CLOCK_SECONDS,
-                    StatusBarIconController.ICON_HIDE_LIST);
-            mContext.getContentResolver().registerContentObserver(
-                    LineageSettings.System.getUriFor(LineageSettings.System.STATUS_BAR_AM_PM),
-                    false, mContentObserver);
-            mCommandQueue.addCallback(this);
-            mUserTracker.addCallback(mUserChangedCallback, mContext.getMainExecutor());
-            mCurrentUserId = mUserTracker.getUserId();
-        }
+        mAttached = true;
 
         // The time zone may have changed while the receiver wasn't registered, so update the Time
         mCalendar = Calendar.getInstance(TimeZone.getDefault());
         mContentDescriptionFormatString = "";
         mDateTimePatternGenerator = null;
 
-        // Make sure we update to the current time
+        if (getVisibility() == View.VISIBLE) {
+            registerListeners();
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        unregisterListeners();
+        mAttached = false;
+    }
+
+    private void registerListeners() {
+        if (mListenersRegistered || !mAttached) return;
+        mListenersRegistered = true;
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_TIME_TICK);
+        filter.addAction(Intent.ACTION_TIME_CHANGED);
+        filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);
+        filter.addAction(Intent.ACTION_CONFIGURATION_CHANGED);
+
+        // NOTE: This receiver could run before this method returns, as it's not dispatching
+        // on the main thread and BroadcastDispatcher may not need to register with Context.
+        // The receiver will return immediately if the view does not have a Handler yet.
+        mBroadcastDispatcher.registerReceiverWithHandler(mIntentReceiver, filter,
+                Dependency.get(Dependency.TIME_TICK_HANDLER), UserHandle.ALL);
+        Dependency.get(TunerService.class).addTunable(this, CLOCK_SECONDS,
+                StatusBarIconController.ICON_HIDE_LIST);
+        mContext.getContentResolver().registerContentObserver(
+                LineageSettings.System.getUriFor(LineageSettings.System.STATUS_BAR_AM_PM),
+                false, mContentObserver);
+        mCommandQueue.addCallback(this);
+        mUserTracker.addCallback(mUserChangedCallback, mContext.getMainExecutor());
+        mCurrentUserId = mUserTracker.getUserId();
+
         updateClock();
         if (!StatusBarRootModernization.isEnabled()) {
             updateClockVisibility();
@@ -247,9 +260,10 @@ public class Clock extends TextView implements
         updateShowSeconds();
     }
 
-    @Override
-    protected void onDetachedFromWindow() {
-        super.onDetachedFromWindow();
+    private void unregisterListeners() {
+        if (!mListenersRegistered) return;
+        mListenersRegistered = false;
+
         if (mScreenReceiverRegistered) {
             mScreenReceiverRegistered = false;
             mBroadcastDispatcher.unregisterReceiver(mScreenReceiver);
@@ -258,14 +272,11 @@ public class Clock extends TextView implements
                 mSecondsHandler = null;
             }
         }
-        if (mAttached) {
-            mBroadcastDispatcher.unregisterReceiver(mIntentReceiver);
-            mAttached = false;
-            mContext.getContentResolver().unregisterContentObserver(mContentObserver);
-            Dependency.get(TunerService.class).removeTunable(this);
-            mCommandQueue.removeCallback(this);
-            mUserTracker.removeCallback(mUserChangedCallback);
-        }
+        mBroadcastDispatcher.unregisterReceiver(mIntentReceiver);
+        mContext.getContentResolver().unregisterContentObserver(mContentObserver);
+        Dependency.get(TunerService.class).removeTunable(this);
+        mCommandQueue.removeCallback(this);
+        mUserTracker.removeCallback(mUserChangedCallback);
     }
 
     private final BroadcastReceiver mIntentReceiver = new BroadcastReceiver() {
@@ -313,6 +324,12 @@ public class Clock extends TextView implements
         }
 
         super.setVisibility(visibility);
+
+        if (visibility == View.VISIBLE) {
+            registerListeners();
+        } else {
+            unregisterListeners();
+        }
     }
 
     private void setClockVisibleByUser(boolean visible) {
@@ -338,7 +355,7 @@ public class Clock extends TextView implements
 
         boolean visible = shouldBeVisible();
         int visibility = visible ? View.VISIBLE : View.GONE;
-        super.setVisibility(visibility);
+        setVisibility(visibility);
     }
 
     final void updateClock(boolean forceTextUpdate) {
