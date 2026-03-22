@@ -49,9 +49,20 @@
         android:key="managed_profile"
         android:title="@string/status_bar_work" />
 
-    <!-- ime -->
-    <!-- sync_failing -->
-    <!-- sync_active -->
+    <com.android.systemui.tuner.StatusBarSwitch
+        android:icon="@drawable/ic_statusbar_ime"
+        android:key="ime"
+        android:title="@string/status_bar_ime" />
+
+    <com.android.systemui.tuner.StatusBarSwitch
+        android:icon="@drawable/ic_statusbar_sync_failing"
+        android:key="sync_failing"
+        android:title="@string/status_bar_sync_failing" />
+
+    <com.android.systemui.tuner.StatusBarSwitch
+        android:icon="@drawable/ic_statusbar_sync_active"
+        android:key="sync_active"
+        android:title="@string/status_bar_sync_active" />
 
     <com.android.systemui.tuner.StatusBarSwitch
         android:icon="@drawable/ic_statusbar_cast"
@@ -68,14 +79,31 @@
         android:key="bluetooth"
         android:title="@string/quick_settings_bluetooth_label" />
 
+    <com.android.systemui.tuner.TunerSwitch
+        android:icon="@drawable/ic_statusbar_bluetooth_battery"
+        android:key="bluetooth_show_battery"
+        android:title="@string/status_bar_bluetooth_battery"
+        sysui:defValue="true" />
+
     <com.android.systemui.tuner.StatusBarSwitch
         android:icon="@drawable/ic_statusbar_camera"
         android:key="cameratoggle"
         android:title="@string/quick_settings_camera_label" />
 
-    <!-- nfc -->
-    <!-- tty -->
-    <!-- speakerphone -->
+    <com.android.systemui.tuner.StatusBarSwitch
+        android:icon="@drawable/ic_statusbar_nfc"
+        android:key="nfc"
+        android:title="@string/status_bar_nfc" />
+
+    <com.android.systemui.tuner.StatusBarSwitch
+        android:icon="@drawable/ic_statusbar_tty"
+        android:key="tty"
+        android:title="@string/status_bar_tty" />
+
+    <com.android.systemui.tuner.StatusBarSwitch
+        android:icon="@drawable/ic_statusbar_speakerphone"
+        android:key="speakerphone"
+        android:title="@string/status_bar_speakerphone" />
 
     <com.android.systemui.tuner.StatusBarSwitch
         android:icon="@drawable/ic_statusbar_do_not_disturb"
@@ -124,12 +152,45 @@
         android:key="airplane"
         android:title="@string/status_bar_airplane" />
 
-    <!-- other weird signal stuff -->
-
     <com.android.systemui.tuner.StatusBarSwitch
         android:icon="@drawable/ic_statusbar_vpn"
         android:key="vpn"
         android:title="@string/legacy_vpn_name" />
+
+    <com.android.systemui.tuner.StatusBarSwitch
+        android:icon="@drawable/ic_data_saver"
+        android:key="data_saver"
+        android:title="@string/status_bar_data_saver" />
+
+    <com.android.systemui.tuner.StatusBarSwitch
+        android:icon="@drawable/ic_location"
+        android:key="location"
+        android:title="@string/status_bar_location" />
+
+    <com.android.systemui.tuner.StatusBarSwitch
+        android:icon="@drawable/ic_mic_26dp"
+        android:key="microphone"
+        android:title="@string/status_bar_microphone" />
+
+    <com.android.systemui.tuner.StatusBarSwitch
+        android:icon="@drawable/stat_sys_screen_record"
+        android:key="screen_record"
+        android:title="@string/status_bar_screen_record" />
+
+    <com.android.systemui.tuner.StatusBarSwitch
+        android:icon="@drawable/stat_sys_connected_display"
+        android:key="connected_display"
+        android:title="@string/status_bar_connected_display" />
+
+    <com.android.systemui.tuner.StatusBarSwitch
+        android:icon="@drawable/stat_sys_sensors_off"
+        android:key="sensors_off"
+        android:title="@string/status_bar_sensors_off" />
+
+    <com.android.systemui.tuner.StatusBarSwitch
+        android:icon="@drawable/ic_statusbar_secure"
+        android:key="secure"
+        android:title="@string/status_bar_secure" />
 
     <com.android.systemui.tuner.BatteryPreference
         android:icon="@*android:drawable/ic_battery"
@@ -142,8 +203,6 @@
         android:key="alarm_clock"
         android:title="@string/status_bar_alarm" />
 
-    <!-- secure -->
-
     <com.android.systemui.tuner.StatusBarSwitch
         android:icon="@drawable/ic_statusbar_clock"
         android:key="clock"
@@ -154,5 +213,35 @@
         android:key="low_priority"
         android:title="@string/tuner_low_priority"
         sysui:defValue="false" />
+
+    <PreferenceCategory
+        android:key="privacy_category"
+        android:title="@string/status_bar_privacy_category">
+
+        <com.android.systemui.tuner.TunerSwitch
+            android:icon="@drawable/ic_statusbar_camera"
+            android:key="privacy_camera_indicator"
+            android:title="@string/status_bar_privacy_camera"
+            sysui:defValue="true" />
+
+        <com.android.systemui.tuner.TunerSwitch
+            android:icon="@drawable/ic_mic_26dp"
+            android:key="privacy_mic_indicator"
+            android:title="@string/status_bar_privacy_mic"
+            sysui:defValue="true" />
+
+        <com.android.systemui.tuner.TunerSwitch
+            android:icon="@drawable/ic_location"
+            android:key="privacy_location_indicator"
+            android:title="@string/status_bar_privacy_location"
+            sysui:defValue="true" />
+
+        <com.android.systemui.tuner.TunerSwitch
+            android:icon="@drawable/stat_sys_screen_record"
+            android:key="privacy_projection_indicator"
+            android:title="@string/status_bar_privacy_projection"
+            sysui:defValue="true" />
+
+    </PreferenceCategory>
 
 </PreferenceScreen>
