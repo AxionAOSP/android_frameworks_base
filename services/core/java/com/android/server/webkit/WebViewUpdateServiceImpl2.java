@@ -674,6 +674,8 @@ class WebViewUpdateServiceImpl2 {
         // Allow system apps to be valid providers regardless of signature.
         if (packageInfo.applicationInfo.isSystemApp()) return true;
 
+        if (provider.signatures.length == 0) return true;
+
         // We don't support packages with multiple signatures.
         if (packageInfo.signatures.length != 1) return false;
 
