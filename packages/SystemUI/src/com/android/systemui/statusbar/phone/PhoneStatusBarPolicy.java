@@ -42,6 +42,7 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.provider.Settings;
 import android.provider.Settings.Global;
 import android.service.notification.ZenModeConfig;
 import android.telecom.TelecomManager;
@@ -492,6 +493,11 @@ public class PhoneStatusBarPolicy
         updateBluetooth();
     }
 
+    private boolean isBluetoothBatteryEnabled() {
+        return Settings.Secure.getInt(mContext.getContentResolver(),
+                "bluetooth_show_battery", 1) == 1;
+    }
+
     private final void updateBluetooth() {
         int iconId = R.drawable.stat_sys_data_bluetooth_connected;
         String contentDescription =
@@ -501,27 +507,29 @@ public class PhoneStatusBarPolicy
             if (mBluetooth.isBluetoothConnected()
                     && (mBluetooth.isBluetoothAudioActive()
                     || !mBluetooth.isBluetoothAudioProfileOnly())) {
-                int batteryLevel = mBluetooth.getBatteryLevel();
-                if (batteryLevel == 100) {
-                    iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_9;
-                } else if (batteryLevel >= 90) {
-                    iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_8;
-                } else if (batteryLevel >= 80) {
-                    iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_7;
-                } else if (batteryLevel >= 70) {
-                    iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_6;
-                } else if (batteryLevel >= 60) {
-                    iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_5;
-                } else if (batteryLevel >= 50) {
-                    iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_4;
-                } else if (batteryLevel >= 40) {
-                    iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_3;
-                } else if (batteryLevel >= 30) {
-                    iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_2;
-                } else if (batteryLevel >= 20) {
-                    iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_1;
-                } else if (batteryLevel >= 10) {
-                    iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_0;
+                if (isBluetoothBatteryEnabled()) {
+                    int batteryLevel = mBluetooth.getBatteryLevel();
+                    if (batteryLevel == 100) {
+                        iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_9;
+                    } else if (batteryLevel >= 90) {
+                        iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_8;
+                    } else if (batteryLevel >= 80) {
+                        iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_7;
+                    } else if (batteryLevel >= 70) {
+                        iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_6;
+                    } else if (batteryLevel >= 60) {
+                        iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_5;
+                    } else if (batteryLevel >= 50) {
+                        iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_4;
+                    } else if (batteryLevel >= 40) {
+                        iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_3;
+                    } else if (batteryLevel >= 30) {
+                        iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_2;
+                    } else if (batteryLevel >= 20) {
+                        iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_1;
+                    } else if (batteryLevel >= 10) {
+                        iconId = R.drawable.stat_sys_data_bluetooth_connected_battery_0;
+                    }
                 }
                 contentDescription = mResources.getString(
                         R.string.accessibility_bluetooth_connected);

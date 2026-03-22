@@ -43,6 +43,29 @@
     <string name="keyguard_mistouch_exit_desciption">Press volume up key to exit</string>
     <string name="keyguard_mistouch_title">Mistouch prevention</string>
 
+    <!-- Status Bar Tuner - Icon toggles -->
+    <string name="status_bar_ime">Input method</string>
+    <string name="status_bar_sync_failing">Sync failing</string>
+    <string name="status_bar_sync_active">Sync active</string>
+    <string name="status_bar_nfc">NFC</string>
+    <string name="status_bar_tty">TTY mode</string>
+    <string name="status_bar_speakerphone">Speakerphone</string>
+    <string name="status_bar_secure">Device security</string>
+    <string name="status_bar_data_saver">Data Saver</string>
+    <string name="status_bar_microphone">Microphone</string>
+    <string name="status_bar_location">Location</string>
+    <string name="status_bar_screen_record">Screen recording</string>
+    <string name="status_bar_connected_display">Connected display</string>
+    <string name="status_bar_sensors_off">Sensors off</string>
+    <string name="status_bar_bluetooth_battery">Bluetooth battery level</string>
+
+    <!-- Status Bar Tuner - Privacy indicators -->
+    <string name="status_bar_privacy_category">Privacy indicators</string>
+    <string name="status_bar_privacy_camera">Camera indicator</string>
+    <string name="status_bar_privacy_mic">Microphone indicator</string>
+    <string name="status_bar_privacy_location">Location indicator</string>
+    <string name="status_bar_privacy_projection">Screen recording indicator</string>
+
     <!-- AOD Tile -->
     <string name="quick_settings_aod_label">AOD</string>
     <string name="quick_settings_aod_scheduled_label">Scheduled AOD</string>
