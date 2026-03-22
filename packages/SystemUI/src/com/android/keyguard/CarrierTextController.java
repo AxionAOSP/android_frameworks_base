@@ -16,7 +16,13 @@
 
 package com.android.keyguard;
 
+import android.database.ContentObserver;
+import android.os.Handler;
+import android.view.View;
+
+import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.util.ViewController;
+import com.android.systemui.util.settings.SecureSettings;
 
 import javax.inject.Inject;
 
@@ -24,8 +30,11 @@ import javax.inject.Inject;
  * Controller for {@link CarrierText}.
  */
 public class CarrierTextController extends ViewController<CarrierText> {
+    private static final String SHOW_LOCKSCREEN_CARRIER_TEXT = "show_lockscreen_carrier_text";
+
     private final CarrierTextManager mCarrierTextManager;
     private final KeyguardUpdateMonitor mKeyguardUpdateMonitor;
+    private final SecureSettings mSecureSettings;
     private final CarrierTextManager.CarrierTextCallback mCarrierTextCallback =
             new CarrierTextManager.CarrierTextCallback() {
                 @Override
@@ -44,10 +53,14 @@ public class CarrierTextController extends ViewController<CarrierText> {
                 }
             };
 
+    private final ContentObserver mCarrierTextSettingObserver;
+
     @Inject
     public CarrierTextController(CarrierText view,
             CarrierTextManager.Builder carrierTextManagerBuilder,
-            KeyguardUpdateMonitor keyguardUpdateMonitor) {
+            KeyguardUpdateMonitor keyguardUpdateMonitor,
+            SecureSettings secureSettings,
+            @Main Handler mainHandler) {
         super(view);
 
         mCarrierTextManager = carrierTextManagerBuilder
@@ -56,6 +69,13 @@ public class CarrierTextController extends ViewController<CarrierText> {
                 .setDebugLocationString(mView.getDebugLocation())
                 .build();
         mKeyguardUpdateMonitor = keyguardUpdateMonitor;
+        mSecureSettings = secureSettings;
+        mCarrierTextSettingObserver = new ContentObserver(mainHandler) {
+            @Override
+            public void onChange(boolean selfChange) {
+                updateCarrierTextVisibility();
+            }
+        };
     }
 
     @Override
@@ -67,10 +87,22 @@ public class CarrierTextController extends ViewController<CarrierText> {
     @Override
     protected void onViewAttached() {
         mCarrierTextManager.setListening(mCarrierTextCallback);
+        mSecureSettings.registerContentObserverForUserSync(
+                SHOW_LOCKSCREEN_CARRIER_TEXT,
+                false,
+                mCarrierTextSettingObserver,
+                mSecureSettings.getUserId());
+        updateCarrierTextVisibility();
     }
 
     @Override
     protected void onViewDetached() {
         mCarrierTextManager.setListening(null);
+        mSecureSettings.unregisterContentObserverSync(mCarrierTextSettingObserver);
+    }
+
+    private void updateCarrierTextVisibility() {
+        int show = mSecureSettings.getInt(SHOW_LOCKSCREEN_CARRIER_TEXT, 1);
+        mView.setVisibility(show != 0 ? View.VISIBLE : View.GONE);
     }
 }
