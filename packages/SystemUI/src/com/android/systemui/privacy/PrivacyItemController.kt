@@ -93,6 +93,10 @@ class PrivacyItemController @Inject constructor(
         override fun onFlagMediaProjectionChanged(flag: Boolean) {
             callbacks.forEach { it.get()?.onFlagMediaProjectionChanged(flag) }
         }
+
+        override fun onPrivacyIndicatorSettingsChanged() {
+            update()
+        }
     }
 
     private val privacyItemMonitorCallback = object : PrivacyItemMonitor.Callback {
@@ -172,6 +176,7 @@ class PrivacyItemController @Inject constructor(
             return
         }
         val list = privacyItemMonitors.flatMap { it.getActivePrivacyItems() }.distinct()
+            .filter { privacyConfig.isPrivacyTypeEnabled(it.privacyType) }
         privacyList = processNewList(list)
     }
 
