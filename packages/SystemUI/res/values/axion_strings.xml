@@ -70,6 +70,16 @@
     <string name="status_bar_privacy_location">Location indicator</string>
     <string name="status_bar_privacy_projection">Screen recording indicator</string>
 
+    <!-- USB Mode Picker -->
+    <string name="usb_mode_picker_title">Select USB mode</string>
+    <string name="usb_mode_file_transfer">File transfer</string>
+    <string name="usb_mode_tethering">USB tethering</string>
+    <string name="usb_mode_midi">MIDI</string>
+    <string name="usb_mode_photo_transfer">Photo &amp; video transfer</string>
+    <string name="usb_mode_webcam">USB Webcam</string>
+    <string name="usb_mode_charging_only">Charging only</string>
+    <string name="usb_charging_status">USB charging is on</string>
+
     <!-- AOD Tile -->
     <string name="quick_settings_aod_label">AOD</string>
     <string name="quick_settings_aod_scheduled_label">Scheduled AOD</string>
