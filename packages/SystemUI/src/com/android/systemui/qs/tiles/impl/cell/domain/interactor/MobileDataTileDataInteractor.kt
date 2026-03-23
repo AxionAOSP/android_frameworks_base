@@ -27,6 +27,7 @@ import com.android.systemui.qs.pipeline.shared.QSPipelineFlagsRepository
 import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
 import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
 import com.android.systemui.qs.tiles.impl.cell.domain.model.MobileDataTileIcon
+import com.android.systemui.qs.tiles.dialog.DataUsageRepository
 import com.android.systemui.qs.tiles.impl.cell.domain.model.MobileDataTileModel
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.pipeline.mobile.domain.interactor.MobileIconsInteractor
@@ -36,6 +37,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 
 class MobileDataTileDataInteractor
@@ -44,6 +46,7 @@ constructor(
     @Application private val context: Context,
     private val mobileIconsInteractor: MobileIconsInteractor,
     private val qsPipelineFlagsRepository: QSPipelineFlagsRepository,
+    private val dataUsageRepository: DataUsageRepository,
 ) : QSTileDataInteractor<MobileDataTileModel> {
     private val mobileDataLabel: String =
         context.getString(R.string.quick_settings_cellular_detail_title)
@@ -56,7 +59,7 @@ constructor(
     fun tileData(): Flow<MobileDataTileModel> =
         mobileIconsInteractor.activeDataIconInteractor.flatMapLatest {
             if (it == null) {
-                    flowOf(
+                    dataUsageRepository.mobileUsageFormatted.map { usageSummary ->
                         MobileDataTileModel(
                             isSimActive = false,
                             isEnabled = false,
@@ -67,11 +70,15 @@ constructor(
                                         ContentDescription.Loaded(mobileDataLabel),
                                     )
                                 ),
+                            dataUsageSummary = usageSummary,
                         )
-                    )
+                    }
                 } else {
-                    combine(it.isDataEnabled, it.signalLevelIcon) { isDataEnabled, signalLevelIcon
-                        ->
+                    combine(
+                        it.isDataEnabled,
+                        it.signalLevelIcon,
+                        dataUsageRepository.mobileUsageFormatted,
+                    ) { isDataEnabled, signalLevelIcon, usageSummary ->
                         val icon =
                             if (isDataEnabled) {
                                 when (signalLevelIcon) {
@@ -106,6 +113,7 @@ constructor(
                             isSimActive = true,
                             isEnabled = isDataEnabled,
                             icon = icon,
+                            dataUsageSummary = usageSummary,
                         )
                     }
                 }
