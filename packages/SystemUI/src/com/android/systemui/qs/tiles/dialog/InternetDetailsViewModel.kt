@@ -30,6 +30,7 @@ constructor(
     private val accessPointController: AccessPointController,
     private val contentManagerFactory: InternetDetailsContentManager.Factory,
     private val qsTileIntentUserActionHandler: QSTileIntentUserInputHandler,
+    val extrasViewModel: InternetTileExtrasViewModel,
 ) : TileDetailsViewModel {
     val internetDetailsContentManager by lazy {
         contentManagerFactory.create(

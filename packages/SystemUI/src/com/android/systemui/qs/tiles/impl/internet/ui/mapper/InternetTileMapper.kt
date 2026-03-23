@@ -46,15 +46,11 @@ constructor(
 
     override fun map(config: QSTileConfig, data: InternetTileModel): QSTileState =
         QSTileState.build(resources, theme, config.uiConfig) {
-            label = resources.getString(R.string.quick_settings_internet_label)
+            label = data.secondaryTitle
+                ?: resources.getString(R.string.quick_settings_internet_label)
             expandedAccessibilityClass = Switch::class
 
-            secondaryLabel =
-                if (data.secondaryLabel != null) {
-                    data.secondaryLabel.loadText(context)
-                } else {
-                    data.secondaryTitle
-                }
+            secondaryLabel = data.dataUsageSummary ?: ""
 
             stateDescription = data.stateDescription.loadContentDescription(context)
             contentDescription = data.contentDescription.loadContentDescription(context)

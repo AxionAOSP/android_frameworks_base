@@ -24,6 +24,7 @@ import com.android.systemui.statusbar.pipeline.shared.ui.model.InternetTileIconM
 sealed interface InternetTileModel {
     val secondaryTitle: CharSequence?
     val secondaryLabel: Text?
+    val dataUsageSummary: String?
     val icon: InternetTileIconModel
     val stateDescription: ContentDescription?
     val contentDescription: ContentDescription?
@@ -31,6 +32,7 @@ sealed interface InternetTileModel {
     data class Active(
         override val secondaryTitle: CharSequence? = null,
         override val secondaryLabel: Text? = null,
+        override val dataUsageSummary: String? = null,
         override val icon: InternetTileIconModel = InternetTileIconModel.Cellular(1),
         override val stateDescription: ContentDescription? = null,
         override val contentDescription: ContentDescription? = null,
@@ -39,6 +41,7 @@ sealed interface InternetTileModel {
     data class Inactive(
         override val secondaryTitle: CharSequence? = null,
         override val secondaryLabel: Text? = null,
+        override val dataUsageSummary: String? = null,
         override val icon: InternetTileIconModel = InternetTileIconModel.Cellular(1),
         override val stateDescription: ContentDescription? = null,
         override val contentDescription: ContentDescription? = null,

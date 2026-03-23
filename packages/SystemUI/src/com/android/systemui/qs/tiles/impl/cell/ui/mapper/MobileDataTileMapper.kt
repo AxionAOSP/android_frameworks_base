@@ -61,6 +61,7 @@ constructor(
                 }
             }
 
+            secondaryLabel = data.dataUsageSummary
             contentDescription = "$label".toString()
             activationState =
                 if (data.isSimActive) {
