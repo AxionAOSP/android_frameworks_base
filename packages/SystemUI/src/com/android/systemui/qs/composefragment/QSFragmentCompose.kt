@@ -157,6 +157,10 @@ import com.android.systemui.media.remedia.ui.viewmodel.MediaViewModel
 import com.android.systemui.plugins.qs.QS
 import com.android.systemui.plugins.qs.QSContainerController
 import com.android.systemui.qs.composefragment.SceneKeys.QuickQuickSettings
+import com.android.systemui.qs.tiles.ringer.LocalRingerSliderViewModel
+import com.android.systemui.qs.tiles.ringer.RingerSliderViewModel
+import com.android.systemui.qs.tiles.volume.LocalVolumeSliderViewModel
+import com.android.systemui.qs.tiles.volume.VolumeSliderViewModel
 import com.android.systemui.qs.composefragment.SceneKeys.QuickSettings
 import com.android.systemui.qs.composefragment.SceneKeys.debugName
 import com.android.systemui.qs.composefragment.SceneKeys.toIdleSceneKey
@@ -227,6 +231,8 @@ constructor(
     @ShadeDisplayAware private val configurationController: ConfigurationController,
     private val windowRootViewBlurInteractor: WindowRootViewBlurInteractor,
     @Named(SHADE_HEADER) private val header: MotionLayout,
+    private val volumeSliderViewModel: VolumeSliderViewModel,
+    private val ringerSliderViewModel: RingerSliderViewModel,
 ) : LifecycleFragment(), QS, Dumpable {
 
     private val scrollListener = MutableStateFlow<QS.ScrollListener?>(null)
@@ -392,6 +398,8 @@ constructor(
                     CompositionLocalProvider(
                         LocalDensity provides densityThreshold,
                         LocalBlurEnabled provides blurEnabled,
+                        LocalVolumeSliderViewModel provides volumeSliderViewModel,
+                        LocalRingerSliderViewModel provides ringerSliderViewModel,
                     ) {
                         CollapsableQuickSettingsSTL()
                     }

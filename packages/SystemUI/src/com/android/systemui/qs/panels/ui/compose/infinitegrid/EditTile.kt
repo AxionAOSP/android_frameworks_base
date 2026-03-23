@@ -209,6 +209,10 @@ import com.android.systemui.qs.panels.ui.viewmodel.EditTopBarActionViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.InfiniteGridSnapshotViewModel
 import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.shared.model.TileCategory
+import com.android.systemui.qs.tiles.RingerModeTileImpl
+import com.android.systemui.qs.tiles.VolumeSliderTileImpl
+import com.android.systemui.qs.tiles.ringer.RingerSliderTileContent
+import com.android.systemui.qs.tiles.volume.VolumeSliderTileContent
 import com.android.systemui.qs.shared.model.groupAndSort
 import com.android.systemui.qs.ui.compose.borderOnFocus
 import com.android.systemui.res.R
@@ -1150,12 +1154,16 @@ private fun LazyGridItemScope.TileGridCell(
                 .clickable { selectionState.onTap(cell.tile.tileSpec) }
                 .thenIf(isSelectable) { selectableModifier }
         ) {
-            EditTile(
-                tile = cell.tile,
-                tileState = tileState,
-                state = resizingState,
-                progress = progress,
-            )
+            when (cell.tile.tileSpec.spec) {
+                RingerModeTileImpl.TILE_SPEC -> RingerSliderTileContent(interactable = false)
+                VolumeSliderTileImpl.TILE_SPEC -> VolumeSliderTileContent(interactable = false)
+                else -> EditTile(
+                    tile = cell.tile,
+                    tileState = tileState,
+                    state = resizingState,
+                    progress = progress,
+                )
+            }
         }
     }
 }
