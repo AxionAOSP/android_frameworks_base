@@ -33,6 +33,7 @@ import com.android.systemui.qs.tileimpl.QSTileImpl.ResourceIcon
 sealed interface InternetTileModel {
     val secondaryTitle: CharSequence?
     val secondaryLabel: Text?
+    val dataUsageSummary: String?
     val iconId: Int?
     val icon: QSTile.Icon?
     val stateDescription: ContentDescription?
@@ -46,6 +47,7 @@ sealed interface InternetTileModel {
             state.label = secondaryTitle
         }
 
+        state.secondaryLabel = dataUsageSummary
         state.stateDescription = stateDescription.loadContentDescription(context)
         state.contentDescription = contentDescription.loadContentDescription(context)
 
@@ -70,6 +72,7 @@ sealed interface InternetTileModel {
     data class Active(
         override val secondaryTitle: CharSequence? = null,
         override val secondaryLabel: Text? = null,
+        override val dataUsageSummary: String? = null,
         override val iconId: Int? = null,
         override val icon: QSTile.Icon? = null,
         override val stateDescription: ContentDescription? = null,
@@ -79,6 +82,7 @@ sealed interface InternetTileModel {
     data class Inactive(
         override val secondaryTitle: CharSequence? = null,
         override val secondaryLabel: Text? = null,
+        override val dataUsageSummary: String? = null,
         override val iconId: Int? = null,
         override val icon: QSTile.Icon? = null,
         override val stateDescription: ContentDescription? = null,

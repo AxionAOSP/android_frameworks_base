@@ -36,4 +36,5 @@ data class MobileDataTileModel(
     val isSimActive: Boolean,
     val isEnabled: Boolean,
     val icon: MobileDataTileIcon,
+    val dataUsageSummary: String? = null,
 )

@@ -27,6 +27,7 @@ import com.android.systemui.common.shared.model.Text
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
 import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
+import com.android.systemui.qs.tiles.dialog.DataUsageRepository
 import com.android.systemui.qs.tiles.impl.wifi.domain.model.WifiTileModel
 import com.android.systemui.res.R
 import com.android.systemui.shade.ShadeDisplayAware
@@ -35,6 +36,7 @@ import com.android.systemui.statusbar.connectivity.ui.MobileContextProvider
 import com.android.systemui.statusbar.pipeline.airplane.data.repository.AirplaneModeRepository
 import com.android.systemui.statusbar.pipeline.mobile.domain.interactor.MobileIconsInteractor
 import com.android.systemui.statusbar.pipeline.mobile.domain.model.SignalIconModel
+import com.android.systemui.statusbar.pipeline.shared.data.model.DefaultConnectionModel
 import com.android.systemui.statusbar.pipeline.shared.data.repository.ConnectivityRepository
 import com.android.systemui.statusbar.pipeline.shared.ui.model.WifiToggleState
 import com.android.systemui.statusbar.pipeline.wifi.domain.interactor.WifiInteractor
@@ -63,6 +65,7 @@ constructor(
     mobileIconsInteractor: MobileIconsInteractor,
     mobileContextProvider: MobileContextProvider,
     val wifiInteractor: WifiInteractor,
+    private val dataUsageRepository: DataUsageRepository,
 ) : QSTileDataInteractor<WifiTileModel> {
 
     private val wifiIconFlow: Flow<WifiTileModel> =
@@ -207,12 +210,22 @@ constructor(
 
     fun tileData(): Flow<WifiTileModel> =
         combine(
-            connectivityRepository.defaultConnections,
-            wifiInteractor.wifiToggleState,
-            wifiInteractor.isEnabled,
-            wifiIconFlow,
-            mobileDescriptionFlow,
-        ) { defaultConnections, toggleState, isEnabled, wifiModel, mobileDescription ->
+            combine(
+                connectivityRepository.defaultConnections,
+                wifiInteractor.wifiToggleState,
+                wifiInteractor.isEnabled,
+                wifiIconFlow,
+                mobileDescriptionFlow,
+            ) { defaultConnections, toggleState, isEnabled, wifiModel, mobileDescription ->
+                WifiTileIntermediate(
+                    defaultConnections, toggleState, isEnabled, wifiModel, mobileDescription
+                )
+            },
+            dataUsageRepository.wifiUsageFormatted,
+        ) { intermediate, wifiUsage ->
+            val (defaultConnections, toggleState, isEnabled, wifiModel, mobileDescription) =
+                intermediate
+
             if (defaultConnections.ethernet.isDefault) {
                 return@combine if (defaultConnections.isValidated) {
                     WifiTileModel.Active(
@@ -248,7 +261,7 @@ constructor(
             if (defaultConnections.wifi.isDefault) {
                 return@combine WifiTileModel.Active(
                     icon = wifiModel.icon,
-                    secondaryLabel = wifiModel.secondaryLabel,
+                    secondaryLabel = DataUsageRepository.appendUsage(wifiModel.secondaryLabel, wifiUsage),
                 )
             }
 
@@ -268,6 +281,14 @@ constructor(
     override fun availability(user: UserHandle): Flow<Boolean> = flowOf(isAvailable())
 
     fun isAvailable(): Boolean = AconfigFlags.qsSplitInternetTile()
+
+    private data class WifiTileIntermediate(
+        val defaultConnections: DefaultConnectionModel,
+        val toggleState: WifiToggleState,
+        val isEnabled: Boolean,
+        val wifiModel: WifiTileModel,
+        val mobileDescription: CharSequence,
+    )
 
     private companion object {
         fun removeDoubleQuotes(string: String?): String? {

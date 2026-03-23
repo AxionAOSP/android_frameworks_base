@@ -26,6 +26,7 @@ import com.android.systemui.common.shared.model.Text
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.qs.tiles.base.domain.interactor.QSTileDataInteractor
 import com.android.systemui.qs.tiles.base.domain.model.DataUpdateTrigger
+import com.android.systemui.qs.tiles.dialog.DataUsageRepository
 import com.android.systemui.qs.tiles.impl.internet.domain.model.InternetTileModel
 import com.android.systemui.res.R
 import com.android.systemui.shade.ShadeDisplayAware
@@ -62,26 +63,36 @@ constructor(
     mobileIconsInteractor: MobileIconsInteractor,
     mobileContextProvider: MobileContextProvider,
     wifiInteractor: WifiInteractor,
+    private val dataUsageRepository: DataUsageRepository,
 ) : QSTileDataInteractor<InternetTileModel> {
     private val internetLabel: String = context.getString(R.string.quick_settings_internet_label)
 
     // Three symmetrical Flows that can be switched upon based on the value of
     // [DefaultConnectionModel]
     private val wifiIconFlow: Flow<InternetTileModel> =
-        wifiInteractor.wifiNetwork.flatMapLatest {
-            val wifiIcon = WifiIcon.fromModel(it, context, showHotspotInfo = true)
-            if (it is WifiNetworkModel.Active && wifiIcon is WifiIcon.Visible) {
-                val secondary = removeDoubleQuotes(it.ssid)
-                flowOf(
-                    InternetTileModel.Active(
-                        secondaryTitle = secondary,
-                        icon = InternetTileIconModel.ResourceId(wifiIcon.icon.resId),
-                        stateDescription = wifiIcon.contentDescription,
-                        contentDescription = ContentDescription.Loaded("$internetLabel,$secondary"),
+        combine(
+            wifiInteractor.wifiNetwork.flatMapLatest {
+                val wifiIcon = WifiIcon.fromModel(it, context, showHotspotInfo = true)
+                if (it is WifiNetworkModel.Active && wifiIcon is WifiIcon.Visible) {
+                    val secondary = removeDoubleQuotes(it.ssid)
+                    flowOf(
+                        InternetTileModel.Active(
+                            secondaryTitle = secondary,
+                            icon = InternetTileIconModel.ResourceId(wifiIcon.icon.resId),
+                            stateDescription = wifiIcon.contentDescription,
+                            contentDescription = ContentDescription.Loaded("$internetLabel,$secondary"),
+                        )
                     )
-                )
+                } else {
+                    notConnectedFlow
+                }
+            },
+            dataUsageRepository.wifiUsageFormatted,
+        ) { model, wifiUsage ->
+            if (model is InternetTileModel.Active) {
+                model.copy(dataUsageSummary = wifiUsage)
             } else {
-                notConnectedFlow
+                model
             }
         }
 
@@ -109,48 +120,57 @@ constructor(
         }
 
     private val mobileIconFlow: Flow<InternetTileModel> =
-        mobileIconsInteractor.activeDataIconInteractor.flatMapLatest {
-            if (it == null) {
-                notConnectedFlow
-            } else {
-                combine(it.networkName, it.signalLevelIcon, mobileDataContentName) {
-                        networkNameModel,
-                        signalIcon,
-                        dataContentDescription ->
-                        Triple(networkNameModel, signalIcon, dataContentDescription)
-                    }
-                    .mapLatestConflated { (networkNameModel, signalIcon, dataContentDescription) ->
-                        when (signalIcon) {
-                            is SignalIconModel.Cellular -> {
-                                val secondary =
-                                    mobileDataContentConcat(
-                                        networkNameModel.name,
-                                        dataContentDescription,
-                                    )
+        combine(
+            mobileIconsInteractor.activeDataIconInteractor.flatMapLatest {
+                if (it == null) {
+                    notConnectedFlow
+                } else {
+                    combine(it.networkName, it.signalLevelIcon, mobileDataContentName) {
+                            networkNameModel,
+                            signalIcon,
+                            dataContentDescription ->
+                            Triple(networkNameModel, signalIcon, dataContentDescription)
+                        }
+                        .mapLatestConflated { (networkNameModel, signalIcon, dataContentDescription) ->
+                            when (signalIcon) {
+                                is SignalIconModel.Cellular -> {
+                                    val secondary =
+                                        mobileDataContentConcat(
+                                            networkNameModel.name,
+                                            dataContentDescription,
+                                        )
 
-                                InternetTileModel.Active(
-                                    secondaryTitle = secondary,
-                                    icon = InternetTileIconModel.Cellular(signalIcon.level),
-                                    stateDescription =
-                                        ContentDescription.Loaded(secondary.toString()),
-                                    contentDescription = ContentDescription.Loaded(internetLabel),
-                                )
-                            }
-                            is SignalIconModel.Satellite -> {
-                                val secondary =
-                                    signalIcon.icon.contentDescription.loadContentDescription(
-                                        context
+                                    InternetTileModel.Active(
+                                        secondaryTitle = secondary,
+                                        icon = InternetTileIconModel.Cellular(signalIcon.level),
+                                        stateDescription =
+                                            ContentDescription.Loaded(secondary.toString()),
+                                        contentDescription = ContentDescription.Loaded(internetLabel),
                                     )
+                                }
+                                is SignalIconModel.Satellite -> {
+                                    val secondary =
+                                        signalIcon.icon.contentDescription.loadContentDescription(
+                                            context
+                                        )
 
-                                InternetTileModel.Active(
-                                    secondaryTitle = secondary,
-                                    icon = InternetTileIconModel.Satellite(signalIcon.icon),
-                                    stateDescription = ContentDescription.Loaded(secondary),
-                                    contentDescription = ContentDescription.Loaded(internetLabel),
-                                )
+                                    InternetTileModel.Active(
+                                        secondaryTitle = secondary,
+                                        icon = InternetTileIconModel.Satellite(signalIcon.icon),
+                                        stateDescription = ContentDescription.Loaded(secondary),
+                                        contentDescription = ContentDescription.Loaded(internetLabel),
+                                    )
+                                }
                             }
                         }
-                    }
+                }
+            },
+            dataUsageRepository.mobileUsageFormatted,
+        ) { model, mobileUsage ->
+            if (model is InternetTileModel.Active) {
+                model.copy(dataUsageSummary = mobileUsage)
+            } else {
+                model
             }
         }
 

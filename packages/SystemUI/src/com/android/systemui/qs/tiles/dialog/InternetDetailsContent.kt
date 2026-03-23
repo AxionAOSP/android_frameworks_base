@@ -17,16 +17,72 @@
 package com.android.systemui.qs.tiles.dialog
 
 import android.view.LayoutInflater
+import android.view.View
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.android.compose.theme.PlatformTheme
+import com.android.systemui.compose.ComposeInitializer
+import com.android.settingslib.R as SettingsLibR
 import com.android.systemui.res.R
+
+fun setupExtrasComposeView(
+    rootView: View,
+    composeView: ComposeView,
+    viewModel: InternetTileExtrasViewModel,
+) {
+    ComposeInitializer.onAttachedToWindow(rootView)
+    composeView.setContent {
+        PlatformTheme {
+            InternetDialogExtras(viewModel)
+        }
+    }
+}
+
+@Composable
+fun InternetDialogExtras(viewModel: InternetTileExtrasViewModel) {
+    DisposableEffect(viewModel) {
+        viewModel.start()
+        onDispose { viewModel.stop() }
+    }
+    InternetTileExtras(viewModel)
+}
 
 @Composable
 fun InternetDetailsContent(viewModel: InternetDetailsViewModel) {
     val coroutineScope = rememberCoroutineScope()
+    val extrasVm = viewModel.extrasViewModel
+
+    DisposableEffect(extrasVm) {
+        extrasVm.start()
+        onDispose { extrasVm.stop() }
+    }
 
     AndroidView(
         modifier = Modifier.fillMaxWidth(),
@@ -36,9 +92,169 @@ fun InternetDetailsContent(viewModel: InternetDetailsViewModel) {
                 LayoutInflater.from(context).inflate(R.layout.internet_connectivity_details, null)
             viewModel.internetDetailsContentManager.bind(view, coroutineScope)
 
+            view.findViewById<ComposeView>(R.id.internet_extras_compose).setContent {
+                PlatformTheme {
+                    InternetTileExtras(extrasVm)
+                }
+            }
+
             view
             // TODO: b/377388104 - Polish the internet details view UI
         },
         onRelease = { viewModel.internetDetailsContentManager.unBind() },
     )
 }
+
+@Composable
+private fun InternetTileExtras(viewModel: InternetTileExtrasViewModel) {
+    val hotspotAvailable by viewModel.hotspotAvailable.collectAsState()
+    val hotspotEnabled by viewModel.hotspotEnabled.collectAsState()
+    val fiveGAvailable by viewModel.fiveGAvailable.collectAsState()
+    val fiveGEnabled by viewModel.fiveGEnabled.collectAsState()
+    val mobileUsage by viewModel.mobileDataUsage.collectAsState()
+    val wifiUsage by viewModel.wifiDataUsage.collectAsState()
+
+    val hasUsage = mobileUsage != null || wifiUsage != null
+    val hasToggles = hotspotAvailable || fiveGAvailable
+
+    if (!hasUsage && !hasToggles) return
+
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = MARGIN_H)) {
+        if (hasUsage) {
+            DataUsageSummary(mobileUsage = mobileUsage, wifiUsage = wifiUsage)
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.padding(horizontal = PADDING_H),
+            )
+        }
+
+        if (fiveGAvailable) {
+            ToggleRow(
+                iconRes = R.drawable.ic_5g_toggle,
+                label = "5G",
+                checked = fiveGEnabled,
+                onToggle = { viewModel.toggleFiveG() },
+            )
+        }
+
+        if (hotspotAvailable) {
+            ToggleRow(
+                iconRes = R.drawable.ic_hotspot,
+                label = stringResource(R.string.quick_settings_hotspot_label),
+                checked = hotspotEnabled,
+                onToggle = { viewModel.toggleHotspot() },
+            )
+        }
+    }
+}
+
+@Composable
+private fun DataUsageSummary(
+    mobileUsage: String?,
+    wifiUsage: String?,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(ROW_HEIGHT)
+            .padding(horizontal = PADDING_H),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (mobileUsage != null) {
+            DataUsageItem(
+                iconRes = SettingsLibR.drawable.ic_mobile_4_4_bar,
+                label = stringResource(R.string.quick_settings_cellular_detail_title),
+                usage = mobileUsage,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        if (wifiUsage != null) {
+            DataUsageItem(
+                iconRes = SettingsLibR.drawable.ic_wifi_3,
+                label = stringResource(R.string.quick_settings_wifi_label),
+                usage = wifiUsage,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DataUsageItem(
+    iconRes: Int,
+    label: String,
+    usage: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = usage,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ToggleRow(
+    iconRes: Int,
+    label: String,
+    checked: Boolean,
+    onToggle: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(ROW_HEIGHT)
+            .padding(horizontal = PADDING_H),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(modifier = Modifier.width(7.dp))
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .height(28.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant),
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = { onToggle() },
+        )
+    }
+}
+
+private val MARGIN_H = 16.dp
+private val PADDING_H = 22.dp
+private val ROW_HEIGHT = 72.dp
