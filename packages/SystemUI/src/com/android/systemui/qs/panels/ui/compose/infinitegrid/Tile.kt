@@ -104,6 +104,10 @@ import com.android.systemui.qs.panels.ui.viewmodel.TileViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.toIconProvider
 import com.android.systemui.qs.panels.ui.viewmodel.toUiState
 import com.android.systemui.qs.pipeline.shared.TileSpec
+import com.android.systemui.qs.tiles.RingerModeTileImpl
+import com.android.systemui.qs.tiles.VolumeSliderTileImpl
+import com.android.systemui.qs.tiles.ringer.RingerSliderTileContent
+import com.android.systemui.qs.tiles.volume.VolumeSliderTileContent
 import com.android.systemui.qs.tileimpl.QSTileImpl
 import com.android.systemui.qs.ui.composable.QuickSettingsShade
 import com.android.systemui.qs.ui.compose.borderOnFocus
@@ -214,6 +218,16 @@ fun ContentScope.Tile(
         } else {
             surfaceRevealModifier = Modifier
             contentRevealModifier = Modifier
+        }
+        
+        if (!iconOnly) {
+            if (tile.spec.spec == RingerModeTileImpl.TILE_SPEC) {
+                RingerSliderTileContent()
+                return@trace
+            } else if (tile.spec.spec == VolumeSliderTileImpl.TILE_SPEC) {
+                VolumeSliderTileContent()
+                return@trace
+            }
         }
 
         TileExpandable(
