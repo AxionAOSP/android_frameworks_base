@@ -990,10 +990,12 @@ constructor(
                                     val isListening: () -> Boolean =
                                         remember(viewModel) {
                                                 derivedStateOf {
-                                                    viewModel.isQsVisibleAndAnyShadeExpanded &&
-                                                        viewModel.expansionState.progress >
-                                                            QSFragmentComposeViewModel
-                                                                .QS_LISTENING_THRESHOLD &&
+                                                    (viewModel.isInSplitShade ||
+                                                        viewModel.isLargeScreenHeader ||
+                                                        (viewModel.isQsVisibleAndAnyShadeExpanded &&
+                                                            viewModel.expansionState.progress >
+                                                                QSFragmentComposeViewModel
+                                                                    .QS_LISTENING_THRESHOLD)) &&
                                                         !viewModel.isEditing &&
                                                         !viewModel.isStackScrollerOverscrolling
                                                 }
@@ -1004,7 +1006,7 @@ constructor(
                                         viewModel = containerViewModel.tileGridViewModel,
                                         modifier = Modifier.fillMaxWidth(),
                                         listening = isListening,
-                                        showEdit = { viewModel.isInSplitShade },
+                                        showEdit = { viewModel.isInSplitShade || viewModel.isLargeScreenHeader },
                                     )
                                 }
                             }
