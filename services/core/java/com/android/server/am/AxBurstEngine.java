@@ -696,6 +696,22 @@ public class AxBurstEngine implements IAxBurstEngine {
         }
     }
 
+    public void boostAppRenderThread(int pid, long duration) {
+        if (pid <= 0 || duration <= 0) return;
+        mHandler.post(() -> {
+            ProcessRecord pr = NtServiceInjector.getAm().getProcessRecordByPid(pid);
+            if (pr == null) return;
+            int renderTid = pr.getRenderThreadTid();
+            if (renderTid > 0) {
+                applyThreadPriorityBoost(renderTid, duration);
+            }
+            int mainTid = pr.mPid;
+            if (mainTid > 0) {
+                applyThreadPriorityBoost(mainTid, duration);
+            }
+        });
+    }
+
     private void applyThreadPriorityBoost(int tid, long duration) {
         if (duration <= 0) {
             if (duration == 0) tryBoostThreadPriority(tid);
