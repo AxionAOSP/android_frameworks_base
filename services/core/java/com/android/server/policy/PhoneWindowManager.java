@@ -837,7 +837,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
     private boolean mLongSwipeDown;
     private CameraAvailbilityListener mCameraAvailabilityListener;
-
     private ScreenshotHelper mScreenshotHelper;
 
     private class PolicyHandler extends Handler {
@@ -2369,7 +2368,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 toggleTorch();
                 break;
             case SCREENSHOT:
-                mScreenshotHelper.takeScreenshot(SCREENSHOT_KEY_OTHER, mHandler, null);
+                takeScreenshot(SCREENSHOT_KEY_OTHER);
+                notifyKeyGestureCompleted(event, KeyGestureEvent.KEY_GESTURE_TYPE_TAKE_SCREENSHOT);
                 break;
             case VOLUME_PANEL:
                 toggleVolumePanel();
@@ -7955,6 +7955,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         public boolean isAnyCameraInUse() {
             return !mCameraInUse.isEmpty();
         }
+    }
+
+    private void takeScreenshot(int source) {
+        mScreenshotHelper.takeScreenshot(source, mHandler, null);
     }
 
     private void toggleVolumePanel() {
