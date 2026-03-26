@@ -31,6 +31,7 @@ import com.android.systemui.qs.tiles.RingerModeTileImpl
 import com.android.systemui.qs.tiles.SyncTile
 import com.android.systemui.qs.tiles.UsbTetherTile
 import com.android.systemui.qs.tiles.VolumeSliderTileImpl
+import com.android.systemui.qs.tiles.ScreenshotTile
 import com.android.systemui.qs.tiles.VpnTile
 import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
 import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
@@ -114,6 +115,11 @@ interface LineageModule {
     @StringKey(VolumeSliderTileImpl.TILE_SPEC)
     fun bindVolumeSliderTile(tile: VolumeSliderTileImpl): QSTileImpl<*>
 
+    @Binds
+    @IntoMap
+    @StringKey(ScreenshotTile.TILE_SPEC)
+    fun bindScreenshotTile(tile: ScreenshotTile): QSTileImpl<*>
+
     companion object {
         const val AMBIENT_DISPLAY_TILE_SPEC = "ambient_display"
         const val AOD_TILE_SPEC = "aod"
@@ -125,6 +131,7 @@ interface LineageModule {
         const val SYNC_TILE_SPEC = "sync"
         const val USB_TETHER_TILE_SPEC = "usb_tether"
         const val VPN_TILE_SPEC = "vpn"
+        const val SCREENSHOT_TILE_SPEC = "screenshot"
 
         @Provides
         @IntoMap
@@ -301,6 +308,21 @@ interface LineageModule {
                     QSTileUIConfig.Resource(
                         iconRes = R.drawable.ic_volume_media,
                         labelRes = R.string.stream_music
+                    ),
+                instanceId = uiEventLogger.getNewInstanceId(),
+                category = TileCategory.UTILITIES,
+            )
+
+        @Provides
+        @IntoMap
+        @StringKey(SCREENSHOT_TILE_SPEC)
+        fun provideScreenshotTileConfig(uiEventLogger: QsEventLogger): QSTileConfig =
+            QSTileConfig(
+                tileSpec = TileSpec.create(SCREENSHOT_TILE_SPEC),
+                uiConfig =
+                    QSTileUIConfig.Resource(
+                        iconRes = R.drawable.qs_screenshot_icon,
+                        labelRes = R.string.quick_settings_screenshot_label
                     ),
                 instanceId = uiEventLogger.getNewInstanceId(),
                 category = TileCategory.UTILITIES,
