@@ -18,6 +18,7 @@ package com.android.systemui.dagger
 
 import com.android.systemui.CoreStartable
 import com.android.systemui.ax.AxPlatformServiceImpl
+import com.android.systemui.overlay.KeyguardOverlayViewManager
 import com.android.systemui.axdynamicbar.domain.AxDynamicBarChipsRefiner
 import com.android.systemui.axdynamicbar.ui.AxDynamicBarManager
 import com.android.systemui.statusbar.chips.ui.viewmodel.OngoingActivityChipsRefiner
@@ -64,6 +65,10 @@ abstract class AxionStartableModule {
     @IntoMap
     @ClassKey(RoutinesManager::class)
     abstract fun bindRoutinesManager(impl: RoutinesManager): CoreStartable
+    @Binds
+    @IntoMap
+    @ClassKey(KeyguardOverlayViewManager::class)
+    abstract fun bindKeyguardOverlayViewManager(impl: KeyguardOverlayViewManager): CoreStartable
 
     companion object {
         @JvmStatic
