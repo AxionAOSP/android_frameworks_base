@@ -29,6 +29,9 @@
     <string name="smart_pixels_percent_label">Pixel percentage</string>
     <string name="smart_pixels_percent_format"><xliff:g id="percent" example="25">%d</xliff:g>%%</string>
 
+    <!-- Screenshot -->
+    <string name="quick_settings_screenshot_label">Screenshot</string>
+
     <!-- Routines -->
     <string name="ax_routines_notification_channel_name">Routines</string>
 
