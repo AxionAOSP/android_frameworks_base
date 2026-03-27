@@ -67,6 +67,7 @@ public class AxUtils {
         sPerfBlackList.add("io.chaldeaprjkt.gamespace");
         sPerfBlackList.add("com.android.edge.bar");
         sVipHBgSet.add("com.android.launcher3");
+        sVipHBgSet.add("com.android.settings");
         sVipHBgSet.add("com.google.android.apps.nexuslauncher");
         sVipHBgSet.add("com.google.android.inputmethod.latin");
         sVipHBgSet.add("com.android.inputmethod.latin");
@@ -120,7 +121,7 @@ public class AxUtils {
         return "com.android.systemui".equals(processName);
     }
     public static boolean isVipHBackground(String processName) {
-        return processName != null && sVipHBgSet.contains(processName);
+        return processName != null && (sVipHBgSet.contains(processName) || processName.contains("axion"));
     }
     public static boolean isInLowPrioList(String processName) {
         if (processName == null) return false;

@@ -68,8 +68,6 @@ public class AxBurstEngine implements IAxBurstEngine {
     private static final HashMap<Integer, Object> lBgCpusetOverrides = new HashMap<>();
     private static final HashMap<Integer, Object> hBgCpusetOverrides = new HashMap<>();
     private static final HashMap<String, String> sConfig = new HashMap<>();
-    private static final HashMap<String, String> sRestrictBackgroundOn = new HashMap<>();
-    private static final HashMap<String, String> sRestrictBackgroundOff = new HashMap<>();
     private static final HashMap<String, String> sDefaultsCpu = new HashMap<>();
     
     public static final String CPU_CAMERA = AxUtils.cpuPath("camera-daemon");
@@ -175,30 +173,16 @@ public class AxBurstEngine implements IAxBurstEngine {
         sConfig.put(data.bMax, data.uBMax);
         sConfig.put(data.pMax, data.uPMax);
 
-        sRestrictBackgroundOn.clear();
-        sRestrictBackgroundOn.put(CPU_BG, data.bgLimit);
-        sRestrictBackgroundOn.put(CPU_FG, data.sCores);
-        sRestrictBackgroundOn.put(CPU_AX_FG, data.bgLimit);
-        sRestrictBackgroundOn.put(CPU_L_BG, data.bgLimit);
-        sRestrictBackgroundOn.put(CPU_H_BG, data.sCores);
-
-        sRestrictBackgroundOff.clear();
-        sRestrictBackgroundOff.put(CPU_BG, data.bgCpus);
-        sRestrictBackgroundOff.put(CPU_FG, data.fgLimited);
-        sRestrictBackgroundOff.put(CPU_AX_FG, data.fgLimited);
-        sRestrictBackgroundOff.put(CPU_L_BG, data.sCores);
-        sRestrictBackgroundOff.put(CPU_H_BG, data.bgCpus);
-
         sDefaultsCpu.clear();
         sDefaultsCpu.put(CPU_SYS_BG, data.sCores);
         sDefaultsCpu.put(CPU_BG, data.bgCpus);
         sDefaultsCpu.put(CPU_TOP_APP, data.allCores);
         sDefaultsCpu.put(CPU_CAMERA, data.allCores);
-        sDefaultsCpu.put(CPU_FG, data.fgLimited);
+        sDefaultsCpu.put(CPU_FG, data.allCores);
         sDefaultsCpu.put(CPU_SVP, data.boostCpus);
         sDefaultsCpu.put(CPU_DEX2OAT, data.bgCpus);
-        sDefaultsCpu.put(CPU_AX_FG, data.fgLimited);
-        sDefaultsCpu.put(CPU_L_BG, data.sCores);
+        sDefaultsCpu.put(CPU_AX_FG, data.allCores);
+        sDefaultsCpu.put(CPU_L_BG, data.bgLimit);
         sDefaultsCpu.put(CPU_H_BG, data.bgCpus);
 
         write(sConfig);
@@ -291,15 +275,11 @@ public class AxBurstEngine implements IAxBurstEngine {
     public void adjustBackground(boolean limit) {
         if (mData == null) return;
         final long duration = limit ? 0L : -1L;
-        final String lBgCpus = limit ? mData.bgLimit : mData.sCores;
-        final String hBgCpus = limit ? mData.sCores : mData.bgCpus;
         final String bgLimit = limit ? mData.bgLimit : mData.bgCpus;
-        final String axFgLimit = limit ? mData.uiLimit : mData.fgLimited;
-        adjustCpusetCpus(CPU_L_BG, lBgCpus, duration);
-        adjustCpusetCpus(CPU_H_BG, hBgCpus, duration);
+        final String axFgLimit = limit ? mData.uiLimit : mData.allCores;
+        adjustCpusetCpus(CPU_H_BG, bgLimit, duration);
         adjustCpusetCpus(CPU_AX_FG, axFgLimit, duration);
         adjustCpusetCpus(CPU_DEX2OAT, bgLimit, duration);
-        adjustCpusetCpus(CPU_BG, bgLimit, duration);
         if (!mInstallBoostActive) {
             SystemProperties.set("dalvik.vm.dex2oat-threads", limit
                 ? "1"
@@ -373,7 +353,7 @@ public class AxBurstEngine implements IAxBurstEngine {
                 case MSG_CPU_UPDATE_FG:
                     fgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
                     if (fgCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_FG, mData.fgLimited);
+                        restoreCpuset(CPU_FG, mData.allCores);
                     }
                     break;
                 case MSG_CPU_UPDATE_RES:
@@ -391,13 +371,13 @@ public class AxBurstEngine implements IAxBurstEngine {
                 case MSG_CPU_UPDATE_AX_FG:
                     axFgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
                     if (axFgCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_AX_FG, mData.fgLimited);
+                        restoreCpuset(CPU_AX_FG, mData.allCores);
                     }
                     break;
                 case MSG_CPU_UPDATE_L_BG:
                     lBgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
                     if (lBgCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_L_BG, mData.sCores);
+                        restoreCpuset(CPU_L_BG, mData.bgLimit);
                     }
                     break;
                 case MSG_CPU_UPDATE_H_BG:
@@ -424,10 +404,6 @@ public class AxBurstEngine implements IAxBurstEngine {
             UiThread.getHandler().removeCallbacks(inputReset);
         }
         adjustBackground(boost /* limit */);
-    }
-    
-    public void onWakefulnessChanged(boolean awake) {
-        mHandler.post(() -> write(awake ? sRestrictBackgroundOff : sRestrictBackgroundOn));
     }
     
     public void boostGame(boolean enabled) {
@@ -696,7 +672,6 @@ public class AxBurstEngine implements IAxBurstEngine {
             if (pid > 0) {
                 if (duration >= 0) {
                     ActivityManagerService.scheduleAsRoundRobinPriority(pid, true);
-                    adjustCpusetCpus(CPU_FG, mData.fgLimited, duration);
                     if (duration > 0) {
                         mHandler.removeCallbacks(mLauncherBoostReset);
                         mHandler.postDelayed(mLauncherBoostReset, duration);
@@ -712,7 +687,6 @@ public class AxBurstEngine implements IAxBurstEngine {
     private void restoreLauncherBoost() {
         try {
             final int pid = Process.myPid();
-            adjustCpusetCpus(CPU_FG, mData.fgLimited, 0);
             Process.setThreadScheduler(pid, Process.SCHED_OTHER, 0);
             Process.setThreadPriority(pid, Process.THREAD_PRIORITY_FOREGROUND);
         } catch (Exception e) {
