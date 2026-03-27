@@ -52,6 +52,7 @@ import com.android.systemui.keyguard.shared.model.KeyguardState.LOCKSCREEN
 import com.android.systemui.keyguard.shared.model.TransitionState
 import com.android.systemui.keyguard.ui.viewmodel.DozingToLockscreenTransitionViewModel
 import com.android.systemui.lifecycle.repeatWhenAttached
+import com.android.systemui.media.MediaArtInteractor
 import com.android.systemui.log.core.Logger
 import com.android.systemui.plugins.keyguard.VPointF
 import com.android.systemui.plugins.keyguard.VRectF
@@ -118,6 +119,7 @@ constructor(
     private val zenModeInteractor: ZenModeInteractor,
     private val userTracker: UserTracker,
     private val dozingToLockscreenViewModel: Lazy<DozingToLockscreenTransitionViewModel>,
+    private val mediaArtInteractor: MediaArtInteractor,
 ) {
     val logger = Logger(clockBuffers.infraMessageBuffer, TAG)
     var isPreview: Boolean = false
@@ -537,6 +539,7 @@ constructor(
     private var depthBlockedByBouncer = false
     private var depthBlockedByAlpha = false
     private var depthBlockedByDozeAmount = false
+    private var depthBlockedByMediaArt = false
     private val depthScrimListener = object : ScrimUtils.ScrimEventListener {
         override fun onKeyguardFadingAwayChanged(fadingAway: Boolean) {
             depthBlockedByFading = fadingAway
@@ -570,6 +573,7 @@ constructor(
             && !depthBlockedByBouncer
             && !depthBlockedByAlpha
             && !depthBlockedByDozeAmount
+            && !depthBlockedByMediaArt
         clock?.events?.onDepthEffectVisibilityChanged(visible)
     }
     private fun handleZenMode(zen: Int) {
@@ -602,6 +606,7 @@ constructor(
                 listenForAnyStateToAodTransition(this)
                 listenForAnyStateToLockscreenTransition(this)
                 listenForAnyStateToDozingTransition(this)
+                listenForMediaArtVisibility(this)
                 if (com.android.systemui.Flags.newDozingKeyguardStates()) {
                     listenForDozingToLockscreen(this)
                 }
@@ -818,6 +823,17 @@ constructor(
                 .transition(Edge.create(to = DOZING))
                 .filter { it.transitionState == TransitionState.FINISHED }
                 .collect { handleDoze(1f) }
+        }
+    }
+
+    private fun listenForMediaArtVisibility(scope: CoroutineScope): Job {
+        return scope.launch {
+            mediaArtInteractor.uiState
+                .map { it.isVisible }
+                .collect { visible ->
+                    depthBlockedByMediaArt = visible
+                    updateDepthVisibility()
+                }
         }
     }
 
