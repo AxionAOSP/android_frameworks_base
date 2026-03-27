@@ -31,9 +31,7 @@ import android.util.Slog;
 import com.android.server.NtServiceInjector;
 import com.android.server.UiThread;
 import com.android.internal.util.ScrollOptimizer;
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -621,10 +619,9 @@ public class AxBurstEngine implements IAxBurstEngine {
         });
     }
     
-    public void boostGcThread(int pid, boolean boost) {
-    }
     public void systemThreadBoost(int tid, long duration) {
         if (tid <= 0) return;
+        
         boostSf(duration);
 
         applyThreadPriorityBoost(tid, duration);

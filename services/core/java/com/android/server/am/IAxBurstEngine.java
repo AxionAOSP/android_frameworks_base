@@ -46,8 +46,6 @@ public interface IAxBurstEngine {
     default void systemThreadBoost(int tid, long duration) {
     }
 
-    default void boostGcThread(int pid, boolean boost) {
-    }
     default void launcherItemsLoadingBoost(long duration) {
     }
 }

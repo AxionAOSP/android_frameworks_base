@@ -1072,7 +1072,5 @@ interface IActivityManager {
     
     void systemThreadBoost(int tid, long duration);
 
-    void boostGcThread(int pid, boolean boost);
-
     void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera);
 }

@@ -49,13 +49,7 @@ public class BoostHelper {
             logException("systemThreadBoost", e);
         }
     }
-    public static void boostGcThread(int pid, boolean boost) {
-        try {
-            ActivityManager.getService().boostGcThread(pid, boost);
-        } catch (Exception e) {
-            logException("boostGcThread", e);
-        }
-    }
+    
     private static void logException(String method, Exception e) {
         if (DEBUG) {
             Log.w(TAG, method + " failed", e);
