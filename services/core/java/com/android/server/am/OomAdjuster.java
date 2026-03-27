@@ -2251,6 +2251,10 @@ public abstract class OomAdjuster {
                 }
             }
         }
+        if (curSchedGroup != SCHED_GROUP_TOP_APP
+                && AxUtils.isSystemUi(state.processName)) {
+            setAppAndChildProcessGroup(state, THREAD_GROUP_SYSTEMUI);
+        }
         if (state.getHasRepForegroundActivities() != state.getHasForegroundActivities()) {
             state.setRepForegroundActivities(state.getHasForegroundActivities());
             changes |= ActivityManagerService.ProcessChangeItem.CHANGE_ACTIVITIES;
