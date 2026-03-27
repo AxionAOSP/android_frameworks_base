@@ -2683,8 +2683,6 @@ public final class ActivityThread extends ClientTransactionHandler
             final long messageStartUptimeMs = SystemClock.uptimeMillis();
             switch (msg.what) {
                 case BIND_APPLICATION:
-                    VMRuntime.getRuntime().requestConcurrentGC();
-                    VMRuntime.getRuntime().setTargetHeapUtilization(0.95f);
                     Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "bindApplication");
                     if (DEBUG_STORE_ENABLED) {
                         debugStoreId =
@@ -2696,8 +2694,6 @@ public final class ActivityThread extends ClientTransactionHandler
                         DebugStore.recordEventEnd(debugStoreId);
                     }
                     Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
-                    VMRuntime.getRuntime().setTargetHeapUtilization(0.75f);
-                    VMRuntime.getRuntime().requestConcurrentGC();
                     break;
                 case EXIT_APPLICATION:
                     if (mInitialApplication != null) {
@@ -6032,6 +6028,7 @@ public final class ActivityThread extends ClientTransactionHandler
         if (localLOGV) Slog.v(TAG, "Scheduling idle handler for " + r);
         Looper.myQueue().addIdleHandler(new Idler());
     }
+
 
     @Override
     public void handleTopResumedActivityChanged(ActivityClientRecord r, boolean onTop,
