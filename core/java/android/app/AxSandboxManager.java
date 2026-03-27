@@ -400,6 +400,34 @@ public class AxSandboxManager {
     }
 
     /** @hide */
+    public boolean isSpoofSettingEnabled(@NonNull String packageName, @NonNull String settingKey, @NonNull String database) {
+        try {
+            return mService.isSpoofSettingEnabled(packageName, settingKey, database);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    /** @hide */
+    public void setSpoofSettingEnabled(@NonNull String packageName, @NonNull String settingKey, @NonNull String database, boolean enabled) {
+        try {
+            mService.setSpoofSettingEnabled(packageName, settingKey, database, enabled);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    /** @hide */
+    @NonNull
+    public List<String> getEnabledSpoofSettings(@NonNull String packageName) {
+        try {
+            return mService.getEnabledSpoofSettings(packageName);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    /** @hide */
     @Nullable
     public String getSpoofedSetting(@NonNull String callingPackage, @NonNull String settingName, @NonNull String database) {
         try {

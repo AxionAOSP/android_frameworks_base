@@ -443,10 +443,30 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
     }
 
     @Override
+    public boolean isSpoofSettingEnabled(String packageName, String settingKey, String database) {
+        if (mAppControlController == null) return false;
+        return mAppControlController.isSpoofSettingEnabled(packageName, settingKey, database);
+    }
+
+    @Override
+    public void setSpoofSettingEnabled(String packageName, String settingKey,
+            String database, boolean enabled) {
+        mAppControlController.setSpoofSettingEnabled(packageName, settingKey, database, enabled);
+    }
+
+    @Override
+    public List<String> getEnabledSpoofSettings(String packageName) {
+        if (mAppControlController == null) return java.util.Collections.emptyList();
+        return mAppControlController.getEnabledSpoofSettings(packageName);
+    }
+
+    @Override
     public String getSpoofedSetting(String callingPackage, String settingName, String database) {
         if (mAppControlController == null) return null;
         if (!mAppControlController.isPackageSandboxed(callingPackage)) return null;
-        if (!mAppControlController.isSettingsSpoofEnabled(callingPackage)) return null;
+        if (!mAppControlController.isSpoofSettingEnabled(callingPackage, settingName, database)) {
+            return null;
+        }
         return SettingsSpoofController.getSpoofedValue(settingName, database);
     }
 

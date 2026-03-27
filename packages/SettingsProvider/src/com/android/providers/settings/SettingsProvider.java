@@ -635,13 +635,8 @@ public class SettingsProvider extends ContentProvider {
         String callingPackage = getCallingPackage();
         if (callingPackage == null) return null;
 
-        if (callingPackage.equals("android")
-            || callingPackage.startsWith("com.android.")
+        if (callingPackage.startsWith("com.android.")
                 || callingPackage.startsWith("com.google.android.")) {
-            return null;
-        }
-        
-        if (!SystemProperties.getBoolean("persist.sys.axion_boot_completed", false)) {
             return null;
         }
 
@@ -659,17 +654,7 @@ public class SettingsProvider extends ContentProvider {
             AxSandboxManager sandboxManager =
                     getContext().getSystemService(AxSandboxManager.class);
             if (sandboxManager != null) {
-                String spoofed = sandboxManager.getSpoofedSetting(callingPackage, name, getDatabase(name));
-                if (spoofed != null) return spoofed;
-
-                if (sandboxManager.isPackageSandboxed(callingPackage)) {
-                    if (Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES.equals(name)) {
-                        return "";
-                    }
-                    if (Settings.Secure.DEFAULT_INPUT_METHOD.equals(name)) {
-                        return "com.android.inputmethod.latin/.LatinIME";
-                    }
-                }
+                return sandboxManager.getSpoofedSetting(callingPackage, name, getDatabase(name));
             }
         } catch (Exception e) {}
 

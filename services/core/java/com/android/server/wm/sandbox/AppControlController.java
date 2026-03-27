@@ -55,6 +55,7 @@ public class AppControlController {
     private static final String KEY_HIDEDEVOPTS_PKGS = "hidedevopts_pkgs";
     private static final String KEY_GID_RESTRICTIONS = "gid_restrictions";
     private static final String KEY_SETTINGS_SPOOF = "settings_spoof_pkgs";
+    private static final String KEY_SPOOF_SETTINGS_MAP = "spoof_settings_map";
     private static final String KEY_DATA_ISOLATION = "data_isolation_pkgs";
 
     private final Context mContext;
@@ -69,6 +70,7 @@ public class AppControlController {
     private final Set<String> mHideDevOptsPackages = new HashSet<>();
     private final Map<String, int[]> mGidRestrictions = new HashMap<>();
     private final Set<String> mSettingsSpoofPackages = new HashSet<>();
+    private final Map<String, Set<String>> mSpoofSettingsMap = new HashMap<>();
     private final Set<String> mDataIsolationPackages = new HashSet<>();
 
     private ContentObserver mConfigObserver;
@@ -123,6 +125,7 @@ public class AppControlController {
             mHideDevOptsPackages.clear();
             mGidRestrictions.clear();
             mSettingsSpoofPackages.clear();
+            mSpoofSettingsMap.clear();
             mDataIsolationPackages.clear();
 
             if (!TextUtils.isEmpty(jsonStr)) {
@@ -134,6 +137,7 @@ public class AppControlController {
                     loadPackageSet(config, KEY_SANDBOXED_PKGS, mSandboxedPackages);
                     loadPackageSet(config, KEY_HIDEDEVOPTS_PKGS, mHideDevOptsPackages);
                     loadPackageSet(config, KEY_SETTINGS_SPOOF, mSettingsSpoofPackages);
+                    loadSpoofSettingsMap(config);
                     loadPackageSet(config, KEY_DATA_ISOLATION, mDataIsolationPackages);
                     loadGidRestrictions(config);
 
@@ -171,6 +175,7 @@ public class AppControlController {
                 config.put(KEY_SANDBOXED_PKGS, new JSONArray(mSandboxedPackages));
                 config.put(KEY_HIDEDEVOPTS_PKGS, new JSONArray(mHideDevOptsPackages));
                 config.put(KEY_SETTINGS_SPOOF, new JSONArray(mSettingsSpoofPackages));
+                saveSpoofSettingsMap(config);
                 config.put(KEY_DATA_ISOLATION, new JSONArray(mDataIsolationPackages));
                 saveGidRestrictions(config);
             }
@@ -479,6 +484,85 @@ public class AppControlController {
                                       : mSettingsSpoofPackages.remove(packageName);
             if (changed) saveConfigToSettings();
         }
+    }
+
+    public boolean isSpoofSettingEnabled(String packageName, String settingKey, String database) {
+        if (TextUtils.isEmpty(packageName) || TextUtils.isEmpty(settingKey)
+                || TextUtils.isEmpty(database)) return false;
+        synchronized (this) {
+            Set<String> settings = mSpoofSettingsMap.get(packageName);
+            return settings != null && settings.contains(database + ":" + settingKey);
+        }
+    }
+
+    public void setSpoofSettingEnabled(String packageName, String settingKey,
+            String database, boolean enabled) {
+        if (TextUtils.isEmpty(packageName) || TextUtils.isEmpty(settingKey)
+                || TextUtils.isEmpty(database)) return;
+        String key = database + ":" + settingKey;
+        synchronized (this) {
+            Set<String> settings = mSpoofSettingsMap.get(packageName);
+            boolean changed;
+            if (enabled) {
+                if (settings == null) {
+                    settings = new HashSet<>();
+                    mSpoofSettingsMap.put(packageName, settings);
+                }
+                changed = settings.add(key);
+            } else {
+                if (settings == null) return;
+                changed = settings.remove(key);
+                if (settings.isEmpty()) {
+                    mSpoofSettingsMap.remove(packageName);
+                }
+            }
+            if (changed) {
+                boolean hasAny = mSpoofSettingsMap.containsKey(packageName);
+                if (hasAny && !mSettingsSpoofPackages.contains(packageName)) {
+                    mSettingsSpoofPackages.add(packageName);
+                } else if (!hasAny) {
+                    mSettingsSpoofPackages.remove(packageName);
+                }
+                saveConfigToSettings();
+            }
+        }
+    }
+
+    public List<String> getEnabledSpoofSettings(String packageName) {
+        if (TextUtils.isEmpty(packageName)) return java.util.Collections.emptyList();
+        synchronized (this) {
+            Set<String> settings = mSpoofSettingsMap.get(packageName);
+            if (settings == null || settings.isEmpty()) return java.util.Collections.emptyList();
+            return new java.util.ArrayList<>(settings);
+        }
+    }
+
+    private void loadSpoofSettingsMap(JSONObject config) {
+        JSONObject mapObj = config.optJSONObject(KEY_SPOOF_SETTINGS_MAP);
+        if (mapObj == null) return;
+        java.util.Iterator<String> keys = mapObj.keys();
+        while (keys.hasNext()) {
+            String pkg = keys.next();
+            JSONArray arr = mapObj.optJSONArray(pkg);
+            if (arr != null && arr.length() > 0) {
+                Set<String> settings = new HashSet<>();
+                for (int i = 0; i < arr.length(); i++) {
+                    String s = arr.optString(i);
+                    if (!TextUtils.isEmpty(s)) settings.add(s);
+                }
+                if (!settings.isEmpty()) {
+                    mSpoofSettingsMap.put(pkg, settings);
+                }
+            }
+        }
+    }
+
+    private void saveSpoofSettingsMap(JSONObject config) throws JSONException {
+        JSONObject mapObj = new JSONObject();
+        for (Map.Entry<String, Set<String>> entry : mSpoofSettingsMap.entrySet()) {
+            mapObj.put(entry.getKey(), new JSONArray(entry.getValue()));
+        }
+        config.put(KEY_SPOOF_SETTINGS_MAP, mapObj);
     }
 
     public boolean isDataIsolationEnabled(String packageName) {

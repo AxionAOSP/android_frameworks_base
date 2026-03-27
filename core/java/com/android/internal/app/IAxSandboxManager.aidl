@@ -44,6 +44,10 @@ interface IAxSandboxManager {
     boolean isSandboxSettingsSpoofEnabled(String packageName);
     void setSandboxSettingsSpoofEnabled(String packageName, boolean enabled);
 
+    boolean isSpoofSettingEnabled(String packageName, String settingKey, String database);
+    void setSpoofSettingEnabled(String packageName, String settingKey, String database, boolean enabled);
+    List<String> getEnabledSpoofSettings(String packageName);
+
     boolean isSandboxDataIsolationEnabled(String packageName);
     void setSandboxDataIsolationEnabled(String packageName, boolean enabled);
 
