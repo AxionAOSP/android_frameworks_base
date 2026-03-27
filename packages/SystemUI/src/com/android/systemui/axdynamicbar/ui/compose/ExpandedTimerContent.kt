@@ -60,6 +60,7 @@ import kotlinx.coroutines.delay
 internal fun TimerExpanded(event: IslandEvent.Timer, interactor: IslandActions) {
     val context = LocalContext.current
     val style = eventStyleFor(event)
+    val totalMs = event.originalDurationMs.takeIf { it > 0L } ?: 1L
     var remainingMs by
         remember(event.endTimeMs) {
             mutableLongStateOf(
@@ -68,15 +69,16 @@ internal fun TimerExpanded(event: IslandEvent.Timer, interactor: IslandActions) 
                 else 0L
             )
         }
-    LaunchedEffect(event.endTimeMs, event.isPaused) {
-        if (event.endTimeMs > 0L && !event.isPaused) {
-            while (remainingMs > 0L) {
-                delay(500)
-                remainingMs = (event.endTimeMs - System.currentTimeMillis()).coerceAtLeast(0L)
+    if (!event.isPaused) {
+        LaunchedEffect(event.endTimeMs) {
+            if (event.endTimeMs > 0L) {
+                while (remainingMs > 0L) {
+                    delay(500)
+                    remainingMs = (event.endTimeMs - System.currentTimeMillis()).coerceAtLeast(0L)
+                }
             }
         }
     }
-    val totalMs = event.originalDurationMs.takeIf { it > 0L } ?: 1L
     val progress = if (event.endTimeMs > 0L) remainingMs.toFloat() / totalMs else 0f
 
     ExpandedCardLayout(
@@ -110,7 +112,7 @@ internal fun TimerExpanded(event: IslandEvent.Timer, interactor: IslandActions) 
             Text(event.label.ifEmpty { stringResource(style.labelRes) }, color = SubtleGray, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (event.endTimeMs > 0L) {
                 Text(
-                    formatCountdownLong(remainingMs),
+                    if (event.isPaused) stringResource(R.string.ax_dynamic_bar_paused) else formatCountdownLong(remainingMs),
                     color = if (event.isPaused) SubtleGray else style.accent,
                     style = MaterialTheme.typography.headlineMedium,
                 )
@@ -163,8 +165,8 @@ internal fun StopwatchExpanded(event: IslandEvent.Stopwatch, interactor: IslandA
         remember(event.startTimeMs) {
             mutableLongStateOf((System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L))
         }
-    LaunchedEffect(event.startTimeMs, event.isRunning) {
-        if (event.isRunning) {
+    if (event.isRunning) {
+        LaunchedEffect(event.startTimeMs) {
             while (true) {
                 delay(100)
                 elapsedMs = (System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L)
@@ -181,7 +183,7 @@ internal fun StopwatchExpanded(event: IslandEvent.Stopwatch, interactor: IslandA
         title = {
             Text(event.label.ifEmpty { stringResource(style.labelRes) }, color = SubtleGray, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                formatStopwatch(elapsedMs),
+                if (event.isRunning) formatStopwatch(elapsedMs) else stringResource(R.string.ax_dynamic_bar_paused),
                 color = if (event.isRunning) style.accent else SubtleGray,
                 style = MaterialTheme.typography.headlineMedium,
             )
@@ -229,11 +231,13 @@ internal fun RowScope.CompactTimerRow(event: IslandEvent.Timer) {
                 else 0L
             )
         }
-    LaunchedEffect(event.endTimeMs, event.isPaused) {
-        if (event.endTimeMs > 0L && !event.isPaused) {
-            while (remainingMs > 0L) {
-                delay(500)
-                remainingMs = (event.endTimeMs - System.currentTimeMillis()).coerceAtLeast(0L)
+    if (!event.isPaused) {
+        LaunchedEffect(event.endTimeMs) {
+            if (event.endTimeMs > 0L) {
+                while (remainingMs > 0L) {
+                    delay(500)
+                    remainingMs = (event.endTimeMs - System.currentTimeMillis()).coerceAtLeast(0L)
+                }
             }
         }
     }
@@ -257,8 +261,8 @@ internal fun RowScope.CompactTimerRow(event: IslandEvent.Timer) {
             )
         if (event.endTimeMs > 0L) {
             Text(
-                formatCountdownLong(remainingMs),
-                color = style.accent,
+                if (event.isPaused) stringResource(R.string.ax_dynamic_bar_paused) else formatCountdownLong(remainingMs),
+                color = if (event.isPaused) SubtleGray else style.accent,
                 style = TsMono.copy(fontSize = 13.sp),
             )
         } else {
@@ -273,8 +277,8 @@ internal fun RowScope.CompactStopwatchRow(event: IslandEvent.Stopwatch) {
         remember(event.startTimeMs) {
             mutableLongStateOf((System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L))
         }
-    LaunchedEffect(event.startTimeMs, event.isRunning) {
-        if (event.isRunning) {
+    if (event.isRunning) {
+        LaunchedEffect(event.startTimeMs) {
             while (true) {
                 delay(200)
                 elapsedMs = (System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L)
@@ -299,6 +303,10 @@ internal fun RowScope.CompactStopwatchRow(event: IslandEvent.Stopwatch) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(formatStopwatch(elapsedMs), color = style.accent, style = TsMono.copy(fontSize = 13.sp))
+        Text(
+            if (event.isRunning) formatStopwatch(elapsedMs) else stringResource(R.string.ax_dynamic_bar_paused),
+            color = if (event.isRunning) style.accent else SubtleGray,
+            style = TsMono.copy(fontSize = 13.sp),
+        )
     }
 }

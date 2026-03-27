@@ -470,8 +470,8 @@ private fun KeyguardTimerPanel(event: IslandEvent.Timer, interactor: IslandActio
     var remainingMs by remember(event.endTimeMs) {
         mutableLongStateOf((event.endTimeMs - System.currentTimeMillis()).coerceAtLeast(0L))
     }
-    LaunchedEffect(event.endTimeMs, event.isPaused) {
-        if (!event.isPaused) {
+    if (!event.isPaused) {
+        LaunchedEffect(event.endTimeMs) {
             while (remainingMs > 0L) {
                 delay(500)
                 remainingMs = (event.endTimeMs - System.currentTimeMillis()).coerceAtLeast(0L)
@@ -524,7 +524,11 @@ private fun KeyguardTimerPanel(event: IslandEvent.Timer, interactor: IslandActio
                 color = colors.accent,
                 modifier = Modifier.fillMaxSize(),
             )
-            Text(formatCountdownLong(remainingMs), color = OnCardText, style = MaterialTheme.typography.displayMedium)
+            Text(
+                if (event.isPaused) stringResource(R.string.ax_dynamic_bar_paused) else formatCountdownLong(remainingMs),
+                color = OnCardText,
+                style = MaterialTheme.typography.displayMedium,
+            )
         }
 
         Row(
@@ -562,8 +566,8 @@ private fun KeyguardStopwatchPanel(event: IslandEvent.Stopwatch, interactor: Isl
     var elapsedMs by remember(event.startTimeMs) {
         mutableLongStateOf((System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L))
     }
-    LaunchedEffect(event.startTimeMs, event.isRunning) {
-        if (event.isRunning) {
+    if (event.isRunning) {
+        LaunchedEffect(event.startTimeMs) {
             while (true) {
                 delay(200)
                 elapsedMs = (System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L)
@@ -571,7 +575,7 @@ private fun KeyguardStopwatchPanel(event: IslandEvent.Stopwatch, interactor: Isl
         }
     }
 
-    val secFraction = (elapsedMs % 60000) / 60000f
+    val secFraction = if (event.isRunning) (elapsedMs % 60000) / 60000f else 0f
 
     KeyguardPanelSurface { Column(
         modifier = Modifier
@@ -603,7 +607,11 @@ private fun KeyguardStopwatchPanel(event: IslandEvent.Stopwatch, interactor: Isl
                 color = colors.accent,
                 modifier = Modifier.fillMaxSize(),
             )
-            Text(formatStopwatch(elapsedMs), color = OnCardText, style = MaterialTheme.typography.displayMedium)
+            Text(
+                if (event.isRunning) formatStopwatch(elapsedMs) else stringResource(R.string.ax_dynamic_bar_paused),
+                color = OnCardText,
+                style = MaterialTheme.typography.displayMedium,
+            )
         }
 
         Row(

@@ -572,10 +572,12 @@ constructor(
                 null
             }
 
-        val isPaused =
-            actionLabels.any {
-                it.contains("resume") || (it.contains("start") && !it.contains("stop"))
-            }
+        val hasPauseAction = actionLabels.any { it.contains("pause") }
+        val hasResumeAction = actionLabels.any {
+            it.contains("resume") || it.contains("play") ||
+                (it.contains("start") && !it.contains("stop"))
+        }
+        val isPaused = hasResumeAction || (actionLabels.isNotEmpty() && !hasPauseAction)
 
         var endTimeMs = sbn.notification.`when`
         if (endTimeMs <= System.currentTimeMillis()) {

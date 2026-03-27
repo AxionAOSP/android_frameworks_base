@@ -70,6 +70,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.android.systemui.axdynamicbar.model.IslandEvent
 import com.android.systemui.axdynamicbar.model.RecordingState
@@ -84,12 +86,18 @@ import android.graphics.drawable.Drawable
 import java.util.Calendar
 
 private val ChipHeight = 36.dp
+private val ChipHeightCompact = 28.dp
 private val ChipShape = ShapeChip
 private val ChipIconSize = ChipHeight - SpaceLg
+private val ChipIconSizeCompact = ChipHeightCompact - SpaceMd
 private val ActionSize = SpacePanel
+private val ActionSizeCompact = SizeIconSm
 private val ActionIconSize = SizeBadge
+private val ActionIconSizeCompact = SpaceLg
 private val BatteryIconSize = ChipHeight - SpaceXxl
+private val BatteryIconSizeCompact = ChipHeightCompact - SpaceXxl
 private val CountBadgeHeight = ChipHeight / 2
+private val CountBadgeHeightCompact = ChipHeightCompact / 2
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -103,7 +111,10 @@ fun AxDynamicBarKeyguardChip(
     val isKeyguardEnabled by viewModel.isKeyguardEnabled.collectAsStateWithLifecycle()
     val batteryInfo by viewModel.keyguardBatteryInfo.collectAsStateWithLifecycle()
     val isKeyguardExpanded by viewModel.isKeyguardExpanded.collectAsStateWithLifecycle()
+    val isCompact by viewModel.isCompactKeyguardChip.collectAsStateWithLifecycle()
     val touchSlop = LocalViewConfiguration.current.touchSlop
+
+    val chipHeight = if (isCompact) ChipHeightCompact else ChipHeight
 
     val motionScheme = MaterialTheme.motionScheme
 
@@ -132,7 +143,7 @@ fun AxDynamicBarKeyguardChip(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopStart)
-                .padding(bottom = ChipHeight + SpaceLg),
+                .padding(bottom = chipHeight + SpaceLg),
         ) {
             state?.let {
                 KeyguardExpandedContent(
@@ -225,11 +236,12 @@ fun AxDynamicBarKeyguardChip(
                         progress = progress,
                         eventCount = chipState.eventCount,
                         viewModel = viewModel,
+                        compact = isCompact,
                     )
                 }
             } else {
                 
-                KeyguardBatteryChip(batteryInfo)
+                KeyguardBatteryChip(batteryInfo, isCompact)
             }
         }
     }
@@ -243,14 +255,24 @@ private fun KeyguardChipBody(
     progress: Float?,
     eventCount: Int,
     viewModel: AxDynamicBarChipViewModel,
+    compact: Boolean,
 ) {
     val context = LocalContext.current
+    val height = if (compact) ChipHeightCompact else ChipHeight
+    val iconSize = if (compact) ChipIconSizeCompact else ChipIconSize
+    val actSize = if (compact) ActionSizeCompact else ActionSize
+    val actIconSize = if (compact) ActionIconSizeCompact else ActionIconSize
+    val badgeHeight = if (compact) CountBadgeHeightCompact else CountBadgeHeight
+    val textStyle = if (compact) MaterialTheme.typography.labelSmall else PillPrimary
+    val maxWidth = if (compact) 220.dp else 260.dp
+    val startPad = if (compact) SpaceXs else SpaceSm
+    val endPad = if (compact) SpaceSm else SpaceMd
 
     Box(contentAlignment = Alignment.Center) {
         Row(
             modifier = Modifier
-                .height(ChipHeight)
-                .widthIn(max = 260.dp)
+                .height(height)
+                .widthIn(max = maxWidth)
                 .clip(ChipShape)
                 .background(accent)
                 .then(
@@ -270,23 +292,22 @@ private fun KeyguardChipBody(
                     when (event) {
                         is IslandEvent.Notification ->
                             viewModel.launchNotificationFromKeyguard(event)
-                        
+
                         is IslandEvent.KeyguardIndication,
                         is IslandEvent.AppSwitch -> { }
                         else -> viewModel.togglePanel()
                     }
                 }
-                .padding(start = SpaceSm, end = SpaceMd),
+                .padding(start = startPad, end = endPad),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (event is IslandEvent.Media) {
-                
                 event.albumArt?.let { art ->
                     Image(
-                        bitmap = art.toScaledBitmap(ChipIconSize),
+                        bitmap = art.toScaledBitmap(iconSize),
                         contentDescription = null,
                         modifier = Modifier
-                            .size(ChipIconSize)
+                            .size(iconSize)
                             .clip(ShapeXs),
                         contentScale = ContentScale.Crop,
                     )
@@ -297,11 +318,11 @@ private fun KeyguardChipBody(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 event.track.ifEmpty { stringResource(R.string.ax_dynamic_bar_music) },
-                                style = PillPrimary,
+                                style = textStyle,
                                 color = contentColor,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.widthIn(max = 90.dp).basicMarquee(),
+                                modifier = Modifier.widthIn(max = if (compact) 70.dp else 90.dp).basicMarquee(),
                             )
                             Text(
                                 " · ",
@@ -314,22 +335,21 @@ private fun KeyguardChipBody(
                                 color = contentColor.copy(alpha = AlphaSecondary),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.widthIn(max = 60.dp),
+                                modifier = Modifier.widthIn(max = if (compact) 44.dp else 60.dp),
                             )
                         }
                     } else {
                         MarqueeText(event.track.ifEmpty { stringResource(R.string.ax_dynamic_bar_music) }, contentColor, Modifier)
                     }
                 }
-                
                 Spacer(Modifier.width(SpaceXs))
                 Surface(
                     onClick = { viewModel.togglePlayPause() },
-                    modifier = Modifier.size(ActionSize),
+                    modifier = Modifier.size(actSize),
                     shape = CircleShape,
                     color = lerp(accent, contentColor, AlphaSubtle),
                 ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(ActionSize)) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(actSize)) {
                         Icon(
                             if (event.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                             contentDescription = stringResource(
@@ -337,7 +357,7 @@ private fun KeyguardChipBody(
                                 else R.string.ax_dynamic_bar_play,
                             ),
                             tint = contentColor,
-                            modifier = Modifier.size(ActionIconSize),
+                            modifier = Modifier.size(actIconSize),
                         )
                     }
                 }
@@ -347,7 +367,7 @@ private fun KeyguardChipBody(
                 Text(
                     if (event.score1.isNotEmpty()) "${event.score1} - ${event.score2}"
                         else stringResource(R.string.ax_dynamic_bar_sports_vs),
-                    style = PillPrimary,
+                    style = textStyle,
                     color = contentColor,
                     maxLines = 1,
                 )
@@ -370,7 +390,7 @@ private fun KeyguardChipBody(
                         color = contentColor.copy(alpha = AlphaSecondary),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = 80.dp),
+                        modifier = Modifier.widthIn(max = if (compact) 60.dp else 80.dp),
                     )
                 }
             }
@@ -386,6 +406,8 @@ private fun KeyguardChipBody(
                             color = contentColor,
                             bgColor = lerp(accent, contentColor, AlphaSubtle),
                             onClick = { action.perform(viewModel, event, context) },
+                            size = actSize,
+                            iconSize = actIconSize,
                         )
                     }
                 }
@@ -396,8 +418,8 @@ private fun KeyguardChipBody(
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .height(CountBadgeHeight)
-                        .widthIn(min = CountBadgeHeight)
+                        .height(badgeHeight)
+                        .widthIn(min = badgeHeight)
                         .background(lerp(accent, contentColor, AlphaDisabled), ShapeChip)
                         .padding(horizontal = SpaceXxs),
                 ) {
@@ -414,28 +436,30 @@ private fun KeyguardChipBody(
 }
 
 @Composable
-private fun KeyguardBatteryChip(info: KeyguardBatteryInfo) {
+private fun KeyguardBatteryChip(info: KeyguardBatteryInfo, compact: Boolean) {
     val accent = when {
         info.isCharging -> BatteryChargingColor
         info.isPowerSave -> BatteryPowerSaveColor
         else -> BatteryNeutralColor
     }
     val contentColor = chipContentColorOn(accent)
+    val height = if (compact) ChipHeightCompact else ChipHeight
+    val battIconSize = if (compact) BatteryIconSizeCompact else BatteryIconSize
 
     Box(contentAlignment = Alignment.Center) {
         Row(
             modifier = Modifier
-                .height(ChipHeight)
+                .height(height)
                 .clip(ChipShape)
                 .background(accent)
-                .padding(horizontal = SpaceMd),
+                .padding(horizontal = if (compact) SpaceSm else SpaceMd),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             
             if (info.isCharging) {
-                AnimatedChargingBoltIcon(contentColor)
+                AnimatedChargingBoltIcon(contentColor, battIconSize)
             } else {
-                AnimatedBatteryFillIcon(info.level, contentColor)
+                AnimatedBatteryFillIcon(info.level, contentColor, battIconSize)
             }
             Spacer(Modifier.width(SpaceXs))
             Text(
@@ -484,7 +508,7 @@ private fun KeyguardBatteryChip(info: KeyguardBatteryInfo) {
 }
 
 @Composable
-private fun AnimatedChargingBoltIcon(color: Color) {
+private fun AnimatedChargingBoltIcon(color: Color, iconSize: Dp = BatteryIconSize) {
     val transition = rememberInfiniteTransition(label = "kg_bolt")
     val glow by transition.animateFloat(
         initialValue = 0.5f,
@@ -496,7 +520,7 @@ private fun AnimatedChargingBoltIcon(color: Color) {
         label = "kg_bolt_glow",
     )
     val boltPath = remember { Path() }
-    Canvas(modifier = Modifier.size(BatteryIconSize)) {
+    Canvas(modifier = Modifier.size(iconSize)) {
         val w = size.width
         val h = size.height
         boltPath.rewind()
@@ -513,13 +537,13 @@ private fun AnimatedChargingBoltIcon(color: Color) {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun AnimatedBatteryFillIcon(level: Int, color: Color) {
+private fun AnimatedBatteryFillIcon(level: Int, color: Color, iconSize: Dp = BatteryIconSize) {
     val fillFraction by animateFloatAsState(
         targetValue = (level / 100f).coerceIn(0f, 1f),
         animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
         label = "kg_battery_fill",
     )
-    Canvas(modifier = Modifier.size(BatteryIconSize)) {
+    Canvas(modifier = Modifier.size(iconSize)) {
         val w = size.width
         val h = size.height
         val bodyW = w * 0.7f
@@ -738,6 +762,8 @@ private fun ActionButton(
     color: Color,
     bgColor: Color,
     onClick: () -> Unit,
+    size: Dp = ActionSize,
+    iconSize: Dp = ActionIconSize,
 ) {
     val imageVector = when (icon) {
         ActionIcon.PLAY -> Icons.Filled.PlayArrow
@@ -748,16 +774,16 @@ private fun ActionButton(
     }
     Surface(
         onClick = onClick,
-        modifier = Modifier.size(ActionSize),
+        modifier = Modifier.size(size),
         shape = CircleShape,
         color = bgColor,
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(ActionSize)) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size)) {
             Icon(
                 imageVector,
                 contentDescription = icon.name,
                 tint = color,
-                modifier = Modifier.size(ActionIconSize),
+                modifier = Modifier.size(iconSize),
             )
         }
     }
@@ -799,33 +825,37 @@ private fun ElapsedTimeText(
 
 @Composable
 private fun CountdownText(event: IslandEvent.Timer, color: Color, modifier: Modifier) {
-    var remainingMs by remember(event.endTimeMs) {
-        mutableLongStateOf((event.endTimeMs - System.currentTimeMillis()).coerceAtLeast(0L))
-    }
-    LaunchedEffect(event.endTimeMs, event.isPaused) {
-        if (!event.isPaused) {
+    if (event.isPaused) {
+        Text(stringResource(R.string.ax_dynamic_bar_paused), color = color, style = PillMono, modifier = modifier)
+    } else {
+        var remainingMs by remember(event.endTimeMs) {
+            mutableLongStateOf((event.endTimeMs - System.currentTimeMillis()).coerceAtLeast(0L))
+        }
+        LaunchedEffect(event.endTimeMs) {
             while (remainingMs > 0L) {
                 delay(500)
                 remainingMs = (event.endTimeMs - System.currentTimeMillis()).coerceAtLeast(0L)
             }
         }
+        Text(formatCountdownLong(remainingMs), color = color, style = PillMono, modifier = modifier)
     }
-    Text(formatCountdownLong(remainingMs), color = color, style = PillMono, modifier = modifier)
 }
 
 @Composable
 private fun StopwatchTimeText(event: IslandEvent.Stopwatch, color: Color, modifier: Modifier) {
-    var elapsedMs by remember(event.startTimeMs) {
-        mutableLongStateOf((System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L))
-    }
-    LaunchedEffect(event.startTimeMs, event.isRunning) {
-        if (event.isRunning) {
+    if (!event.isRunning) {
+        Text(stringResource(R.string.ax_dynamic_bar_paused), color = color, style = PillMono, modifier = modifier)
+    } else {
+        var elapsedMs by remember(event.startTimeMs) {
+            mutableLongStateOf((System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L))
+        }
+        LaunchedEffect(event.startTimeMs) {
             while (true) {
                 delay(200)
                 elapsedMs = (System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L)
             }
         }
+        Text(formatStopwatch(elapsedMs), color = color, style = PillMono, modifier = modifier)
     }
-    Text(formatStopwatch(elapsedMs), color = color, style = PillMono, modifier = modifier)
 }
 

@@ -35,15 +35,7 @@ constructor(
     private var expansionHandle: DisposableHandle? = null
     private var enforceAction: Runnable? = null
 
-    private val restoreOnCollapseIds = setOf(
-        R.id.burn_in_layer,
-        R.id.keyguard_indication_area,
-        R.id.nssl_placeholder,
-        R.id.aod_notification_icon_container,
-        R.id.device_entry_icon_view,
-        R.id.keyguard_widgets_area,
-        R.id.ambient_indication_container,
-    )
+    private var isCurrentlyHiding = false
 
     override fun addViews(constraintLayout: ConstraintLayout) {
         val composeView = ComposeView(context).apply { id = chipViewId }
@@ -76,6 +68,7 @@ constructor(
         expansionHandle = composeView.repeatWhenAttached {
             repeatOnLifecycle(Lifecycle.State.CREATED) {
                 viewModel.isKeyguardExpanded.collect { expanded ->
+                    isCurrentlyHiding = expanded
                     enforceHiddenViews(constraintLayout, expanded)
 
                     enforceAction?.let { ScrimUtils.get().removeKeyguardPreDrawAction(it) }
@@ -126,12 +119,6 @@ constructor(
     override fun applyConstraints(constraintSet: ConstraintSet) {
         val expanded = viewModel.isKeyguardExpanded.value
         constraintSet.apply {
-            
-            if (expanded) {
-                restoreOnCollapseIds.forEach { id ->
-                    setVisibility(id, ConstraintSet.INVISIBLE)
-                }
-            }
 
             if (expanded) {
                 constrainWidth(chipViewId, ConstraintSet.MATCH_CONSTRAINT)
@@ -170,24 +157,19 @@ constructor(
         R.id.end_button,
     )
 
-    private fun enforceHiddenViews(constraintLayout: ConstraintLayout, expanded: Boolean) {
-        val vis = if (expanded) View.INVISIBLE else View.VISIBLE
+    private fun enforceHiddenViews(constraintLayout: ConstraintLayout, hide: Boolean) {
         for (i in 0 until constraintLayout.childCount) {
             val child = constraintLayout.getChildAt(i)
             if (child.id in preserveOnExpandIds) continue
-            if (!expanded) {
-                if (child.id in restoreOnCollapseIds && child.visibility != View.VISIBLE) {
-                    child.visibility = View.VISIBLE
-                }
-            } else {
-                if (child.visibility != View.INVISIBLE) {
-                    child.visibility = View.INVISIBLE
-                }
-            }
+            val target = if (hide) View.INVISIBLE else View.VISIBLE
+            if (child.visibility != target) child.visibility = target
         }
         constraintLayout.rootView
             .findViewById<View>(R.id.shared_notification_container)
-            ?.let { if (it.visibility != vis) it.visibility = vis }
+            ?.let { v ->
+                val target = if (hide) View.INVISIBLE else View.VISIBLE
+                if (v.visibility != target) v.visibility = target
+            }
     }
 }
 

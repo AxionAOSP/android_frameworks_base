@@ -1,7 +1,10 @@
 package com.android.systemui.axdynamicbar.ui
 
+import android.os.SystemProperties
 import com.android.systemui.axdynamicbar.domain.AxDynamicBarInteractor
 import com.android.systemui.axdynamicbar.model.IslandEvent
+import com.android.systemui.biometrics.AuthController
+import com.android.systemui.biometrics.domain.interactor.UdfpsOverlayInteractor
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.statusbar.pipeline.battery.domain.interactor.BatteryInteractor
@@ -47,7 +50,23 @@ constructor(
     val interactor: AxDynamicBarInteractor,
     batteryInteractor: BatteryInteractor,
     private val batteryController: BatteryController,
+    authController: AuthController,
+    udfpsOverlayInteractor: UdfpsOverlayInteractor,
 ) {
+
+    val isCompactKeyguardChip: StateFlow<Boolean> =
+        udfpsOverlayInteractor.udfpsOverlayParams
+            .map { params ->
+                val propOverride = SystemProperties.getInt(PROP_COMPACT_CHIP, -1)
+                if (propOverride >= 0) return@map propOverride == 1
+                if (!authController.isUdfpsSupported) return@map false
+                val sensorBottom = params.sensorBounds.bottom
+                val displayHeight = params.naturalDisplayHeight
+                if (displayHeight <= 0) return@map false
+                sensorBottom > displayHeight * LOW_UDFPS_THRESHOLD
+            }
+            .distinctUntilChanged()
+            .stateIn(applicationScope, SharingStarted.Eagerly, false)
 
     val chipState: StateFlow<AxDynamicBarChipState?> =
         interactor.uiState
@@ -177,6 +196,11 @@ constructor(
 
     fun launchNotificationFromKeyguard(event: IslandEvent.Notification) {
         interactor.launchNotificationDismissingKeyguard(event)
+    }
+
+    companion object {
+        private const val PROP_COMPACT_CHIP = "persist.sys.axdb.compact_chip"
+        private const val LOW_UDFPS_THRESHOLD = 0.75f
     }
 }
 

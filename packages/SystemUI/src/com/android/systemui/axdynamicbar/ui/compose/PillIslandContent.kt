@@ -1121,20 +1121,22 @@ private fun BtText(event: IslandEvent.Bluetooth, modifier: Modifier, overrideCol
 @Composable
 private fun TimerText(event: IslandEvent.Timer, modifier: Modifier, overrideColor: Color? = null) {
     if (event.endTimeMs > 0L) {
-        var remainingMs by
-            remember(event.endTimeMs) {
-                mutableLongStateOf((event.endTimeMs - System.currentTimeMillis()).coerceAtLeast(0L))
-            }
-        LaunchedEffect(event.endTimeMs, event.isPaused) {
-            if (!event.isPaused) {
+        val color = overrideColor ?: if (event.isPaused) SubtleGray else BlueAccent
+        if (event.isPaused) {
+            Text(stringResource(R.string.ax_dynamic_bar_paused), color = color, style = PillMono, modifier = modifier)
+        } else {
+            var remainingMs by
+                remember(event.endTimeMs) {
+                    mutableLongStateOf((event.endTimeMs - System.currentTimeMillis()).coerceAtLeast(0L))
+                }
+            LaunchedEffect(event.endTimeMs) {
                 while (remainingMs > 0L) {
                     delay(500)
                     remainingMs = (event.endTimeMs - System.currentTimeMillis()).coerceAtLeast(0L)
                 }
             }
+            Text(formatCountdownLong(remainingMs), color = color, style = PillMono, modifier = modifier)
         }
-        val color = overrideColor ?: if (event.isPaused) SubtleGray else BlueAccent
-        Text(formatCountdownLong(remainingMs), color = color, style = PillMono, modifier = modifier)
     } else {
         MarqueeLabel(event.label.ifEmpty { stringResource(R.string.ax_dynamic_bar_timer) }, overrideColor ?: BlueAccent, modifier)
     }
@@ -1142,20 +1144,22 @@ private fun TimerText(event: IslandEvent.Timer, modifier: Modifier, overrideColo
 
 @Composable
 private fun StopwatchText(event: IslandEvent.Stopwatch, modifier: Modifier, overrideColor: Color? = null) {
-    var elapsedMs by
-        remember(event.startTimeMs) {
-            mutableLongStateOf((System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L))
-        }
-    LaunchedEffect(event.startTimeMs, event.isRunning) {
-        if (event.isRunning) {
+    val color = overrideColor ?: if (event.isRunning) MintAccent else SubtleGray
+    if (!event.isRunning) {
+        Text(stringResource(R.string.ax_dynamic_bar_paused), color = color, style = PillMono, modifier = modifier)
+    } else {
+        var elapsedMs by
+            remember(event.startTimeMs) {
+                mutableLongStateOf((System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L))
+            }
+        LaunchedEffect(event.startTimeMs) {
             while (true) {
                 delay(200)
                 elapsedMs = (System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L)
             }
         }
+        Text(formatStopwatch(elapsedMs), color = color, style = PillMono, modifier = modifier)
     }
-    val color = overrideColor ?: if (event.isRunning) MintAccent else SubtleGray
-    Text(formatStopwatch(elapsedMs), color = color, style = PillMono, modifier = modifier)
 }
 
 @Composable

@@ -47,16 +47,15 @@ constructor(
                             is ScreenRecordChipModel.Recording -> {
                                 val notifMs = notificationStartTimeMs
                                 val existing = _screenRecordEvent.value
-                                if (existing != null) {
-                                    if (notifMs > 0L && existing.startTimeMs != notifMs) {
-                                        existing.copy(startTimeMs = notifMs)
-                                    } else existing
+                                val startMs = when {
+                                    notifMs > 0L -> notifMs
+                                    existing != null && !existing.isCountdown -> existing.startTimeMs
+                                    else -> System.currentTimeMillis()
+                                }
+                                if (existing != null && !existing.isCountdown && existing.startTimeMs == startMs) {
+                                    existing
                                 } else {
-                                    IslandEvent.ScreenRecording(
-                                        startTimeMs =
-                                            if (notifMs > 0L) notifMs
-                                            else System.currentTimeMillis(),
-                                    )
+                                    IslandEvent.ScreenRecording(startTimeMs = startMs)
                                 }
                             }
                             is ScreenRecordChipModel.Starting ->
