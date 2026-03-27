@@ -5529,7 +5529,6 @@ public final class ViewRootImpl implements ViewParent,
 
     private void reportDrawFinished(@Nullable Transaction t, int seqId) {
         logAndTrace("reportDrawFinished seqId=" + seqId);
-        ScrollOptimizer.notifyTransitionEnd();
         try {
             mWindowSession.finishDrawing(mWindow, t, seqId);
         } catch (RemoteException e) {
@@ -11865,9 +11864,6 @@ public final class ViewRootImpl implements ViewParent,
         }
         mReportNextDraw = true;
         mLastReportNextDrawReason = reason;
-        if ("resized".equals(reason) || "rebuilt".equals(reason)) {
-            ScrollOptimizer.notifyTransitionStart();
-        }
     }
 
     /**

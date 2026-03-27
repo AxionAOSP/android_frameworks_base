@@ -132,7 +132,6 @@ import com.android.internal.protolog.WmProtoLogGroups;
 import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.server.AnimationThread;
 import com.android.server.AxExtServiceFactory;
-import com.android.server.am.IAxBurstEngine;
 import com.android.server.inputmethod.InputMethodManagerInternal;
 import com.android.server.statusbar.StatusBarManagerInternal;
 
@@ -789,7 +788,6 @@ class Transition implements BLASTSyncEngine.TransactionReadyListener {
             return;
         }
         AxExtServiceFactory.getAxBurstEngine().systemThreadBoost(AnimationThread.get().getThreadId(), 500L);
-        boostParticipantRenderThreads();
         mState = STATE_STARTED;
         ProtoLog.v(WmProtoLogGroups.WM_DEBUG_WINDOW_TRANSITIONS, "Starting Transition %d",
                 mSyncId);
@@ -798,18 +796,6 @@ class Transition implements BLASTSyncEngine.TransactionReadyListener {
         mLogger.mStartTimeNs = SystemClock.elapsedRealtimeNanos();
 
         mController.updateAnimatingState();
-    }
-
-    private void boostParticipantRenderThreads() {
-        final IAxBurstEngine engine = AxExtServiceFactory.getAxBurstEngine();
-        for (int i = mParticipants.size() - 1; i >= 0; --i) {
-            final ActivityRecord ar = mParticipants.valueAt(i).asActivityRecord();
-            if (ar == null || ar.app == null) continue;
-            final int pid = ar.app.getPid();
-            if (pid > 0) {
-                engine.boostAppRenderThread(pid, 500L);
-            }
-        }
     }
 
     /**

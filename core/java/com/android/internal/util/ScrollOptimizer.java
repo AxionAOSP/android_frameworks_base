@@ -105,12 +105,6 @@ public class ScrollOptimizer {
     private static boolean sAnimAheadActive = false;
 
     private static boolean sFrameInsertEnabled = false;
-
-    private static final String PROP_TRANSITION_BOOST = "persist.sys.perf.transition_boost";
-    private static final long TRANSITION_BOOST_TIMEOUT_MS = 500L;
-    private static boolean sTransitionBoostEnabled = false;
-    private static boolean sTransitionActive = false;
-    private static long sTransitionStartMs = 0;
     private static void logger(String msg) {
         if (sDebugEnabled) {
             Log.d(TAG, msg);
@@ -143,7 +137,6 @@ public class ScrollOptimizer {
             sDebugEnabled = SystemProperties.getBoolean(PROP_DEBUG, false);
             sAnimAheadEnabled = SystemProperties.getBoolean(PROP_ANIM_AHEAD, true);
             sFrameInsertEnabled = SystemProperties.getBoolean(PROP_FRAME_INSERT, true);
-            sTransitionBoostEnabled = SystemProperties.getBoolean(PROP_TRANSITION_BOOST, true);
 
             Class<?> clazz = Class.forName("android.graphics.BLASTBufferQueue");
             sSetUndequeuedMethod = clazz.getMethod("setUndequeuedBufferCount", Integer.TYPE);
@@ -402,9 +395,6 @@ public class ScrollOptimizer {
 
     public static void setUITaskStatus(boolean running) {
         if (sFeatureEnabled && Process.myTid() == sPid) {
-            if (sTransitionActive && running) {
-                isTransitionActive();
-            }
             long nowNs = System.nanoTime();
             long uiDurationNs;
             if (running) {
@@ -552,54 +542,6 @@ public class ScrollOptimizer {
             return false;
         }
         logger("frameInsert: eligible, buffers=" + buffers);
-        return true;
-    }
-
-    public static void notifyTransitionStart() {
-        if (!sFeatureEnabled || !sTransitionBoostEnabled || Process.myTid() != sPid) {
-            return;
-        }
-        if (sTransitionActive) {
-            return;
-        }
-        if (sBlastQueue == null) {
-            return;
-        }
-        sTransitionActive = true;
-        sTransitionStartMs = SystemClock.uptimeMillis();
-        setUndequeuedBufferCount(sInitialUndequeued);
-        if (!sTimerSlackUpdated) {
-            writeTimerSlack();
-        }
-        if (!sGcSuppressed) {
-            VMRuntime.getRuntime().setTargetHeapUtilization(0.95f);
-            sGcSuppressed = true;
-        }
-        logger("transition: boost started");
-    }
-
-    public static void notifyTransitionEnd() {
-        if (!sTransitionActive) {
-            return;
-        }
-        sTransitionActive = false;
-        sTimerSlackUpdated = false;
-        if (sGcSuppressed && mLastFlingFlg != FLING_START) {
-            VMRuntime.getRuntime().setTargetHeapUtilization(0.75f);
-            VMRuntime.getRuntime().requestConcurrentGC();
-            sGcSuppressed = false;
-        }
-        logger("transition: boost ended");
-    }
-
-    public static boolean isTransitionActive() {
-        if (!sTransitionActive) {
-            return false;
-        }
-        if (SystemClock.uptimeMillis() - sTransitionStartMs > TRANSITION_BOOST_TIMEOUT_MS) {
-            notifyTransitionEnd();
-            return false;
-        }
         return true;
     }
 }

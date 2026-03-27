@@ -50,6 +50,4 @@ public interface IAxBurstEngine {
     }
     default void launcherItemsLoadingBoost(long duration) {
     }
-    default void boostAppRenderThread(int pid, long duration) {
-    }
 }
