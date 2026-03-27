@@ -39,10 +39,6 @@ import com.android.internal.graphics.SfVsyncFrameCallbackProvider;
 import com.android.server.AnimationThread;
 import com.android.server.wm.LocalAnimationAdapter.AnimationSpec;
 
-import dalvik.system.VMRuntime;
-
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -59,10 +55,6 @@ class SurfaceAnimationRunner {
      * {@link #mLock}
      */
     private final Object mCancelLock = new Object();
-    
-    private static final float GC_SUPPRESS_HEAP_UTILIZATION = 0.95f;
-    private static final float GC_NORMAL_HEAP_UTILIZATION = 0.75f;
-    private boolean mGcSuppressed;
 
     @VisibleForTesting
     Choreographer mChoreographer;
@@ -207,23 +199,6 @@ class SurfaceAnimationRunner {
             startAnimationLocked(mPendingAnimations.valueAt(i), vsyncId);
         }
         mPendingAnimations.clear();
-        suppressGcLocked();
-    }
-
-    private void suppressGcLocked() {
-        if (!mGcSuppressed && !mRunningAnimations.isEmpty()) {
-            VMRuntime.getRuntime().requestConcurrentGC();
-            VMRuntime.getRuntime().setTargetHeapUtilization(GC_SUPPRESS_HEAP_UTILIZATION);
-            mGcSuppressed = true;
-        }
-    }
-
-    private void restoreGcLocked() {
-        if (mGcSuppressed && mRunningAnimations.isEmpty()) {
-            VMRuntime.getRuntime().setTargetHeapUtilization(GC_NORMAL_HEAP_UTILIZATION);
-            VMRuntime.getRuntime().requestConcurrentGC();
-            mGcSuppressed = false;
-        }
     }
 
     @GuardedBy("mLock")
@@ -265,7 +240,6 @@ class SurfaceAnimationRunner {
             public void onAnimationEnd(Animator animation) {
                 synchronized (mLock) {
                     mRunningAnimations.remove(a.mLeash);
-                    restoreGcLocked();
                     synchronized (mCancelLock) {
                         if (!a.mCancelled) {
 
