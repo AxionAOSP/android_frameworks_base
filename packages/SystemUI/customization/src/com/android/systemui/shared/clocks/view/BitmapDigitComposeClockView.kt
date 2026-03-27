@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -487,45 +488,42 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
             (digitHeightPx * 2 + lineSpacing).toDp()
         }
 
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
+        Column(
+            modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(canvasHeightDp)
-                        .then(fidgetTapModifier),
-                ) {
-                    state.clockColorOverrideState.value
-                    if (time.isEmpty() || !TextUtils.isDigitsOnly(time)) return@Canvas
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(canvasHeightDp)
+                    .then(fidgetTapModifier),
+            ) {
+                state.clockColorOverrideState.value
+                if (time.isEmpty() || !TextUtils.isDigitsOnly(time)) return@Canvas
 
-                    val (hours, minutes) = splitTimeLines(time)
-                    if (hours.isEmpty()) return@Canvas
+                val (hours, minutes) = splitTimeLines(time)
+                if (hours.isEmpty()) return@Canvas
 
-                    val hoursWidth = computeLineWidth(hours, bitmaps, scale, finalSpacing)
-                    val minutesWidth = computeLineWidth(minutes, bitmaps, scale, finalSpacing)
+                val hoursWidth = computeLineWidth(hours, bitmaps, scale, finalSpacing)
+                val minutesWidth = computeLineWidth(minutes, bitmaps, scale, finalSpacing)
 
-                    val sampleBitmap = bitmaps['0'] ?: return@Canvas
-                    val digitHeight = sampleBitmap.height * scale
+                val sampleBitmap = bitmaps['0'] ?: return@Canvas
+                val digitHeight = sampleBitmap.height * scale
 
-                    val hoursX = (size.width - hoursWidth) / 2f
-                    val minutesX = (size.width - minutesWidth) / 2f
+                val hoursX = (size.width - hoursWidth) / 2f
+                val minutesX = (size.width - minutesWidth) / 2f
 
-                    drawDigitLine(hours, bitmaps, scale, hoursX, 0f, finalSpacing, tintColor)
-                    drawDigitLine(minutes, bitmaps, scale, minutesX, digitHeight + lineSpacing, finalSpacing, tintColor)
-                }
-
-                Box(modifier = Modifier.padding(top = 16.dp).offset(y = config.largeDateOffsetDp.dp)) {
-                    EnhancedDateArea(
-                        textColor = tintColor,
-                        textSize = 16.sp,
-                        iconSize = 18.dp,
-                        rowArrangement = Arrangement.Center,
-                    )
-                }
+                drawDigitLine(hours, bitmaps, scale, hoursX, 0f, finalSpacing, tintColor)
+                drawDigitLine(minutes, bitmaps, scale, minutesX, digitHeight + lineSpacing, finalSpacing, tintColor)
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            EnhancedDateArea(
+                textColor = tintColor,
+                textSize = 16.sp,
+                iconSize = 18.dp,
+                rowArrangement = Arrangement.Center,
+            )
         }
     }
 
@@ -540,88 +538,88 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         val scale = context.scaleRatio
         val largeFontSize = mode.fontSize * scale * mode.largeScale
         val canvasHeightDp = remember(largeFontSize, mode.lineSpacing, scale) {
-            val tempPaint = android.graphics.Paint(fontPaint).apply { textSize = largeFontSize }
+            val tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                textSize = largeFontSize
+                typeface = getCachedTypeface(mode.lsFontWeight, mode.fontPath)
+            }
             val metrics = tempPaint.fontMetrics
-            val lineHeight = metrics.bottom - metrics.top
+            val lineHeight = metrics.descent - metrics.ascent
             val totalPx = lineHeight * 2 + mode.lineSpacing * scale
             totalPx / context.resources.displayMetrics.density
         }
 
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
+        Column(
+            modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(canvasHeightDp.dp)
-                        .then(fidgetTapModifier),
-                ) {
-                    weightVersion.intValue
-                    state.clockColorOverrideState.value
-                    if (time.isEmpty() || !TextUtils.isDigitsOnly(time)) return@Canvas
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(canvasHeightDp.dp)
+                    .then(fidgetTapModifier),
+            ) {
+                weightVersion.intValue
+                state.clockColorOverrideState.value
+                if (time.isEmpty() || !TextUtils.isDigitsOnly(time)) return@Canvas
 
-                    val nativeCanvas = drawContext.canvas.nativeCanvas
-                    fontPaint.textSize = largeFontSize
-                    fontPaint.color = config.clockColor(isDoze, screenOff, regionDark)
+                val nativeCanvas = drawContext.canvas.nativeCanvas
+                fontPaint.textSize = largeFontSize
+                fontPaint.color = config.clockColor(isDoze, screenOff, regionDark)
 
-                    val displayTime = formatDisplayTime(time)
-                    if (displayTime.isEmpty()) return@Canvas
+                val displayTime = formatDisplayTime(time)
+                if (displayTime.isEmpty()) return@Canvas
 
-                    val (hours, minutes) = splitTimeLines(displayTime)
-                    if (hours.isEmpty()) return@Canvas
+                val (hours, minutes) = splitTimeLines(displayTime)
+                if (hours.isEmpty()) return@Canvas
 
-                    val metrics = fontPaint.fontMetrics
-                    val lineHeight = metrics.bottom - metrics.top
-                    val startY = -metrics.top
+                val metrics = fontPaint.fontMetrics
+                val lineHeight = metrics.descent - metrics.ascent
+                val startY = -metrics.ascent
 
-                    var globalIdx = 0
-                    var hx = 0f
-                    val hourWidths = FloatArray(hours.length) { i ->
-                        fontPaint.typeface = getCachedTypeface(
-                            fontWeights.getOrElse(globalIdx + i) { mode.lsFontWeight }, mode.fontPath
-                        )
-                        fontPaint.measureText(hours[i].toString())
-                    }
-                    val hoursWidth = hourWidths.sum()
-                    hx = (size.width - hoursWidth) / 2f
-                    for (i in hours.indices) {
-                        fontPaint.typeface = getCachedTypeface(
-                            fontWeights.getOrElse(globalIdx + i) { mode.lsFontWeight }, mode.fontPath
-                        )
-                        nativeCanvas.drawText(hours[i].toString(), hx, startY, fontPaint)
-                        hx += hourWidths[i]
-                    }
-                    globalIdx += hours.length
-
-                    val minWidths = FloatArray(minutes.length) { i ->
-                        fontPaint.typeface = getCachedTypeface(
-                            fontWeights.getOrElse(globalIdx + i) { mode.lsFontWeight }, mode.fontPath
-                        )
-                        fontPaint.measureText(minutes[i].toString())
-                    }
-                    val minutesWidth = minWidths.sum()
-                    var mx = (size.width - minutesWidth) / 2f
-                    val minY = startY + lineHeight + mode.lineSpacing * scale
-                    for (i in minutes.indices) {
-                        fontPaint.typeface = getCachedTypeface(
-                            fontWeights.getOrElse(globalIdx + i) { mode.lsFontWeight }, mode.fontPath
-                        )
-                        nativeCanvas.drawText(minutes[i].toString(), mx, minY, fontPaint)
-                        mx += minWidths[i]
-                    }
-                }
-
-                Box(modifier = Modifier.padding(top = 16.dp).offset(y = config.largeDateOffsetDp.dp)) {
-                    EnhancedDateArea(
-                        textColor = tintColor,
-                        textSize = 16.sp,
-                        iconSize = 18.dp,
-                        rowArrangement = Arrangement.Center,
+                var globalIdx = 0
+                var hx = 0f
+                val hourWidths = FloatArray(hours.length) { i ->
+                    fontPaint.typeface = getCachedTypeface(
+                        fontWeights.getOrElse(globalIdx + i) { mode.lsFontWeight }, mode.fontPath
                     )
+                    fontPaint.measureText(hours[i].toString())
+                }
+                val hoursWidth = hourWidths.sum()
+                hx = (size.width - hoursWidth) / 2f
+                for (i in hours.indices) {
+                    fontPaint.typeface = getCachedTypeface(
+                        fontWeights.getOrElse(globalIdx + i) { mode.lsFontWeight }, mode.fontPath
+                    )
+                    nativeCanvas.drawText(hours[i].toString(), hx, startY, fontPaint)
+                    hx += hourWidths[i]
+                }
+                globalIdx += hours.length
+
+                val minWidths = FloatArray(minutes.length) { i ->
+                    fontPaint.typeface = getCachedTypeface(
+                        fontWeights.getOrElse(globalIdx + i) { mode.lsFontWeight }, mode.fontPath
+                    )
+                    fontPaint.measureText(minutes[i].toString())
+                }
+                val minutesWidth = minWidths.sum()
+                var mx = (size.width - minutesWidth) / 2f
+                val minY = startY + lineHeight + mode.lineSpacing * scale
+                for (i in minutes.indices) {
+                    fontPaint.typeface = getCachedTypeface(
+                        fontWeights.getOrElse(globalIdx + i) { mode.lsFontWeight }, mode.fontPath
+                    )
+                    nativeCanvas.drawText(minutes[i].toString(), mx, minY, fontPaint)
+                    mx += minWidths[i]
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            EnhancedDateArea(
+                textColor = tintColor,
+                textSize = 16.sp,
+                iconSize = 18.dp,
+                rowArrangement = Arrangement.Center,
+            )
         }
     }
 

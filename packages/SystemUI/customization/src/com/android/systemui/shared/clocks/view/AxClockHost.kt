@@ -23,6 +23,8 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -116,9 +118,13 @@ class AxClockHost(private val clock: AxClockView) {
                 }
             }
 
+            val sizeModifier = if (clock.isLargeClock) {
+                Modifier.fillMaxWidth().wrapContentHeight()
+            } else {
+                Modifier.fillMaxSize()
+            }
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
+                modifier = sizeModifier
                     .graphicsLayer {
                         val s = clock.sizeScale
                         val a = animScale.value

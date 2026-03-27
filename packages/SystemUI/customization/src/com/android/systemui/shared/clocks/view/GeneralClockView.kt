@@ -141,67 +141,65 @@ class GeneralClockView @JvmOverloads constructor(
             (digitH * 2 + lineSpacing).toDp()
         }
 
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
+        Column(
+            modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(canvasHeightDp)
-                        .then(fidgetTapModifier),
-                ) {
-                    if (time.isEmpty() || !TextUtils.isDigitsOnly(time)) return@Canvas
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(canvasHeightDp)
+                    .then(fidgetTapModifier),
+            ) {
+                if (time.isEmpty() || !TextUtils.isDigitsOnly(time)) return@Canvas
 
-                    val (hours, minutes) = splitTimeLines(time)
-                    if (hours.isEmpty()) return@Canvas
+                val (hours, minutes) = splitTimeLines(time)
+                if (hours.isEmpty()) return@Canvas
 
-                    val sampleDigit = bitmaps['0'] ?: return@Canvas
-                    val dh = sampleDigit.height * largeScale
+                val sampleDigit = bitmaps['0'] ?: return@Canvas
+                val dh = sampleDigit.height * largeScale
 
-                    fun lineWidth(digits: String): Float {
-                        var w = 0f
-                        digits.forEachIndexed { i, c ->
-                            val bmp = bitmaps[c] ?: return@forEachIndexed
-                            w += bmp.width * largeScale
-                            if (i < digits.lastIndex) w += digitSpacing
-                        }
-                        return w
+                fun lineWidth(digits: String): Float {
+                    var w = 0f
+                    digits.forEachIndexed { i, c ->
+                        val bmp = bitmaps[c] ?: return@forEachIndexed
+                        w += bmp.width * largeScale
+                        if (i < digits.lastIndex) w += digitSpacing
                     }
-
-                    fun drawLine(digits: String, lineX: Float, lineY: Float) {
-                        var x = lineX
-                        digits.forEach { c ->
-                            val bmp = bitmaps[c] ?: return@forEach
-                            drawImage(
-                                image = bmp.asImageBitmap(),
-                                srcOffset = IntOffset.Zero,
-                                srcSize = IntSize(bmp.width, bmp.height),
-                                dstOffset = IntOffset(x.toInt(), lineY.toInt()),
-                                dstSize = IntSize((bmp.width * largeScale).toInt(), (bmp.height * largeScale).toInt()),
-                                colorFilter = ColorFilter.tint(tintColor, BlendMode.SrcIn),
-                            )
-                            x += bmp.width * largeScale + digitSpacing
-                        }
-                    }
-
-                    val hoursW = lineWidth(hours)
-                    val minutesW = lineWidth(minutes)
-
-                    drawLine(hours, (size.width - hoursW) / 2f, 0f)
-                    drawLine(minutes, (size.width - minutesW) / 2f, dh + lineSpacing)
+                    return w
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                fun drawLine(digits: String, lineX: Float, lineY: Float) {
+                    var x = lineX
+                    digits.forEach { c ->
+                        val bmp = bitmaps[c] ?: return@forEach
+                        drawImage(
+                            image = bmp.asImageBitmap(),
+                            srcOffset = IntOffset.Zero,
+                            srcSize = IntSize(bmp.width, bmp.height),
+                            dstOffset = IntOffset(x.toInt(), lineY.toInt()),
+                            dstSize = IntSize((bmp.width * largeScale).toInt(), (bmp.height * largeScale).toInt()),
+                            colorFilter = ColorFilter.tint(tintColor, BlendMode.SrcIn),
+                        )
+                        x += bmp.width * largeScale + digitSpacing
+                    }
+                }
 
-                EnhancedDateArea(
-                    textColor = tintColor,
-                    textSize = 16.sp,
-                    iconSize = 18.dp,
-                    rowArrangement = Arrangement.Center,
-                )
+                val hoursW = lineWidth(hours)
+                val minutesW = lineWidth(minutes)
+
+                drawLine(hours, (size.width - hoursW) / 2f, 0f)
+                drawLine(minutes, (size.width - minutesW) / 2f, dh + lineSpacing)
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            EnhancedDateArea(
+                textColor = tintColor,
+                textSize = 16.sp,
+                iconSize = 18.dp,
+                rowArrangement = Arrangement.Center,
+            )
         }
     }
 

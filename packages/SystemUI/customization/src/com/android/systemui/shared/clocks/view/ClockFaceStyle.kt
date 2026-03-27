@@ -88,7 +88,6 @@ data class BitmapFaceConfig(
     val topPaddingDp: Float = 0f,
     val bottomPaddingDp: Float = 0f,
     val tickResIds: IntArray = intArrayOf(),
-    val largeDateOffsetDp: Float = 0f,
 ) {
     enum class ColorMode { STANDARD, LONDON_UG }
     enum class LightVariantRule { NONE, SECOND_HALF }
@@ -134,7 +133,6 @@ object BitmapFaceConfigs {
             overlapSpacingRes = R.dimen.overlap_small_padding,
             overlapPairs = mapOf("14" to 6f, "17" to 1f, "19" to 2f),
             dateSpacingDp = 0f,
-            largeDateOffsetDp = -20f,
         ),
         ClockFaceStyle.NDOT to BitmapFaceConfig(
             digitResIds = intArrayOf(
@@ -157,7 +155,6 @@ object BitmapFaceConfigs {
             lightVariantRule = BitmapFaceConfig.LightVariantRule.SECOND_HALF,
             minuteAlpha = 0.6f,
             dateSpacingDp = 0f,
-            largeDateOffsetDp = -16f,
         ),
         ClockFaceStyle.LONDON_UG to BitmapFaceConfig(
             digitResIds = intArrayOf(

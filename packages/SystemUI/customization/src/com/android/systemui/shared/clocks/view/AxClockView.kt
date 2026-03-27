@@ -258,21 +258,31 @@ abstract class AxClockView @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = getDefaultSize(suggestedMinimumWidth, widthMeasureSpec)
-        setMeasuredDimension(w, clockHeight)
-        val mw = measuredWidth
-        val mh = measuredHeight
-        if (mw > 0 && mh > 0) {
-            host.view.measure(
-                MeasureSpec.makeMeasureSpec(mw, MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(mh, MeasureSpec.EXACTLY),
+        if (isLargeClock) {
+            val maxH = MeasureSpec.getSize(heightMeasureSpec)
+            val cv = host.view
+            cv.measure(
+                MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(maxH, MeasureSpec.AT_MOST),
             )
+            setMeasuredDimension(w, cv.measuredHeight)
+        } else {
+            setMeasuredDimension(w, clockHeight)
+            val mw = measuredWidth
+            val mh = measuredHeight
+            if (mw > 0 && mh > 0) {
+                host.view.measure(
+                    MeasureSpec.makeMeasureSpec(mw, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(mh, MeasureSpec.EXACTLY),
+                )
+            }
         }
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         val cv = host.view
         if (!cv.isAttachedToWindow) return
-        if (isLargeClock || isPreviewMode) {
+        if (!isLargeClock && (isPreviewMode)) {
             cv.measure(
                 MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY),

@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -81,12 +82,13 @@ fun QuickLookDateArea(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = rowArrangement,
         modifier = Modifier
+            .widthIn(max = 280.dp)
             .graphicsLayer { scaleY = inverseScale }
             .then(tapModifier),
     ) {
         if (display is DateDisplay.Weather) {
             val dateText = if (uppercase) dateStr.uppercase() else dateStr
-            Text(text = dateText, maxLines = 1, style = style)
+            Text(text = dateText, maxLines = 1, style = style, modifier = Modifier.basicMarquee())
             display.icon?.let {
                 Spacer(modifier = Modifier.width(6.dp))
                 Image(
