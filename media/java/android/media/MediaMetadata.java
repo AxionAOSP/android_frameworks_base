@@ -1022,7 +1022,11 @@ public final class MediaMetadata implements Parcelable {
             float scaledHeight = scale * srcHeight;
             float dx = (maxDimension - scaledWidth) / 2f;
             float dy = (maxDimension - scaledHeight) / 2f;
-            Bitmap output = Bitmap.createBitmap(maxDimension, maxDimension, bmp.getConfig());
+            Bitmap.Config config = bmp.getConfig();
+            if (config == null || config == Bitmap.Config.HARDWARE) {
+                config = Bitmap.Config.ARGB_8888;
+            }
+            Bitmap output = Bitmap.createBitmap(maxDimension, maxDimension, config);
             Canvas canvas = new Canvas(output);
             Matrix matrix = new Matrix();
             matrix.setScale(scale, scale);
