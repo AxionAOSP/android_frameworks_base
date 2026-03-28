@@ -748,7 +748,7 @@ public final class NotificationPanelViewController implements
                 R.bool.config_enableNotificationShadeDrag);
         mVibratorHelper = vibratorHelper;
         mMSDLPlayer = msdlPlayer;
-        mVibrateOnOpening = mResources.getBoolean(R.bool.config_vibrateOnIconAnimation);
+        mVibrateOnOpening = false;
         mShadeTouchableRegionManager = shadeTouchableRegionManager;
         mSystemClock = systemClock;
         mKeyguardMediaController = keyguardMediaController;
