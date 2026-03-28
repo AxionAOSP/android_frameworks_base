@@ -447,6 +447,13 @@ public class SettingsProvider extends ContentProvider {
     public Bundle call(String method, String name, Bundle args) {
         final @CanBeCURRENT @UserIdInt int requestingUserId = getRequestingUserId(args);
         final int callingDeviceId = getDeviceId();
+        if (method != null && method.startsWith("GET_")) {
+            String spoofed = getSpoofedValue(name);
+            if (spoofed != null) {
+                return Bundle.forPair(Settings.NameValueTable.VALUE, spoofed);
+            }
+        }
+
         switch (method) {
             case Settings.CALL_METHOD_GET_CONFIG -> {
                 Setting setting = getConfigSetting(name);
@@ -456,10 +463,6 @@ public class SettingsProvider extends ContentProvider {
                         Context.DEVICE_ID_DEFAULT, setting, isTrackingGeneration(args));
             }
             case Settings.CALL_METHOD_GET_GLOBAL -> {
-                String spoofed = getSpoofedValue(name);
-                if (spoofed != null) {
-                    return Bundle.forPair(Settings.NameValueTable.VALUE, spoofed);
-                }
                 Setting setting = getGlobalSetting(name);
                 // Global settings are applicable only for the default device, hence pass
                 // Context.DEVICE_ID_DEFAULT as the deviceId.
@@ -467,10 +470,6 @@ public class SettingsProvider extends ContentProvider {
                         Context.DEVICE_ID_DEFAULT, setting, isTrackingGeneration(args));
             }
             case Settings.CALL_METHOD_GET_SECURE -> {
-                String spoofed = getSpoofedValue(name);
-                if (spoofed != null) {
-                    return Bundle.forPair(Settings.NameValueTable.VALUE, spoofed);
-                }
                 Setting setting = getSecureSetting(name, requestingUserId, callingDeviceId);
                 // If any overridden setting is not available for a virtual device, return the
                 // setting corresponding to the default device.
@@ -482,10 +481,6 @@ public class SettingsProvider extends ContentProvider {
                         callingDeviceId, setting, isTrackingGeneration(args));
             }
             case Settings.CALL_METHOD_GET_SYSTEM -> {
-                String spoofed = getSpoofedValue(name);
-                if (spoofed != null) {
-                    return Bundle.forPair(Settings.NameValueTable.VALUE, spoofed);
-                }
                 Setting setting = getSystemSetting(name, requestingUserId, callingDeviceId);
                 // If any overridden setting is not available for a virtual device, return the
                 // setting corresponding to the default device.
@@ -639,42 +634,17 @@ public class SettingsProvider extends ContentProvider {
                 || callingPackage.startsWith("com.google.android.")) {
             return null;
         }
-
-        if (!Settings.Global.ADB_ENABLED.equals(name)
-                && !Settings.Global.DEVELOPMENT_SETTINGS_ENABLED.equals(name)
-                && !Settings.Global.ADB_WIFI_ENABLED.equals(name)
-                && !"package_verifier_user_consent".equals(name)
-                && !"verify_apps_over_usb".equals(name)
-                && !Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES.equals(name)
-                && !Settings.Secure.DEFAULT_INPUT_METHOD.equals(name)) {
-            return null;
-        }
-
+        
+        String settings = null;
         try {
             AxSandboxManager sandboxManager =
                     getContext().getSystemService(AxSandboxManager.class);
             if (sandboxManager != null) {
-                return sandboxManager.getSpoofedSetting(callingPackage, name, getDatabase(name));
+                settings = sandboxManager.getSpoofedSetting(callingPackage, name);
             }
         } catch (Exception e) {}
-
-        return null;
-    }
-
-    private static String getDatabase(String name) {
-        if (Settings.Global.ADB_ENABLED.equals(name)
-                || Settings.Global.DEVELOPMENT_SETTINGS_ENABLED.equals(name)
-                || Settings.Global.ADB_WIFI_ENABLED.equals(name)
-                || "package_verifier_user_consent".equals(name)
-                || "verify_apps_over_usb".equals(name)) {
-            return "global";
-        }
-        if (Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES.equals(name)
-                || Settings.Secure.DEFAULT_INPUT_METHOD.equals(name)
-                || "development_settings_enabled".equals(name)) {
-            return "secure";
-        }
-        return "system";
+        
+        return settings;
     }
 
     @Override
@@ -702,19 +672,22 @@ public class SettingsProvider extends ContentProvider {
             return new MatrixCursor(normalizedProjection, 0);
         }
 
+        if (args.name != null) {
+            String spoofed = getSpoofedValue(args.name);
+            if (spoofed != null) {
+                synchronized (mLock) {
+                    SettingsState state = mSettingsRegistry.getSettingsLocked(
+                            SettingsState.SETTINGS_TYPE_GLOBAL, UserHandle.USER_SYSTEM, Context.DEVICE_ID_DEFAULT);
+                    SettingsState.Setting s = state.new Setting(args.name, spoofed, true, null, null);
+                    return packageSettingForQuery(s, normalizedProjection);
+                }
+            }
+        }
+
         final int callingDeviceId = getDeviceId();
         switch (args.table) {
             case TABLE_GLOBAL -> {
                 if (args.name != null) {
-                    String spoofed = getSpoofedValue(args.name);
-                    if (spoofed != null) {
-                        synchronized (mLock) {
-                            SettingsState state = mSettingsRegistry.getSettingsLocked(
-                                    SettingsState.SETTINGS_TYPE_GLOBAL, UserHandle.USER_SYSTEM, Context.DEVICE_ID_DEFAULT);
-                            SettingsState.Setting s = state.new Setting(args.name, spoofed, true, null, null);
-                            return packageSettingForQuery(s, normalizedProjection);
-                        }
-                    }
                     Setting setting = getGlobalSetting(args.name);
                     return packageSettingForQuery(setting, normalizedProjection);
                 } else {
@@ -724,15 +697,6 @@ public class SettingsProvider extends ContentProvider {
             case TABLE_SECURE -> {
                 final int userId = UserHandle.getCallingUserId();
                 if (args.name != null) {
-                    String spoofed = getSpoofedValue(args.name);
-                    if (spoofed != null) {
-                        synchronized (mLock) {
-                            SettingsState state = mSettingsRegistry.getSettingsLocked(
-                                    SettingsState.SETTINGS_TYPE_SECURE, userId, callingDeviceId);
-                            SettingsState.Setting s = state.new Setting(args.name, spoofed, true, null, null);
-                            return packageSettingForQuery(s, normalizedProjection);
-                        }
-                    }
                     Setting setting = getSecureSetting(args.name, userId, callingDeviceId);
                     return packageSettingForQuery(setting, normalizedProjection);
                 } else {
@@ -742,15 +706,6 @@ public class SettingsProvider extends ContentProvider {
             case TABLE_SYSTEM -> {
                 final int userId = UserHandle.getCallingUserId();
                 if (args.name != null) {
-                    String spoofed = getSpoofedValue(args.name);
-                    if (spoofed != null) {
-                        synchronized (mLock) {
-                            SettingsState state = mSettingsRegistry.getSettingsLocked(
-                                    SettingsState.SETTINGS_TYPE_SYSTEM, userId, callingDeviceId);
-                            SettingsState.Setting s = state.new Setting(args.name, spoofed, true, null, null);
-                            return packageSettingForQuery(s, normalizedProjection);
-                        }
-                    }
                     Setting setting = getSystemSetting(args.name, userId, callingDeviceId);
                     return packageSettingForQuery(setting, normalizedProjection);
                 } else {

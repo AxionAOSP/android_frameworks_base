@@ -363,23 +363,6 @@ public class AxSandboxManager {
         }
     }
 
-    /** @hide */
-    public boolean isSandboxSettingsSpoofEnabled(@NonNull String packageName) {
-        try {
-            return mService.isSandboxSettingsSpoofEnabled(packageName);
-        } catch (RemoteException e) {
-            throw e.rethrowFromSystemServer();
-        }
-    }
-
-    /** @hide */
-    public void setSandboxSettingsSpoofEnabled(@NonNull String packageName, boolean enabled) {
-        try {
-            mService.setSandboxSettingsSpoofEnabled(packageName, enabled);
-        } catch (RemoteException e) {
-            throw e.rethrowFromSystemServer();
-        }
-    }
 
     /** @hide */
     public boolean isSandboxDataIsolationEnabled(@NonNull String packageName) {
@@ -400,18 +383,18 @@ public class AxSandboxManager {
     }
 
     /** @hide */
-    public boolean isSpoofSettingEnabled(@NonNull String packageName, @NonNull String settingKey, @NonNull String database) {
+    public boolean isSpoofSettingEnabled(@NonNull String packageName, @NonNull String settingKey) {
         try {
-            return mService.isSpoofSettingEnabled(packageName, settingKey, database);
+            return mService.isSpoofSettingEnabled(packageName, settingKey);
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
     }
 
     /** @hide */
-    public void setSpoofSettingEnabled(@NonNull String packageName, @NonNull String settingKey, @NonNull String database, boolean enabled) {
+    public void setSpoofSettingEnabled(@NonNull String packageName, @NonNull String settingKey, boolean enabled) {
         try {
-            mService.setSpoofSettingEnabled(packageName, settingKey, database, enabled);
+            mService.setSpoofSettingEnabled(packageName, settingKey, enabled);
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }
@@ -429,9 +412,9 @@ public class AxSandboxManager {
 
     /** @hide */
     @Nullable
-    public String getSpoofedSetting(@NonNull String callingPackage, @NonNull String settingName, @NonNull String database) {
+    public String getSpoofedSetting(@NonNull String callingPackage, @NonNull String settingName) {
         try {
-            return mService.getSpoofedSetting(callingPackage, settingName, database);
+            return mService.getSpoofedSetting(callingPackage, settingName);
         } catch (RemoteException e) {
             throw e.rethrowFromSystemServer();
         }

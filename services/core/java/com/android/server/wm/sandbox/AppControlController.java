@@ -54,7 +54,6 @@ public class AppControlController {
     private static final String KEY_SANDBOXED_PKGS = "sandboxed_pkgs";
     private static final String KEY_HIDEDEVOPTS_PKGS = "hidedevopts_pkgs";
     private static final String KEY_GID_RESTRICTIONS = "gid_restrictions";
-    private static final String KEY_SETTINGS_SPOOF = "settings_spoof_pkgs";
     private static final String KEY_SPOOF_SETTINGS_MAP = "spoof_settings_map";
     private static final String KEY_DATA_ISOLATION = "data_isolation_pkgs";
 
@@ -69,7 +68,6 @@ public class AppControlController {
     private final Set<String> mSandboxedPackages = new HashSet<>();
     private final Set<String> mHideDevOptsPackages = new HashSet<>();
     private final Map<String, int[]> mGidRestrictions = new HashMap<>();
-    private final Set<String> mSettingsSpoofPackages = new HashSet<>();
     private final Map<String, Set<String>> mSpoofSettingsMap = new HashMap<>();
     private final Set<String> mDataIsolationPackages = new HashSet<>();
 
@@ -124,7 +122,6 @@ public class AppControlController {
             mSandboxedPackages.clear();
             mHideDevOptsPackages.clear();
             mGidRestrictions.clear();
-            mSettingsSpoofPackages.clear();
             mSpoofSettingsMap.clear();
             mDataIsolationPackages.clear();
 
@@ -136,7 +133,6 @@ public class AppControlController {
                     loadPackageSet(config, KEY_HIDDEN_PKGS, mHiddenPackages);
                     loadPackageSet(config, KEY_SANDBOXED_PKGS, mSandboxedPackages);
                     loadPackageSet(config, KEY_HIDEDEVOPTS_PKGS, mHideDevOptsPackages);
-                    loadPackageSet(config, KEY_SETTINGS_SPOOF, mSettingsSpoofPackages);
                     loadSpoofSettingsMap(config);
                     loadPackageSet(config, KEY_DATA_ISOLATION, mDataIsolationPackages);
                     loadGidRestrictions(config);
@@ -174,7 +170,6 @@ public class AppControlController {
                 config.put(KEY_HIDDEN_PKGS, new JSONArray(mHiddenPackages));
                 config.put(KEY_SANDBOXED_PKGS, new JSONArray(mSandboxedPackages));
                 config.put(KEY_HIDEDEVOPTS_PKGS, new JSONArray(mHideDevOptsPackages));
-                config.put(KEY_SETTINGS_SPOOF, new JSONArray(mSettingsSpoofPackages));
                 saveSpoofSettingsMap(config);
                 config.put(KEY_DATA_ISOLATION, new JSONArray(mDataIsolationPackages));
                 saveGidRestrictions(config);
@@ -473,33 +468,20 @@ public class AppControlController {
     public boolean isSettingsSpoofEnabled(String packageName) {
         if (TextUtils.isEmpty(packageName)) return false;
         synchronized (this) {
-            return mSettingsSpoofPackages.contains(packageName);
+            return mSpoofSettingsMap.containsKey(packageName);
         }
     }
 
-    public void setSettingsSpoofEnabled(String packageName, boolean enabled) {
-        if (TextUtils.isEmpty(packageName)) return;
-        synchronized (this) {
-            boolean changed = enabled ? mSettingsSpoofPackages.add(packageName)
-                                      : mSettingsSpoofPackages.remove(packageName);
-            if (changed) saveConfigToSettings();
-        }
-    }
-
-    public boolean isSpoofSettingEnabled(String packageName, String settingKey, String database) {
-        if (TextUtils.isEmpty(packageName) || TextUtils.isEmpty(settingKey)
-                || TextUtils.isEmpty(database)) return false;
+    public boolean isSpoofSettingEnabled(String packageName, String settingKey) {
+        if (TextUtils.isEmpty(packageName) || TextUtils.isEmpty(settingKey)) return false;
         synchronized (this) {
             Set<String> settings = mSpoofSettingsMap.get(packageName);
-            return settings != null && settings.contains(database + ":" + settingKey);
+            return settings != null && settings.contains(settingKey);
         }
     }
 
-    public void setSpoofSettingEnabled(String packageName, String settingKey,
-            String database, boolean enabled) {
-        if (TextUtils.isEmpty(packageName) || TextUtils.isEmpty(settingKey)
-                || TextUtils.isEmpty(database)) return;
-        String key = database + ":" + settingKey;
+    public void setSpoofSettingEnabled(String packageName, String settingKey, boolean enabled) {
+        if (TextUtils.isEmpty(packageName) || TextUtils.isEmpty(settingKey)) return;
         synchronized (this) {
             Set<String> settings = mSpoofSettingsMap.get(packageName);
             boolean changed;
@@ -508,23 +490,15 @@ public class AppControlController {
                     settings = new HashSet<>();
                     mSpoofSettingsMap.put(packageName, settings);
                 }
-                changed = settings.add(key);
+                changed = settings.add(settingKey);
             } else {
                 if (settings == null) return;
-                changed = settings.remove(key);
+                changed = settings.remove(settingKey);
                 if (settings.isEmpty()) {
                     mSpoofSettingsMap.remove(packageName);
                 }
             }
-            if (changed) {
-                boolean hasAny = mSpoofSettingsMap.containsKey(packageName);
-                if (hasAny && !mSettingsSpoofPackages.contains(packageName)) {
-                    mSettingsSpoofPackages.add(packageName);
-                } else if (!hasAny) {
-                    mSettingsSpoofPackages.remove(packageName);
-                }
-                saveConfigToSettings();
-            }
+            if (changed) saveConfigToSettings();
         }
     }
 

@@ -421,17 +421,6 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
     }
 
     @Override
-    public boolean isSandboxSettingsSpoofEnabled(String packageName) {
-        if (mAppControlController == null) return false;
-        return mAppControlController.isSettingsSpoofEnabled(packageName);
-    }
-
-    @Override
-    public void setSandboxSettingsSpoofEnabled(String packageName, boolean enabled) {
-        mAppControlController.setSettingsSpoofEnabled(packageName, enabled);
-    }
-
-    @Override
     public boolean isSandboxDataIsolationEnabled(String packageName) {
         if (mAppControlController == null) return false;
         return mAppControlController.isDataIsolationEnabled(packageName);
@@ -443,15 +432,14 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
     }
 
     @Override
-    public boolean isSpoofSettingEnabled(String packageName, String settingKey, String database) {
+    public boolean isSpoofSettingEnabled(String packageName, String settingKey) {
         if (mAppControlController == null) return false;
-        return mAppControlController.isSpoofSettingEnabled(packageName, settingKey, database);
+        return mAppControlController.isSpoofSettingEnabled(packageName, settingKey);
     }
 
     @Override
-    public void setSpoofSettingEnabled(String packageName, String settingKey,
-            String database, boolean enabled) {
-        mAppControlController.setSpoofSettingEnabled(packageName, settingKey, database, enabled);
+    public void setSpoofSettingEnabled(String packageName, String settingKey, boolean enabled) {
+        mAppControlController.setSpoofSettingEnabled(packageName, settingKey, enabled);
     }
 
     @Override
@@ -461,13 +449,12 @@ public class AxSandboxService extends IAxSandboxManager.Stub implements IAxSandb
     }
 
     @Override
-    public String getSpoofedSetting(String callingPackage, String settingName, String database) {
+    public String getSpoofedSetting(String callingPackage, String settingName) {
         if (mAppControlController == null) return null;
-        if (!mAppControlController.isPackageSandboxed(callingPackage)) return null;
-        if (!mAppControlController.isSpoofSettingEnabled(callingPackage, settingName, database)) {
+        if (!mAppControlController.isSpoofSettingEnabled(callingPackage, settingName)) {
             return null;
         }
-        return SettingsSpoofController.getSpoofedValue(settingName, database);
+        return SettingsSpoofController.getSpoofedValue(settingName);
     }
 
     @Override

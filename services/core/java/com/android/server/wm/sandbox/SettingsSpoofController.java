@@ -20,27 +20,21 @@ import java.util.Map;
 
 public class SettingsSpoofController {
 
-    private static final Map<String, String> SPOOFED_GLOBAL = new HashMap<>();
-    private static final Map<String, String> SPOOFED_SECURE = new HashMap<>();
+    private static final Map<String, String> SPOOFED_SETTINGS = new HashMap<>();
 
     static {
-        SPOOFED_GLOBAL.put("adb_enabled", "0");
-        SPOOFED_GLOBAL.put("development_settings_enabled", "0");
-        SPOOFED_GLOBAL.put("adb_wifi_enabled", "0");
-        SPOOFED_GLOBAL.put("package_verifier_user_consent", "0");
-        SPOOFED_GLOBAL.put("verify_apps_over_usb", "0");
-        SPOOFED_SECURE.put("development_settings_enabled", "0");
+        SPOOFED_SETTINGS.put("adb_enabled", "0");
+        SPOOFED_SETTINGS.put("development_settings_enabled", "0");
+        SPOOFED_SETTINGS.put("adb_wifi_enabled", "0");
+        SPOOFED_SETTINGS.put("package_verifier_user_consent", "0");
+        SPOOFED_SETTINGS.put("verify_apps_over_usb", "0");
+        SPOOFED_SETTINGS.put("accessibility_enabled", "0");
+        SPOOFED_SETTINGS.put("enabled_accessibility_services", "");
+        SPOOFED_SETTINGS.put("accessibility_display_inversion_enabled", "0");
     }
 
-    public static String getSpoofedValue(String settingName, String database) {
-        if (settingName == null || database == null) return null;
-        switch (database) {
-            case "global":
-                return SPOOFED_GLOBAL.get(settingName);
-            case "secure":
-                return SPOOFED_SECURE.get(settingName);
-            default:
-                return null;
-        }
+    public static String getSpoofedValue(String settingName) {
+        if (settingName == null) return null;
+        return SPOOFED_SETTINGS.get(settingName);
     }
 }
