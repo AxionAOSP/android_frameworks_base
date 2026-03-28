@@ -20,7 +20,6 @@ import com.android.systemui.axdynamicbar.model.IslandEvent
 import com.android.systemui.axdynamicbar.model.RecordingState
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
-import com.android.systemui.statusbar.notification.headsup.HeadsUpManager
 import com.android.systemui.util.ScrimUtils
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -38,7 +37,6 @@ class NotificationIslandManager
 constructor(
     @Application private val context: Context,
     @Application private val applicationScope: CoroutineScope,
-    private val headsUpManager: HeadsUpManager,
 ) {
     companion object {
         private const val TAG = "NotificationIslandManager"
@@ -129,6 +127,8 @@ constructor(
 
     var activeMediaPackageProvider: (() -> String?)? = null
 
+    private val seenNotificationKeys = mutableSetOf<String>()
+
     var onTimerEvent: ((IslandEvent.Timer) -> Unit)? = null
     var onAlarmEvent: ((IslandEvent.Alarm) -> Unit)? = null
     var onNotificationPosted: ((IslandEvent.Notification) -> Unit)? = null
@@ -145,6 +145,7 @@ constructor(
         object : ScrimUtils.ScrimEventListener {
             override fun onNotificationRemoved(sbn: StatusBarNotification) {
                 val pkg = sbn.packageName ?: return
+                seenNotificationKeys.remove(sbn.key)
 
                 if (sbn.key == timerNotificationKey) {
                     timerNotificationKey = null
@@ -348,16 +349,6 @@ constructor(
                     return
                 }
 
-                val notifFlags = sbn.notification?.flags ?: 0
-                if (notifFlags and Notification.FLAG_GROUP_SUMMARY != 0) return
-                val groupKey = if (sbn.isGroup) sbn.groupKey else null
-
-                val title = extras.getString("android.title")
-                val text =
-                    extras.getCharSequence("android.bigText")?.toString()?.takeIf {
-                        it.isNotEmpty()
-                    } ?: extras.getString("android.text")
-
                 val indeterminate = extras.getBoolean("android.progressIndeterminate", false)
                 val progressRaw = extras.getInt("android.progress", -1)
                 val progressMax = extras.getInt("android.progressMax", 0)
@@ -377,6 +368,18 @@ constructor(
                 if (category == Notification.CATEGORY_TRANSPORT) return
                 if (category == Notification.CATEGORY_SERVICE && !hasProgress) return
                 if (sbn.packageName == activeMediaPackageProvider?.invoke()) return
+
+                val notifFlags = sbn.notification?.flags ?: 0
+                if (notifFlags and Notification.FLAG_GROUP_SUMMARY != 0) return
+                val groupKey = if (sbn.isGroup) sbn.groupKey else null
+
+                val title = extras.getString("android.title")
+                val text =
+                    extras.getCharSequence("android.bigText")?.toString()?.takeIf {
+                        it.isNotEmpty()
+                    } ?: extras.getString("android.text")
+
+                if (!seenNotificationKeys.add(sbn.key)) return
 
                 val icon =
                     try {
@@ -494,9 +497,7 @@ constructor(
                         groupKey = groupKey,
                         notificationImage = notificationImage,
                     )
-                if (headsUpManager.isHeadsUpEntry(sbn.key)) {
-                    applicationScope.launch { notificationFlow.emit(event) }
-                }
+                applicationScope.launch { notificationFlow.emit(event) }
                 onNotificationPosted?.invoke(event)
             }
         }
@@ -511,6 +512,7 @@ constructor(
         if (!listening) return
         listening = false
         ScrimUtils.get().removeListener(scrimListener)
+        seenNotificationKeys.clear()
         timerJob?.cancel()
         timerJob = null
         _timerEvent.value = null
