@@ -42,7 +42,8 @@ data class BundleSpec(
     @Adjustment.Types val bundleType: Int,
 ) {
     companion object {
-        private const val ESSENTIAL_KEY = "ax_essential"
+        @JvmField
+        val ESSENTIAL_KEY = "ax_essential"
 
         val ESSENTIAL =
             BundleSpec(

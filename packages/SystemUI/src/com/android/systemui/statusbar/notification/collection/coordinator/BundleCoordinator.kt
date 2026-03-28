@@ -54,6 +54,7 @@ import com.android.systemui.statusbar.notification.stack.BUCKET_NEWS
 import com.android.systemui.statusbar.notification.stack.BUCKET_PROMO
 import com.android.systemui.statusbar.notification.stack.BUCKET_RECS
 import com.android.systemui.statusbar.notification.stack.BUCKET_SOCIAL
+import com.android.systemui.statusbar.notification.headsup.HeadsUpManager
 import com.android.systemui.util.time.SystemClock
 import com.axion.systemui.statusbar.notification.collection.provider.EssentialProvider
 import javax.inject.Inject
@@ -74,6 +75,7 @@ constructor(
     @Application private val coroutineScope: CoroutineScope,
     @Bundles private val onboardingAffordanceManager: OnboardingAffordanceManager,
     private val essentialProvider: EssentialProvider,
+    private val headsUpManager: HeadsUpManager,
 ) : Coordinator {
 
     val newsSectioner =
@@ -120,6 +122,13 @@ constructor(
             }
         }
 
+    val essentialSectioner =
+        object : NotifSectioner("Essential", BUCKET_ESSENTIAL) {
+            override fun isInSection(entry: PipelineEntry): Boolean {
+                return entry is BundleEntry && entry.key == BundleSpec.ESSENTIAL.key
+            }
+        }
+
     val bundler =
         object : NotifBundler("NotifBundler") {
             // Use list instead of set to keep fixed order
@@ -139,6 +148,7 @@ constructor(
              */
             override fun getBundleIdOrNull(entry: ListEntry): String? {
                 if (isEssentialEntry(entry)) {
+                    if (isHeadsUpEntry(entry)) return null
                     return BundleSpec.ESSENTIAL.key
                 }
                 if (isFromDebugApp(entry)) {
@@ -153,6 +163,15 @@ constructor(
                     return getBundleIdForNotifEntry(summary)
                 }
                 return getBundleIdForNotifEntry(entry as NotificationEntry)
+            }
+
+            private fun isHeadsUpEntry(entry: ListEntry): Boolean {
+                if (entry is GroupEntry) {
+                    return entry.children.any { child ->
+                        headsUpManager.isHeadsUpEntry(child.key)
+                    }
+                }
+                return headsUpManager.isHeadsUpEntry(entry.key)
             }
 
             private fun isEssentialEntry(entry: ListEntry): Boolean {
