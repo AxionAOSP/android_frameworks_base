@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeightIn
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.shape.CircleShape
@@ -391,7 +392,7 @@ constructor(
                         remember(currentDensity) {
                             Density(
                                 density = AX_QS_DENSITY_THRESHOLD,
-                                fontScale = currentDensity.fontScale.coerceAtMost(AX_QS_FONT_SCALE_THRESHOLD),
+                                fontScale = AX_QS_FONT_SCALE_THRESHOLD,
                             )
                         }
                     CompositionLocalProvider(
@@ -894,9 +895,14 @@ constructor(
                                 ),
                         contentAlignment = Alignment.TopCenter,
                     ) {
-                        val sideMargin = if (viewModel.isTabletPortrait) 0.dp else AX_QS_SIDE_MARGIN
+                        val isTabletPortrait = viewModel.isTabletPortrait
+                        val maxWidth = if (isTabletPortrait) {
+                            Dp.Unspecified
+                        } else {
+                            AX_QS_CONTENT_MAX_WIDTH
+                        }
                         Box(
-                            modifier = Modifier.padding(horizontal = sideMargin)
+                            modifier = Modifier.widthIn(max = maxWidth)
                         ) {
                             QuickQuickSettingsLayout(
                                 brightness = BrightnessSliderConfig(viewModel, BrightnessSlider),
@@ -1026,9 +1032,14 @@ constructor(
                                     .padding(top = QuickSettingsShade.Dimensions.Padding),
                             contentAlignment = Alignment.TopCenter,
                         ) {
-                            val sideMargin = if (viewModel.isTabletPortrait) 0.dp else AX_QS_SIDE_MARGIN
+                            val isTabletPortrait = viewModel.isTabletPortrait
+                            val maxWidth = if (isTabletPortrait) {
+                                Dp.Unspecified
+                            } else {
+                                AX_QS_CONTENT_MAX_WIDTH
+                            }
                             Box(
-                                modifier = Modifier.padding(horizontal = sideMargin)
+                                modifier = Modifier.widthIn(max = maxWidth)
                             ) {
                                 QuickSettingsLayout(
                                     brightness = BrightnessSliderConfig(viewModel, BrightnessSlider),
@@ -1340,8 +1351,7 @@ private const val EDIT_MODE_TIME_MILLIS = 400
 
 private const val AX_QS_DENSITY_THRESHOLD = 2.688f
 private const val AX_QS_FONT_SCALE_THRESHOLD = 1.0f
-
-private val AX_QS_SIDE_MARGIN = 16.dp
+private val AX_QS_CONTENT_MAX_WIDTH = 376.dp
 
 /**
  * Performs different touch handling based on the state of the ComposeView:

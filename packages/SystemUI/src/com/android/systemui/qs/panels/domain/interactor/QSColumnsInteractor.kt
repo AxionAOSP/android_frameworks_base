@@ -27,7 +27,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -39,18 +38,12 @@ constructor(
     repo: QSColumnsRepository,
     shadeModeInteractor: ShadeModeInteractor,
 ) {
-    private companion object {
-        const val AX_MAX_QS_COLUMNS = 4
-    }
-
     val columns: StateFlow<Int> =
         shadeModeInteractor.shadeMode
             .flatMapLatest {
                 when (it) {
                     ShadeMode.Dual -> repo.dualShadeColumns
-                    ShadeMode.Split -> repo.splitShadeColumns.mapLatest { cols ->
-                        cols.coerceAtMost(AX_MAX_QS_COLUMNS)
-                    }
+                    ShadeMode.Split -> repo.splitShadeColumns
                     ShadeMode.Single -> repo.columns
                 }
             }
