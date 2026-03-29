@@ -331,7 +331,8 @@ public class InternetDialogDelegateLegacy implements
         mWifiRecyclerView.setAdapter(mAdapter);
 
         ComposeView extrasCompose = mDialogView.requireViewById(R.id.internet_extras_compose);
-        InternetDetailsContentKt.setupExtrasComposeView(mDialogView, extrasCompose, mExtrasViewModel);
+        InternetDetailsContentKt.setupExtrasComposeView(
+                mDialogView, extrasCompose, mExtrasViewModel, mCanConfigMobileData, mCanConfigWifi);
 
         updateDialogUI(getWifiNetworkContent());
     }

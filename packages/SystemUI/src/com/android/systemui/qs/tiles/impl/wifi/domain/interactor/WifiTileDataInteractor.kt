@@ -62,8 +62,6 @@ constructor(
     @Application private val scope: CoroutineScope,
     airplaneModeRepository: AirplaneModeRepository,
     private val connectivityRepository: ConnectivityRepository,
-    mobileIconsInteractor: MobileIconsInteractor,
-    mobileContextProvider: MobileContextProvider,
     val wifiInteractor: WifiInteractor,
     private val dataUsageRepository: DataUsageRepository,
 ) : QSTileDataInteractor<WifiTileModel> {
@@ -87,98 +85,6 @@ constructor(
                     )
                 )
             }
-        }
-
-    private val mobileDataContentName: Flow<CharSequence?> =
-        mobileIconsInteractor.activeDataIconInteractor.flatMapLatest {
-            if (it == null) {
-                flowOf(null)
-            } else {
-                combine(it.isRoaming, it.networkTypeIconGroup) { isRoaming, networkTypeIconGroup ->
-                    val mobileContext =
-                        mobileContextProvider.getMobileContextForSub(it.subscriptionId, context)
-                    val cd = loadString(networkTypeIconGroup.contentDescription, mobileContext)
-                    if (isRoaming) {
-                        val roaming = mobileContext.getString(R.string.data_connection_roaming)
-                        if (cd != null) {
-                            mobileContext.getString(R.string.mobile_data_text_format, roaming, cd)
-                        } else {
-                            roaming
-                        }
-                    } else {
-                        cd
-                    }
-                }
-            }
-        }
-
-    private val mobileDescriptionFlow: Flow<CharSequence> =
-        mobileIconsInteractor.activeDataIconInteractor.flatMapLatest {
-            if (it == null) {
-                notConnectedDescriptionFlow
-            } else {
-                it.isDataConnected.flatMapLatest { isConnected ->
-                    if (!isConnected) {
-                        notConnectedDescriptionFlow
-                    } else {
-                        combine(it.networkName, it.signalLevelIcon, mobileDataContentName) {
-                                networkNameModel,
-                                signalIcon,
-                                dataContentDescription ->
-                                Triple(networkNameModel, signalIcon, dataContentDescription)
-                            }
-                            .mapLatestConflated {
-                                (networkNameModel, signalIcon, dataContentDescription) ->
-                                when (signalIcon) {
-                                    is SignalIconModel.Cellular -> {
-                                        mobileDataContentConcat(
-                                            networkNameModel.name,
-                                            dataContentDescription,
-                                        )
-                                    }
-                                    is SignalIconModel.Satellite -> {
-                                        val satelliteDescription =
-                                            signalIcon.icon.contentDescription
-                                                ?.loadContentDescription(context)
-                                        if (satelliteDescription.isNullOrBlank()) {
-                                            notConnectedDescriptionFlow.value
-                                        } else {
-                                            satelliteDescription
-                                        }
-                                    }
-                                }
-                            }
-                    }
-                }
-            }
-        }
-
-    private fun mobileDataContentConcat(
-        networkName: String?,
-        dataContentDescription: CharSequence?,
-    ): CharSequence {
-        if (dataContentDescription == null) {
-            return networkName ?: ""
-        }
-        if (networkName == null) {
-            return Html.fromHtml(dataContentDescription.toString(), 0)
-        }
-
-        return Html.fromHtml(
-            context.getString(
-                R.string.mobile_carrier_text_format,
-                networkName,
-                dataContentDescription,
-            ),
-            0,
-        )
-    }
-
-    private fun loadString(@StringRes resId: Int, context: Context): CharSequence? =
-        if (resId != 0) {
-            context.getString(resId)
-        } else {
-            null
         }
 
     private val notConnectedDescriptionFlow: StateFlow<CharSequence> =
@@ -215,15 +121,15 @@ constructor(
                 wifiInteractor.wifiToggleState,
                 wifiInteractor.isEnabled,
                 wifiIconFlow,
-                mobileDescriptionFlow,
-            ) { defaultConnections, toggleState, isEnabled, wifiModel, mobileDescription ->
+                notConnectedDescriptionFlow,
+            ) { defaultConnections, toggleState, isEnabled, wifiModel, notConnectedDescription ->
                 WifiTileIntermediate(
-                    defaultConnections, toggleState, isEnabled, wifiModel, mobileDescription
+                    defaultConnections, toggleState, isEnabled, wifiModel, notConnectedDescription
                 )
             },
             dataUsageRepository.wifiUsageFormatted,
         ) { intermediate, wifiUsage ->
-            val (defaultConnections, toggleState, isEnabled, wifiModel, mobileDescription) =
+            val (defaultConnections, toggleState, isEnabled, wifiModel, notConnectedDescription) =
                 intermediate
 
             if (defaultConnections.ethernet.isDefault) {
@@ -249,7 +155,7 @@ constructor(
             if (toggleState == WifiToggleState.Pausing) {
                 return@combine WifiTileModel.Inactive(
                     icon = WifiTileIconModel(WifiIcons.WIFI_NO_SIGNAL),
-                    secondaryLabel = mobileDescription,
+                    secondaryLabel = notConnectedDescription,
                 )
             } else if (toggleState == WifiToggleState.Scanning) {
                 return@combine WifiTileModel.Active(
@@ -274,9 +180,9 @@ constructor(
                             R.drawable.ic_signal_wifi_off
                         }
                     ),
-                secondaryLabel = mobileDescription,
+                secondaryLabel = notConnectedDescription,
             )
-        }
+        }.onStart { dataUsageRepository.refresh() }
 
     override fun availability(user: UserHandle): Flow<Boolean> = flowOf(isAvailable())
 
@@ -287,7 +193,7 @@ constructor(
         val toggleState: WifiToggleState,
         val isEnabled: Boolean,
         val wifiModel: WifiTileModel,
-        val mobileDescription: CharSequence,
+        val notConnectedDescription: CharSequence,
     )
 
     private companion object {
@@ -297,11 +203,5 @@ constructor(
                 string.substring(1, string.length - 1)
             } else string
         }
-
-        fun ContentDescription.toText(): Text =
-            when (this) {
-                is ContentDescription.Loaded -> Text.Loaded(this.description)
-                is ContentDescription.Resource -> Text.Resource(this.res)
-            }
     }
 }

@@ -25,6 +25,7 @@ import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
 import com.android.systemui.qs.tiles.base.shared.model.QSTileState
 import com.android.systemui.qs.tiles.base.ui.model.QSTileDataToStateMapper
+import com.android.systemui.qs.tiles.dialog.DataUsageRepository
 import com.android.systemui.qs.tiles.impl.cell.domain.model.MobileDataTileIcon
 import com.android.systemui.qs.tiles.impl.cell.domain.model.MobileDataTileModel
 import com.android.systemui.res.R
@@ -61,7 +62,23 @@ constructor(
                 }
             }
 
-            secondaryLabel = data.dataUsageSummary
+            val statusLabel =
+                if (data.isSimActive) {
+                    if (data.isEnabled) {
+                        data.networkName ?: resources.getString(R.string.mobile_data_connection_active)
+                    } else {
+                        resources.getString(R.string.cell_data_off)
+                    }
+                } else {
+                    resources.getString(R.string.quick_settings_networks_unavailable)
+                }
+
+            secondaryLabel =
+                if (data.isSimActive && data.isEnabled) {
+                    DataUsageRepository.appendUsage(statusLabel, data.dataUsageSummary)
+                } else {
+                    null
+                }
             contentDescription = "$label".toString()
             activationState =
                 if (data.isSimActive) {

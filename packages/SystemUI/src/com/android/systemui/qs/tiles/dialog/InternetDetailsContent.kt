@@ -56,22 +56,28 @@ fun setupExtrasComposeView(
     rootView: View,
     composeView: ComposeView,
     viewModel: InternetTileExtrasViewModel,
+    canConfigMobileData: Boolean,
+    canConfigWifi: Boolean,
 ) {
     ComposeInitializer.onAttachedToWindow(rootView)
     composeView.setContent {
         PlatformTheme {
-            InternetDialogExtras(viewModel)
+            InternetDialogExtras(viewModel, canConfigMobileData, canConfigWifi)
         }
     }
 }
 
 @Composable
-fun InternetDialogExtras(viewModel: InternetTileExtrasViewModel) {
+fun InternetDialogExtras(
+    viewModel: InternetTileExtrasViewModel,
+    canConfigMobileData: Boolean,
+    canConfigWifi: Boolean,
+) {
     DisposableEffect(viewModel) {
         viewModel.start()
         onDispose { viewModel.stop() }
     }
-    InternetTileExtras(viewModel)
+    InternetTileExtras(viewModel, canConfigMobileData, canConfigWifi)
 }
 
 @Composable
@@ -94,7 +100,11 @@ fun InternetDetailsContent(viewModel: InternetDetailsViewModel) {
 
             view.findViewById<ComposeView>(R.id.internet_extras_compose).setContent {
                 PlatformTheme {
-                    InternetTileExtras(extrasVm)
+                    InternetTileExtras(
+                        extrasVm,
+                        viewModel.canConfigMobileData,
+                        viewModel.canConfigWifi,
+                    )
                 }
             }
 
@@ -106,29 +116,46 @@ fun InternetDetailsContent(viewModel: InternetDetailsViewModel) {
 }
 
 @Composable
-private fun InternetTileExtras(viewModel: InternetTileExtrasViewModel) {
+private fun InternetTileExtras(
+    viewModel: InternetTileExtrasViewModel,
+    canConfigMobileData: Boolean,
+    canConfigWifi: Boolean,
+) {
     val hotspotAvailable by viewModel.hotspotAvailable.collectAsState()
     val hotspotEnabled by viewModel.hotspotEnabled.collectAsState()
     val fiveGAvailable by viewModel.fiveGAvailable.collectAsState()
     val fiveGEnabled by viewModel.fiveGEnabled.collectAsState()
     val mobileUsage by viewModel.mobileDataUsage.collectAsState()
     val wifiUsage by viewModel.wifiDataUsage.collectAsState()
+    val mobileCarrier by viewModel.mobileCarrier.collectAsState()
+    val wifiSsid by viewModel.wifiSsid.collectAsState()
 
-    val hasUsage = mobileUsage != null || wifiUsage != null
-    val hasToggles = hotspotAvailable || fiveGAvailable
+    val showMobileUsage = mobileUsage != null && canConfigMobileData
+    val showWifiUsage = wifiUsage != null && canConfigWifi
+
+    val showFiveG = fiveGAvailable && canConfigMobileData
+    val showHotspot = hotspotAvailable && canConfigMobileData
+
+    val hasUsage = showMobileUsage || showWifiUsage
+    val hasToggles = showFiveG || showHotspot
 
     if (!hasUsage && !hasToggles) return
 
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = MARGIN_H)) {
         if (hasUsage) {
-            DataUsageSummary(mobileUsage = mobileUsage, wifiUsage = wifiUsage)
+            DataUsageSummary(
+                mobileUsage = if (canConfigMobileData) mobileUsage else null,
+                wifiUsage = if (canConfigWifi) wifiUsage else null,
+                mobileCarrier = mobileCarrier,
+                wifiSsid = wifiSsid,
+            )
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.outlineVariant,
                 modifier = Modifier.padding(horizontal = PADDING_H),
             )
         }
 
-        if (fiveGAvailable) {
+        if (showFiveG) {
             ToggleRow(
                 iconRes = R.drawable.ic_5g_toggle,
                 label = "5G",
@@ -137,7 +164,7 @@ private fun InternetTileExtras(viewModel: InternetTileExtrasViewModel) {
             )
         }
 
-        if (hotspotAvailable) {
+        if (showHotspot) {
             ToggleRow(
                 iconRes = R.drawable.ic_hotspot,
                 label = stringResource(R.string.quick_settings_hotspot_label),
@@ -152,6 +179,8 @@ private fun InternetTileExtras(viewModel: InternetTileExtrasViewModel) {
 private fun DataUsageSummary(
     mobileUsage: String?,
     wifiUsage: String?,
+    mobileCarrier: String?,
+    wifiSsid: String?,
 ) {
     Row(
         modifier = Modifier
@@ -164,7 +193,7 @@ private fun DataUsageSummary(
         if (mobileUsage != null) {
             DataUsageItem(
                 iconRes = SettingsLibR.drawable.ic_mobile_4_4_bar,
-                label = stringResource(R.string.quick_settings_cellular_detail_title),
+                label = mobileCarrier ?: stringResource(R.string.quick_settings_cellular_detail_title),
                 usage = mobileUsage,
                 modifier = Modifier.weight(1f),
             )
@@ -172,7 +201,7 @@ private fun DataUsageSummary(
         if (wifiUsage != null) {
             DataUsageItem(
                 iconRes = SettingsLibR.drawable.ic_wifi_3,
-                label = stringResource(R.string.quick_settings_wifi_label),
+                label = wifiSsid ?: stringResource(R.string.quick_settings_wifi_label),
                 usage = wifiUsage,
                 modifier = Modifier.weight(1f),
             )

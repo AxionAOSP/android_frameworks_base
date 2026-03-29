@@ -19,6 +19,7 @@ package com.android.systemui.qs.tiles.dialog
 import android.net.NetworkStats
 import android.content.Context
 import android.net.NetworkTemplate
+import android.net.wifi.WifiManager
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import com.android.settingslib.net.DataUsageController
@@ -43,14 +44,22 @@ class DataUsageRepository @Inject constructor(
     private val wifiDataUsageController = DataUsageController(context)
     private val telephonyManager =
         context.getSystemService(TelephonyManager::class.java)
+    private val wifiManager =
+        context.getSystemService(WifiManager::class.java)
 
     private val wifiTemplate = NetworkTemplate.Builder(NetworkTemplate.MATCH_WIFI).build()
 
     private val _mobileUsageFormatted = MutableStateFlow<String?>(null)
     val mobileUsageFormatted: StateFlow<String?> = _mobileUsageFormatted.asStateFlow()
 
+    private val _mobileCarrier = MutableStateFlow<String?>(null)
+    val mobileCarrier: StateFlow<String?> = _mobileCarrier.asStateFlow()
+
     private val _wifiUsageFormatted = MutableStateFlow<String?>(null)
     val wifiUsageFormatted: StateFlow<String?> = _wifiUsageFormatted.asStateFlow()
+
+    private val _wifiSsid = MutableStateFlow<String?>(null)
+    val wifiSsid: StateFlow<String?> = _wifiSsid.asStateFlow()
 
     init {
         refresh()
@@ -77,13 +86,16 @@ class DataUsageRepository @Inject constructor(
                 )
                 Log.d(TAG, "mobile usage: ${info.usageLevel} bytes -> $formatted")
                 _mobileUsageFormatted.value = formatted
+                _mobileCarrier.value = info.carrier
             } else {
                 Log.d(TAG, "mobile usage: info=${info != null}, level=${info?.usageLevel}")
                 _mobileUsageFormatted.value = null
+                _mobileCarrier.value = null
             }
         } catch (e: Exception) {
             Log.e(TAG, "queryMobileUsage failed", e)
             _mobileUsageFormatted.value = null
+            _mobileCarrier.value = null
         }
     }
 
@@ -97,25 +109,29 @@ class DataUsageRepository @Inject constructor(
                 )
                 Log.d(TAG, "wifi usage: ${info.usageLevel} bytes -> $formatted")
                 _wifiUsageFormatted.value = formatted
+                
+                val ssid = wifiManager.connectionInfo.ssid
+                _wifiSsid.value = if (ssid != WifiManager.UNKNOWN_SSID) {
+                    removeDoubleQuotes(ssid)
+                } else {
+                    null
+                }
             } else {
                 Log.d(TAG, "wifi usage: info=${info != null}, level=${info?.usageLevel}")
                 _wifiUsageFormatted.value = null
+                _wifiSsid.value = null
             }
         } catch (e: Exception) {
             Log.e(TAG, "queryWifiUsage failed", e)
             _wifiUsageFormatted.value = null
+            _wifiSsid.value = null
         }
     }
 
     private fun getMobileTemplateForSubId(subId: Int): NetworkTemplate {
-        val subscriberId = telephonyManager.getSubscriberId(subId)
-        val builder = if (subscriberId != null) {
-            NetworkTemplate.Builder(NetworkTemplate.MATCH_CARRIER)
-                .setSubscriberIds(setOf(subscriberId))
-        } else {
-            NetworkTemplate.Builder(NetworkTemplate.MATCH_MOBILE)
-        }
-        return builder.setMeteredness(NetworkStats.METERED_YES).build()
+        return NetworkTemplate.Builder(NetworkTemplate.MATCH_MOBILE)
+            .setMeteredness(NetworkStats.METERED_YES)
+            .build()
     }
 
     companion object {
@@ -141,6 +157,13 @@ class DataUsageRepository @Inject constructor(
             if (usage == null) return label
             if (label == null) return usage
             return "$label · $usage"
+        }
+
+        fun removeDoubleQuotes(string: String?): String? {
+            if (string == null) return null
+            return if (string.firstOrNull() == '"' && string.lastOrNull() == '"') {
+                string.substring(1, string.length - 1)
+            } else string
         }
     }
 }

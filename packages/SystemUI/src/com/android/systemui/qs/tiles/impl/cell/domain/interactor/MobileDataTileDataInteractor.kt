@@ -77,8 +77,9 @@ constructor(
                     combine(
                         it.isDataEnabled,
                         it.signalLevelIcon,
+                        it.networkName,
                         dataUsageRepository.mobileUsageFormatted,
-                    ) { isDataEnabled, signalLevelIcon, usageSummary ->
+                    ) { isDataEnabled, signalLevelIcon, networkNameModel, usageSummary ->
                         val icon =
                             if (isDataEnabled) {
                                 when (signalLevelIcon) {
@@ -113,21 +114,25 @@ constructor(
                             isSimActive = true,
                             isEnabled = isDataEnabled,
                             icon = icon,
+                            networkName = networkNameModel.name,
                             dataUsageSummary = usageSummary,
                         )
                     }
                 }
                 .onStart {
-                    MobileDataTileModel(
-                        isSimActive = false,
-                        isEnabled = false,
-                        icon =
-                            MobileDataTileIcon.ResourceIcon(
-                                Icon.Resource(
-                                    R.drawable.ic_signal_mobile_data_off,
-                                    ContentDescription.Loaded(mobileDataLabel),
-                                )
-                            ),
+                    dataUsageRepository.refresh()
+                    emit(
+                        MobileDataTileModel(
+                            isSimActive = false,
+                            isEnabled = false,
+                            icon =
+                                MobileDataTileIcon.ResourceIcon(
+                                    Icon.Resource(
+                                        R.drawable.ic_signal_mobile_data_off,
+                                        ContentDescription.Loaded(mobileDataLabel),
+                                    )
+                                ),
+                        )
                     )
                 }
         }

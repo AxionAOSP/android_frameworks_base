@@ -47,6 +47,7 @@ import com.android.systemui.statusbar.pipeline.mobile.domain.interactor.MobileIc
 import com.android.systemui.statusbar.pipeline.mobile.util.FakeMobileMappingsProxy
 import com.android.systemui.statusbar.pipeline.shared.data.repository.FakeConnectivityRepository
 import com.android.systemui.statusbar.pipeline.wifi.data.repository.FakeWifiRepository
+import com.android.systemui.qs.tiles.dialog.DataUsageRepository
 import com.android.systemui.statusbar.pipeline.wifi.domain.interactor.WifiInteractorImpl
 import com.android.systemui.statusbar.pipeline.wifi.shared.model.WifiNetworkModel
 import com.android.systemui.statusbar.pipeline.wifi.ui.model.WifiTileIconModel
@@ -54,12 +55,14 @@ import com.android.systemui.statusbar.policy.data.repository.FakeUserSetupReposi
 import com.android.systemui.testKosmos
 import com.android.systemui.util.CarrierConfigTracker
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import platform.test.runner.parameterized.ParameterizedAndroidJunit4
 import platform.test.runner.parameterized.Parameters
@@ -83,9 +86,11 @@ class WifiTileDataInteractorTest(flags: FlagsParameterization) : SysuiTestCase()
     private lateinit var mobileConnectionRepository: FakeMobileConnectionRepository
     private lateinit var connectivityRepository: FakeConnectivityRepository
     private lateinit var wifiRepository: FakeWifiRepository
+    private val dataUsageRepository: DataUsageRepository = mock()
 
     @Before
     fun setUp() {
+        whenever(dataUsageRepository.wifiUsageFormatted).thenReturn(MutableStateFlow(null))
         val mobileContextProvider = mock<MobileContextProvider>()
         whenever(mobileContextProvider.getMobileContextForSub(any(), any())).thenReturn(context)
 
@@ -119,9 +124,8 @@ class WifiTileDataInteractorTest(flags: FlagsParameterization) : SysuiTestCase()
                 testScope.backgroundScope,
                 FakeAirplaneModeRepository(),
                 connectivityRepository,
-                mobileIconsInteractor,
-                mobileContextProvider,
                 wifiInteractor,
+                dataUsageRepository,
             )
     }
 
@@ -129,7 +133,9 @@ class WifiTileDataInteractorTest(flags: FlagsParameterization) : SysuiTestCase()
     fun tileData_wifiActiveAndDefault_showsSsid() =
         kosmos.runTest {
             val tileData by collectLastValue(underTest.tileData())
+            runCurrent()
 
+            verify(dataUsageRepository).refresh()
             connectivityRepository.setWifiConnected()
             wifiRepository.setIsWifiDefault(true)
             wifiRepository.setWifiNetwork(
