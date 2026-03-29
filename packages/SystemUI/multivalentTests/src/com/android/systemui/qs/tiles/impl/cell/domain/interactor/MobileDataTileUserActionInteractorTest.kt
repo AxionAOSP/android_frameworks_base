@@ -16,20 +16,16 @@
 
 package com.android.systemui.qs.tiles.impl.cell.domain.interactor
 
-import android.content.DialogInterface
 import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
-import com.android.systemui.animation.DialogTransitionAnimator
-import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandlerSubject
 import com.android.systemui.qs.tiles.base.domain.actions.qsTileIntentUserInputHandler
 import com.android.systemui.qs.tiles.base.domain.model.QSTileInputTestKtx
 import com.android.systemui.qs.tiles.impl.cell.domain.model.MobileDataTileIcon
 import com.android.systemui.qs.tiles.impl.cell.domain.model.MobileDataTileModel
-import com.android.systemui.statusbar.phone.SystemUIDialog
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.FakeMobileConnectionsRepository
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.fake
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.mobileConnectionsRepository
@@ -40,11 +36,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.whenever
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
@@ -54,21 +45,11 @@ class MobileDataTileUserActionInteractorTest : SysuiTestCase() {
     private val mobileConnectionsRepository: FakeMobileConnectionsRepository =
         kosmos.mobileConnectionsRepository.fake
     private val intentHandler = kosmos.qsTileIntentUserInputHandler
-    private val dialogTransitionAnimator: DialogTransitionAnimator = mock()
-
-    private val dialog: SystemUIDialog = mock()
-    private val dialogFactory: SystemUIDialog.Factory = mock {
-        whenever(mock.create()).thenReturn(dialog)
-    }
 
     private val underTest =
         MobileDataTileUserActionInteractor(
-            context,
             mobileConnectionsRepository,
             intentHandler,
-            dialogFactory,
-            kosmos.testDispatcher,
-            dialogTransitionAnimator,
         )
 
     @Before
@@ -99,36 +80,20 @@ class MobileDataTileUserActionInteractorTest : SysuiTestCase() {
             underTest.handleInput(QSTileInputTestKtx.click(testData))
             runCurrent()
 
-            assertThat(mobileConnectionsRepository.mobileIsDefault.value).isFalse()
+            assertThat(mobileConnectionsRepository.activeMobileDataRepository.value?.dataEnabled?.value)
+                .isFalse()
         }
 
     @Test
-    fun handleClick_whenDataIsDisabled_showsDialog() =
+    fun handleClick_whenDataIsDisabled_setsEnabledTrue() =
         testScope.runTest {
             mobileConnectionsRepository.activeMobileDataRepository.value?.setDataEnabled(false)
 
             val testData = MobileDataTileModel(true, false, MobileDataTileIcon.SignalIcon(1))
             underTest.handleInput(QSTileInputTestKtx.click(testData))
-
-            verify(dialogFactory).create()
-            verify(dialog).show()
-        }
-
-    @Test
-    fun dialogPositiveButtonClick_enablesMobileData() =
-        testScope.runTest {
-            mobileConnectionsRepository.activeMobileDataRepository.value?.setDataEnabled(false)
-            val captor = argumentCaptor<DialogInterface.OnClickListener>()
-            val testData = MobileDataTileModel(true, true, MobileDataTileIcon.SignalIcon(1))
-            underTest.handleInput(QSTileInputTestKtx.click(testData))
-
-            verify(dialog).setPositiveButton(any(), captor.capture())
-            captor.firstValue.onClick(mock(), 0)
             runCurrent()
 
-            assertThat(
-                    mobileConnectionsRepository.activeMobileDataRepository.value?.dataEnabled?.value
-                )
+            assertThat(mobileConnectionsRepository.activeMobileDataRepository.value?.dataEnabled?.value)
                 .isTrue()
         }
 }
