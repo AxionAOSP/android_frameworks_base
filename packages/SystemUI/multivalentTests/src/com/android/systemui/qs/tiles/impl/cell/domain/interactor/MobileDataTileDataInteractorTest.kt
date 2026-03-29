@@ -51,14 +51,18 @@ import com.android.systemui.statusbar.pipeline.mobile.domain.interactor.MobileIc
 import com.android.systemui.statusbar.pipeline.shared.data.repository.connectivityRepository
 import com.android.systemui.statusbar.policy.data.repository.userSetupRepository
 import com.android.systemui.testKosmos
+import com.android.systemui.qs.tiles.dialog.DataUsageRepository
 import com.android.systemui.util.CarrierConfigTracker
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import platform.test.runner.parameterized.ParameterizedAndroidJunit4
 import platform.test.runner.parameterized.Parameters
 
@@ -83,6 +87,7 @@ class MobileDataTileDataInteractorTest(flags: FlagsParameterization) : SysuiTest
     private val featureFlags = kosmos.featureFlagsClassic
     private val pipelineFlagsRepository = kosmos.pipelineFlagsRepository
     private val carrierConfigTracker: CarrierConfigTracker = mock()
+    private val dataUsageRepository: DataUsageRepository = mock()
 
     // Real MobileIconsInteractor, fed by fakes
     private var mobileIconsInteractor: MobileIconsInteractor =
@@ -98,11 +103,17 @@ class MobileDataTileDataInteractorTest(flags: FlagsParameterization) : SysuiTest
         )
 
     private var underTest: MobileDataTileDataInteractor =
-        MobileDataTileDataInteractor(context, mobileIconsInteractor, pipelineFlagsRepository)
+        MobileDataTileDataInteractor(
+            context,
+            mobileIconsInteractor,
+            pipelineFlagsRepository,
+            dataUsageRepository,
+        )
 
     @Before
     fun setUp() {
         featureFlags.fake.set(Flags.FILTER_PROVISIONING_NETWORK_SUBSCRIPTIONS, true)
+        whenever(dataUsageRepository.mobileUsageFormatted).thenReturn(MutableStateFlow(null))
     }
 
     @Test
@@ -112,6 +123,7 @@ class MobileDataTileDataInteractorTest(flags: FlagsParameterization) : SysuiTest
             mobileConnectionsRepository.fake.setActiveMobileDataSubscriptionId(-1)
             runCurrent()
 
+            verify(dataUsageRepository).refresh()
             val expectedModel =
                 MobileDataTileModel(
                     isSimActive = false,

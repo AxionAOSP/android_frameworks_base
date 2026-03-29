@@ -36,5 +36,6 @@ data class MobileDataTileModel(
     val isSimActive: Boolean,
     val isEnabled: Boolean,
     val icon: MobileDataTileIcon,
+    val networkName: String? = null,
     val dataUsageSummary: String? = null,
 )

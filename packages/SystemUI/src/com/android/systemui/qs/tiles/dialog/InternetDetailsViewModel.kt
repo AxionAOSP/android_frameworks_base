@@ -32,10 +32,13 @@ constructor(
     private val qsTileIntentUserActionHandler: QSTileIntentUserInputHandler,
     val extrasViewModel: InternetTileExtrasViewModel,
 ) : TileDetailsViewModel {
+    val canConfigMobileData = accessPointController.canConfigMobileData()
+    val canConfigWifi = accessPointController.canConfigWifi()
+
     val internetDetailsContentManager by lazy {
         contentManagerFactory.create(
-            canConfigMobileData = accessPointController.canConfigMobileData(),
-            canConfigWifi = accessPointController.canConfigWifi(),
+            canConfigMobileData = canConfigMobileData,
+            canConfigWifi = canConfigWifi,
         )
     }
 
