@@ -246,6 +246,12 @@ fun NotificationAlertCard(
                             verticalArrangement = Arrangement.spacedBy(SpaceXs),
                         ) {
                             val sender = notification.senderName ?: notification.appName
+                            val groupName =
+                                if (notification.isConversation &&
+                                    notification.senderName != null &&
+                                    title != null &&
+                                    title != notification.senderName
+                                ) title else null
                             Text(
                                 sender,
                                 color = OnCardText,
@@ -254,9 +260,18 @@ fun NotificationAlertCard(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
+                            if (groupName != null) {
+                                Text(
+                                    groupName,
+                                    color = SubtleGray,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
 
                             if (isExpanded) {
-                                if (hasTitleAndBody) {
+                                if (hasTitleAndBody && groupName == null) {
                                     Text(
                                         title!!,
                                         color = OnCardText,
