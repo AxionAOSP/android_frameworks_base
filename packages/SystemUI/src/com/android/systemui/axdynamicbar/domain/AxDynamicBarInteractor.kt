@@ -1,6 +1,9 @@
 package com.android.systemui.axdynamicbar.domain
 
 import android.app.Notification
+import android.app.NotificationManager.Policy.SUPPRESSED_EFFECT_PEEK
+import android.net.Uri
+import android.service.notification.NotificationListenerService.Ranking
 import com.android.systemui.axdynamicbar.data.IslandEventRepository
 import com.android.systemui.axdynamicbar.model.IslandEvent
 import com.android.systemui.axdynamicbar.model.IslandState
@@ -27,7 +30,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import android.net.Uri
 
 @SysUISingleton
 class AxDynamicBarInteractor
@@ -134,6 +136,19 @@ constructor(
             repository.notification.notificationRemovedFlow.collect { key ->
                 val alert = _uiState.value.notificationAlert ?: return@collect
                 if (alert.sbn.key == key) dismissNotificationAlert()
+            }
+        }
+
+        applicationScope.launch {
+            repository.notification.rankingUpdateFlow.collect { rankingMap ->
+                val alert = _uiState.value.notificationAlert ?: return@collect
+                if (alert.isActiveCall()) return@collect
+                val ranking = Ranking()
+                if (rankingMap.getRanking(alert.sbn.key, ranking) &&
+                    (ranking.suppressedVisualEffects and SUPPRESSED_EFFECT_PEEK) != 0
+                ) {
+                    dismissNotificationAlert()
+                }
             }
         }
 

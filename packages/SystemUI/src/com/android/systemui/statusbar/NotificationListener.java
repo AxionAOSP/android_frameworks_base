@@ -217,6 +217,7 @@ public class NotificationListener extends NotificationListenerWithPlugins implem
         for (NotificationHandler handler : mNotificationHandlers) {
             handler.onNotificationRankingUpdate(r);
         }
+        ScrimUtils.get().onNotificationRankingUpdate(r);
     }
 
     @Override

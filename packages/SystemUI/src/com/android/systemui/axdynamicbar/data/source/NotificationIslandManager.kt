@@ -127,6 +127,7 @@ constructor(
 
     val notificationFlow = MutableSharedFlow<IslandEvent.Notification>(extraBufferCapacity = 16)
     val notificationRemovedFlow = MutableSharedFlow<String>(extraBufferCapacity = 16)
+    val rankingUpdateFlow = MutableSharedFlow<RankingMap>(extraBufferCapacity = 4)
 
     var activeMediaPackageProvider: (() -> String?)? = null
 
@@ -186,6 +187,10 @@ constructor(
                     _notificationEvents.value.filter { it.sbn.key != sbn.key }
 
                 notificationRemovedFlow.tryEmit(sbn.key)
+            }
+
+            override fun onNotificationRankingUpdate(rankingMap: RankingMap) {
+                rankingUpdateFlow.tryEmit(rankingMap)
             }
 
             override fun onNotificationPosted(sbn: StatusBarNotification, rankingMap: RankingMap?) {

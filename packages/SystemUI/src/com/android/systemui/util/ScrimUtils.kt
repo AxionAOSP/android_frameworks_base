@@ -42,6 +42,7 @@ class ScrimUtils private constructor() {
         fun onScreenTurnedOff() {}
         fun setPulsing(pulsing: Boolean) {}
         fun onNotificationPosted(sbn: StatusBarNotification, rankingMap: RankingMap?) {}
+        fun onNotificationRankingUpdate(rankingMap: RankingMap) {}
         fun onNotificationRemoved(sbn: StatusBarNotification) {}
         fun onKeyguardLayoutChanged() {}
         fun onKeyguardAlphaChanged(alpha: Float) {}
@@ -160,6 +161,10 @@ class ScrimUtils private constructor() {
 
     fun onNotificationPosted(sbn: StatusBarNotification, rankingMap: RankingMap?) {
         listeners.notifyOnMain { it.onNotificationPosted(sbn, rankingMap) }
+    }
+
+    fun onNotificationRankingUpdate(rankingMap: RankingMap) {
+        listeners.notifyOnMain { it.onNotificationRankingUpdate(rankingMap) }
     }
 
     fun onNotificationRemoved(sbn: StatusBarNotification) {
