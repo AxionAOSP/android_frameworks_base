@@ -245,14 +245,7 @@ fun ContentScope.Tile(
                 modifier
                     .then(surfaceRevealModifier)
                     .borderOnFocus(color = MaterialTheme.colorScheme.secondary, tileShape.topEnd)
-                    .thenIf(!iconOnly) { Modifier.fillMaxWidth() }
-                    .thenIf(iconOnly) {
-                        Modifier
-                            .fillMaxWidth()
-                            .height(TileHeight)
-                            .wrapContentSize(Alignment.Center)
-                            .size(SmallTileSize)
-                    }
+                    .fillMaxWidth()
                     .thenIf(currentBounceableInfo != null) {
                         Modifier.bounceable(
                             currentBounceableInfo!!.bounceable,
@@ -405,12 +398,7 @@ fun TileContainer(
     Box(
         modifier =
             modifier
-                .thenIf(iconOnly) {
-                    Modifier.aspectRatio(1f, matchHeightConstraintsFirst = false)
-                }
-                .thenIf(!iconOnly) {
-                    Modifier.height(TileHeight)
-                }
+                .height(TileHeight)
                 .fillMaxWidth()
                 .tileCombinedClickable(
                     onClick = onClick ?: {},

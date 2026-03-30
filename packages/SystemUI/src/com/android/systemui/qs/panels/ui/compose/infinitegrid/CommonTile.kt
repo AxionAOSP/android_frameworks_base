@@ -320,6 +320,7 @@ private fun TileLabel(
     isVisible: () -> Boolean = { true },
 ) {
     var textSize by remember { mutableIntStateOf(0) }
+    val axBlurWidth = QSTileScaling.tileLabelBlurWidth()
 
     val iterations = if (isVisible()) TILE_MARQUEE_ITERATIONS else 0
 
@@ -341,7 +342,7 @@ private fun TileLabel(
                     drawContent()
                     if (textSize > size.width) {
                         // Draw a blur over the end of the text
-                        val edgeWidthPx = TileLabelBlurWidth.toPx()
+                        val edgeWidthPx = axBlurWidth.toPx()
                         if (layoutDirection == LayoutDirection.Rtl) {
                             drawFadedEdge(
                                 startX = 0f,

@@ -17,6 +17,7 @@
 package com.android.systemui.qs.panels.ui.compose.infinitegrid
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.drawable.Drawable
 import android.service.quicksettings.Tile.STATE_ACTIVE
 import android.service.quicksettings.Tile.STATE_INACTIVE
@@ -32,10 +33,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.android.compose.modifiers.thenIf
 import com.android.systemui.Flags
@@ -66,6 +70,46 @@ object AxTileDefaults {
     }
 }
 
+object QSTileScaling {
+    private const val REFERENCE_WIDTH_DP = 411f
+
+    @Composable
+    fun scaleFactor(): Float {
+        val screenWidth = LocalConfiguration.current.screenWidthDp.toFloat()
+        return (screenWidth / REFERENCE_WIDTH_DP).coerceIn(0.80f, 1.25f)
+    }
+
+    @Composable
+    fun tileMarginHorizontal(): Dp {
+        return (8.dp * scaleFactor()).coerceIn(4.dp, 12.dp)
+    }
+
+    @Composable
+    fun largeTileStartPadding(): Dp {
+        return (24.dp * scaleFactor()).coerceIn(14.dp, 28.dp)
+    }
+
+    @Composable
+    fun largeTileEndPadding(): Dp {
+        return (16.dp * scaleFactor()).coerceIn(8.dp, 20.dp)
+    }
+
+    @Composable
+    fun dividerLabelSpacing(): Dp {
+        return (16.dp * scaleFactor()).coerceIn(8.dp, 20.dp)
+    }
+
+    @Composable
+    fun iconDividerSpacing(): Dp {
+        return (12.dp * scaleFactor()).coerceIn(6.dp, 14.dp)
+    }
+
+    @Composable
+    fun tileLabelBlurWidth(): Dp {
+        return (32.dp * scaleFactor()).coerceIn(16.dp, 36.dp)
+    }
+}
+
 @Composable
 fun AxLargeTileContent(
     label: String,
@@ -90,8 +134,8 @@ fun AxLargeTileContent(
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier.padding(
-            start = AxTileDefaults.LargeTileStartPadding,
-            end = AxTileDefaults.LargeTileEndPadding,
+            start = QSTileScaling.largeTileStartPadding(),
+            end = QSTileScaling.largeTileEndPadding(),
         ),
     ) {
         val longPressLabel = longPressLabelSettings().takeIf { onLongClick != null }
@@ -119,16 +163,16 @@ fun AxLargeTileContent(
         }
 
         if (isDualTarget) {
-            Spacer(modifier = Modifier.width(AxTileDefaults.IconDividerSpacing))
+            Spacer(modifier = Modifier.width(QSTileScaling.iconDividerSpacing()))
             Box(
                 modifier = Modifier
                     .width(AxTileDefaults.DividerWidth)
                     .height(AxTileDefaults.DividerHeight)
                     .background(dividerColor)
             )
-            Spacer(modifier = Modifier.width(AxTileDefaults.DividerLabelSpacing))
+            Spacer(modifier = Modifier.width(QSTileScaling.dividerLabelSpacing()))
         } else {
-            Spacer(modifier = Modifier.width(AxTileDefaults.DividerLabelSpacing))
+            Spacer(modifier = Modifier.width(QSTileScaling.dividerLabelSpacing()))
         }
 
         LargeTileLabels(

@@ -50,7 +50,7 @@
         <Transform
             android:scaleX="@dimen/qqs_expand_clock_scale"
             android:scaleY="@dimen/qqs_expand_clock_scale"
-            android:translationY="34dp"
+            android:translationY="@dimen/ax_qs_header_clock_translation_y"
             />
     </Constraint>
 
@@ -115,7 +115,7 @@
             app:layout_constraintHorizontal_bias="1"
             />
         <Transform
-            android:translationY="34dp"
+            android:translationY="@dimen/ax_qs_header_clock_translation_y"
             />
     </Constraint>
 

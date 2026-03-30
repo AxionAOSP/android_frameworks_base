@@ -17,8 +17,10 @@
 package com.android.systemui.qs.panels.domain.interactor
 
 import com.android.systemui.dagger.SysUISingleton
+import android.content.res.Resources
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.qs.panels.data.repository.QSColumnsRepository
+import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
 import com.android.systemui.shade.shared.model.ShadeMode
 import javax.inject.Inject
@@ -27,6 +29,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -37,14 +40,25 @@ constructor(
     @Background scope: CoroutineScope,
     repo: QSColumnsRepository,
     shadeModeInteractor: ShadeModeInteractor,
+    @ShadeDisplayAware private val resources: Resources,
 ) {
+    private companion object {
+        const val AX_WIDE_SCREEN_SW_DP = 570
+        const val AX_SPLIT_SHADE_MAX_COLUMNS = 4
+    }
+
     val columns: StateFlow<Int> =
         shadeModeInteractor.shadeMode
             .flatMapLatest {
                 when (it) {
                     ShadeMode.Dual -> repo.dualShadeColumns
-                    ShadeMode.Split -> repo.splitShadeColumns
-                    ShadeMode.Single -> repo.columns
+                    ShadeMode.Split -> repo.splitShadeColumns.mapLatest { cols ->
+                        cols.coerceAtMost(AX_SPLIT_SHADE_MAX_COLUMNS)
+                    }
+                    ShadeMode.Single -> repo.columns.mapLatest { cols ->
+                        val sw = resources.configuration.smallestScreenWidthDp
+                        if (sw >= AX_WIDE_SCREEN_SW_DP && cols < 6) 6 else cols
+                    }
                 }
             }
             .stateIn(scope, SharingStarted.WhileSubscribed(), repo.defaultColumns)

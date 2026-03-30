@@ -193,16 +193,7 @@ constructor(
     }
 
     private fun calculateShadeHeaderHeight(): Int {
-        val minHeight = resources.getDimensionPixelSize(R.dimen.qs_header_height)
-
-        // Following the constraints in xml/qs_header, the total needed height would be the sum of
-        // 1. privacy_container height (R.dimen.large_screen_shade_header_min_height)
-        // 2. carrier_group height (R.dimen.large_screen_shade_header_min_height)
-        // 3. date height (R.dimen.new_qs_header_non_clickable_element_height)
-        val estimatedHeight =
-            2 * resources.getDimensionPixelSize(R.dimen.large_screen_shade_header_min_height) +
-                resources.getDimensionPixelSize(R.dimen.new_qs_header_non_clickable_element_height)
-        return estimatedHeight.coerceAtLeast(minHeight)
+        return shadeHeaderController.getLockedHeaderHeight()
     }
 
     override fun setCustomizerAnimating(animating: Boolean) {

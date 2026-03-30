@@ -49,7 +49,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeightIn
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.shape.CircleShape
@@ -388,15 +387,33 @@ constructor(
                             .thenIf(viewModel.showingMirror) { Modifier.gesturesDisabled() }
                 ) {
                     val currentDensity = LocalDensity.current
+                    val currentContext = LocalContext.current
+                    val lockedDensityValue = currentDensity.density
+                        .coerceAtMost(AX_QS_DENSITY_THRESHOLD)
                     val densityThreshold =
                         remember(currentDensity) {
                             Density(
-                                density = AX_QS_DENSITY_THRESHOLD,
-                                fontScale = AX_QS_FONT_SCALE_THRESHOLD,
+                                density = lockedDensityValue,
+                                fontScale = currentDensity.fontScale.coerceAtMost(AX_QS_FONT_SCALE_THRESHOLD),
                             )
                         }
+                    val lockedContext = remember(currentContext, lockedDensityValue) {
+                        val dm = currentContext.resources.displayMetrics
+                        val minPx = minOf(dm.widthPixels, dm.heightPixels)
+                        val lockedDpi = (lockedDensityValue * 160f).toInt()
+                        val config = Configuration(currentContext.resources.configuration).apply {
+                            smallestScreenWidthDp = (minPx / lockedDensityValue).toInt()
+                            screenWidthDp = (dm.widthPixels / lockedDensityValue).toInt()
+                            screenHeightDp = (dm.heightPixels / lockedDensityValue).toInt()
+                            densityDpi = lockedDpi
+                            fontScale = currentContext.resources.configuration.fontScale
+                                .coerceAtMost(AX_QS_FONT_SCALE_THRESHOLD)
+                        }
+                        currentContext.createConfigurationContext(config)
+                    }
                     CompositionLocalProvider(
                         LocalDensity provides densityThreshold,
+                        LocalContext provides lockedContext,
                         LocalBlurEnabled provides blurEnabled,
                         LocalVolumeSliderViewModel provides volumeSliderViewModel,
                         LocalRingerSliderViewModel provides ringerSliderViewModel,
@@ -895,14 +912,10 @@ constructor(
                                 ),
                         contentAlignment = Alignment.TopCenter,
                     ) {
-                        val isTabletPortrait = viewModel.isTabletPortrait
-                        val maxWidth = if (isTabletPortrait) {
-                            Dp.Unspecified
-                        } else {
-                            AX_QS_CONTENT_MAX_WIDTH
-                        }
+                        val fraction = if (viewModel.isTabletPortrait) 1f
+                            else AX_QS_CONTENT_WIDTH_FRACTION
                         Box(
-                            modifier = Modifier.widthIn(max = maxWidth)
+                            modifier = Modifier.fillMaxWidth(fraction)
                         ) {
                             QuickQuickSettingsLayout(
                                 brightness = BrightnessSliderConfig(viewModel, BrightnessSlider),
@@ -923,7 +936,7 @@ constructor(
     @Composable
     private fun ContentScope.QuickSettingsElement(modifier: Modifier = Modifier) {
         val qqsPadding = viewModel.qqsHeaderHeight
-        val qsExtraPadding = if (viewModel.isInSplitShade) 0.dp else dimensionResource(R.dimen.qs_panel_padding_top)
+        val qsExtraPaddingPx = if (viewModel.isInSplitShade) 0 else viewModel.qsExtraPaddingTop
         Column(
             modifier =
                 modifier.collapseExpandSemanticAction(
@@ -971,7 +984,7 @@ constructor(
                     ) {
                         val containerViewModel = viewModel.containerViewModel
                         Spacer(
-                            modifier = Modifier.height { qqsPadding + qsExtraPadding.roundToPx() }
+                            modifier = Modifier.height { qqsPadding + qsExtraPaddingPx }
                         )
                         val BrightnessSlider: @Composable () -> Unit = {
                             Element(Elements.BrightnessSlider, modifier = modifier) {
@@ -1032,14 +1045,10 @@ constructor(
                                     .padding(top = QuickSettingsShade.Dimensions.Padding),
                             contentAlignment = Alignment.TopCenter,
                         ) {
-                            val isTabletPortrait = viewModel.isTabletPortrait
-                            val maxWidth = if (isTabletPortrait) {
-                                Dp.Unspecified
-                            } else {
-                                AX_QS_CONTENT_MAX_WIDTH
-                            }
+                            val fraction = if (viewModel.isTabletPortrait) 1f
+                                else AX_QS_CONTENT_WIDTH_FRACTION
                             Box(
-                                modifier = Modifier.widthIn(max = maxWidth)
+                                modifier = Modifier.fillMaxWidth(fraction)
                             ) {
                                 QuickSettingsLayout(
                                     brightness = BrightnessSliderConfig(viewModel, BrightnessSlider),
@@ -1144,7 +1153,9 @@ constructor(
                     modifier
                         .fillMaxWidth()
                         .padding(horizontal = { QuickSettingsShade.Dimensions.Padding.roundToPx() })
-                        .padding(top = { viewModel.qqsHeaderHeight }),
+                        .padding(top = {
+                            viewModel.qqsHeaderHeight
+                        }),
             )
         }
     }
@@ -1351,7 +1362,8 @@ private const val EDIT_MODE_TIME_MILLIS = 400
 
 private const val AX_QS_DENSITY_THRESHOLD = 2.688f
 private const val AX_QS_FONT_SCALE_THRESHOLD = 1.0f
-private val AX_QS_CONTENT_MAX_WIDTH = 376.dp
+internal const val AX_QS_CONTENT_WIDTH_FRACTION = 0.936f
+private const val AX_QS_PANEL_PADDING_TOP_PX = 46
 
 /**
  * Performs different touch handling based on the state of the ComposeView:

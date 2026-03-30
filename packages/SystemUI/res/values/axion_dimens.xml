@@ -28,11 +28,15 @@
     <dimen name="ax_qs_panel_offset">36dp</dimen>
     <dimen name="qs_header_padding">16dp</dimen>
     <dimen name="qs_status_bar_margin_top">8dp</dimen>
+    <dimen name="ax_qs_header_clock_translation_y">32dp</dimen>
     <dimen name="qs_status_bar_date_margin_top">20dp</dimen>
     <dimen name="qs_status_bar_large_screen_date_margin_start">9dp</dimen>
     <dimen name="qs_status_bar_large_screen_date_privacy_margin">24dp</dimen>
     <dimen name="qqs_status_bar_margin_top">4dp</dimen>
     <dimen name="qqs_status_bar_text_size">15dp</dimen>
+    <dimen name="ax_qs_panel_padding_top">0dp</dimen>
+    <dimen name="ax_qs_header_expansion_offset">19dp</dimen>
+    <dimen name="ax_qs_header_height">78dp</dimen>
 
     <!-- Lockscreen Widgets Grid -->
     <dimen name="kg_widget_cell_gap">6dp</dimen>

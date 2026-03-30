@@ -114,7 +114,7 @@ constructor(
                 columns = columns,
                 keys = { it.spec },
                 elementKey = { it.spec.toElementKey() },
-                horizontalPadding = dimensionResource(R.dimen.qs_tile_margin_horizontal),
+                horizontalPadding = QSTileScaling.tileMarginHorizontal(),
                 modifier = modifier,
             ) { sizedTile, interactionSource ->
                 Tile(

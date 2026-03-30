@@ -24,6 +24,7 @@ import android.app.StatusBarManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.graphics.Insets
 import android.os.Bundle
 import android.os.Trace
@@ -161,6 +162,9 @@ constructor(
 
         @VisibleForTesting internal val DEFAULT_CLOCK_INTENT = Intent(AlarmClock.ACTION_SHOW_ALARMS)
 
+        private const val AX_HEADER_LOCKED_DPI = 411
+        private const val AX_FONT_SCALE_THRESHOLD = 1.0f
+
         private fun Int.stateToString() =
             when (this) {
                 QQS_HEADER_CONSTRAINT -> "QQS Header"
@@ -188,6 +192,37 @@ constructor(
     private var cutout: DisplayCutout? = null
     private var lastInsets: WindowInsets? = null
     private var nextAlarmIntent: PendingIntent? = null
+
+    private var lockedContext: Context? = null
+
+    private fun getLockedContext(): Context {
+        lockedContext?.let { return it }
+        val config = Configuration(context.resources.configuration).apply {
+            densityDpi = AX_HEADER_LOCKED_DPI
+            fontScale = fontScale.coerceAtMost(AX_FONT_SCALE_THRESHOLD)
+        }
+        return context.createConfigurationContext(config).also { lockedContext = it }
+    }
+
+    private fun getLockedResources(): Resources = getLockedContext().resources
+
+    fun getLockedHeaderHeight(): Int {
+        val res = getLockedResources()
+        val minHeight = res.getDimensionPixelSize(R.dimen.ax_qs_header_height)
+        val estimatedHeight =
+            2 * res.getDimensionPixelSize(R.dimen.large_screen_shade_header_min_height) +
+                res.getDimensionPixelSize(R.dimen.new_qs_header_non_clickable_element_height)
+        return estimatedHeight.coerceAtLeast(minHeight)
+    }
+
+    fun getLockedQsHeaderPadding(): Int {
+        val ctx = getLockedContext()
+        return LargeScreenHeaderHelper.getLargeScreenHeaderHeight(ctx)
+    }
+
+    fun getLockedDimensionPixelSize(dimenRes: Int): Int {
+        return getLockedResources().getDimensionPixelSize(dimenRes)
+    }
 
     private val showBatteryEstimate = MutableStateFlow(false)
 
@@ -332,6 +367,7 @@ constructor(
             }
 
             override fun onDensityOrFontScaleChanged() {
+                lockedContext = null
                 clock.setTextAppearance(R.style.TextAppearance_QS_Status)
                 date.setTextAppearance(R.style.TextAppearance_QS_Status)
                 mShadeCarrierGroup.updateTextAppearanceAndTint(
@@ -469,6 +505,7 @@ constructor(
     }
 
     override fun onViewAttached() {
+        loadConstraints()
         privacyIconsController.chipVisibilityListener = chipVisibilityListener
         updateVisibility()
         updateTransition()
@@ -539,15 +576,17 @@ constructor(
 
     private fun loadConstraints() {
         // Use resources.getXml instead of passing the resource id due to bug b/205018300
+        val ctx = getLockedContext()
+        val res = ctx.resources
         header
             .getConstraintSet(QQS_HEADER_CONSTRAINT)
-            .load(context, resources.getXml(R.xml.qqs_header))
+            .load(ctx, res.getXml(R.xml.qqs_header))
         header
             .getConstraintSet(QS_HEADER_CONSTRAINT)
-            .load(context, resources.getXml(R.xml.qs_header))
+            .load(ctx, res.getXml(R.xml.qs_header))
         header
             .getConstraintSet(LARGE_SCREEN_HEADER_CONSTRAINT)
-            .load(context, resources.getXml(R.xml.large_screen_shade_header))
+            .load(ctx, res.getXml(R.xml.large_screen_shade_header))
     }
 
     private fun updateColors() {

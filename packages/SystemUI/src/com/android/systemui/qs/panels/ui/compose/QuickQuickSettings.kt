@@ -34,6 +34,7 @@ import com.android.systemui.grid.ui.compose.VerticalSpannedGrid
 import com.android.systemui.qs.composefragment.ui.GridAnchor
 import com.android.systemui.qs.flags.QSMaterialExpressiveTiles
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.QSTileScaling
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.Tile
 import com.android.systemui.qs.panels.ui.viewmodel.BounceableTileViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.QuickQuickSettingsViewModel
@@ -61,7 +62,7 @@ fun ContentScope.QuickQuickSettings(
                 columns = columns,
                 keys = { it.spec },
                 elementKey = { it.spec.toElementKey() },
-                horizontalPadding = dimensionResource(R.dimen.qs_tile_margin_horizontal),
+                horizontalPadding = QSTileScaling.tileMarginHorizontal(),
                 modifier = Modifier.sysuiResTag("qqs_tile_layout"),
             ) { sizedTile, interactionSource ->
                 Tile(

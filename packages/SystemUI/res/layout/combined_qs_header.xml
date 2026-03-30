@@ -24,7 +24,7 @@ frame when animating QS <-> QQS transition
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/split_shade_status_bar"
     android:layout_width="match_parent"
-    android:layout_height="@dimen/qs_header_height"
+    android:layout_height="@dimen/ax_qs_header_height"
     android:minHeight="@dimen/large_screen_shade_header_min_height"
     android:clickable="false"
     android:focusable="true"

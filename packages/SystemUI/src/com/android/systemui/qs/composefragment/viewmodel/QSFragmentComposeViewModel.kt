@@ -72,6 +72,7 @@ import com.android.systemui.qs.ui.viewmodel.QuickSettingsContainerViewModel
 import com.android.systemui.res.R
 import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.shade.LargeScreenHeaderHelper
+import com.android.systemui.shade.ShadeHeaderController
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shade.transition.LargeScreenShadeInterpolator
 import com.android.systemui.statusbar.StatusBarState
@@ -119,6 +120,7 @@ constructor(
     private val largeScreenShadeInterpolator: LargeScreenShadeInterpolator,
     @ShadeDisplayAware configurationInteractor: ConfigurationInteractor,
     private val largeScreenHeaderHelper: LargeScreenHeaderHelper,
+    private val shadeHeaderController: ShadeHeaderController,
     private val squishinessInteractor: TileSquishinessInteractor,
     private val falsingInteractor: FalsingInteractor,
     private val inFirstPageViewModel: InFirstPageViewModel,
@@ -219,7 +221,22 @@ constructor(
                     if (LargeScreenUtils.shouldUseLargeScreenShadeHeader(resources)) {
                         0
                     } else {
-                        largeScreenHeaderHelper.getLargeScreenHeaderHeight()
+                        shadeHeaderController.getLockedQsHeaderPadding()
+                    }
+                },
+        )
+
+    val qsExtraPaddingTop by
+        hydrator.hydratedStateOf(
+            traceName = "qsExtraPaddingTop",
+            initialValue = 0,
+            source =
+                configurationInteractor.onAnyConfigurationChange.map {
+                    if (isInSplitShade || LargeScreenUtils.shouldUseLargeScreenShadeHeader(resources)) {
+                        0
+                    } else {
+                        shadeHeaderController.getLockedDimensionPixelSize(R.dimen.ax_qs_panel_padding_top) +
+                            shadeHeaderController.getLockedDimensionPixelSize(R.dimen.ax_qs_header_expansion_offset)
                     }
                 },
         )
