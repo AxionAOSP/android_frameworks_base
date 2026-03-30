@@ -296,6 +296,7 @@ sealed class IslandEvent(open val priority: Int, val id: String) : Comparable<Is
         val isGroupSummary: Boolean = false,
         val notificationImage: Drawable? = null,
         val callStartTimeMs: Long = 0L,
+        val suppressedPeek: Boolean = false,
         val createdAt: Long = System.currentTimeMillis(),
     ) : IslandEvent(priority = NOTIFICATION_STALE_PRIORITY, id = "notification_${sbn.key}") {
         override val behavior = EventBehavior(autoDismissMs = null)
@@ -333,4 +334,3 @@ enum class IslandState {
     HIDDEN,
     CHIP,
 }
-

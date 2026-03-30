@@ -1,6 +1,7 @@
 package com.android.systemui.axdynamicbar.data.source
 
 import android.app.Notification
+import android.app.NotificationManager.Policy.SUPPRESSED_EFFECT_PEEK
 import android.content.Context
 import com.android.systemui.res.R
 import android.graphics.Bitmap
@@ -10,6 +11,8 @@ import android.graphics.drawable.Icon
 import android.os.Bundle
 import android.os.Parcelable
 import android.os.SystemClock
+import android.service.notification.NotificationListenerService.Ranking
+import android.service.notification.NotificationListenerService.RankingMap
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import android.view.View
@@ -185,9 +188,14 @@ constructor(
                 notificationRemovedFlow.tryEmit(sbn.key)
             }
 
-            override fun onNotificationPosted(sbn: StatusBarNotification) {
+            override fun onNotificationPosted(sbn: StatusBarNotification, rankingMap: RankingMap?) {
                 val pkg = sbn.packageName ?: return
                 val extras = sbn.notification?.extras ?: return
+                val ranking = Ranking()
+                val suppressedPeek =
+                    rankingMap != null &&
+                        rankingMap.getRanking(sbn.key, ranking) &&
+                        (ranking.suppressedVisualEffects and SUPPRESSED_EFFECT_PEEK) != 0
 
                 if (
                     pkg == SCREEN_RECORD_PACKAGE &&
@@ -237,7 +245,7 @@ constructor(
                             extras.containsKey(Notification.EXTRA_DECLINE_INTENT) ||
                             extras.containsKey(Notification.EXTRA_HANG_UP_INTENT)
                     if (isCallStyle) {
-                        handleCallNotification(sbn, extras)
+                        handleCallNotification(sbn, extras, suppressedPeek)
                         return
                     }
                 }
@@ -496,6 +504,7 @@ constructor(
                         senderName = senderName,
                         groupKey = groupKey,
                         notificationImage = notificationImage,
+                        suppressedPeek = suppressedPeek,
                     )
                 applicationScope.launch { notificationFlow.emit(event) }
                 onNotificationPosted?.invoke(event)
@@ -728,7 +737,11 @@ constructor(
             ""
         }
 
-    private fun handleCallNotification(sbn: StatusBarNotification, extras: Bundle) {
+    private fun handleCallNotification(
+        sbn: StatusBarNotification,
+        extras: Bundle,
+        suppressedPeek: Boolean = false,
+    ) {
         val callerName = extras.getString("android.title")
         val number = extras.getString("android.text")
         val callerPhoto =
@@ -777,6 +790,7 @@ constructor(
                 senderName = callerName,
                 isConversation = false,
                 callStartTimeMs = callStart,
+                suppressedPeek = suppressedPeek,
             )
         applicationScope.launch { notificationFlow.emit(event) }
         onNotificationPosted?.invoke(event)
@@ -1014,4 +1028,3 @@ constructor(
             }
     }
 }
-

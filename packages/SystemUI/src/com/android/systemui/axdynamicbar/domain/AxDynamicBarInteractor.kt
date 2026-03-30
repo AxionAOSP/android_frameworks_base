@@ -424,6 +424,7 @@ constructor(
         notification: IslandEvent.Notification,
     ) {
         if (panelBlocking || statusBlocking || _isOnKeyguard.value) return
+        if (notification.suppressedPeek) return
         val current = _uiState.value
         val existingAlert = current.notificationAlert
         if (existingAlert != null &&
@@ -557,4 +558,3 @@ constructor(
             else -> null
         }
 }
-
