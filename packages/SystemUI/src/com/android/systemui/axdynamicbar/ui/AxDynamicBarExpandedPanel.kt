@@ -91,7 +91,6 @@ constructor(
                 viewModel.interactor.uiState.map { it.notificationAlert },
                 viewModel.isOnKeyguard,
             ) { expanded, alert, onKeyguard ->
-                
                 !onKeyguard && (expanded || alert != null)
             }
 
@@ -254,7 +253,8 @@ private fun OverlayContent(viewModel: AxDynamicBarChipViewModel, statusBarHeight
     val isOnKeyguard by viewModel.isOnKeyguard.collectAsStateWithLifecycle()
     val chipX by viewModel.chipCenterXFraction.collectAsStateWithLifecycle()
     val notifAlert = uiState.notificationAlert
-    
+    val compactNotifs by viewModel.interactor.settings.compactNotifications.collectAsStateWithLifecycle()
+
     val lastAlert = remember { mutableStateOf<IslandEvent.Notification?>(null) }
     if (notifAlert != null) lastAlert.value = notifAlert
 
@@ -364,6 +364,7 @@ private fun OverlayContent(viewModel: AxDynamicBarChipViewModel, statusBarHeight
                     notification = alert,
                     interactor = viewModel.interactor,
                     onDismiss = { viewModel.interactor.dismissNotificationAlert() },
+                    initiallyCompact = compactNotifs,
                     modifier =
                         Modifier.widthIn(max = ExpandedMaxWidth)
                             .fillMaxWidth()

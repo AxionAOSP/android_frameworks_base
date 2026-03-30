@@ -290,6 +290,8 @@ sealed class IslandEvent(open val priority: Int, val id: String) : Comparable<Is
         val actions: List<NotificationAction> = emptyList(),
         val replyAction: ReplyAction? = null,
         val isConversation: Boolean = false,
+        val isGroupConversation: Boolean = false,
+        val conversationTitle: String? = null,
         val senderIcon: Drawable? = null,
         val senderName: String? = null,
         val groupKey: String? = null,

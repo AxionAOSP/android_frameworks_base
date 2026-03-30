@@ -117,15 +117,20 @@ internal fun NotificationExpanded(
                 verticalArrangement = Arrangement.spacedBy(SpaceXxs),
             ) {
                 if (event.isConversation && event.senderName != null) {
+                    val subtitle = if (event.isGroupConversation && event.conversationTitle != null)
+                        "${event.appName} · ${event.conversationTitle}"
+                    else
+                        "${event.appName} · ${event.senderName}"
                     Text(
-                        "${event.appName} · ${event.senderName}",
+                        subtitle,
                         color = SubtleGray,
                         style = MaterialTheme.typography.labelSmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        event.title ?: event.senderName,
+                        if (event.isGroupConversation) event.senderName
+                        else event.title ?: event.senderName,
                         color = OnCardText,
                         style = MaterialTheme.typography.titleSmall,
                         maxLines = 1,
@@ -578,12 +583,15 @@ private fun GroupedNotificationRow(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(SpaceXxs),
                 ) {
+                    val displayName = event.senderName
+                        ?: event.title
+                        ?: event.appName.ifEmpty {
+                            event.sbn.packageName.substringAfterLast('.')
+                        }
+                    val nameWithGroup = if (event.isGroupConversation && event.conversationTitle != null && event.senderName != null)
+                        "$displayName · ${event.conversationTitle}" else displayName
                     Text(
-                        event.senderName
-                            ?: event.title
-                            ?: event.appName.ifEmpty {
-                                event.sbn.packageName.substringAfterLast('.')
-                            },
+                        nameWithGroup,
                         color = OnCardText,
                         style = MaterialTheme.typography.titleSmall,
                         maxLines = 1,

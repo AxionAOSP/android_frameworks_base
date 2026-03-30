@@ -1004,7 +1004,9 @@ internal fun PillEventText(
             } else {
                 val name = event.senderName ?: if (event.isConversation) event.title else null
                 if (name != null) {
-                    MarqueeLabel(name, overrideColor ?: BlueAccent, modifier)
+                    val label = if (event.isGroupConversation && event.conversationTitle != null)
+                        "$name · ${event.conversationTitle}" else name
+                    MarqueeLabel(label, overrideColor ?: BlueAccent, modifier)
                 } else {
                     NotifBellBadge(modifier, notifCount)
                 }

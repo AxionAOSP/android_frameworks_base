@@ -1,6 +1,8 @@
 package com.android.systemui.axdynamicbar.domain
 
 import android.app.Notification
+import android.media.AudioManager
+import android.provider.Settings.Global
 import com.android.systemui.axdynamicbar.data.IslandEventRepository
 import com.android.systemui.axdynamicbar.model.IslandEvent
 import com.android.systemui.axdynamicbar.model.IslandState
@@ -17,6 +19,7 @@ import com.android.systemui.shade.domain.interactor.ShadeInteractor
 import com.android.systemui.statusbar.KeyguardIndicationController
 import com.android.systemui.statusbar.StatusBarState
 import com.android.systemui.statusbar.policy.KeyguardStateController
+import com.android.systemui.statusbar.policy.ZenModeController
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -43,6 +46,8 @@ constructor(
     private val indicationController: KeyguardIndicationController,
     private val shadeInteractor: ShadeInteractor,
     private val shadeRepository: ShadeRepository,
+    private val zenModeController: ZenModeController,
+    private val audioManager: AudioManager,
 ) : IslandActions {
     private val _uiState = MutableStateFlow(IslandUiState())
     val uiState: StateFlow<IslandUiState> = _uiState.asStateFlow()
@@ -420,10 +425,22 @@ constructor(
         }
     }
 
+    private fun shouldSuppressForDndOrRinger(notification: IslandEvent.Notification): Boolean {
+        if (notification.isActiveCall()) return false
+        val category = notification.sbn.notification?.category
+        if (category == Notification.CATEGORY_CALL || category == Notification.CATEGORY_ALARM) return false
+        val zenMode = zenModeController.zen
+        if (zenMode == Global.ZEN_MODE_NO_INTERRUPTIONS ||
+            zenMode == Global.ZEN_MODE_ALARMS) return true
+        val ringerMode = audioManager.ringerMode
+        return ringerMode == AudioManager.RINGER_MODE_SILENT
+    }
+
     private fun showNotificationAlert(
         notification: IslandEvent.Notification,
     ) {
         if (panelBlocking || statusBlocking || _isOnKeyguard.value) return
+        if (shouldSuppressForDndOrRinger(notification)) return
         val current = _uiState.value
         val existingAlert = current.notificationAlert
         if (existingAlert != null &&

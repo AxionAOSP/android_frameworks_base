@@ -424,6 +424,8 @@ constructor(
                 var senderName: String? = null
                 var latestMessageText: String? = null
                 var isConversation = false
+                var isGroupConversation = false
+                var conversationTitle: String? = null
                 val notif = sbn.notification
                 if (
                     notif != null &&
@@ -431,6 +433,12 @@ constructor(
                         notif.extras != null
                 ) {
                     isConversation = true
+                    isGroupConversation = notif.extras.getBoolean(
+                        Notification.EXTRA_IS_GROUP_CONVERSATION, false
+                    )
+                    conversationTitle = notif.extras.getCharSequence(
+                        Notification.EXTRA_CONVERSATION_TITLE
+                    )?.toString()?.takeIf { it.isNotEmpty() }
                     val messagesArray =
                         notif.extras.getParcelableArray(
                             Notification.EXTRA_MESSAGES,
@@ -492,6 +500,8 @@ constructor(
                         actions = actions,
                         replyAction = replyAction,
                         isConversation = isConversation,
+                        isGroupConversation = isGroupConversation,
+                        conversationTitle = conversationTitle,
                         senderIcon = senderIcon,
                         senderName = senderName,
                         groupKey = groupKey,
