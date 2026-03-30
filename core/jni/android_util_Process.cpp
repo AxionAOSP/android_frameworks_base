@@ -575,12 +575,7 @@ void android_os_Process_setThreadScheduler(JNIEnv* env, jclass clazz,
 #if defined(__linux__)
     struct sched_param param;
     param.sched_priority = pri;
-    int rc = sched_setscheduler(tid, policy, &param);
-    if (rc) {
-        signalExceptionForPriorityError(env, errno, tid);
-    }
-#else
-    signalExceptionForPriorityError(env, ENOSYS, tid);
+    sched_setscheduler(tid, policy, &param);
 #endif
 }
 
