@@ -18,6 +18,7 @@ package com.android.systemui.util
 
 import android.os.Handler
 import android.os.Looper
+import android.service.notification.NotificationListenerService.RankingMap
 import android.service.notification.StatusBarNotification
 import android.view.View
 import android.view.ViewTreeObserver
@@ -40,7 +41,7 @@ class ScrimUtils private constructor() {
         fun onStartedWakingUp() {}
         fun onScreenTurnedOff() {}
         fun setPulsing(pulsing: Boolean) {}
-        fun onNotificationPosted(sbn: StatusBarNotification) {}
+        fun onNotificationPosted(sbn: StatusBarNotification, rankingMap: RankingMap?) {}
         fun onNotificationRemoved(sbn: StatusBarNotification) {}
         fun onKeyguardLayoutChanged() {}
         fun onKeyguardAlphaChanged(alpha: Float) {}
@@ -157,8 +158,8 @@ class ScrimUtils private constructor() {
         listeners.notify { it.onScreenTurnedOff() }
     }
 
-    fun onNotificationPosted(sbn: StatusBarNotification) {
-        listeners.notifyOnMain { it.onNotificationPosted(sbn) }
+    fun onNotificationPosted(sbn: StatusBarNotification, rankingMap: RankingMap?) {
+        listeners.notifyOnMain { it.onNotificationPosted(sbn, rankingMap) }
     }
 
     fun onNotificationRemoved(sbn: StatusBarNotification) {

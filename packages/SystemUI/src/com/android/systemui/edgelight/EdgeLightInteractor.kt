@@ -149,7 +149,7 @@ constructor(
         _uiState.update { it.copy(isVisible = false, isPulsing = false, pulseAlpha = 0f) }
     }
 
-    override fun onNotificationPosted(sbn: StatusBarNotification, rankingMap: RankingMap) {
+    override fun onNotificationPosted(sbn: StatusBarNotification, rankingMap: RankingMap?) {
         val currentState = _uiState.value
         if (!currentState.isEnabled || !dozing) return
 

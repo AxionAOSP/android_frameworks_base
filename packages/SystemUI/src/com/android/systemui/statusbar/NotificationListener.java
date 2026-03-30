@@ -145,7 +145,7 @@ public class NotificationListener extends NotificationListenerWithPlugins implem
                 for (NotificationHandler handler : mNotificationHandlers) {
                     handler.onNotificationPosted(sbn, rankingMap);
                 }
-                ScrimUtils.get().onNotificationPosted(sbn);
+                ScrimUtils.get().onNotificationPosted(sbn, rankingMap);
             });
         }
     }
