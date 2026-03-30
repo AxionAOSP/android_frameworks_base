@@ -62,7 +62,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -389,19 +388,15 @@ constructor(
                             .thenIf(viewModel.showingMirror) { Modifier.gesturesDisabled() }
                 ) {
                     val currentDensity = LocalDensity.current
-                    val dm = LocalContext.current.resources.displayMetrics
-                    val sw = minOf(dm.widthPixels, dm.heightPixels) / dm.density
-                    val ratio = sw / AX_QS_BASELINE_SW
                     val densityThreshold =
-                        remember(currentDensity, ratio) {
+                        remember(currentDensity) {
                             Density(
-                                density = AX_QS_DENSITY_THRESHOLD * ratio,
-                                fontScale = currentDensity.fontScale.coerceAtMost(AX_QS_FONT_SCALE_THRESHOLD),
+                                density = AX_QS_DENSITY_THRESHOLD,
+                                fontScale = AX_QS_FONT_SCALE_THRESHOLD,
                             )
                         }
                     CompositionLocalProvider(
                         LocalDensity provides densityThreshold,
-                        LocalAxQsScale provides ratio,
                         LocalBlurEnabled provides blurEnabled,
                         LocalVolumeSliderViewModel provides volumeSliderViewModel,
                         LocalRingerSliderViewModel provides ringerSliderViewModel,
@@ -900,9 +895,12 @@ constructor(
                                 ),
                         contentAlignment = Alignment.TopCenter,
                     ) {
-                        val scale = LocalAxQsScale.current
-                        val maxWidth = if (viewModel.isTabletPortrait) Dp.Unspecified
-                            else AX_QS_CONTENT_MAX_WIDTH * scale
+                        val isTabletPortrait = viewModel.isTabletPortrait
+                        val maxWidth = if (isTabletPortrait) {
+                            Dp.Unspecified
+                        } else {
+                            AX_QS_CONTENT_MAX_WIDTH
+                        }
                         Box(
                             modifier = Modifier.widthIn(max = maxWidth)
                         ) {
@@ -925,7 +923,7 @@ constructor(
     @Composable
     private fun ContentScope.QuickSettingsElement(modifier: Modifier = Modifier) {
         val qqsPadding = viewModel.qqsHeaderHeight
-        val qsExtraPadding = if (viewModel.isInSplitShade) 0.dp else AX_QS_PANEL_PADDING_TOP * LocalAxQsScale.current
+        val qsExtraPadding = if (viewModel.isInSplitShade) 0.dp else dimensionResource(R.dimen.qs_panel_padding_top)
         Column(
             modifier =
                 modifier.collapseExpandSemanticAction(
@@ -1034,9 +1032,12 @@ constructor(
                                     .padding(top = QuickSettingsShade.Dimensions.Padding),
                             contentAlignment = Alignment.TopCenter,
                         ) {
-                            val scale = LocalAxQsScale.current
-                            val maxWidth = if (viewModel.isTabletPortrait) Dp.Unspecified
-                                else AX_QS_CONTENT_MAX_WIDTH * scale
+                            val isTabletPortrait = viewModel.isTabletPortrait
+                            val maxWidth = if (isTabletPortrait) {
+                                Dp.Unspecified
+                            } else {
+                                AX_QS_CONTENT_MAX_WIDTH
+                            }
                             Box(
                                 modifier = Modifier.widthIn(max = maxWidth)
                             ) {
@@ -1098,7 +1099,7 @@ constructor(
                             Color.Transparent,
                             ContainerColors.defaultContainerColor,
                         ),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
                 )
             }
         }
@@ -1350,10 +1351,7 @@ private const val EDIT_MODE_TIME_MILLIS = 400
 
 private const val AX_QS_DENSITY_THRESHOLD = 2.688f
 private const val AX_QS_FONT_SCALE_THRESHOLD = 1.0f
-private const val AX_QS_BASELINE_SW = 411f
 private val AX_QS_CONTENT_MAX_WIDTH = 376.dp
-private val AX_QS_PANEL_PADDING_TOP = 17.dp
-private val LocalAxQsScale = compositionLocalOf { 1f }
 
 /**
  * Performs different touch handling based on the state of the ComposeView:
