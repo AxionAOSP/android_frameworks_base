@@ -30,13 +30,17 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Process;
+import android.os.SystemClock;
 import android.os.SystemProperties;
+import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.ArrayMap;
 import android.util.Slog;
 import android.util.SparseIntArray;
 import android.view.Display;
 import android.view.WindowManager;
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.android.server.wm.AxAppRefreshRateProvider.AppRefreshRateConfig;
 import com.android.server.wm.AxAppRefreshRateProvider.AppVoteInfo;
@@ -47,10 +51,15 @@ public class AxRefreshRateController {
         void setGameFps(int uid, float fps);
     }
 
+    public interface RefreshRateUpdateCallback {
+        void onRefreshRateChanged(float min, float peak, int displayId);
+    }
+
     private static final String TAG = "AxRefreshRateController";
     private static final String SETTINGS_REFRESH_RATE_MODE = "display_refresh_rate_mode";
     private static final String LOCKSCREEN_LIMIT_REFRESH_RATE = "lockscreen_limit_refresh_rate";
     private static final String PER_APP_REFRESH_RATE = "per_app_refresh_rate";
+    private static final String GAMING_MODE_ACTIVE = "ax_gaming_mode_active";
 
     private static final AxRefreshRateController INSTANCE = new AxRefreshRateController();
 
@@ -75,6 +84,7 @@ public class AxRefreshRateController {
     private volatile boolean isAppOverrideActive = false;
     private volatile float mPerAppOverrideRate = 0f;
     private volatile String mFocusedPackage = "";
+    private volatile boolean mGamingActive = false;
 
     private boolean isCtsTest = false;
     private boolean overrideWinPrefer = false;
@@ -83,10 +93,53 @@ public class AxRefreshRateController {
 
     private final ArrayMap<String, Float> mUserAppRefreshRates = new ArrayMap<>();
 
+    private float mLastSyncedPeak = -1f;
+    private float mLastSyncedMin = -1f;
+
+    private static final int BOOST_TOUCH = 1;
+    private static final int BOOST_ANIM = 1 << 1;
+    private static final int BOOST_FOCUS = 1 << 2;
+    private static final int BOOST_OVERLAY = 1 << 3;
+
+    private final AtomicInteger mActiveBoosts = new AtomicInteger(0);
+    private long mIdleTimeoutMs;
+    private long mFocusBoostTimeoutMs;
+    private volatile long mLastActivityTime = 0;
+
+    private void setBoost(int flag) {
+        mActiveBoosts.updateAndGet(v -> v | flag);
+    }
+
+    private void clearBoost(int flag) {
+        mActiveBoosts.updateAndGet(v -> v & ~flag);
+    }
+
+    private boolean hasBoost(int flag) {
+        return (mActiveBoosts.get() & flag) != 0;
+    }
+
+    private boolean isBoosted() {
+        return mActiveBoosts.get() != 0;
+    }
+
+    private final Runnable mIdleRunnable = () -> {
+        long elapsed = SystemClock.uptimeMillis() - mLastActivityTime;
+        if (elapsed >= mIdleTimeoutMs && !hasBoost(BOOST_ANIM | BOOST_OVERLAY)) {
+            clearBoost(BOOST_TOUCH);
+            syncDisplaySettings();
+        }
+    };
+
+    private final Runnable mFocusBoostExpireRunnable = () -> {
+        clearBoost(BOOST_FOCUS);
+        scheduleIdleCheck();
+    };
+
     private final boolean supportsVRR = SystemProperties.getBoolean(
             "ro.surface_flinger.use_content_detection_for_refresh_rate", false);
 
     private GameFpsCallback mCallbacks;
+    private RefreshRateUpdateCallback mRateCallback;
 
     private AxRefreshRateController() {}
 
@@ -96,23 +149,116 @@ public class AxRefreshRateController {
         this.mCallbacks = callback;
     }
 
+    public void setRefreshRateUpdateCallback(RefreshRateUpdateCallback callback) {
+        mRateCallback = callback;
+        mLastSyncedPeak = -1f;
+        mLastSyncedMin = -1f;
+        bgHandler.post(this::syncDisplaySettings);
+    }
+
     private float resolveMaxRate() {
         return isVrrEnabled ? maxSupportedHz : currentRefreshRate;
     }
 
-    public void init(Context context, WindowManagerService wm) {
-        if (mInitialized) return;
-        this.context = context;
-        this.wm = wm;
+    private void scheduleIdleCheck() {
+        bgHandler.removeCallbacks(mIdleRunnable);
+        bgHandler.postDelayed(mIdleRunnable, mIdleTimeoutMs);
+    }
 
-        HandlerThread thread = new HandlerThread("AxRefreshRateConfig",
-                Process.THREAD_PRIORITY_BACKGROUND);
-        thread.start();
-        bgHandler = new Handler(thread.getLooper());
+    public void onPointerEvent() {
+        if (!mInitialized || !isVrrEnabled) return;
+        if (isAppOverrideActive || mGamingActive) return;
+        if (isLockscreenLimitEnabled && !isKeyguardDone) return;
 
+        boolean wasIdle = !hasBoost(BOOST_TOUCH);
+        setBoost(BOOST_TOUCH);
+        mLastActivityTime = SystemClock.uptimeMillis();
+
+        if (wasIdle) {
+            mLastSyncedPeak = -1f;
+            mLastSyncedMin = -1f;
+            bgHandler.post(this::syncDisplaySettings);
+        }
+        scheduleIdleCheck();
+    }
+
+    public void setAnimating(boolean animating) {
+        if (!mInitialized) return;
+        boolean wasAnimating = hasBoost(BOOST_ANIM);
+        if (wasAnimating == animating) return;
+
+        if (animating) {
+            setBoost(BOOST_ANIM);
+        } else {
+            clearBoost(BOOST_ANIM);
+        }
+        mLastActivityTime = SystemClock.uptimeMillis();
+
+        if (!isVrrEnabled || isAppOverrideActive
+                || (isLockscreenLimitEnabled && !isKeyguardDone)) return;
+
+        if (animating) {
+            bgHandler.post(this::syncDisplaySettings);
+        } else {
+            scheduleIdleCheck();
+        }
+    }
+
+    private void syncDisplaySettings() {
+        float peak;
+        float min;
+        if (isAppOverrideActive && mPerAppOverrideRate > 0) {
+            peak = mPerAppOverrideRate + 1.0f;
+            min = mPerAppOverrideRate;
+        } else if (mGamingActive) {
+            float cap = isVrrEnabled ? maxSupportedHz : currentRefreshRate;
+            peak = cap + 1.0f;
+            min = 0f;
+        } else if (isLockscreenLimitEnabled && !isKeyguardDone) {
+            peak = defaultMinRefreshRate + 1.0f;
+            min = 0f;
+        } else if (isVrrEnabled) {
+            if (isBoosted()) {
+                peak = maxSupportedHz + 1.0f;
+            } else {
+                peak = defaultMinRefreshRate + 1.0f;
+            }
+            min = 0f;
+        } else {
+            float rate = currentRefreshRate > 0 ? currentRefreshRate : maxSupportedHz;
+            peak = rate + 1.0f;
+            min = 0f;
+        }
+        if (peak == mLastSyncedPeak && min == mLastSyncedMin) return;
+        mLastSyncedPeak = peak;
+        mLastSyncedMin = min;
+        Slog.d(TAG, "syncDisplaySettings: peak=" + peak + " min=" + min
+                + " boosts=" + boostString()
+                + " vrr=" + isVrrEnabled + " fixedRate=" + currentRefreshRate
+                + " perApp=" + isAppOverrideActive + "(" + mPerAppOverrideRate + ")");
+        if (mRateCallback != null) {
+            mRateCallback.onRefreshRateChanged(min, peak, Display.DEFAULT_DISPLAY);
+        }
+    }
+
+    private String boostString() {
+        int boosts = mActiveBoosts.get();
+        if (boosts == 0) return "NONE";
+        StringBuilder sb = new StringBuilder();
+        if ((boosts & BOOST_TOUCH) != 0) sb.append("TOUCH|");
+        if ((boosts & BOOST_ANIM) != 0) sb.append("ANIM|");
+        if ((boosts & BOOST_FOCUS) != 0) sb.append("FOCUS|");
+        if ((boosts & BOOST_OVERLAY) != 0) sb.append("OVERLAY|");
+        sb.setLength(sb.length() - 1);
+        return sb.toString();
+    }
+
+    private void refreshDisplayModes() {
         final DisplayManager dm = context.getSystemService(DisplayManager.class);
         Display display = dm.getDisplay(Display.DEFAULT_DISPLAY);
+        if (display == null) return;
 
+        float oldMax = maxSupportedHz;
         maxSupportedHz = 60f;
         defaultMinRefreshRate = 0;
 
@@ -150,11 +296,59 @@ public class AxRefreshRateController {
             if (defaultMinRefreshRate == Float.MAX_VALUE) defaultMinRefreshRate = 60f;
         }
 
+        if (oldMax != maxSupportedHz) {
+            Slog.i(TAG, "refreshDisplayModes: maxHz=" + maxSupportedHz
+                    + " minHz=" + defaultMinRefreshRate);
+            mLastSyncedPeak = -1f;
+            mLastSyncedMin = -1f;
+        }
+    }
+
+    public void forceResync() {
+        if (!mInitialized) return;
+        mLastSyncedPeak = -1f;
+        mLastSyncedMin = -1f;
+        bgHandler.post(this::syncDisplaySettings);
+    }
+
+    public void onDisplayChanged() {
+        if (!mInitialized) return;
+        refreshDisplayModes();
+        mLastSyncedPeak = -1f;
+        mLastSyncedMin = -1f;
+        setBoost(BOOST_FOCUS);
+        mLastActivityTime = SystemClock.uptimeMillis();
+        bgHandler.post(this::syncDisplaySettings);
+        bgHandler.removeCallbacks(mFocusBoostExpireRunnable);
+        bgHandler.postDelayed(mFocusBoostExpireRunnable, mFocusBoostTimeoutMs);
+    }
+
+    public void init(Context context, WindowManagerService wm) {
+        if (mInitialized) return;
+        this.context = context;
+        this.wm = wm;
+
+        HandlerThread thread = new HandlerThread("AxRefreshRateConfig",
+                Process.THREAD_PRIORITY_BACKGROUND);
+        thread.start();
+        bgHandler = new Handler(thread.getLooper());
+
+        mIdleTimeoutMs = SystemProperties.getLong(
+                "persist.sys.ax.idle_timeout_ms", 1500);
+        mFocusBoostTimeoutMs = SystemProperties.getLong(
+                "persist.sys.ax.focus_boost_timeout_ms", 5000);
+
+        refreshDisplayModes();
+
         loadRefreshRateSetting();
         loadPerAppRefreshRates();
 
         mInitialized = true;
         new SettingsObserver();
+        Slog.i(TAG, "init: maxHz=" + maxSupportedHz + " minHz=" + defaultMinRefreshRate
+                + " vrr=" + isVrrEnabled + " supportsVRR=" + supportsVRR
+                + " currentRate=" + currentRefreshRate
+                + " idleTimeout=" + mIdleTimeoutMs);
     }
 
     private void loadRefreshRateSetting() {
@@ -164,6 +358,7 @@ public class AxRefreshRateController {
         if (!isVrrEnabled) currentRefreshRate = value;
         isLockscreenLimitEnabled = Settings.System.getInt(context.getContentResolver(),
                 LOCKSCREEN_LIMIT_REFRESH_RATE, 0) != 0;
+        syncDisplaySettings();
     }
 
     private void loadPerAppRefreshRates() {
@@ -239,6 +434,7 @@ public class AxRefreshRateController {
         bestVote.reset();
         isCtsTest = false;
         overrideWinPrefer = false;
+        clearBoost(BOOST_OVERLAY);
         maxWindowSize = 0;
         disableIdle = false;
     }
@@ -254,9 +450,9 @@ public class AxRefreshRateController {
 
         if (isAppOverrideActive && mPerAppOverrideRate > 0) {
             currentVote.updateVote("PerAppOverride", mPerAppOverrideRate, mPerAppOverrideRate);
-        } else if (overrideWinPrefer) {
+        } else if (!isVrrEnabled && overrideWinPrefer) {
             currentVote.updateVote("OverrideWinPrefer", 0.0f, resolvedMax);
-        } else if (bestVote.hasVote) {
+        } else if (!isVrrEnabled && bestVote.hasVote) {
             currentVote.copyFrom(bestVote);
         }
 
@@ -273,11 +469,26 @@ public class AxRefreshRateController {
         if (disableIdle && currentVote.hasVote) {
             currentVote.minRefreshRate = currentVote.maxRefreshRate;
         }
+
+        if (!currentVote.hasVote && !isVrrEnabled && currentRefreshRate > 0) {
+            currentVote.updateVote("GlobalMode", 0f, currentRefreshRate);
+        }
+
+        if (isVrrEnabled && hasBoost(BOOST_OVERLAY)) {
+            bgHandler.post(this::syncDisplaySettings);
+        }
     }
 
     public void setKeyguardDone(boolean done) {
         isKeyguardDone = done;
         if (mInitialized) {
+            if (done && isVrrEnabled) {
+                setBoost(BOOST_FOCUS);
+                mLastActivityTime = SystemClock.uptimeMillis();
+                bgHandler.removeCallbacks(mFocusBoostExpireRunnable);
+                bgHandler.postDelayed(mFocusBoostExpireRunnable, mFocusBoostTimeoutMs);
+            }
+            bgHandler.post(this::syncDisplaySettings);
             wm.requestTraversal();
         }
     }
@@ -292,7 +503,29 @@ public class AxRefreshRateController {
 
     public void updateFocusedApp(final ActivityRecord activityRecord) {
         if (!mInitialized) return;
-        bgHandler.post(() -> handleFocusedAppUpdate(activityRecord));
+        String pkg = activityRecord.packageName;
+        Float userRate;
+        synchronized (mUserAppRefreshRates) {
+            userRate = mUserAppRefreshRates.get(pkg);
+        }
+        if (userRate != null && userRate > 0) {
+            isAppOverrideActive = true;
+            mPerAppOverrideRate = userRate;
+        } else {
+            isAppOverrideActive = false;
+            mPerAppOverrideRate = 0f;
+        }
+        mFocusedPackage = pkg;
+        setBoost(BOOST_FOCUS);
+        mLastActivityTime = SystemClock.uptimeMillis();
+        mLastSyncedPeak = -1f;
+        mLastSyncedMin = -1f;
+        bgHandler.post(() -> {
+            syncDisplaySettings();
+            handleFocusedAppUpdate(activityRecord);
+        });
+        bgHandler.removeCallbacks(mFocusBoostExpireRunnable);
+        bgHandler.postDelayed(mFocusBoostExpireRunnable, mFocusBoostTimeoutMs);
     }
 
     private boolean isSystemWindowType(int type) {
@@ -378,6 +611,10 @@ public class AxRefreshRateController {
             }
         }
 
+        if (ws.mAttrs.type == TYPE_NOTIFICATION_SHADE) {
+            setBoost(BOOST_OVERLAY);
+        }
+
         if (shouldOverrideForWindow(ws, displayOn)) {
             overrideWinPrefer = true;
             targetRate = resolvedMax;
@@ -400,6 +637,10 @@ public class AxRefreshRateController {
         return overrideWinPrefer;
     }
 
+    public boolean hasActiveVote() {
+        return currentVote.hasVote;
+    }
+
     public float getMaxPreferredRate() {
         return currentVote.maxRefreshRate;
     }
@@ -419,6 +660,8 @@ public class AxRefreshRateController {
                 Settings.System.getUriFor(LOCKSCREEN_LIMIT_REFRESH_RATE);
         private final Uri perAppRefreshRateUri =
                 Settings.System.getUriFor(PER_APP_REFRESH_RATE);
+        private final Uri gamingModeUri =
+                Settings.Secure.getUriFor(GAMING_MODE_ACTIVE);
 
         SettingsObserver() {
             super(bgHandler);
@@ -428,10 +671,19 @@ public class AxRefreshRateController {
                     lockscreenLimitUri, false, this, -1);
             context.getContentResolver().registerContentObserver(
                     perAppRefreshRateUri, false, this, -1);
+            context.getContentResolver().registerContentObserver(
+                    gamingModeUri, false, this, -1);
         }
 
         @Override
         public void onChange(boolean selfChange, Uri uri) {
+            if (gamingModeUri.equals(uri)) {
+                mGamingActive = Settings.Secure.getIntForUser(
+                        context.getContentResolver(), GAMING_MODE_ACTIVE,
+                        0, UserHandle.USER_CURRENT) == 1;
+                syncDisplaySettings();
+                return;
+            }
             loadRefreshRateSetting();
             if (perAppRefreshRateUri.equals(uri)) {
                 loadPerAppRefreshRates();

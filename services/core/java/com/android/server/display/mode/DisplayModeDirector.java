@@ -24,6 +24,8 @@ import static android.view.Display.Mode.INVALID_MODE_ID;
 
 import static com.android.server.display.DisplayDeviceConfig.DEFAULT_LOW_REFRESH_RATE;
 
+import com.android.server.wm.AxRefreshRateController;
+
 import android.annotation.IntegerRes;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -246,6 +248,14 @@ public class DisplayModeDirector {
         mDisplayObserver.observe();
 
         mSettingsObserver.observe();
+
+        AxRefreshRateController.get().setRefreshRateUpdateCallback((min, peak, displayId) -> {
+            synchronized (mLock) {
+                mSettingsObserver.updateRefreshRateSettingLocked(
+                        min, peak, mSettingsObserver.getDefaultRefreshRate(), displayId);
+            }
+        });
+
         mBrightnessObserver.observe(sensorManager);
         mSensorObserver.observe();
         mHbmObserver.observe();
@@ -1717,6 +1727,9 @@ public class DisplayModeDirector {
                     notifyDesiredDisplayModeSpecsChangedLocked();
                     mSettingsObserver.updateRefreshRateSettingLocked(displayId);
                 }
+            }
+            if (changed && displayId == Display.DEFAULT_DISPLAY) {
+                AxRefreshRateController.get().forceResync();
             }
         }
 

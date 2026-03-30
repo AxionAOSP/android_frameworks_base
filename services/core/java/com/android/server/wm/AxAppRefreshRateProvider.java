@@ -26,6 +26,9 @@ public class AxAppRefreshRateProvider {
     private static final ArrayMap<String, AppRefreshRateConfig> sConfigs = new ArrayMap<>();
 
     static {
+        addConfig(sConfigs,
+                new String[]{"com.android.systemui"},
+                "MAX", false, false);
     }
 
     static final Map<String, AppRefreshRateConfig> DEFAULT_APP_CONFIGS =

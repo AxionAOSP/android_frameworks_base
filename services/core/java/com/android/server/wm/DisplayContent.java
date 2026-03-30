@@ -3054,6 +3054,9 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
     void onDisplayChanged(DisplayContent dc) {
         super.onDisplayChanged(dc);
         updateSystemGestureExclusionLimit();
+        if (isDefaultDisplay) {
+            AxRefreshRateController.get().onDisplayChanged();
+        }
     }
 
     void updateSystemGestureExclusionLimit() {
@@ -5223,6 +5226,10 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
         }
 
         mLastHasContent = mTmpApplySurfaceChangesTransactionState.displayHasContent;
+        if (isDefaultDisplay) {
+            AxRefreshRateController.get().setAnimating(
+                    inTransition() || AxRefreshRateController.get().isOverrideWinPrefer());
+        }
         if (!inTransition()) {
             if (isDefaultDisplay) {
                 boolean windowPreferNone = mTmpApplySurfaceChangesTransactionState.preferredRefreshRate == INVALID_DPI
@@ -5230,10 +5237,14 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
                     && mTmpApplySurfaceChangesTransactionState.preferredMinRefreshRate == INVALID_DPI
                     && mTmpApplySurfaceChangesTransactionState.preferredMaxRefreshRate == INVALID_DPI;
                 AxRefreshRateController.get().updateVoteResult();
-                if (windowPreferNone || AxRefreshRateController.get().isOverrideWinPrefer()) {
-                    mTmpApplySurfaceChangesTransactionState.preferredModeId = AxRefreshRateController.get().getPreferredModeId();
-                    mTmpApplySurfaceChangesTransactionState.preferredMinRefreshRate = AxRefreshRateController.get().getMinPreferredRate();
-                    mTmpApplySurfaceChangesTransactionState.preferredMaxRefreshRate = AxRefreshRateController.get().getMaxPreferredRate();
+                if (AxRefreshRateController.get().hasActiveVote()) {
+                    float axMin = AxRefreshRateController.get().getMinPreferredRate();
+                    float axMax = AxRefreshRateController.get().getMaxPreferredRate();
+                    mTmpApplySurfaceChangesTransactionState.preferredModeId =
+                            AxRefreshRateController.get().getPreferredModeId();
+                    mTmpApplySurfaceChangesTransactionState.preferredMinRefreshRate = axMin;
+                    mTmpApplySurfaceChangesTransactionState.preferredMaxRefreshRate = axMax;
+                    mTmpApplySurfaceChangesTransactionState.preferredRefreshRate = axMax;
                 }
             }
             mWmService.mDisplayManagerInternal.setDisplayProperties(mDisplayId,
