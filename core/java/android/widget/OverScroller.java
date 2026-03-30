@@ -1042,6 +1042,9 @@ public class OverScroller {
         void setFinalPosition(int position) {
             mFinal = position;
             mSplineDistance = mFinal - mStart;
+            if (mUseSpringPhysics) {
+                mSpringDistanceOld = mSplineDistance;
+            }
             mFinished = false;
         }
 
