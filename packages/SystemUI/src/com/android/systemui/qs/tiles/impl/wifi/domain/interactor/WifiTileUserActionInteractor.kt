@@ -16,18 +16,14 @@
 
 package com.android.systemui.qs.tiles.impl.wifi.domain.interactor
 
-import android.content.Intent
-import android.provider.Settings
 import com.android.systemui.animation.Expandable
 import com.android.systemui.dagger.qualifiers.Main
-import com.android.systemui.qs.tiles.base.domain.actions.QSTileIntentUserInputHandler
 import com.android.systemui.qs.tiles.base.domain.interactor.QSTileUserActionInteractor
 import com.android.systemui.qs.tiles.base.domain.model.QSTileInput
 import com.android.systemui.qs.tiles.base.shared.model.QSTileUserAction
 import com.android.systemui.qs.tiles.dialog.InternetDialogManager
 import com.android.systemui.qs.tiles.impl.wifi.domain.model.WifiTileModel
 import com.android.systemui.statusbar.connectivity.AccessPointController
-import com.android.systemui.statusbar.pipeline.shared.ui.model.WifiToggleState
 import com.android.systemui.statusbar.pipeline.wifi.data.repository.WifiRepository
 import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
@@ -41,47 +37,33 @@ constructor(
     private val internetDialogManager: InternetDialogManager,
     private val accessPointController: AccessPointController,
     private val wifiRepository: WifiRepository,
-    private val qsTileIntentUserActionHandler: QSTileIntentUserInputHandler,
 ) : QSTileUserActionInteractor<WifiTileModel> {
-    val longClickIntent = Intent(Settings.ACTION_WIFI_SETTINGS)
 
     override suspend fun handleInput(input: QSTileInput<WifiTileModel>): Unit =
         with(input) {
             when (action) {
-                is QSTileUserAction.Click -> {
-                    handleClick(action.expandable)
-                }
-                is QSTileUserAction.LongClick -> {
-                    handleLongClick(action.expandable)
-                }
-                is QSTileUserAction.ToggleClick -> {
-                    handleSecondaryClick(action.expandable)
-                }
+                is QSTileUserAction.Click -> handleClick()
+                is QSTileUserAction.LongClick -> handleLongClick(action.expandable)
+                is QSTileUserAction.ToggleClick -> {}
             }
         }
 
-    suspend fun handleClick(expandable: Expandable?) {
-        withContext(mainContext) {
-            internetDialogManager.create(
-                aboveStatusBar = true,
-                false, /* canConfigMobileData */
-                accessPointController.canConfigWifi(),
-                expandable,
-            )
+    fun handleClick() {
+        if (!wifiRepository.isWifiEnabled.value) {
+            wifiRepository.enableWifi()
+        } else {
+            wifiRepository.disableWifi()
         }
     }
 
     suspend fun handleLongClick(expandable: Expandable?) {
         withContext(mainContext) {
-            qsTileIntentUserActionHandler.handle(expandable, Intent(Settings.ACTION_WIFI_SETTINGS))
-        }
-    }
-
-    fun handleSecondaryClick(expandable: Expandable?) {
-        if (!wifiRepository.isWifiEnabled.value) {
-            wifiRepository.enableWifi()
-        } else {
-            wifiRepository.disableWifi()
+            internetDialogManager.create(
+                aboveStatusBar = true,
+                false,
+                accessPointController.canConfigWifi(),
+                expandable,
+            )
         }
     }
 }
