@@ -27,6 +27,7 @@ import com.android.systemui.qs.tiles.AirplaneModeTile
 import com.android.systemui.qs.tiles.BluetoothTile
 import com.android.systemui.qs.tiles.CastTile
 import com.android.systemui.qs.tiles.DataSaverTile
+import com.android.systemui.qs.tiles.FiveGTile
 import com.android.systemui.qs.tiles.HotspotTile
 import com.android.systemui.qs.tiles.InternetTileNewImpl
 import com.android.systemui.qs.tiles.MobileDataTile
@@ -110,6 +111,12 @@ interface ConnectivityModule {
 
     /** Inject NfcTile into tileMap in QSModule */
     @Binds @IntoMap @StringKey(NfcTile.TILE_SPEC) fun bindNfcTile(nfcTile: NfcTile): QSTileImpl<*>
+
+    /** Inject FiveGTile into tileMap in QSModule */
+    @Binds
+    @IntoMap
+    @StringKey(FiveGTile.TILE_SPEC)
+    fun bindFiveGTile(fiveGTile: FiveGTile): QSTileImpl<*>
 
     /** Inject InternetTileNewImpl into tileMap in QSModule */
     @Binds
@@ -370,6 +377,21 @@ interface ConnectivityModule {
                     QSTileUIConfig.Resource(
                         iconRes = R.drawable.qs_bluetooth_icon_off,
                         labelRes = R.string.quick_settings_bluetooth_label,
+                    ),
+                instanceId = uiEventLogger.getNewInstanceId(),
+                category = TileCategory.CONNECTIVITY,
+            )
+
+        @Provides
+        @IntoMap
+        @StringKey(FiveGTile.TILE_SPEC)
+        fun provideFiveGTileConfig(uiEventLogger: QsEventLogger): QSTileConfig =
+            QSTileConfig(
+                tileSpec = TileSpec.create(FiveGTile.TILE_SPEC),
+                uiConfig =
+                    QSTileUIConfig.Resource(
+                        iconRes = R.drawable.ic_5g_toggle,
+                        labelRes = R.string.quick_settings_5g_editor_label,
                     ),
                 instanceId = uiEventLogger.getNewInstanceId(),
                 category = TileCategory.CONNECTIVITY,

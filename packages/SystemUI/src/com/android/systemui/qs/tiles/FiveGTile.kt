@@ -14,61 +14,63 @@
  * limitations under the License.
  */
 
-package com.android.systemui.qs.tiles.dialog
+package com.android.systemui.qs.tiles
 
-import android.content.Context
+import android.content.Intent
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
+import android.service.quicksettings.Tile
 import android.telephony.RadioAccessFamily
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import android.util.Log
-import com.android.systemui.dagger.SysUISingleton
+import android.widget.Switch
+import com.android.internal.logging.MetricsLogger
+import com.android.systemui.animation.Expandable
 import com.android.systemui.dagger.qualifiers.Background
-import com.android.systemui.statusbar.policy.HotspotController
+import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.plugins.ActivityStarter
+import com.android.systemui.plugins.FalsingManager
+import com.android.systemui.plugins.qs.QSTile
+import com.android.systemui.plugins.statusbar.StatusBarStateController
+import com.android.systemui.qs.QSHost
+import com.android.systemui.qs.QsEventLogger
+import com.android.systemui.qs.logging.QSLogger
+import com.android.systemui.qs.tileimpl.QSTileImpl
+import com.android.systemui.res.R
 import java.util.concurrent.Executor
 import javax.inject.Inject
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 
-@SysUISingleton
-class InternetTileExtrasViewModel @Inject constructor(
-    private val context: Context,
-    private val hotspotController: HotspotController,
+class FiveGTile @Inject constructor(
+    host: QSHost,
+    uiEventLogger: QsEventLogger,
+    @Background backgroundLooper: Looper,
+    @Main mainHandler: Handler,
+    falsingManager: FalsingManager,
+    metricsLogger: MetricsLogger,
+    private val statusBarStateController: StatusBarStateController,
+    activityStarter: ActivityStarter,
+    private val qsLogger: QSLogger,
     private val subscriptionManager: SubscriptionManager,
-    @Background private val bgExecutor: Executor,
-    private val dataUsageRepository: DataUsageRepository,
+    @Background private val bgExecutor: Executor
+) : QSTileImpl<QSTile.BooleanState>(
+    host,
+    uiEventLogger,
+    backgroundLooper,
+    mainHandler,
+    falsingManager,
+    metricsLogger,
+    statusBarStateController,
+    activityStarter,
+    qsLogger,
 ) {
 
     private val telephonyManager: TelephonyManager =
-        context.getSystemService(TelephonyManager::class.java)
-
-    private val _hotspotEnabled = MutableStateFlow(false)
-    val hotspotEnabled: StateFlow<Boolean> = _hotspotEnabled.asStateFlow()
-
-    private val _hotspotAvailable = MutableStateFlow(false)
-    val hotspotAvailable: StateFlow<Boolean> = _hotspotAvailable.asStateFlow()
-
-    private val _fiveGEnabled = MutableStateFlow(false)
-    val fiveGEnabled: StateFlow<Boolean> = _fiveGEnabled.asStateFlow()
-
-    private val _fiveGAvailable = MutableStateFlow(false)
-    val fiveGAvailable: StateFlow<Boolean> = _fiveGAvailable.asStateFlow()
-
-    val mobileDataUsage: StateFlow<String?> = dataUsageRepository.mobileUsageFormatted
-    val wifiDataUsage: StateFlow<String?> = dataUsageRepository.wifiUsageFormatted
+        mContext.getSystemService(TelephonyManager::class.java)
 
     private val callbacks = mutableMapOf<Int, FiveGCallback>()
-
-    private val hotspotCallback = object : HotspotController.Callback {
-        override fun onHotspotChanged(enabled: Boolean, numDevices: Int) {
-            _hotspotEnabled.value = enabled
-        }
-
-        override fun onHotspotAvailabilityChanged(available: Boolean) {
-            _hotspotAvailable.value = available
-        }
-    }
 
     private val subscriptionsChangedListener = object : SubscriptionManager.OnSubscriptionsChangedListener() {
         override fun onSubscriptionsChanged() {
@@ -79,36 +81,21 @@ class InternetTileExtrasViewModel @Inject constructor(
     private inner class FiveGCallback : TelephonyCallback(), TelephonyCallback.AllowedNetworkTypesListener {
         override fun onAllowedNetworkTypesChanged(reason: Int, allowedNetworkType: Long) {
             if (reason == TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER) {
-                bgExecutor.execute { refreshFiveGState() }
+                refreshState()
             }
         }
     }
 
-    fun start() {
-        _hotspotAvailable.value = hotspotController.isHotspotSupported
-        _hotspotEnabled.value = hotspotController.isHotspotEnabled
-        hotspotController.addCallback(hotspotCallback)
-        subscriptionManager.addOnSubscriptionsChangedListener(bgExecutor, subscriptionsChangedListener)
-        refreshCallbacks()
-        dataUsageRepository.refresh()
+    override fun newTileState(): QSTile.BooleanState {
+        return QSTile.BooleanState()
     }
 
-    fun stop() {
-        hotspotController.removeCallback(hotspotCallback)
-        subscriptionManager.removeOnSubscriptionsChangedListener(subscriptionsChangedListener)
-        clearCallbacks()
-    }
-
-    fun toggleHotspot() {
-        val newState = !_hotspotEnabled.value
-        hotspotController.setHotspotEnabled(newState)
-    }
-
-    fun toggleFiveG() {
+    override fun handleClick(expandable: Expandable?) {
+        val enable = !mState.value
+        qsLogger.logTileClick(tileSpec, statusBarStateController.state, mState.state, mState.state)
         bgExecutor.execute {
             try {
                 val subInfoList = subscriptionManager.activeSubscriptionInfoList ?: return@execute
-                val enable = !_fiveGEnabled.value
                 for (subInfo in subInfoList) {
                     val subId = subInfo.subscriptionId
                     val tm = telephonyManager.createForSubscriptionId(subId)
@@ -126,9 +113,45 @@ class InternetTileExtrasViewModel @Inject constructor(
                     )
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error toggling 5G", e)
+                Log.e(TAG_5G, "Error handling click", e)
             }
-            refreshFiveGState()
+            refreshState()
+        }
+    }
+
+    override fun handleUpdateState(state: QSTile.BooleanState, arg: Any?) {
+        state.label = mContext.getString(R.string.quick_settings_5g_label)
+        state.contentDescription = state.label
+        state.icon = ResourceIcon.get(R.drawable.ic_5g_toggle)
+        state.value = isFiveGEnabled()
+        state.state = if (state.value) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+        state.expandedAccessibilityClassName = Switch::class.java.name
+    }
+
+    override fun isAvailable(): Boolean {
+        return modemSupportsNr()
+    }
+
+    override fun getLongClickIntent(): Intent {
+        return Intent(Settings.ACTION_NETWORK_OPERATOR_SETTINGS)
+    }
+
+    override fun getTileLabel(): CharSequence {
+        return mContext.getString(R.string.quick_settings_5g_editor_label)
+    }
+
+    override fun getMetricsCategory(): Int {
+        return 0
+    }
+
+    override fun handleSetListening(listening: Boolean) {
+        super.handleSetListening(listening)
+        if (listening) {
+            subscriptionManager.addOnSubscriptionsChangedListener(bgExecutor, subscriptionsChangedListener)
+            refreshCallbacks()
+        } else {
+            subscriptionManager.removeOnSubscriptionsChangedListener(subscriptionsChangedListener)
+            clearCallbacks()
         }
     }
 
@@ -155,7 +178,7 @@ class InternetTileExtrasViewModel @Inject constructor(
                     telephonyManager.createForSubscriptionId(subId).registerTelephonyCallback(bgExecutor, callback)
                 }
             }
-            refreshFiveGState()
+            refreshState()
         }
     }
 
@@ -168,18 +191,12 @@ class InternetTileExtrasViewModel @Inject constructor(
         }
     }
 
-    private fun refreshFiveGState() {
-        _fiveGAvailable.value = modemSupportsNr()
-        if (!_fiveGAvailable.value) {
-            _fiveGEnabled.value = false
-            return
-        }
+    private fun isFiveGEnabled(): Boolean {
         val subInfoList = subscriptionManager.activeSubscriptionInfoList
         if (subInfoList.isNullOrEmpty()) {
-            _fiveGEnabled.value = false
-            return
+            return false
         }
-        _fiveGEnabled.value = subInfoList.any { subInfo ->
+        return subInfoList.any { subInfo ->
             val allowed = telephonyManager.createForSubscriptionId(subInfo.subscriptionId)
                 .getAllowedNetworkTypesForReason(
                     TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER
@@ -202,6 +219,7 @@ class InternetTileExtrasViewModel @Inject constructor(
     }
 
     companion object {
-        private const val TAG = "InternetTileExtrasVM"
+        private const val TAG_5G = "FiveGTile"
+        const val TILE_SPEC = "five_g"
     }
 }
