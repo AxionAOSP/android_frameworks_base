@@ -95,14 +95,14 @@ constructor(
     }
 
     override fun handleClick(expandable: Expandable?) {
-        lifecycle.coroutineScope.launch { userActionInteractor.handleClick(expandable) }
+        userActionInteractor.handleClick()
     }
 
-    override fun handleSecondaryClick(expandable: Expandable?) {
-        userActionInteractor.handleSecondaryClick(expandable)
+    override fun handleLongClick(expandable: Expandable?) {
+        lifecycle.coroutineScope.launch { userActionInteractor.handleLongClick(expandable) }
     }
 
-    override fun getLongClickIntent(): Intent = userActionInteractor.longClickIntent
+    override fun getLongClickIntent(): Intent? = null
 
     override fun handleUpdateState(state: QSTile.State?, arg: Any?) {
         val model = arg as? WifiTileModel ?: return
