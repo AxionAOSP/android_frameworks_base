@@ -19,7 +19,9 @@ package com.android.systemui.qs.tiles.dialog
 import android.content.Context
 import android.telephony.RadioAccessFamily
 import android.telephony.SubscriptionManager
+import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
+import android.util.Log
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.statusbar.policy.HotspotController
@@ -56,6 +58,8 @@ class InternetTileExtrasViewModel @Inject constructor(
     val mobileDataUsage: StateFlow<String?> = dataUsageRepository.mobileUsageFormatted
     val wifiDataUsage: StateFlow<String?> = dataUsageRepository.wifiUsageFormatted
 
+    private val callbacks = mutableMapOf<Int, FiveGCallback>()
+
     private val hotspotCallback = object : HotspotController.Callback {
         override fun onHotspotChanged(enabled: Boolean, numDevices: Int) {
             _hotspotEnabled.value = enabled
@@ -66,16 +70,33 @@ class InternetTileExtrasViewModel @Inject constructor(
         }
     }
 
+    private val subscriptionsChangedListener = object : SubscriptionManager.OnSubscriptionsChangedListener() {
+        override fun onSubscriptionsChanged() {
+            refreshCallbacks()
+        }
+    }
+
+    private inner class FiveGCallback : TelephonyCallback(), TelephonyCallback.AllowedNetworkTypesListener {
+        override fun onAllowedNetworkTypesChanged(reason: Int, allowedNetworkType: Long) {
+            if (reason == TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER) {
+                bgExecutor.execute { refreshFiveGState() }
+            }
+        }
+    }
+
     fun start() {
         _hotspotAvailable.value = hotspotController.isHotspotSupported
         _hotspotEnabled.value = hotspotController.isHotspotEnabled
         hotspotController.addCallback(hotspotCallback)
-        bgExecutor.execute { refreshFiveGState() }
+        subscriptionManager.addOnSubscriptionsChangedListener(bgExecutor, subscriptionsChangedListener)
+        refreshCallbacks()
         dataUsageRepository.refresh()
     }
 
     fun stop() {
         hotspotController.removeCallback(hotspotCallback)
+        subscriptionManager.removeOnSubscriptionsChangedListener(subscriptionsChangedListener)
+        clearCallbacks()
     }
 
     fun toggleHotspot() {
@@ -85,25 +106,65 @@ class InternetTileExtrasViewModel @Inject constructor(
 
     fun toggleFiveG() {
         bgExecutor.execute {
-            val subInfoList = subscriptionManager.activeSubscriptionInfoList ?: return@execute
-            val enable = !_fiveGEnabled.value
-            for (subInfo in subInfoList) {
-                val subId = subInfo.subscriptionId
-                val tm = telephonyManager.createForSubscriptionId(subId)
-                val currentRaf = tm.getAllowedNetworkTypesForReason(
-                    TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_CARRIER
-                )
-                val newRaf = if (enable) {
-                    currentRaf or TelephonyManager.NETWORK_TYPE_BITMASK_NR
-                } else {
-                    currentRaf and TelephonyManager.NETWORK_TYPE_BITMASK_NR.inv()
+            try {
+                val subInfoList = subscriptionManager.activeSubscriptionInfoList ?: return@execute
+                val enable = !_fiveGEnabled.value
+                for (subInfo in subInfoList) {
+                    val subId = subInfo.subscriptionId
+                    val tm = telephonyManager.createForSubscriptionId(subId)
+                    val currentRaf = tm.getAllowedNetworkTypesForReason(
+                        TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER
+                    )
+                    val newRaf = if (enable) {
+                        currentRaf or TelephonyManager.NETWORK_TYPE_BITMASK_NR
+                    } else {
+                        currentRaf and TelephonyManager.NETWORK_TYPE_BITMASK_NR.inv()
+                    }
+                    tm.setAllowedNetworkTypesForReason(
+                        TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER,
+                        newRaf
+                    )
                 }
-                tm.setAllowedNetworkTypesForReason(
-                    TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_CARRIER,
-                    newRaf
-                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error toggling 5G", e)
             }
             refreshFiveGState()
+        }
+    }
+
+    private fun refreshCallbacks() {
+        bgExecutor.execute {
+            val subInfoList = subscriptionManager.activeSubscriptionInfoList ?: emptyList()
+            val activeSubIds = subInfoList.map { it.subscriptionId }.toSet()
+
+            // Remove callbacks for inactive subscriptions
+            val iterator = callbacks.iterator()
+            while (iterator.hasNext()) {
+                val entry = iterator.next()
+                if (entry.key !in activeSubIds) {
+                    telephonyManager.createForSubscriptionId(entry.key).unregisterTelephonyCallback(entry.value)
+                    iterator.remove()
+                }
+            }
+
+            // Add callbacks for new active subscriptions
+            for (subId in activeSubIds) {
+                if (subId !in callbacks) {
+                    val callback = FiveGCallback()
+                    callbacks[subId] = callback
+                    telephonyManager.createForSubscriptionId(subId).registerTelephonyCallback(bgExecutor, callback)
+                }
+            }
+            refreshFiveGState()
+        }
+    }
+
+    private fun clearCallbacks() {
+        bgExecutor.execute {
+            for ((subId, callback) in callbacks) {
+                telephonyManager.createForSubscriptionId(subId).unregisterTelephonyCallback(callback)
+            }
+            callbacks.clear()
         }
     }
 
@@ -121,17 +182,26 @@ class InternetTileExtrasViewModel @Inject constructor(
         _fiveGEnabled.value = subInfoList.any { subInfo ->
             val allowed = telephonyManager.createForSubscriptionId(subInfo.subscriptionId)
                 .getAllowedNetworkTypesForReason(
-                    TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_CARRIER
+                    TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER
                 )
             (allowed and TelephonyManager.NETWORK_TYPE_BITMASK_NR) > 0
         }
     }
 
     private fun modemSupportsNr(): Boolean {
-        val defaultNetwork = TelephonyManager.getTelephonyProperty(
-            0, "ro.telephony.default_network", "1"
-        ).toIntOrNull() ?: return false
-        val raf = RadioAccessFamily.getRafFromNetworkType(defaultNetwork).toLong()
-        return (raf and TelephonyManager.NETWORK_TYPE_BITMASK_NR) > 0
+        for (slot in 0 until telephonyManager.activeModemCount) {
+            val defaultNetwork = TelephonyManager.getTelephonyProperty(
+                slot, "ro.telephony.default_network", "1"
+            ).toIntOrNull() ?: continue
+            val raf = RadioAccessFamily.getRafFromNetworkType(defaultNetwork).toLong()
+            if ((raf and TelephonyManager.NETWORK_TYPE_BITMASK_NR) > 0) {
+                return true
+            }
+        }
+        return false
+    }
+
+    companion object {
+        private const val TAG = "InternetTileExtrasVM"
     }
 }
