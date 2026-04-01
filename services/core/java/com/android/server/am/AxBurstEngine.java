@@ -71,6 +71,9 @@ public class AxBurstEngine implements IAxBurstEngine {
     private static final HashMap<String, String> sDefaultsCpu = new HashMap<>();
     
     public static final String CPU_CAMERA = AxUtils.cpuPath("camera-daemon");
+    public static final String CPU_NNAPI_HAL = AxUtils.cpuPath("nnapi-hal");
+    public static final String CPU_RT = AxUtils.cpuPath("rt");
+    public static final String CPU_SYSTEM = AxUtils.cpuPath("system");
     
     private ProcessList procList;
     private Context mContext;
@@ -111,6 +114,9 @@ public class AxBurstEngine implements IAxBurstEngine {
         sFileCache.put(CPU_CAMERA, new File(CPU_CAMERA));
         sFileCache.put(CPU_L_BG, new File(CPU_L_BG));
         sFileCache.put(CPU_H_BG, new File(CPU_H_BG));
+        sFileCache.put(CPU_NNAPI_HAL, new File(CPU_NNAPI_HAL));
+        sFileCache.put(CPU_RT, new File(CPU_RT));
+        sFileCache.put(CPU_SYSTEM, new File(CPU_SYSTEM));
 
         sCpuUpdateMessages.put(CPU_SYS_BG, Integer.valueOf(MSG_CPU_UPDATE_SYS_BG));
         sCpuUpdateMessages.put(CPU_BG, Integer.valueOf(MSG_CPU_UPDATE_BACKGROUND));
@@ -184,8 +190,16 @@ public class AxBurstEngine implements IAxBurstEngine {
         sDefaultsCpu.put(CPU_AX_FG, data.allCores);
         sDefaultsCpu.put(CPU_L_BG, data.bgLimit);
         sDefaultsCpu.put(CPU_H_BG, data.bgCpus);
+        sDefaultsCpu.put(CPU_NNAPI_HAL, data.sCores);
+        sDefaultsCpu.put(CPU_RT, data.allCores);
+        sDefaultsCpu.put(CPU_SYSTEM, data.sCores);
 
         write(sConfig);
+        writeDefaultCpusets();
+    }
+
+    private void writeDefaultCpusets() {
+        mHandler.post(() -> sDefaultsCpu.forEach(this::restoreCpuset));
     }
 
     private void restoreCpuset(String path, String cpus) {

@@ -329,7 +329,7 @@ public final class DeviceData {
 
         String bgCpus = rangeTo(sCores, 3);
         String fgLimited = joinRanges(smallR, rangeTo(bCores, 2));
-        String fgCpus = fgLimited;
+        String fgCpus = allCores;
         String boostCpus = joinRanges(bigR, primeR);
         if (boostCpus.isEmpty()) boostCpus = allCores;
 
