@@ -21,7 +21,6 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.service.quicksettings.Tile
-import android.telephony.RadioAccessFamily
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
@@ -40,6 +39,10 @@ import com.android.systemui.qs.QsEventLogger
 import com.android.systemui.qs.logging.QSLogger
 import com.android.systemui.qs.tileimpl.QSTileImpl
 import com.android.systemui.res.R
+import com.android.systemui.statusbar.connectivity.IconState
+import com.android.systemui.statusbar.connectivity.NetworkController
+import com.android.systemui.statusbar.connectivity.SignalCallback
+import com.android.systemui.statusbar.policy.BatteryController
 import java.util.concurrent.Executor
 import javax.inject.Inject
 
@@ -53,8 +56,10 @@ class FiveGTile @Inject constructor(
     private val statusBarStateController: StatusBarStateController,
     activityStarter: ActivityStarter,
     private val qsLogger: QSLogger,
-    private val subscriptionManager: SubscriptionManager,
-    @Background private val bgExecutor: Executor
+    private val fiveGUtils: AxFiveGUtils,
+    @Background private val bgExecutor: Executor,
+    batteryController: BatteryController,
+    networkController: NetworkController,
 ) : QSTileImpl<QSTile.BooleanState>(
     host,
     uiEventLogger,
@@ -67,51 +72,58 @@ class FiveGTile @Inject constructor(
     qsLogger,
 ) {
 
-    private val telephonyManager: TelephonyManager =
-        mContext.getSystemService(TelephonyManager::class.java)
+    private var airplaneMode = false
+    private var activeCallback: FiveGCallback? = null
+    private var trackedSubId = SubscriptionManager.INVALID_SUBSCRIPTION_ID
 
-    private val callbacks = mutableMapOf<Int, FiveGCallback>()
+    private val signalCallback = object : SignalCallback {
+        override fun setIsAirplaneMode(icon: IconState) {
+            val was = airplaneMode
+            airplaneMode = icon.visible
+            if (was != airplaneMode) refreshState()
+        }
 
-    private val subscriptionsChangedListener = object : SubscriptionManager.OnSubscriptionsChangedListener() {
-        override fun onSubscriptionsChanged() {
-            refreshCallbacks()
+        override fun setNoSims(show: Boolean, simDetected: Boolean) {
+            refreshState()
         }
     }
 
-    private inner class FiveGCallback : TelephonyCallback(), TelephonyCallback.AllowedNetworkTypesListener {
-        override fun onAllowedNetworkTypesChanged(reason: Int, allowedNetworkType: Long) {
-            if (reason == TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER) {
+    private val subscriptionsChangedListener =
+        object : SubscriptionManager.OnSubscriptionsChangedListener() {
+            override fun onSubscriptionsChanged() {
+                updateTelephonyCallback()
                 refreshState()
             }
         }
+
+    private inner class FiveGCallback :
+        TelephonyCallback(), TelephonyCallback.AllowedNetworkTypesListener {
+        override fun onAllowedNetworkTypesChanged(reason: Int, allowedNetworkType: Long) {
+            refreshState()
+        }
     }
 
-    override fun newTileState(): QSTile.BooleanState {
-        return QSTile.BooleanState()
+    init {
+        networkController.observe(lifecycle, signalCallback)
+        batteryController.observe(
+            lifecycle,
+            object : BatteryController.BatteryStateChangeCallback {
+                override fun onPowerSaveChanged(isPowerSave: Boolean) {
+                    mHandler.postDelayed({ refreshState() }, POWER_SAVE_DELAY)
+                }
+            },
+        )
     }
+
+    override fun newTileState() = QSTile.BooleanState()
 
     override fun handleClick(expandable: Expandable?) {
+        if (mState.state == Tile.STATE_UNAVAILABLE) return
         val enable = !mState.value
         qsLogger.logTileClick(tileSpec, statusBarStateController.state, mState.state, mState.state)
         bgExecutor.execute {
             try {
-                val subInfoList = subscriptionManager.activeSubscriptionInfoList ?: return@execute
-                for (subInfo in subInfoList) {
-                    val subId = subInfo.subscriptionId
-                    val tm = telephonyManager.createForSubscriptionId(subId)
-                    val currentRaf = tm.getAllowedNetworkTypesForReason(
-                        TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER
-                    )
-                    val newRaf = if (enable) {
-                        currentRaf or TelephonyManager.NETWORK_TYPE_BITMASK_NR
-                    } else {
-                        currentRaf and TelephonyManager.NETWORK_TYPE_BITMASK_NR.inv()
-                    }
-                    tm.setAllowedNetworkTypesForReason(
-                        TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER,
-                        newRaf
-                    )
-                }
+                fiveGUtils.setNrEnabled(enable)
             } catch (e: Exception) {
                 Log.e(TAG_5G, "Error handling click", e)
             }
@@ -121,105 +133,87 @@ class FiveGTile @Inject constructor(
 
     override fun handleUpdateState(state: QSTile.BooleanState, arg: Any?) {
         state.label = mContext.getString(R.string.quick_settings_5g_label)
-        state.contentDescription = state.label
         state.icon = ResourceIcon.get(R.drawable.ic_5g_toggle)
-        state.value = isFiveGEnabled()
-        state.state = if (state.value) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+        if (airplaneMode) {
+            state.value = false
+            state.state = Tile.STATE_UNAVAILABLE
+        } else if (!fiveGUtils.isNrAvailable()) {
+            state.value = false
+            state.state = Tile.STATE_UNAVAILABLE
+        } else {
+            state.value = fiveGUtils.isNrEnabled()
+            state.state = if (state.value) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+        }
+        state.contentDescription = state.label
         state.expandedAccessibilityClassName = Switch::class.java.name
     }
 
-    override fun isAvailable(): Boolean {
-        return modemSupportsNr()
-    }
+    override fun isAvailable() = fiveGUtils.modemSupportsNr()
 
     override fun getLongClickIntent(): Intent {
-        return Intent(Settings.ACTION_NETWORK_OPERATOR_SETTINGS)
+        if (mState.state == Tile.STATE_UNAVAILABLE) {
+            return Intent(Settings.ACTION_WIRELESS_SETTINGS)
+        }
+        val intent = Intent(Settings.ACTION_NETWORK_OPERATOR_SETTINGS)
+        val subId = SubscriptionManager.getDefaultDataSubscriptionId()
+        if (SubscriptionManager.isValidSubscriptionId(subId)) {
+            intent.putExtra(Settings.EXTRA_SUB_ID, subId)
+        }
+        return intent
     }
 
-    override fun getTileLabel(): CharSequence {
-        return mContext.getString(R.string.quick_settings_5g_editor_label)
-    }
+    override fun getTileLabel(): CharSequence =
+        mContext.getString(R.string.quick_settings_5g_editor_label)
 
-    override fun getMetricsCategory(): Int {
-        return 0
-    }
+    override fun getMetricsCategory() = 0
 
     override fun handleSetListening(listening: Boolean) {
         super.handleSetListening(listening)
         if (listening) {
-            subscriptionManager.addOnSubscriptionsChangedListener(bgExecutor, subscriptionsChangedListener)
-            refreshCallbacks()
+            mContext.getSystemService(SubscriptionManager::class.java)
+                ?.addOnSubscriptionsChangedListener(bgExecutor, subscriptionsChangedListener)
+            updateTelephonyCallback()
         } else {
-            subscriptionManager.removeOnSubscriptionsChangedListener(subscriptionsChangedListener)
-            clearCallbacks()
+            mContext.getSystemService(SubscriptionManager::class.java)
+                ?.removeOnSubscriptionsChangedListener(subscriptionsChangedListener)
+            clearTelephonyCallback()
         }
     }
 
-    private fun refreshCallbacks() {
+    private fun updateTelephonyCallback() {
         bgExecutor.execute {
-            val subInfoList = subscriptionManager.activeSubscriptionInfoList ?: emptyList()
-            val activeSubIds = subInfoList.map { it.subscriptionId }.toSet()
-
-            // Remove callbacks for inactive subscriptions
-            val iterator = callbacks.iterator()
-            while (iterator.hasNext()) {
-                val entry = iterator.next()
-                if (entry.key !in activeSubIds) {
-                    telephonyManager.createForSubscriptionId(entry.key).unregisterTelephonyCallback(entry.value)
-                    iterator.remove()
-                }
+            val subId = fiveGUtils.getDefaultDataSubId()
+                ?: SubscriptionManager.INVALID_SUBSCRIPTION_ID
+            if (subId == trackedSubId) return@execute
+            clearTelephonyCallbackInternal()
+            trackedSubId = subId
+            if (SubscriptionManager.isValidSubscriptionId(subId)) {
+                val callback = FiveGCallback()
+                activeCallback = callback
+                fiveGUtils.createForSubscriptionId(subId)
+                    .registerTelephonyCallback(bgExecutor, callback)
             }
-
-            // Add callbacks for new active subscriptions
-            for (subId in activeSubIds) {
-                if (subId !in callbacks) {
-                    val callback = FiveGCallback()
-                    callbacks[subId] = callback
-                    telephonyManager.createForSubscriptionId(subId).registerTelephonyCallback(bgExecutor, callback)
-                }
-            }
-            refreshState()
         }
     }
 
-    private fun clearCallbacks() {
-        bgExecutor.execute {
-            for ((subId, callback) in callbacks) {
-                telephonyManager.createForSubscriptionId(subId).unregisterTelephonyCallback(callback)
-            }
-            callbacks.clear()
-        }
+    private fun clearTelephonyCallback() {
+        bgExecutor.execute { clearTelephonyCallbackInternal() }
     }
 
-    private fun isFiveGEnabled(): Boolean {
-        val subInfoList = subscriptionManager.activeSubscriptionInfoList
-        if (subInfoList.isNullOrEmpty()) {
-            return false
-        }
-        return subInfoList.any { subInfo ->
-            val allowed = telephonyManager.createForSubscriptionId(subInfo.subscriptionId)
-                .getAllowedNetworkTypesForReason(
-                    TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER
-                )
-            (allowed and TelephonyManager.NETWORK_TYPE_BITMASK_NR) > 0
-        }
-    }
-
-    private fun modemSupportsNr(): Boolean {
-        for (slot in 0 until telephonyManager.activeModemCount) {
-            val defaultNetwork = TelephonyManager.getTelephonyProperty(
-                slot, "ro.telephony.default_network", "1"
-            ).toIntOrNull() ?: continue
-            val raf = RadioAccessFamily.getRafFromNetworkType(defaultNetwork).toLong()
-            if ((raf and TelephonyManager.NETWORK_TYPE_BITMASK_NR) > 0) {
-                return true
+    private fun clearTelephonyCallbackInternal() {
+        activeCallback?.let { cb ->
+            if (SubscriptionManager.isValidSubscriptionId(trackedSubId)) {
+                fiveGUtils.createForSubscriptionId(trackedSubId)
+                    .unregisterTelephonyCallback(cb)
             }
         }
-        return false
+        activeCallback = null
+        trackedSubId = SubscriptionManager.INVALID_SUBSCRIPTION_ID
     }
 
     companion object {
         private const val TAG_5G = "FiveGTile"
+        private const val POWER_SAVE_DELAY = 350L
         const val TILE_SPEC = "five_g"
     }
 }
