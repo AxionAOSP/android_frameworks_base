@@ -383,7 +383,7 @@ public class AxMemoryManagerImpl implements IAxMemoryManager {
 
     private static final String ZRAM_ALGO_PATH = "/sys/block/zram0/comp_algorithm";
     private static final String ZRAM_DISKSIZE_PATH = "/sys/block/zram0/disksize";
-    private static final String[] PREFERRED_ZRAM_ALGOS = {"zstd", "lz4"};
+    private static final String[] PREFERRED_ZRAM_ALGOS = {"lz4", "zstd"};
 
     private void tuneZramCompression() {
         String available = AxUtils.readFile(ZRAM_ALGO_PATH);
@@ -397,31 +397,38 @@ public class AxMemoryManagerImpl implements IAxMemoryManager {
             }
         }
 
-        String preferred = null;
-        for (String algo : PREFERRED_ZRAM_ALGOS) {
-            if (available.contains(algo)) {
-                preferred = algo;
-                break;
+        String preferred = SystemProperties.get("persist.sys.axion.zram_algo", "");
+
+        if (preferred.isEmpty() || !available.contains(preferred)) {
+            if (current != null && (current.equals("lz4") || current.equals("zstd"))) {
+                preferred = current;
+            } else {
+                preferred = null;
+                for (String algo : PREFERRED_ZRAM_ALGOS) {
+                    if (available.contains(algo)) {
+                        preferred = algo;
+                        break;
+                    }
+                }
             }
         }
 
         if (preferred == null || preferred.equals(current)) {
-            SystemProperties.set("persist.sys.axion.zram_status", "ok:" + current);
-            if (DEBUG) Slog.d(TAG, "ZRAM algo ok: " + current);
+            SystemProperties.set("persist.sys.axion.zram_status", "ok:" + (current != null ? current : "unknown"));
+            if (current != null) SystemProperties.set("persist.sys.axion.zram_algo", current);
             return;
         }
 
         String disksize = AxUtils.readFile(ZRAM_DISKSIZE_PATH);
         if (disksize == null || "0".equals(disksize.trim())) {
             SystemProperties.set("persist.sys.axion.zram_status", "inactive");
-            if (DEBUG) Slog.d(TAG, "ZRAM not active, skipping");
             return;
         }
+
         SystemProperties.set("persist.sys.axion.zram_disksize", disksize.trim());
         SystemProperties.set("persist.sys.axion.zram_algo", preferred);
         SystemProperties.set("persist.sys.axion.zram_status", "switching:" + current + "->" + preferred);
-        Slog.d(TAG, "ZRAM compression requested: " + current + " -> " + preferred
-                + " (disksize=" + disksize.trim() + ")");
+        Slog.d(TAG, "ZRAM compression requested: " + current + " -> " + preferred);
     }
 
     private static final String PINNER_GROUP = "axion";
