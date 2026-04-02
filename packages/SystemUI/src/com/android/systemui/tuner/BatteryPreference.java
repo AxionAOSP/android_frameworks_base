@@ -14,86 +14,47 @@
 
 package com.android.systemui.tuner;
 
-import static android.provider.Settings.System.SHOW_BATTERY_PERCENT;
-
 import android.content.Context;
-import android.provider.Settings;
-import android.text.TextUtils;
-import android.util.ArraySet;
 import android.util.AttributeSet;
 
 import androidx.preference.DropDownPreference;
 
 import com.android.internal.logging.MetricsLogger;
 import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
-import com.android.systemui.Dependency;
-import com.android.systemui.statusbar.phone.ui.StatusBarIconController;
 
-public class BatteryPreference extends DropDownPreference implements TunerService.Tunable {
+import lineageos.providers.LineageSettings;
 
-    private static final String PERCENT = "percent";
-    private static final String DEFAULT = "default";
-    private static final String DISABLED = "disabled";
+public class BatteryPreference extends DropDownPreference {
 
-    private final String mBattery;
-    private boolean mBatteryEnabled;
-    private boolean mHasPercentage;
-    private ArraySet<String> mHideList;
+    private static final String HIDDEN = "0";
+    private static final String INSIDE = "1";
+    private static final String NEXT_TO = "2";
+
     private boolean mHasSetValue;
 
     public BatteryPreference(Context context, AttributeSet attrs) {
         super(context, attrs);
-        mBattery = context.getString(com.android.internal.R.string.status_bar_battery);
-        setEntryValues(new CharSequence[] {PERCENT, DEFAULT, DISABLED });
+        setEntryValues(new CharSequence[] {HIDDEN, INSIDE, NEXT_TO});
     }
 
     @Override
     public void onAttached() {
         super.onAttached();
-        mHasPercentage = Settings.System.getInt(getContext().getContentResolver(),
-                SHOW_BATTERY_PERCENT, 0) != 0;
-        Dependency.get(TunerService.class).addTunable(this, StatusBarIconController.ICON_HIDE_LIST);
-    }
-
-    @Override
-    public void onDetached() {
-        Dependency.get(TunerService.class).removeTunable(this);
-        super.onDetached();
-    }
-
-    @Override
-    public void onTuningChanged(String key, String newValue) {
-        if (StatusBarIconController.ICON_HIDE_LIST.equals(key)) {
-            mHideList = StatusBarIconController.getIconHideList(getContext(), newValue);
-            mBatteryEnabled = !mHideList.contains(mBattery);
-        }
         if (!mHasSetValue) {
-            // Because of the complicated tri-state it can end up looping and setting state back to
-            // what the user didn't choose.  To avoid this, just set the state once and rely on the
-            // preference to handle updates.
             mHasSetValue = true;
-            if (mBatteryEnabled && mHasPercentage) {
-                setValue(PERCENT);
-            } else if (mBatteryEnabled) {
-                setValue(DEFAULT);
-            } else {
-                setValue(DISABLED);
-            }
+            int current = LineageSettings.System.getInt(
+                    getContext().getContentResolver(),
+                    LineageSettings.System.STATUS_BAR_SHOW_BATTERY_PERCENT, 0);
+            setValue(String.valueOf(current));
         }
     }
 
     @Override
     protected boolean persistString(String value) {
-        final boolean v = PERCENT.equals(value);
-        MetricsLogger.action(getContext(), MetricsEvent.TUNER_BATTERY_PERCENTAGE, v);
-        Settings.System.putInt(getContext().getContentResolver(), SHOW_BATTERY_PERCENT, v ? 1 : 0);
-        if (DISABLED.equals(value)) {
-            mHideList.add(mBattery);
-        } else {
-            mHideList.remove(mBattery);
-        }
-        Dependency.get(TunerService.class).setValue(StatusBarIconController.ICON_HIDE_LIST,
-                TextUtils.join(",", mHideList));
+        int intValue = Integer.parseInt(value);
+        MetricsLogger.action(getContext(), MetricsEvent.TUNER_BATTERY_PERCENTAGE, intValue > 0);
+        LineageSettings.System.putInt(getContext().getContentResolver(),
+                LineageSettings.System.STATUS_BAR_SHOW_BATTERY_PERCENT, intValue);
         return true;
     }
 }

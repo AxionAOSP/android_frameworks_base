@@ -2861,9 +2861,9 @@
 
     <!-- SysUI Tuner: Options for how battery is displayed [CHAR LIMIT=NONE] -->
     <string-array name="battery_options">
-        <item>Always show percentage</item>
-        <item>Show percentage when charging (default)</item>
-        <item>Don\'t show this icon</item>
+        <item>Hidden</item>
+        <item>Inside the icon</item>
+        <item>Next to the icon</item>
     </string-array>
 
     <!-- SysUI Tuner: Switch for showing low-priority notification icons in status bar [CHAR LIMIT=NONE] -->
