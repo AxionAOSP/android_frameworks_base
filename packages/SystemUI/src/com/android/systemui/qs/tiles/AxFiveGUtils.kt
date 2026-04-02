@@ -16,6 +16,8 @@
 
 package com.android.systemui.qs.tiles
 
+import android.content.Context
+import android.provider.Settings
 import android.telephony.RadioAccessFamily
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
@@ -24,6 +26,7 @@ import javax.inject.Inject
 
 @SysUISingleton
 class AxFiveGUtils @Inject constructor(
+    private val context: Context,
     private val telephonyManager: TelephonyManager,
 ) {
 
@@ -79,6 +82,25 @@ class AxFiveGUtils @Inject constructor(
                 tm.setAllowedNetworkTypesForReason(REASON_USER, userRaf or NR_BITMASK)
             }
         }
+        Settings.Secure.putInt(context.contentResolver, SETTINGS_5G_ENABLED, if (enable) 1 else 0)
+    }
+
+    fun restoreNrState() {
+        val stored = Settings.Secure.getInt(context.contentResolver, SETTINGS_5G_ENABLED, SETTINGS_5G_DEFAULT)
+        if (stored == SETTINGS_5G_DEFAULT) return
+        val subId = getDefaultDataSubId() ?: return
+        if (!subscriptionSupportsNr(subId)) return
+        val enable = stored == 1
+        val tm = telephonyManager.createForSubscriptionId(subId)
+        val carrierRaf = tm.getAllowedNetworkTypesForReason(REASON_CARRIER)
+        val newCarrierRaf = if (enable) carrierRaf or NR_BITMASK else carrierRaf and NR_BITMASK.inv()
+        tm.setAllowedNetworkTypesForReason(REASON_CARRIER, newCarrierRaf)
+        if (enable) {
+            val userRaf = tm.getAllowedNetworkTypesForReason(REASON_USER)
+            if ((userRaf and NR_BITMASK) == 0L) {
+                tm.setAllowedNetworkTypesForReason(REASON_USER, userRaf or NR_BITMASK)
+            }
+        }
     }
 
     fun createForSubscriptionId(subId: Int): TelephonyManager =
@@ -90,5 +112,7 @@ class AxFiveGUtils @Inject constructor(
         private const val NR_BITMASK = TelephonyManager.NETWORK_TYPE_BITMASK_NR
         private const val REASON_CARRIER = TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_CARRIER
         private const val REASON_USER = TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER
+        const val SETTINGS_5G_ENABLED = "ax_5g_enabled"
+        private const val SETTINGS_5G_DEFAULT = -1
     }
 }

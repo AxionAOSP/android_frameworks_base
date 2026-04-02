@@ -27,6 +27,7 @@ import com.android.systemui.qs.tiles.AirplaneModeTile
 import com.android.systemui.qs.tiles.BluetoothTile
 import com.android.systemui.qs.tiles.CastTile
 import com.android.systemui.qs.tiles.DataSaverTile
+import com.android.systemui.qs.tiles.FiveGCoreStartable
 import com.android.systemui.qs.tiles.FiveGTile
 import com.android.systemui.qs.tiles.HotspotTile
 import com.android.systemui.qs.tiles.InternetTileNewImpl
@@ -61,9 +62,11 @@ import com.android.systemui.qs.tiles.impl.wifi.domain.interactor.WifiTileUserAct
 import com.android.systemui.qs.tiles.impl.wifi.domain.model.WifiTileModel
 import com.android.systemui.qs.tiles.impl.wifi.ui.mapper.WifiTileMapper
 import com.android.systemui.res.R
+import com.android.systemui.CoreStartable
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
+import dagger.multibindings.ClassKey
 import dagger.multibindings.IntoMap
 import dagger.multibindings.StringKey
 
@@ -396,6 +399,11 @@ interface ConnectivityModule {
                 instanceId = uiEventLogger.getNewInstanceId(),
                 category = TileCategory.CONNECTIVITY,
             )
+
+        @Provides
+        @IntoMap
+        @ClassKey(FiveGCoreStartable::class)
+        fun provideFiveGCoreStartable(impl: FiveGCoreStartable): CoreStartable = impl
 
         @Provides
         @IntoMap
