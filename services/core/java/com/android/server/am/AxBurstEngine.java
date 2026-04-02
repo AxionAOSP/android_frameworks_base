@@ -51,7 +51,8 @@ public class AxBurstEngine implements IAxBurstEngine {
     private static final int MSG_GAME_BOOST = 108;
     private static final int MSG_CPU_UPDATE_L_BG = 109;
     private static final int MSG_CPU_UPDATE_H_BG = 110;
-    private static final long INPUT_BOOST_DURATION = 800L;
+    private static final long INPUT_BOOST_DURATION = SystemProperties.getLong(
+            "persist.sys.ax.idle_timeout_ms", 1500);
 
     private static final HashMap<String, File> sFileCache = new HashMap<>();
     private static final HashMap<String, Integer> sCpuUpdateMessages = new HashMap<>();
