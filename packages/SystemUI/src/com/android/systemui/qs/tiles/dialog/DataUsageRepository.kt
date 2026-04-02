@@ -76,6 +76,11 @@ class DataUsageRepository @Inject constructor(
     private fun queryMobileUsage() {
         try {
             val subId = SubscriptionManager.getDefaultDataSubscriptionId()
+            if (!SubscriptionManager.isValidSubscriptionId(subId)) {
+                _mobileUsageFormatted.value = null
+                _mobileCarrier.value = null
+                return
+            }
             val template = getMobileTemplateForSubId(subId)
             mobileDataUsageController.setSubscriptionId(subId)
             val info = mobileDataUsageController.getDataUsageInfo(template)
@@ -129,9 +134,14 @@ class DataUsageRepository @Inject constructor(
     }
 
     private fun getMobileTemplateForSubId(subId: Int): NetworkTemplate {
-        return NetworkTemplate.Builder(NetworkTemplate.MATCH_MOBILE)
-            .setMeteredness(NetworkStats.METERED_YES)
-            .build()
+        val subscriberId = telephonyManager.createForSubscriptionId(subId).subscriberId
+        val builder = if (subscriberId != null) {
+            NetworkTemplate.Builder(NetworkTemplate.MATCH_CARRIER)
+                .setSubscriberIds(setOf(subscriberId))
+        } else {
+            NetworkTemplate.Builder(NetworkTemplate.MATCH_MOBILE)
+        }
+        return builder.setMeteredness(NetworkStats.METERED_YES).build()
     }
 
     companion object {
