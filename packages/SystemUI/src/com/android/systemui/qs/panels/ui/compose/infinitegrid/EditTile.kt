@@ -177,10 +177,8 @@ import com.android.systemui.qs.panels.ui.compose.EditTileListState.Companion.INV
 import com.android.systemui.qs.panels.ui.compose.dragAndDropRemoveZone
 import com.android.systemui.qs.panels.ui.compose.dragAndDropTileList
 import com.android.systemui.qs.panels.ui.compose.dragAndDropTileSource
-import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.InactiveCornerRadius
-import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileArrangementPadding
-import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileHeight
-import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.ToggleTargetSize
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.LocalTileScale
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.EditModeTileDefaults.AUTO_SCROLL_DISTANCE
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.EditModeTileDefaults.AUTO_SCROLL_SPEED
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.EditModeTileDefaults.AVAILABLE_TILES_GRID_ALPHA
@@ -678,7 +676,7 @@ private fun CurrentTilesGrid(
     val totalRows = listState.tiles.lastOrNull()?.row ?: 0
     val totalHeight by
         animateDpAsState(
-            gridHeight(totalRows + 1, TileHeight, TileArrangementPadding, CurrentTilesGridPadding),
+            gridHeight(totalRows + 1, CommonTileDefaults.TileHeight * LocalTileScale.current, CommonTileDefaults.TileSpacing * LocalTileScale.current, CurrentTilesGridPadding),
             label = "QSEditCurrentTilesGridHeight",
         )
     val gridState = rememberLazyGridState()
@@ -856,7 +854,7 @@ private fun AvailableTileGrid(
                     )
                     tileSpecs.chunked(columns).forEach { row ->
                         Row(
-                            horizontalArrangement = spacedBy(TileArrangementPadding),
+                            horizontalArrangement = spacedBy(CommonTileDefaults.TileSpacing * LocalTileScale.current),
                             modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
                         ) {
                             for (tileSpec in row) {
@@ -925,7 +923,7 @@ fun LazyGridScope.EditTiles(
                                 MaterialTheme.colorScheme.secondary.copy(
                                     alpha = EditModeTileDefaults.PLACEHOLDER_ALPHA
                                 ),
-                            shape = RoundedCornerShape(InactiveCornerRadius),
+                            shape = RoundedCornerShape(CommonTileDefaults.InactiveCornerRadius),
                         )
                     )
                 } else {
@@ -1006,7 +1004,7 @@ private fun LazyGridItemScope.TileGridCell(
         }
     }
 
-    val tilePadding = with(LocalDensity.current) { TileArrangementPadding.roundToPx() }
+    val tilePadding = with(LocalDensity.current) { (CommonTileDefaults.TileSpacing * LocalTileScale.current).roundToPx() }
     LaunchedEffect(gridState) {
         snapshotFlow { gridState.layoutInfo }
             .map { layoutInfo ->
@@ -1049,7 +1047,7 @@ private fun LazyGridItemScope.TileGridCell(
         resizingState = resizingState,
         modifier =
             modifier
-                .height(TileHeight)
+                .height(CommonTileDefaults.TileHeight * LocalTileScale.current)
                 .fillMaxWidth()
                 .animateItem(placementSpec = placementSpec)
                 .tileTestTag(cell.isIcon),
@@ -1129,7 +1127,7 @@ private fun LazyGridItemScope.TileGridCell(
                 }
                 .borderOnFocus(
                     MaterialTheme.colorScheme.secondary,
-                    CornerSize(InactiveCornerRadius),
+                    CornerSize(CommonTileDefaults.InactiveCornerRadius),
                 )
                 .thenIf(isSelectable) { draggableModifier }
                 .tileBackground { backgroundColor }
@@ -1218,7 +1216,7 @@ private fun AvailableTileGridCell(
                 }
                 .sysuiResTag(AVAILABLE_TILE_TEST_TAG),
     ) {
-        Box(Modifier.fillMaxWidth().height(TileHeight)) {
+        Box(Modifier.fillMaxWidth().height(CommonTileDefaults.TileHeight * LocalTileScale.current)) {
             val draggableModifier =
                 if (cell.isCurrent || !canLayoutTile) {
                     Modifier
@@ -1236,7 +1234,7 @@ private fun AvailableTileGridCell(
                     .fillMaxSize()
                     .borderOnFocus(
                         MaterialTheme.colorScheme.secondary,
-                        CornerSize(InactiveCornerRadius),
+                        CornerSize(CommonTileDefaults.InactiveCornerRadius),
                     )
                     .tileBackground { colors.background }
                     .clickable(
@@ -1326,7 +1324,7 @@ private fun BoxScope.AppIconText(
 @Composable
 private fun SpacerGridCell(modifier: Modifier = Modifier) {
     // By default, spacers are invisible and exist purely to catch drag movements
-    Box(modifier.height(TileHeight).fillMaxWidth())
+    Box(modifier.height(CommonTileDefaults.TileHeight * LocalTileScale.current).fillMaxWidth())
 }
 
 @Composable
@@ -1376,9 +1374,7 @@ fun EditTile(
     ) {
         // Icon
         Box(
-            Modifier.size(ToggleTargetSize).thenIf(tile.isDualTarget) {
-                Modifier.drawBehind { drawCircle(colors.iconBackground, alpha = progress()) }
-            }
+            Modifier.size(CommonTileDefaults.ToggleTargetSize)
         ) {
             SmallTileContent(
                 iconProvider = { tile.icon },
@@ -1400,13 +1396,13 @@ fun EditTile(
 }
 
 private fun MeasureScope.iconHorizontalCenter(containerSize: Int): Float {
-    return (containerSize - ToggleTargetSize.roundToPx()) / 2f -
+    return (containerSize - CommonTileDefaults.ToggleTargetSize.roundToPx()) / 2f -
         CommonTileDefaults.TileStartPadding.toPx()
 }
 
 private fun Modifier.tileBackground(color: () -> Color): Modifier {
     // Clip tile contents from overflowing past the tile
-    return clip(RoundedCornerShape(InactiveCornerRadius)).drawBehind { drawRect(color()) }
+    return clip(RoundedCornerShape(CommonTileDefaults.InactiveCornerRadius)).drawBehind { drawRect(color()) }
 }
 
 private object EditModeTileDefaults {

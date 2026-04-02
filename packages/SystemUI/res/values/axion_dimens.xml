@@ -27,6 +27,10 @@
     <dimen name="kg_widget_top_padding">16dp</dimen>
     <dimen name="kg_widget_corner_radius">16dp</dimen>
 
+    <!-- QS -->
+    <dimen name="ax_qs_offset_reduction">10dp</dimen>
+    <dimen name="ax_qs_content_padding">7dp</dimen>
+
     <!-- Network Speed -->
     <dimen name="network_speed_margin_bottom">7dp</dimen>
     <dimen name="network_speed_text_size">8dp</dimen>

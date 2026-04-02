@@ -66,6 +66,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.approachLayout
 import androidx.compose.ui.layout.layout
@@ -95,6 +96,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.app.tracing.coroutines.launchTraced
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import com.android.compose.animation.scene.ContentKey
 import com.android.compose.animation.scene.ContentScope
 import com.android.compose.animation.scene.ElementKey
@@ -152,6 +155,8 @@ import com.android.systemui.qs.composefragment.viewmodel.QSFragmentComposeViewMo
 import com.android.systemui.qs.flags.QSComposeFragment
 import com.android.systemui.qs.footer.ui.compose.FooterActions
 import com.android.systemui.qs.panels.shared.model.QSFragmentComposeClippingTableLog
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.LocalTileScale
 import com.android.systemui.qs.panels.ui.compose.EditMode
 import com.android.systemui.qs.panels.ui.compose.QuickQuickSettings
 import com.android.systemui.qs.panels.ui.compose.TileGrid
@@ -326,7 +331,9 @@ constructor(
                             // by the composables.
                             .thenIf(viewModel.showingMirror) { Modifier.gesturesDisabled() }
                 ) {
+                    val tileScale = CommonTileDefaults.computeTileScale()
                     CompositionLocalProvider(
+                        LocalTileScale provides tileScale,
                         LocalBlurEnabled provides blurEnabled,
                         LocalVolumeSliderViewModel provides volumeSliderViewModel,
                         LocalRingerSliderViewModel provides ringerSliderViewModel,
@@ -767,7 +774,18 @@ constructor(
                         .padding(top = { qqsPadding }, bottom = { bottomPadding })
             ) {
                 val BrightnessSlider: @Composable () -> Unit = {
-                    Element(Elements.BrightnessSlider, modifier = modifier) {
+                    val showStart = 0.89f
+                    val brightnessAlpha = if (squishiness < showStart) 0f
+                                          else ((squishiness - showStart) / (1f - showStart)).coerceIn(0f, 1f)
+                    Element(
+                        Elements.BrightnessSlider,
+                        modifier = modifier.graphicsLayer {
+                            scaleX = squishiness
+                            scaleY = squishiness
+                            transformOrigin = TransformOrigin(0.5f, 0.5f)
+                            alpha = brightnessAlpha
+                        }
+                    ) {
                         BrightnessSlider(viewModel, layoutState)
                     }
                 }
@@ -794,12 +812,22 @@ constructor(
                 val Media =
                     @Composable {
                         if (viewModel.qqsMediaVisible) {
+                            val showStart = 0.89f
+                            val mediaAlpha = if (squishiness < showStart) 0f
+                                             else ((squishiness - showStart) / (1f - showStart)).coerceIn(0f, 1f)
                             MediaObject(
                                 // In order to have stable constraints passed to the AndroidView
                                 // during expansion (available height changing due to squishiness),
                                 // We always allow the media here to be as tall as it wants.
                                 // (b/383085298)
-                                modifier = Modifier.requiredHeightIn(max = Dp.Infinity),
+                                modifier = Modifier
+                                    .requiredHeightIn(max = Dp.Infinity)
+                                    .graphicsLayer {
+                                        scaleX = squishiness
+                                        scaleY = squishiness
+                                        transformOrigin = TransformOrigin(0.5f, 0.5f)
+                                        alpha = mediaAlpha
+                                    },
                                 mediaHost = viewModel.qqsMediaHost,
                                 mediaLogger = mediaLogger,
                                 mediaPresentationStyle =
@@ -842,6 +870,7 @@ constructor(
     private fun ContentScope.QuickSettingsElement(modifier: Modifier = Modifier) {
         val qqsPadding = viewModel.qqsHeaderHeight
         val qsExtraPadding = dimensionResource(R.dimen.qs_panel_padding_top)
+        val qsOffsetReduction = dimensionResource(R.dimen.ax_qs_offset_reduction)
         Column(
             modifier =
                 modifier.collapseExpandSemanticAction(
@@ -889,7 +918,7 @@ constructor(
                     ) {
                         val containerViewModel = viewModel.containerViewModel
                         Spacer(
-                            modifier = Modifier.height { qqsPadding + qsExtraPadding.roundToPx() }
+                            modifier = Modifier.height { (qqsPadding + qsExtraPadding.roundToPx() - qsOffsetReduction.roundToPx()).coerceAtLeast(0) }
                         )
                         val BrightnessSlider: @Composable () -> Unit = {
                             Element(Elements.BrightnessSlider, modifier = modifier) {
@@ -1522,14 +1551,22 @@ fun QuickQuickSettingsLayout(
     media: @Composable () -> Unit,
     mediaInRow: Boolean,
 ) {
-    Column(verticalArrangement = spacedBy(dimensionResource(R.dimen.qs_tile_margin_vertical))) {
+    val sliderAtBottom = brightness.showSlider == 2 && !brightness.sliderAtTop
+    val contentPadding = dimensionResource(R.dimen.ax_qs_content_padding)
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height { contentPadding.roundToPx() })
+
         if (brightness.showSlider == 2 && brightness.sliderAtTop) {
             brightness()
+            Spacer(modifier = Modifier.height { contentPadding.roundToPx() })
         }
 
         if (mediaInRow) {
             Row(
-                horizontalArrangement = spacedBy(dimensionResource(R.dimen.qs_tile_margin_vertical)),
+                horizontalArrangement = spacedBy(contentPadding),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(modifier = Modifier.weight(1f)) { tiles() }
@@ -1539,11 +1576,15 @@ fun QuickQuickSettingsLayout(
             tiles()
         }
 
-        if (brightness.showSlider == 2 && !brightness.sliderAtTop) {
+        if (sliderAtBottom) {
+            Spacer(modifier = Modifier.height { contentPadding.roundToPx() })
             brightness()
         }
 
         if (!mediaInRow) {
+            if (!sliderAtBottom) {
+                Spacer(modifier = Modifier.height { contentPadding.roundToPx() })
+            }
             media()
         }
     }
@@ -1558,17 +1599,19 @@ fun QuickSettingsLayout(
     media: @Composable () -> Unit,
     mediaInRow: Boolean,
 ) {
+    val contentPadding = dimensionResource(R.dimen.ax_qs_content_padding)
+
     Column(
-        verticalArrangement = spacedBy(dimensionResource(R.dimen.qs_tile_margin_vertical)),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (brightness.showSlider >= 1 && brightness.sliderAtTop) {
             brightness()
+            Spacer(modifier = Modifier.height { contentPadding.roundToPx() })
         }
 
         if (mediaInRow) {
             Row(
-                horizontalArrangement = spacedBy(QuickSettingsShade.Dimensions.Padding),
+                horizontalArrangement = spacedBy(contentPadding),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(modifier = Modifier.weight(1f)) { tiles() }

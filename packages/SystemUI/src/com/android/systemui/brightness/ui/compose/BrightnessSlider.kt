@@ -111,6 +111,7 @@ import com.android.systemui.biometrics.Utils.toBitmap
 import com.android.systemui.brightness.shared.model.GammaBrightness
 import com.android.systemui.brightness.ui.compose.AnimationSpecs.IconAppearSpec
 import com.android.systemui.brightness.ui.compose.AnimationSpecs.IconDisappearSpec
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.LocalTileScale
 import com.android.systemui.brightness.ui.compose.Dimensions.IconPadding
 import com.android.systemui.brightness.ui.compose.Dimensions.IconSize
 import com.android.systemui.brightness.ui.compose.Dimensions.SliderBackgroundFrameSize
@@ -194,7 +195,8 @@ fun BrightnessSlider(
 
     if (useAxBrightnessSlider) {
         val axIconRes = if (autoMode) R.drawable.ic_qs_brightness_auto_on else iconRes
-        val axIconSize = 56.dp
+        val tileScale = LocalTileScale.current
+        val axIconSize = 56.dp * tileScale
         val iconTapScope = rememberCoroutineScope()
         val blurEnabled = LocalBlurEnabled.current
         val sliderColors = if (blurEnabled) {
@@ -248,7 +250,7 @@ fun BrightnessSlider(
                     Icon(
                         painter = painterResource(axIconRes),
                         contentDescription = null,
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(24.dp * tileScale),
                     )
                 },
             )
@@ -605,10 +607,12 @@ fun BrightnessSliderContainer(
             if (dragging) containerColors.mirrorColor else containerColors.idleColor
         )
 
+    val tileScale = LocalTileScale.current
+
     Box(
         modifier =
             modifier
-                .padding(vertical = { SliderBackgroundFrameSize.height.roundToPx() })
+                .padding(vertical = { (SliderBackgroundFrameSize.height * tileScale).roundToPx() })
                 .fillMaxWidth()
                 .sysuiResTag("brightness_slider")
     ) {

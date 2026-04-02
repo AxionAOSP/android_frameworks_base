@@ -186,6 +186,17 @@ constructor(
     var panelExpansionFraction by mutableStateOf(0f)
 
     var squishinessFraction by mutableStateOf(1f)
+    
+    val isLargeScreenHeader by
+        hydrator.hydratedStateOf(
+            traceName = "isLargeScreenHeader",
+            initialValue = false,
+            source =
+                configurationInteractor.onAnyConfigurationChange.map {
+                    val isLargeScreenHeader = LargeScreenUtils.shouldUseLargeScreenShadeHeader(resources)
+                    isLargeScreenHeader
+                },
+        )
 
     val qqsHeaderHeight by
         hydrator.hydratedStateOf(

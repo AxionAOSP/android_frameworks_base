@@ -36,8 +36,11 @@ import androidx.compose.foundation.layout.Arrangement.spacedBy
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -60,6 +63,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
@@ -92,7 +97,6 @@ import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.qs.flags.QsDetailedView
 import com.android.systemui.qs.panels.ui.compose.BounceableInfo
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.InactiveCornerRadius
-import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileHeight
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.longPressLabelMoreDetails
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.longPressLabelSettings
 import com.android.systemui.qs.panels.ui.viewmodel.AccessibilityUiState
@@ -125,8 +129,8 @@ fun TileLazyGrid(
     LazyVerticalGrid(
         state = state,
         columns = columns,
-        verticalArrangement = spacedBy(CommonTileDefaults.TileArrangementPadding),
-        horizontalArrangement = spacedBy(CommonTileDefaults.TileArrangementPadding),
+        verticalArrangement = spacedBy(CommonTileDefaults.TileSpacing * LocalTileScale.current),
+        horizontalArrangement = spacedBy(CommonTileDefaults.TileSpacing * LocalTileScale.current),
         contentPadding = contentPadding,
         modifier = modifier,
         content = content,
@@ -339,21 +343,20 @@ fun ContentScope.Tile(
                                 tile.toggleClick()
                             }
                             .takeIf { isDualTarget }
-                    LargeTileContent(
+                    AxLargeTileContent(
                         label = uiState.label,
                         secondaryLabel = uiState.secondaryLabel,
                         iconProvider = iconProvider,
                         sideDrawable = uiState.sideDrawable,
                         colors = colors,
                         iconShape = iconShape,
+                        tileState = uiState.state,
                         toggleClick = secondaryClick,
                         onLongClick = longClick,
                         accessibilityUiState = uiState.accessibilityUiState,
                         squishiness = squishiness,
                         isVisible = isVisible,
                         textScale = { contentBounceable.textBounceScale },
-                        modifier =
-                            Modifier.largeTilePadding(isDualTarget = uiState.handlesLongClick),
                     )
                 }
             }
@@ -372,7 +375,13 @@ private fun TileExpandable(
 ) {
     Expandable(
         controller = rememberExpandableController(color = color, shape = shape),
-        modifier = modifier.clip(shape).verticalSquish(squishiness),
+        modifier = modifier.clip(shape).verticalSquish(squishiness).graphicsLayer {
+            val s = squishiness()
+            scaleX = s
+            scaleY = s
+            transformOrigin = TransformOrigin(0.5f, 0.5f)
+            alpha = if (s < 0.83f) 0f else ((s - 0.83f) / (1f - 0.83f)).coerceIn(0f, 1f)
+        },
         useModifierBasedImplementation = true,
     ) {
         content(hapticsViewModel?.createStateAwareExpandable(it) ?: it)
@@ -393,7 +402,7 @@ fun TileContainer(
     Box(
         modifier =
             modifier
-                .height(TileHeight)
+                .height(CommonTileDefaults.TileHeight * LocalTileScale.current)
                 .fillMaxWidth()
                 .tileCombinedClickable(
                     onClick = onClick ?: {},
@@ -420,7 +429,7 @@ fun LargeStaticTile(
         modifier
             .clip(TileDefaults.animateTileShapeAsState(state = uiState.state).value)
             .background(colors.background)
-            .height(TileHeight)
+            .height(CommonTileDefaults.TileHeight * LocalTileScale.current)
             .largeTilePadding()
     ) {
         LargeTileContent(
@@ -444,8 +453,9 @@ private fun Context.getTileIcon(icon: IconProvider): Icon {
     } ?: Icon.Resource(R.drawable.ic_error_outline, null)
 }
 
+@Composable
 fun tileHorizontalArrangement(): Arrangement.Horizontal {
-    return spacedBy(space = CommonTileDefaults.TileArrangementPadding, alignment = Alignment.Start)
+    return spacedBy(space = CommonTileDefaults.TileSpacing * LocalTileScale.current, alignment = Alignment.Start)
 }
 
 @Composable
@@ -514,7 +524,7 @@ private object TileDefaults {
     fun activeTileColors(): TileColors =
         TileColors(
             background = MaterialTheme.colorScheme.primary,
-            iconBackground = MaterialTheme.colorScheme.primary,
+            iconBackground = Color.Transparent,
             label = MaterialTheme.colorScheme.onPrimary,
             secondaryLabel = MaterialTheme.colorScheme.onPrimary,
             icon = MaterialTheme.colorScheme.onPrimary,
@@ -526,7 +536,7 @@ private object TileDefaults {
     fun activeDualTargetTileColors(): TileColors =
         TileColors(
             background = backgroundTileColors(),
-            iconBackground = MaterialTheme.colorScheme.primary,
+            iconBackground = Color.Transparent,
             label = MaterialTheme.colorScheme.onSurface,
             secondaryLabel = MaterialTheme.colorScheme.onSurface,
             icon = MaterialTheme.colorScheme.onPrimary,
@@ -537,7 +547,7 @@ private object TileDefaults {
     fun inactiveDualTargetTileColors(): TileColors =
         TileColors(
             background = backgroundTileColors(),
-            iconBackground = LocalAndroidColorScheme.current.surfaceEffect2,
+            iconBackground = Color.Transparent,
             label = MaterialTheme.colorScheme.onSurface,
             secondaryLabel = MaterialTheme.colorScheme.onSurface,
             icon = MaterialTheme.colorScheme.onSurface,
@@ -585,22 +595,8 @@ private object TileDefaults {
     @ReadOnlyComposable
     fun getColorForState(uiState: TileUiState, iconOnly: Boolean): TileColors {
         return when (uiState.state) {
-            STATE_ACTIVE -> {
-                if (uiState.handlesSecondaryClick && !iconOnly) {
-                    activeDualTargetTileColors()
-                } else {
-                    activeTileColors()
-                }
-            }
-
-            STATE_INACTIVE -> {
-                if (uiState.handlesSecondaryClick && !iconOnly) {
-                    inactiveDualTargetTileColors()
-                } else {
-                    inactiveTileColors()
-                }
-            }
-
+            STATE_ACTIVE -> activeTileColors()
+            STATE_INACTIVE -> inactiveTileColors()
             else -> unavailableTileColors()
         }
     }

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.pager.HorizontalPager
@@ -160,7 +161,7 @@ constructor(
 }
 
 private object Dimensions {
-    val FooterHeight = 48.dp
+    val FooterHeight = 28.dp
     val InterPageSpacing = 16.dp
 }
 
@@ -186,18 +187,17 @@ private fun FooterBar(
     // * On the end side, we place the edit mode button, with the same constraints as for
     //   BuildNumber (but it will usually fit, as it's just a square button).
     Row(
-        modifier = Modifier.requiredHeight(FooterHeight).fillMaxWidth(),
+        modifier = Modifier.padding(top = 4.dp).requiredHeight(FooterHeight).fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = spacedBy(8.dp),
     ) {
         Row(Modifier.weight(1f)) {
-            BuildNumber(viewModelFactory = buildNumberViewModelFactory)
             Spacer(modifier = Modifier.weight(1f))
         }
         PagerDots(
             pagerState = pagerState,
             activeColor = MaterialTheme.colorScheme.primary,
-            nonActiveColor = MaterialTheme.colorScheme.surfaceBright.copy(alpha = 0.5f),
+            nonActiveColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
             modifier = Modifier.wrapContentWidth(),
             showArrows = showArrowsInPager,
         )

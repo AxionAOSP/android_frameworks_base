@@ -31,6 +31,8 @@ import com.android.systemui.compose.modifiers.sysuiResTag
 import com.android.systemui.grid.ui.compose.VerticalSpannedGrid
 import com.android.systemui.qs.composefragment.ui.GridAnchor
 import com.android.systemui.qs.flags.QSMaterialExpressiveTiles
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.LocalTileScale
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.Tile
 import com.android.systemui.qs.panels.ui.viewmodel.BounceableTileViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.QuickQuickSettingsViewModel
@@ -82,8 +84,8 @@ fun ContentScope.QuickQuickSettings(
             val spans by remember(sizedTiles) { derivedStateOf { sizedTiles.fastMap { it.width } } }
             VerticalSpannedGrid(
                 columns = columns,
-                columnSpacing = dimensionResource(R.dimen.qs_tile_margin_horizontal),
-                rowSpacing = dimensionResource(R.dimen.qs_tile_margin_vertical),
+                columnSpacing = CommonTileDefaults.TileSpacing * LocalTileScale.current,
+                rowSpacing = CommonTileDefaults.TileSpacing * LocalTileScale.current,
                 spans = spans,
                 modifier = Modifier.sysuiResTag("qqs_tile_layout"),
                 keys = { sizedTiles[it].tile.spec },

@@ -16,9 +16,12 @@
 
 package com.android.systemui.qs.panels.ui.compose.toolbar
 
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -41,7 +44,9 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
@@ -150,20 +155,25 @@ fun EditModeButton(
                 }
             },
         ) {
-            IconButton(
-                onClick = viewModel::onButtonClick,
-                shape = RoundedCornerShape(CornerSize(28.dp)),
-                modifier =
-                    Modifier.sysuiResTag("qs_edit_mode_button")
-                        .borderOnFocus(
-                            color = MaterialTheme.colorScheme.secondary,
-                            cornerSize = CornerSize(24.dp),
-                        ),
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .sysuiResTag("qs_edit_mode_button")
+                    .borderOnFocus(
+                        color = MaterialTheme.colorScheme.secondary,
+                        cornerSize = CornerSize(12.dp),
+                    )
+                    .clip(RoundedCornerShape(CornerSize(12.dp)))
+                    .combinedClickable(
+                        onClick = viewModel::onButtonClick,
+                    ),
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = if (Flags.iconRefresh2025()) Edit else Icons.Default.Edit,
                     contentDescription =
                         stringResource(id = R.string.accessibility_quick_settings_edit),
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }

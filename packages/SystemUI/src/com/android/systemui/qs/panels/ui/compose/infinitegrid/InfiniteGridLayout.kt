@@ -26,6 +26,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.util.fastMap
@@ -126,8 +127,8 @@ constructor(
             val spans by remember(sizedTiles) { derivedStateOf { sizedTiles.fastMap { it.width } } }
             VerticalSpannedGrid(
                 columns = columns,
-                columnSpacing = dimensionResource(R.dimen.qs_tile_margin_horizontal),
-                rowSpacing = dimensionResource(R.dimen.qs_tile_margin_vertical),
+                columnSpacing = CommonTileDefaults.TileSpacing * LocalTileScale.current,
+                rowSpacing = CommonTileDefaults.TileSpacing * LocalTileScale.current,
                 spans = spans,
                 keys = { sizedTiles[it].tile.spec },
                 modifier = modifier,
