@@ -419,6 +419,7 @@ public class DisplayPolicy {
 
     private volatile boolean mAxPcModeEnabled;
     private volatile int mAxPcModeTargetDisplayId;
+    private volatile boolean mGamingGestureLocked;
 
     private class PolicyHandler extends Handler {
 
@@ -497,7 +498,7 @@ public class DisplayPolicy {
 
                 @Override
                 public void onSwipeFromTop() {
-                    if (isAxPcModeEnabled()) {
+                    if (isAxPcModeEnabled() || isGamingGestureLocked()) {
                         return;
                     }
                     synchronized (mLock) {
@@ -508,7 +509,7 @@ public class DisplayPolicy {
 
                 @Override
                 public void onSwipeFromBottom() {
-                    if (isAxPcModeEnabled()) {
+                    if (isAxPcModeEnabled() || isGamingGestureLocked()) {
                         return;
                     }
                     synchronized (mLock) {
@@ -518,7 +519,7 @@ public class DisplayPolicy {
                 }
 
                 private boolean allowsSideSwipe(Region excludedRegion) {
-                    if (isAxPcModeEnabled()) {
+                    if (isAxPcModeEnabled() || isGamingGestureLocked()) {
                         return false;
                     }
                     return mNavigationBarAlwaysShowOnSideGesture
@@ -527,7 +528,7 @@ public class DisplayPolicy {
 
                 @Override
                 public void onSwipeFromRight() {
-                    if (isAxPcModeEnabled()) {
+                    if (isAxPcModeEnabled() || isGamingGestureLocked()) {
                         return;
                     }
                     final Region excludedRegion = Region.obtain();
@@ -545,7 +546,7 @@ public class DisplayPolicy {
 
                 @Override
                 public void onSwipeFromLeft() {
-                    if (isAxPcModeEnabled()) {
+                    if (isAxPcModeEnabled() || isGamingGestureLocked()) {
                         return;
                     }
                     final Region excludedRegion = Region.obtain();
@@ -764,6 +765,19 @@ public class DisplayPolicy {
                 "ax_pc_mode"), false, pcModeObserver, UserHandle.USER_ALL);
         resolver.registerContentObserver(Settings.Secure.getUriFor(
                 "ax_pc_mode_target_display_id"), false, pcModeObserver, UserHandle.USER_ALL);
+
+        mGamingGestureLocked = Settings.Secure.getIntForUser(resolver,
+                "ax_gaming_gesture_lock", 0, UserHandle.USER_CURRENT) == 1;
+        ContentObserver gestureLockObserver = new ContentObserver(mHandler) {
+            @Override
+            public void onChange(boolean selfChange) {
+                mGamingGestureLocked = Settings.Secure.getIntForUser(
+                        mContext.getContentResolver(),
+                        "ax_gaming_gesture_lock", 0, UserHandle.USER_CURRENT) == 1;
+            }
+        };
+        resolver.registerContentObserver(Settings.Secure.getUriFor(
+                "ax_gaming_gesture_lock"), false, gestureLockObserver, UserHandle.USER_ALL);
     }
 
     private void updateForceShowNavBarSettings() {
@@ -828,6 +842,10 @@ public class DisplayPolicy {
 
     public int getDockMode() {
         return mDockMode;
+    }
+
+    public boolean isGamingGestureLocked() {
+        return mGamingGestureLocked;
     }
 
     public boolean isAxPcModeEnabled() {
@@ -2482,7 +2500,7 @@ public class DisplayPolicy {
         if (CLIENT_TRANSIENT) {
             return;
         }
-        if (isAxPcModeEnabled()) {
+        if (isAxPcModeEnabled() || isGamingGestureLocked()) {
             return;
         }
         if (swipeTarget == null || !mService.mPolicy.isUserSetupComplete()) {
