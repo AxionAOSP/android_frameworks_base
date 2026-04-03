@@ -182,6 +182,12 @@ public class BubbleController implements ConfigurationChangeListener,
 
     private static final String TAG = TAG_WITH_CLASS_NAME ? "BubbleController" : TAG_BUBBLES;
 
+    private static IBinder sBubblesBinder;
+
+    public static IBinder getBubblesBinder() {
+        return sBubblesBinder;
+    }
+
     // Should match with PhoneWindowManager
     private static final String SYSTEM_DIALOG_REASON_KEY = "reason";
     private static final String SYSTEM_DIALOG_REASON_GESTURE_NAV = "gestureNav";
@@ -620,6 +626,7 @@ public class BubbleController implements ConfigurationChangeListener,
         mShellController.addConfigurationChangeListener(this);
         mShellController.addExternalInterface(IBubbles.DESCRIPTOR,
                 this::createExternalInterface, this);
+        sBubblesBinder = createExternalInterface().asBinder();
         mShellCommandHandler.addDumpCallback(this::dump, this);
 
         if (com.android.window.flags.Flags.enableExperimentalBubblesController()) {
