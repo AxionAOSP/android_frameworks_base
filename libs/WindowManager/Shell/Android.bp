@@ -50,6 +50,21 @@ filegroup {
     path: "src",
 }
 
+java_library {
+    name: "wm_shell_bubbles_aidl",
+    srcs: [
+        "src/com/android/wm/shell/bubbles/IBubbles.aidl",
+        "src/com/android/wm/shell/bubbles/IBubblesListener.aidl",
+    ],
+    aidl: {
+        include_dirs: [
+            "frameworks/base/libs/WindowManager/Shell/src",
+            "frameworks/base/libs/WindowManager/Shell/shared/src",
+        ],
+    },
+    static_libs: ["WindowManager-Shell-shared"],
+}
+
 // TODO(b/168581922) protologtool do not support kotlin(*.kt)
 filegroup {
     name: "wm_shell-sources-kt",

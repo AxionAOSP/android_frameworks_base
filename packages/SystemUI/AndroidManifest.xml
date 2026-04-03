@@ -458,6 +458,14 @@
                 <action android:name="com.android.systemui.action.AX_PLATFORM" />
             </intent-filter>
         </service>
+        <service
+            android:name=".ax.BubbleLauncherService"
+            android:exported="true"
+            android:permission="android.permission.MANAGE_ACTIVITY_TASKS">
+            <intent-filter>
+                <action android:name="com.android.systemui.action.BUBBLE_LAUNCHER" />
+            </intent-filter>
+        </service>
         <service android:name=".wallet.controller.WalletContextualLocationsService"
             android:exported="true"
             />
