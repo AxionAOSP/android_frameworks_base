@@ -6651,6 +6651,8 @@ public final class PowerManagerService extends SystemService
                 String opPackageName) {
             validateWakeupIsEligible(eventTime);
 
+            if (interceptGestureWakeAsPulse(reason)) return;
+
             final int uid = Binder.getCallingUid();
             final long ident = Binder.clearCallingIdentity();
             try {
@@ -7824,6 +7826,43 @@ public final class PowerManagerService extends SystemService
      * This will not wakeup the power groups if the device is in the quiescent mode or is still
      * booting up
      */
+    private boolean interceptGestureWakeAsPulse(@WakeReason int reason) {
+        if (mWakefulnessRaw == WAKEFULNESS_AWAKE) return false;
+        ContentResolver resolver = mContext.getContentResolver();
+        boolean shouldIntercept;
+        switch (reason) {
+            case PowerManager.WAKE_REASON_WAKE_KEY:
+                shouldIntercept = SystemProperties.getBoolean(
+                        "persist.sys.ax_doze_double_tap_pulse_supported", false)
+                        && Settings.Secure.getIntForUser(resolver,
+                        "ax_doze_double_tap_pulse", 0, UserHandle.USER_CURRENT) != 0;
+                break;
+            case PowerManager.WAKE_REASON_TAP:
+                shouldIntercept = SystemProperties.getBoolean(
+                        "persist.sys.ax_doze_tap_pulse_supported", false)
+                        && Settings.Secure.getIntForUser(resolver,
+                        "ax_doze_tap_pulse", 0, UserHandle.USER_CURRENT) != 0;
+                break;
+            case PowerManager.WAKE_REASON_GESTURE:
+                shouldIntercept =
+                        (SystemProperties.getBoolean(
+                                "persist.sys.ax_doze_pickup_pulse_supported", false)
+                        && Settings.Secure.getIntForUser(resolver,
+                                "ax_doze_pickup_pulse", 0, UserHandle.USER_CURRENT) != 0)
+                        || (SystemProperties.getBoolean(
+                                "persist.sys.ax_doze_double_tap_pulse_supported", false)
+                        && Settings.Secure.getIntForUser(resolver,
+                                "ax_doze_double_tap_pulse", 0, UserHandle.USER_CURRENT) != 0);
+                break;
+            default:
+                return false;
+        }
+        if (!shouldIntercept) return false;
+        mContext.sendBroadcastAsUser(
+                new Intent("com.android.systemui.doze.pulse"), UserHandle.CURRENT);
+        return true;
+    }
+
     private void wakeupDisplayGroupsLocked(IntArray groupIds, long eventTime,
             @WakeReason int reason, String details, String opPackageName, int uid) {
         if (!mBootCompleted && sQuiescent) {
