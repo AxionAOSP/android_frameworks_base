@@ -1863,6 +1863,27 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         return false;
     }
 
+    private boolean interceptWakeKeyAsDozePulse() {
+        int userId = mCurrentUserId;
+        ContentResolver resolver = mContext.getContentResolver();
+        boolean doubleTapPulse = SystemProperties.getBoolean(
+                "persist.sys.ax_doze_double_tap_pulse_supported", false)
+                && Settings.Secure.getIntForUser(
+                        resolver, "ax_doze_double_tap_pulse", 0, userId) != 0;
+        boolean tapPulse = SystemProperties.getBoolean(
+                "persist.sys.ax_doze_tap_pulse_supported", false)
+                && Settings.Secure.getIntForUser(
+                        resolver, "ax_doze_tap_pulse", 0, userId) != 0;
+        boolean pickupPulse = SystemProperties.getBoolean(
+                "persist.sys.ax_doze_pickup_pulse_supported", false)
+                && Settings.Secure.getIntForUser(
+                        resolver, "ax_doze_pickup_pulse", 0, userId) != 0;
+        if (!doubleTapPulse && !tapPulse && !pickupPulse) return false;
+        mContext.sendBroadcastAsUser(
+                new Intent("com.android.systemui.doze.pulse"), UserHandle.CURRENT);
+        return true;
+    }
+
     private int getResolvedLongPressOnPowerBehavior() {
         if (FactoryTest.isLongPressOnPowerOffEnabled()) {
             return LONG_PRESS_POWER_SHUT_OFF_NO_CONFIRM;
@@ -5672,9 +5693,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
 
         if (isWakeKey) {
             // Check proximity only on wake key
-            wakeUpFromWakeKey(event,
-                event.getKeyCode() == KeyEvent.KEYCODE_WAKEUP,
-                (event.getFlags() & KeyEvent.FLAG_LONG_PRESS) != 0);
+            if (!interceptWakeKeyAsDozePulse()) {
+                wakeUpFromWakeKey(event,
+                    event.getKeyCode() == KeyEvent.KEYCODE_WAKEUP,
+                    (event.getFlags() & KeyEvent.FLAG_LONG_PRESS) != 0);
+            }
         }
 
         // If the key event is targeted to a specific display, then the user is interacting with
