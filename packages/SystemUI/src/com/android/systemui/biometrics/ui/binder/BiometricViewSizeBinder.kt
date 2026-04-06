@@ -93,14 +93,22 @@ object BiometricViewSizeBinder {
 
         val iconHolderView = view.requireViewById<View>(R.id.biometric_icon)
         val panelView = view.requireViewById<View>(R.id.panel)
-        val cornerRadius = view.resources.getDimension(R.dimen.biometric_dialog_corner_size)
+        val cornerRadiusPx =
+            view.resources.getDimensionPixelSize(R.dimen.biometric_dialog_corner_size)
+        val indicatorIconSpacingTop =
+            view.resources.getDimensionPixelSize(
+                R.dimen.biometric_prompt_indicator_icon_spacing_top
+            )
+        val indicatorIconSpacingBottom =
+            view.resources.getDimensionPixelSize(
+                R.dimen.biometric_prompt_indicator_icon_spacing_bottom
+            )
         val pxToDp =
             TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP,
                 1f,
                 view.resources.displayMetrics,
             )
-        val cornerRadiusPx = (pxToDp * cornerRadius).toInt()
 
         var currentSize: PromptSize? = null
         var currentPosition: PromptPosition = PromptPosition.Bottom
@@ -199,7 +207,10 @@ object BiometricViewSizeBinder {
                         // Handle guidelines
                         val bottomInset =
                             windowManager.maximumWindowMetrics.windowInsets
-                                .getInsets(WindowInsets.Type.navigationBars())
+                                .getInsetsIgnoringVisibility(
+                                    WindowInsets.Type.navigationBars() or
+                                        WindowInsets.Type.mandatorySystemGestures()
+                                )
                                 .bottom
                         currentState.guidelineBounds.let { bounds ->
                             nextConstraintSet.setGuidelineEnd(R.id.bottomGuideline, bottomInset)
@@ -330,6 +341,12 @@ object BiometricViewSizeBinder {
                                 ConstraintSet.TOP,
                             )
                         }
+
+                        nextConstraintSet.positionIndicatorRelativeToIcon(
+                            flipAboveIcon = currentState.isLowUdfps,
+                            spacingTop = indicatorIconSpacingTop,
+                            spacingBottom = indicatorIconSpacingBottom,
+                        )
 
                         // Handle landscape flip logic
                         if (currentState.position.isLeft) {
@@ -482,7 +499,10 @@ object BiometricViewSizeBinder {
                     viewModel.guidelineBounds.collect { bounds ->
                         val bottomInset =
                             windowManager.maximumWindowMetrics.windowInsets
-                                .getInsets(WindowInsets.Type.navigationBars())
+                                .getInsetsIgnoringVisibility(
+                                    WindowInsets.Type.navigationBars() or
+                                        WindowInsets.Type.mandatorySystemGestures()
+                                )
                                 .bottom
                         mediumConstraintSet.setGuidelineEnd(R.id.bottomGuideline, bottomInset)
 
@@ -685,4 +705,36 @@ private fun ConstraintSet.applyMarginConstraint(
         connect(viewId, side, ConstraintSet.PARENT_ID, side)
     }
     setMargin(viewId, side, margin)
+}
+
+private fun ConstraintSet.positionIndicatorRelativeToIcon(
+    flipAboveIcon: Boolean,
+    spacingTop: Int,
+    spacingBottom: Int,
+) {
+    clear(R.id.indicator, ConstraintSet.TOP)
+    clear(R.id.indicator, ConstraintSet.BOTTOM)
+    clear(R.id.scrollView, ConstraintSet.BOTTOM)
+    if (flipAboveIcon) {
+        connect(
+            R.id.indicator,
+            ConstraintSet.BOTTOM,
+            R.id.biometric_icon,
+            ConstraintSet.TOP,
+            spacingTop,
+        )
+        connect(R.id.scrollView, ConstraintSet.BOTTOM, R.id.indicator, ConstraintSet.TOP)
+        setVerticalBias(R.id.indicator, 1f)
+    } else {
+        connect(
+            R.id.indicator,
+            ConstraintSet.TOP,
+            R.id.biometric_icon,
+            ConstraintSet.BOTTOM,
+            spacingBottom,
+        )
+        connect(R.id.indicator, ConstraintSet.BOTTOM, R.id.button_bar, ConstraintSet.TOP)
+        connect(R.id.scrollView, ConstraintSet.BOTTOM, R.id.scrollBarrier, ConstraintSet.TOP)
+        setVerticalBias(R.id.indicator, 0f)
+    }
 }
