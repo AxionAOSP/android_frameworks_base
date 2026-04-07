@@ -225,11 +225,15 @@ fun ContentScope.Tile(
         }
         
         if (!iconOnly) {
+            val sliderTileModifier =
+                modifier
+                    .fillMaxWidth()
+                    .height(CommonTileDefaults.TileHeight * LocalTileScale.current)
             if (tile.spec.spec == RingerModeTileImpl.TILE_SPEC) {
-                RingerSliderTileContent()
+                RingerSliderTileContent(modifier = sliderTileModifier)
                 return@trace
             } else if (tile.spec.spec == VolumeSliderTileImpl.TILE_SPEC) {
-                VolumeSliderTileContent()
+                VolumeSliderTileContent(modifier = sliderTileModifier)
                 return@trace
             }
         }
