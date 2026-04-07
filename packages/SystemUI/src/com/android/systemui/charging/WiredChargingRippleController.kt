@@ -203,7 +203,9 @@ class WiredChargingRippleController @Inject constructor(
                 layoutRipple()
                 rippleView.startRipple(Runnable {
                     container.removeView(rippleView)
-                    windowManager.removeView(container)
+                    if (container.isAttachedToWindow) {
+                        windowManager.removeView(container)
+                    }
                 })
                 val fadeIn = ObjectAnimator.ofFloat(percentText, "alpha", 0f, 1f).apply {
                     duration = 300
