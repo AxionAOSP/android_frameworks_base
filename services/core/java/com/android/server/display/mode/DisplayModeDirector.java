@@ -249,7 +249,7 @@ public class DisplayModeDirector {
 
         mSettingsObserver.observe();
 
-        AxRefreshRateController.get().setRefreshRateUpdateCallback((min, peak, displayId) -> {
+        AxRefreshRateController.getInstance().setRefreshRateUpdateCallback((min, peak, displayId) -> {
             synchronized (mLock) {
                 mSettingsObserver.updateRefreshRateSettingLocked(
                         min, peak, mSettingsObserver.getDefaultRefreshRate(), displayId);
@@ -1729,7 +1729,7 @@ public class DisplayModeDirector {
                 }
             }
             if (changed && displayId == Display.DEFAULT_DISPLAY) {
-                AxRefreshRateController.get().forceResync();
+                AxRefreshRateController.getInstance().forceResync();
             }
         }
 

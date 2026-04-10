@@ -102,7 +102,6 @@ import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.utils.LazyJniRegistrar;
 import com.android.server.wm.ActivityTaskManagerInternal;
-import com.android.server.wm.AxRefreshRateController;
 import com.android.server.wm.CompatScaleProvider;
 
 import org.xmlpull.v1.XmlPullParser;
@@ -272,12 +271,6 @@ public final class GameManagerService extends IGameManagerService.Stub {
         }
 
         mSysProps = injector.createSystemPropertiesWrapper();
-        AxRefreshRateController.get().setGameFpsCallback(new AxRefreshRateController.GameFpsCallback() {
-            @Override
-            public void setGameFps(int uid, float fps) {
-                setGameModeFrameRateOverride(uid, fps);
-            }
-        });
     }
 
     @Override
@@ -2266,7 +2259,6 @@ public final class GameManagerService extends IGameManagerService.Stub {
 
     @VisibleForTesting
     void setGameModeFrameRateOverride(int uid, float frameRate) {
-        AxRefreshRateController.get().onGameFrameRateOverride(uid, frameRate);
         nativeSetGameModeFrameRateOverride(uid, frameRate);
     }
 

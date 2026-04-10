@@ -581,6 +581,8 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
     private final ApplySurfaceChangesTransactionState mTmpApplySurfaceChangesTransactionState =
             new ApplySurfaceChangesTransactionState();
 
+    private boolean mTmpScreenOnFully;
+
     // {@code false} if this display is in the processing of being created.
     private boolean mDisplayReady = false;
 
@@ -1051,7 +1053,7 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
             }
 
             if (isDefaultDisplay && w.mHasSurface && w.isVisible()) {
-                AxRefreshRateController.get().votePreferredRate(w, getDisplayPolicy().isScreenOnFully());
+                AxRefreshRateController.getInstance().votePreferredRate(w, mTmpScreenOnFully);
             }
 
             if (w.mHasSurface && isDisplayed) {
@@ -1267,7 +1269,7 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
                 /* hasPermission= */ true, mDisplayId);
         mAppCompatCameraPolicy.start();
         if (isDefaultDisplay) {
-            AxRefreshRateController.get().init(mWmService.mContext, mWmService);
+            AxRefreshRateController.getInstance().init(mWmService.mContext, mWmService);
         }
     }
 
@@ -3055,7 +3057,7 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
         super.onDisplayChanged(dc);
         updateSystemGestureExclusionLimit();
         if (isDefaultDisplay) {
-            AxRefreshRateController.get().onDisplayChanged();
+            AxRefreshRateController.getInstance().onDisplayChanged();
         }
     }
 
@@ -4163,7 +4165,7 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
         }
 
         if (newFocus != null && isDefaultDisplay) {
-            AxRefreshRateController.get().updateFocusedApp(newFocus);
+            AxRefreshRateController.getInstance().updateFocusedApp(newFocus);
             GameSpaceService.get().onAppFocusChanged(newFocus, newTask);
         }
         getInputMonitor().setFocusedAppLw(newFocus);
@@ -5215,7 +5217,8 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
         mTmpApplySurfaceChangesTransactionState.reset();
 
         if (isDefaultDisplay) {
-            AxRefreshRateController.get().resetVoteResult();
+            AxRefreshRateController.getInstance().resetVoteResult();
+            mTmpScreenOnFully = getDisplayPolicy().isScreenOnFully();
         }
 
         Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "applyWindowSurfaceChanges");
@@ -5226,22 +5229,19 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
         }
 
         mLastHasContent = mTmpApplySurfaceChangesTransactionState.displayHasContent;
+        final boolean transitioning = inTransition();
         if (isDefaultDisplay) {
-            AxRefreshRateController.get().setAnimating(
-                    inTransition() || AxRefreshRateController.get().isOverrideWinPrefer());
+            AxRefreshRateController.getInstance().setAnimating(transitioning);
         }
-        if (!inTransition()) {
+        if (!transitioning) {
             if (isDefaultDisplay) {
-                boolean windowPreferNone = mTmpApplySurfaceChangesTransactionState.preferredRefreshRate == INVALID_DPI
-                    && mTmpApplySurfaceChangesTransactionState.preferredModeId == 0
-                    && mTmpApplySurfaceChangesTransactionState.preferredMinRefreshRate == INVALID_DPI
-                    && mTmpApplySurfaceChangesTransactionState.preferredMaxRefreshRate == INVALID_DPI;
-                AxRefreshRateController.get().updateVoteResult();
-                if (AxRefreshRateController.get().hasActiveVote()) {
-                    float axMin = AxRefreshRateController.get().getMinPreferredRate();
-                    float axMax = AxRefreshRateController.get().getMaxPreferredRate();
+                final AxRefreshRateController axRrc = AxRefreshRateController.getInstance();
+                axRrc.updateVoteResult();
+                if (axRrc.hasActiveVote()) {
+                    float axMin = axRrc.getMinPreferredRate();
+                    float axMax = axRrc.getMaxPreferredRate();
                     mTmpApplySurfaceChangesTransactionState.preferredModeId =
-                            AxRefreshRateController.get().getPreferredModeId();
+                            axRrc.getPreferredModeId();
                     mTmpApplySurfaceChangesTransactionState.preferredMinRefreshRate = axMin;
                     mTmpApplySurfaceChangesTransactionState.preferredMaxRefreshRate = axMax;
                     mTmpApplySurfaceChangesTransactionState.preferredRefreshRate = axMax;
