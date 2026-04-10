@@ -1232,8 +1232,10 @@ public final class Choreographer {
 
     void doCallbacks(int callbackType, long frameIntervalNanos) {
         CallbackRecord callbacks;
-        long frameTimeNanos = mFrameData.mFrameTimeNanos;
         synchronized (mLock) {
+            if (mCallbackQueues[callbackType].mHead == null) {
+                return;
+            }
             // We use "now" to determine when callbacks become due because it's possible
             // for earlier processing phases in a frame to post callbacks that should run
             // in a following phase, such as an input event that causes an animation to start.
@@ -1253,6 +1255,7 @@ public final class Choreographer {
             // or equal to the previous frame's commit frame time.  Keep in mind that the
             // next frame has most likely already been scheduled by now so we play it
             // safe by ensuring the commit time is always at least one frame behind.
+            long frameTimeNanos = mFrameData.mFrameTimeNanos;
             if (callbackType == Choreographer.CALLBACK_COMMIT) {
                 final long jitterNanos = now - frameTimeNanos;
                 Trace.traceCounter(Trace.TRACE_TAG_VIEW, "jitterNanos", (int) jitterNanos);
