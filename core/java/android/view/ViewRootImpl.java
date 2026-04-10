@@ -357,6 +357,8 @@ public final class ViewRootImpl implements ViewParent,
     private static final boolean DEBUG_TOUCH_NAVIGATION = false || LOCAL_LOGV;
     private static final boolean DEBUG_BLAST = false || LOCAL_LOGV;
     private static final boolean DEBUG_SENSITIVE_CONTENT = false || LOCAL_LOGV;
+    private static final boolean sTraceEachTraversal =
+            SystemProperties.getBoolean("debug.hwui.trace_traversals", false);
     private static final int LOGTAG_INPUT_FOCUS = 62001;
     private static final int LOGTAG_VIEWROOT_DRAW_EVENT = 60004;
 
@@ -5159,11 +5161,16 @@ public final class ViewRootImpl implements ViewParent,
         if (mView == null) {
             return;
         }
-        Trace.traceBegin(Trace.TRACE_TAG_VIEW, "measure");
+        final boolean traceMeasure = sTraceEachTraversal;
+        if (traceMeasure) {
+            Trace.traceBegin(Trace.TRACE_TAG_VIEW, "measure");
+        }
         try {
             mView.measure(childWidthMeasureSpec, childHeightMeasureSpec);
         } finally {
-            Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+            if (traceMeasure) {
+                Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+            }
         }
         mMeasuredWidth = mView.getMeasuredWidth();
         mMeasuredHeight = mView.getMeasuredHeight();
@@ -5235,7 +5242,10 @@ public final class ViewRootImpl implements ViewParent,
                     host.getMeasuredWidth() + ", " + host.getMeasuredHeight() + ")");
         }
 
-        Trace.traceBegin(Trace.TRACE_TAG_VIEW, "layout");
+        final boolean traceLayout = sTraceEachTraversal;
+        if (traceLayout) {
+            Trace.traceBegin(Trace.TRACE_TAG_VIEW, "layout");
+        }
         try {
             host.layout(0, 0, host.getMeasuredWidth(), host.getMeasuredHeight());
 
@@ -5292,7 +5302,9 @@ public final class ViewRootImpl implements ViewParent,
 
             }
         } finally {
-            Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+            if (traceLayout) {
+                Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+            }
         }
         mInLayout = false;
     }
@@ -5644,7 +5656,10 @@ public final class ViewRootImpl implements ViewParent,
         mFullRedrawNeeded = false;
 
         mIsDrawing = true;
-        Trace.traceBegin(Trace.TRACE_TAG_VIEW, "draw-" + mTag);
+        final boolean traceDrawEnabled = sTraceEachTraversal;
+        if (traceDrawEnabled) {
+            Trace.traceBegin(Trace.TRACE_TAG_VIEW, "draw-" + mTag);
+        }
 
         addFrameCommitCallbackIfNeeded();
 
@@ -5657,7 +5672,9 @@ public final class ViewRootImpl implements ViewParent,
             }
         } finally {
             mIsDrawing = false;
-            Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+            if (traceDrawEnabled) {
+                Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+            }
         }
 
         // For whatever reason we didn't create a HardwareRenderer, end any

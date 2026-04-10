@@ -517,6 +517,14 @@ public class ScrollOptimizer {
     public static boolean isAnimAheadActive() {
         return sAnimAheadActive && sFeatureEnabled;
     }
+    public static boolean isActiveFling() {
+        return sFeatureEnabled && mLastFlingFlg == FLING_START;
+    }
+
+    public static boolean isActiveScroll() {
+        return sFeatureEnabled && (mLastFlingFlg == FLING_START || sMotionType == MOTION_SCROLL);
+    }
+
     public static boolean shouldInsertFrame() {
         if (!sFeatureEnabled || !sFrameInsertEnabled || Process.myTid() != sPid) {
             return false;
