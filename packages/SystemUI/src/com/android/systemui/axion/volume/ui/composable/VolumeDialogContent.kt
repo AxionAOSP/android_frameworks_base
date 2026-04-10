@@ -296,45 +296,39 @@ private fun ContentScope.CollapsedPanelContent(
     }
 
     if (isCardVisible) {
-        val appCard: @Composable () -> Unit = {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.graphicsLayer {
-                    alpha = appCardEntrance.value
-                    translationX = cardAnimDir * 24f * (1f - appCardEntrance.value)
-                }
-            ) {
-                Spacer(modifier = Modifier.height(RingerCircleSize + RingerToSliderGap))
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clip(CardShape)
-                        .background(surfaceBright)
-                        .padding(bottom = ContentSpacingSmall)
-                        .pointerInput(Unit) { detectTapGestures {} }
-                ) {
-                    lastAppVolumes.take(MaxVisibleSliders).forEachIndexed { index, app ->
-                        key(app.packageName) {
-                            val sliderEntrance = remember { Animatable(0f) }
-                            LaunchedEffect(Unit) {
-                                sliderEntrance.animateTo(
-                                    1f,
-                                    tween(durationMillis = 240, delayMillis = index * 50)
-                                )
-                            }
-                            Box(
-                                modifier = Modifier.graphicsLayer {
-                                    alpha = sliderEntrance.value
-                                    translationY = 16f * (1f - sliderEntrance.value)
-                                }
-                            ) {
-                                AppVolumeSlider(
-                                    appVolume = app,
-                                    viewModel = viewModel,
-                                    touchWidth = CollapsedPanelWidth,
-                                    showPercentage = false
-                                )
-                            }
+        val appCards: @Composable () -> Unit = {
+            lastAppVolumes.take(MaxVisibleSliders).forEachIndexed { index, app ->
+                key(app.packageName) {
+                    val sliderEntrance = remember { Animatable(0f) }
+                    LaunchedEffect(Unit) {
+                        sliderEntrance.animateTo(
+                            1f,
+                            tween(durationMillis = 240, delayMillis = index * 50)
+                        )
+                    }
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.graphicsLayer {
+                            alpha = appCardEntrance.value * sliderEntrance.value
+                            translationX = cardAnimDir * 24f * (1f - appCardEntrance.value)
+                            translationY = 16f * (1f - sliderEntrance.value)
+                        }
+                    ) {
+                        Spacer(modifier = Modifier.height(RingerCircleSize + RingerToSliderGap))
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .clip(CardShape)
+                                .background(surfaceBright)
+                                .padding(bottom = ContentSpacingSmall)
+                                .pointerInput(Unit) { detectTapGestures {} }
+                        ) {
+                            AppVolumeSlider(
+                                appVolume = app,
+                                viewModel = viewModel,
+                                touchWidth = CollapsedPanelWidth,
+                                showPercentage = false
+                            )
                         }
                     }
                 }
@@ -347,9 +341,9 @@ private fun ContentScope.CollapsedPanelContent(
         ) {
             if (isLeft) {
                 mainContent()
-                appCard()
+                appCards()
             } else {
-                appCard()
+                appCards()
                 mainContent()
             }
         }
