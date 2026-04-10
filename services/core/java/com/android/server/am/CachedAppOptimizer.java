@@ -501,6 +501,10 @@ public class CachedAppOptimizer {
 
     private static final long APP_SWITCH_COMPACT_DELAY_MS = 10_000;
 
+    private static final long COMPACT_LAUNCH_DEFER_DURATION_MS = 1_500;
+
+    private volatile long mLastAppLaunchUptime = 0;
+
     private volatile boolean mUseFreezer = false; // set to DEFAULT in init()
     @GuardedBy("this")
     private int mFreezerDisableCount = 1; // Freezer is initially disabled, until enabled
@@ -1493,6 +1497,11 @@ public class CachedAppOptimizer {
                         mCompactionHandler.obtainMessage(COMPACT_APP_SWITCH_MSG, app),
                         APP_SWITCH_COMPACT_DELAY_MS);
             }
+
+            if (newAdj <= ProcessList.FOREGROUND_APP_ADJ
+                    && oldAdj > ProcessList.FOREGROUND_APP_ADJ) {
+                mLastAppLaunchUptime = SystemClock.uptimeMillis();
+            }
         }
     }
 
@@ -1781,6 +1790,13 @@ public class CachedAppOptimizer {
                     }
 
                     if (!forceCompaction) {
+                        if (start - mLastAppLaunchUptime < COMPACT_LAUNCH_DEFER_DURATION_MS) {
+                            if (DEBUG_COMPACTION) {
+                                Slog.d(TAG_AM, "Skipping compaction for " + name
+                                        + ": app launch in progress");
+                            }
+                            return;
+                        }
                         if (shouldOomAdjThrottleCompaction(proc)) {
                             mCompactStatsManager.logCompactionThrottled(
                                     CompactionStatsManager.COMPACT_THROTTLE_REASON_OOM_ADJ,
