@@ -52,6 +52,7 @@ import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -197,6 +198,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 val LocalBlurEnabled = staticCompositionLocalOf { false }
+val LocalQsScrolling = compositionLocalOf { false }
 
 @SuppressLint("ValidFragment")
 class QSFragmentCompose
@@ -339,6 +341,7 @@ constructor(
                     CompositionLocalProvider(
                         LocalTileScale provides tileScale,
                         LocalBlurEnabled provides blurEnabled,
+                        LocalQsScrolling provides scrollState.isScrollInProgress,
                         LocalVolumeSliderViewModel provides volumeSliderViewModel,
                         LocalRingerSliderViewModel provides ringerSliderViewModel,
                     ) {
@@ -980,6 +983,7 @@ constructor(
                             modifier =
                                 Modifier.fillMaxWidth()
                                     .sysuiResTag(ResIdTags.quickSettingsPanel)
+                                    .graphicsLayer { }
                                     .padding(
                                         top = QuickSettingsShade.Dimensions.Padding,
                                         start = qsHorizontalMargin(),
