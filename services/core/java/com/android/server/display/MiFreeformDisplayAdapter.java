@@ -37,6 +37,8 @@ import java.util.List;
 public class MiFreeformDisplayAdapter extends DisplayAdapter {
     private static final String TAG = "MiFreeformDisplayAdapter";
 
+    public static final String UNIQUE_ID_PREFIX = "axion-freeform:";
+
     private final ArrayMap<IBinder, FreeformDisplayDevice> mFreeformDisplayDevices = new ArrayMap<>();
     private final LogicalDisplayMapper mLogicalDisplayMapper;
 
@@ -62,8 +64,9 @@ public class MiFreeformDisplayAdapter extends DisplayAdapter {
             return;
         }
         
+        final String uniqueId = UNIQUE_ID_PREFIX + name;
         IBinder displayToken = DisplayControl.createVirtualDisplay(name, true);
-        FreeformDisplayDevice device = new FreeformDisplayDevice(displayToken, name, width, height,
+        FreeformDisplayDevice device = new FreeformDisplayDevice(displayToken, uniqueId, width, height,
                 densityDpi, refreshRate, presentationDeadlineNanos,
                 new FreeformFlags(true, true /* ownContentOnly */, false /* shouldShowSystemDecorations */),
                 surface, new Callback(callback, getHandler()), appToken);
