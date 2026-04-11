@@ -18,7 +18,7 @@ package com.android.systemui.qs.tiles.impl.wifi.ui.mapper
 
 import android.content.Context
 import android.content.res.Resources
-import android.widget.Switch
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.android.systemui.common.shared.model.Icon
 import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
 import com.android.systemui.qs.tiles.base.shared.model.QSTileState
@@ -40,7 +40,7 @@ constructor(
     override fun map(config: QSTileConfig, data: WifiTileModel): QSTileState =
         QSTileState.build(resources, theme, config.uiConfig) {
             label = resources.getString(R.string.quick_settings_wifi_label)
-            expandedAccessibilityClass = Switch::class
+            expandedAccessibilityClass = MaterialSwitch::class
 
             secondaryLabel =
                 if (data.secondaryLabel != null) {

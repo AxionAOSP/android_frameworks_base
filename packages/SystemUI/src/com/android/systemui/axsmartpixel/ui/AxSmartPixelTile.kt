@@ -21,7 +21,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.UserHandle
 import android.service.quicksettings.Tile
-import android.widget.Switch
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.android.internal.jank.InteractionJankMonitor
 import com.android.internal.logging.MetricsLogger
 import com.android.internal.logging.nano.MetricsProto.MetricsEvent
@@ -136,7 +136,7 @@ class AxSmartPixelTile @Inject constructor(
             else R.string.quick_settings_smart_pixels_off,
         )
         state.contentDescription = state.label
-        state.expandedAccessibilityClassName = Switch::class.java.name
+        state.expandedAccessibilityClassName = MaterialSwitch::class.java.name
         state.state = if (enabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         state.icon = ResourceIcon.get(
             if (enabled) R.drawable.qs_smart_pixels_icon_on

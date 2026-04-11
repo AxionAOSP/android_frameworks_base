@@ -19,7 +19,7 @@ package com.android.systemui.qs.tiles.impl.internet.ui.mapper
 import android.content.Context
 import android.content.res.Resources
 import android.os.Handler
-import android.widget.Switch
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.android.settingslib.graph.SignalDrawable
 import com.android.systemui.common.shared.model.ContentDescription.Companion.loadContentDescription
 import com.android.systemui.common.shared.model.Icon
@@ -48,7 +48,7 @@ constructor(
         QSTileState.build(resources, theme, config.uiConfig) {
             label = data.secondaryTitle
                 ?: resources.getString(R.string.quick_settings_internet_label)
-            expandedAccessibilityClass = Switch::class
+            expandedAccessibilityClass = MaterialSwitch::class
 
             secondaryLabel = data.dataUsageSummary ?: ""
 
