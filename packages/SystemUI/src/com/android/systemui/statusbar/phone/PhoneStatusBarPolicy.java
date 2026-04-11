@@ -42,7 +42,6 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.provider.Settings;
 import android.provider.Settings.Global;
 import android.service.notification.ZenModeConfig;
 import android.telecom.TelecomManager;
@@ -138,6 +137,7 @@ public class PhoneStatusBarPolicy
     private final SharedPreferences mSharedPreferences;
     private final DateFormatUtil mDateFormatUtil;
     private final JavaAdapter mJavaAdapter;
+    private final PhoneStatusBarPolicyExt mPolicyExt;
     private final ConnectedDisplayInteractor mConnectedDisplayInteractor;
     private final TelecomManager mTelecomManager;
 
@@ -204,7 +204,8 @@ public class PhoneStatusBarPolicy
             PrivacyLogger privacyLogger,
             ConnectedDisplayInteractor connectedDisplayInteractor,
             ZenModeInteractor zenModeInteractor,
-            JavaAdapter javaAdapter
+            JavaAdapter javaAdapter,
+            PhoneStatusBarPolicyExt policyExt
     ) {
         mContext = context;
         mIconController = iconController;
@@ -236,6 +237,7 @@ public class PhoneStatusBarPolicy
         mPrivacyLogger = privacyLogger;
         mZenModeInteractor = zenModeInteractor;
         mJavaAdapter = javaAdapter;
+        mPolicyExt = policyExt;
         mConnectivityManager = context.getSystemService(ConnectivityManager.class);
 
         mSlotConnectedDisplay = resources.getString(
@@ -382,6 +384,8 @@ public class PhoneStatusBarPolicy
         mJavaAdapter.alwaysCollectFlow(mConnectedDisplayInteractor.getConnectedDisplayState(),
                 this::onConnectedDisplayAvailabilityChanged);
 
+        mPolicyExt.start(this::refreshStatefulIcons);
+
         mCommandQueue.addCallback(this);
     }
 
@@ -493,9 +497,21 @@ public class PhoneStatusBarPolicy
         updateBluetooth();
     }
 
+    private void refreshStatefulIcons() {
+        updateAlarm();
+        updateVolumeZen();
+        updateTTY();
+        updateBluetooth();
+        updateProfileIcon();
+        mIconController.setIconVisibility(mSlotHotspot, mHotspot.isHotspotEnabled());
+        mIconController.setIconVisibility(mSlotDataSaver, mDataSaver.isDataSaverEnabled());
+        mIconController.setIconVisibility(mSlotSensorsOff,
+                mSensorPrivacyController.isSensorPrivacyEnabled());
+        mIconController.setIconVisibility(mSlotFirewall, mFirewallVisible);
+    }
+
     private boolean isBluetoothBatteryEnabled() {
-        return Settings.Secure.getInt(mContext.getContentResolver(),
-                "bluetooth_show_battery", 1) == 1;
+        return mPolicyExt.isBluetoothBatteryEnabled();
     }
 
     private final void updateBluetooth() {
