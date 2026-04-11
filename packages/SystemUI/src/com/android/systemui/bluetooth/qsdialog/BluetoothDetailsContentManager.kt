@@ -133,11 +133,11 @@ constructor(
 
     // UI Components
     private lateinit var contentView: View
-    private lateinit var bluetoothToggle: CompoundButton
+    private lateinit var bluetoothToggle: com.google.android.material.materialswitch.MaterialSwitch
     private lateinit var seeAllButton: View
     private lateinit var pairNewDeviceButton: View
     private lateinit var deviceListView: RecyclerView
-    private lateinit var autoOnToggle: CompoundButton
+    private lateinit var autoOnToggle: com.google.android.material.materialswitch.MaterialSwitch
     private lateinit var autoOnToggleLayout: View
     private lateinit var autoOnToggleInfoTextView: TextView
     private lateinit var audioSharingButton: Button

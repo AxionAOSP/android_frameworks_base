@@ -47,7 +47,7 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
-import android.widget.Switch;
+import com.google.android.material.materialswitch.MaterialSwitch;
 import android.widget.TextView;
 
 import androidx.compose.ui.platform.ComposeView;
@@ -150,9 +150,9 @@ public class InternetDialogDelegateLegacy implements
     private TextView mMobileTitleText;
     private TextView mMobileSummaryText;
     private TextView mAirplaneModeSummaryText;
-    private Switch mMobileDataToggle;
+    private MaterialSwitch mMobileDataToggle;
     private View mMobileToggleDivider;
-    private Switch mWiFiToggle;
+    private MaterialSwitch mWiFiToggle;
     private Button mDoneButton;
 
     @VisibleForTesting
