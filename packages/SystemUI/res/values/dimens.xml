@@ -1284,6 +1284,8 @@
     <dimen name="biometric_prompt_landscape_medium_bottom_padding">148dp</dimen>
     <dimen name="biometric_prompt_landscape_medium_horizontal_padding">125dp</dimen>
 
+    <dimen name="biometric_prompt_indicator_icon_spacing">8dp</dimen>
+
     <!-- Dimensions for biometric prompt custom content view. -->
     <dimen name="biometric_prompt_logo_size">32dp</dimen>
     <dimen name="biometric_prompt_logo_description_top_padding">8dp</dimen>

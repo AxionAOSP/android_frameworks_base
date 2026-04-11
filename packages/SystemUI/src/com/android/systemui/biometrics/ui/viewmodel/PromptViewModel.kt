@@ -584,7 +584,16 @@ constructor(
                 guidelineBounds,
                 iconViewModel.iconPosition,
                 iconViewModel.iconSize,
-            ) { currentView, position, size, hideSensor, guidelines, iconPosition, iconSize ->
+                iconViewModel.isLowUdfps,
+            ) {
+                currentView,
+                position,
+                size,
+                hideSensor,
+                guidelines,
+                iconPosition,
+                iconSize,
+                isLowUdfps ->
                 BiometricPromptLayoutState(
                     currentView,
                     position,
@@ -593,6 +602,7 @@ constructor(
                     guidelines,
                     iconPosition,
                     iconSize,
+                    isLowUdfps,
                 )
             }
             .distinctUntilChanged()

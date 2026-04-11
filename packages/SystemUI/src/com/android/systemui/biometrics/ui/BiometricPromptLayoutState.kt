@@ -28,4 +28,5 @@ data class BiometricPromptLayoutState(
     val guidelineBounds: Rect,
     val iconPosition: Rect,
     val iconSize: Pair<Int, Int>,
+    val isLowUdfps: Boolean,
 )

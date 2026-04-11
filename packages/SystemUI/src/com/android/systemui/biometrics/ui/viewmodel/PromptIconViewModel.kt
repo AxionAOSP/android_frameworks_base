@@ -142,6 +142,15 @@ constructor(
 
     val iconSize: Flow<Pair<Int, Int>> = internal.iconSize
 
+    val isLowUdfps: Flow<Boolean> =
+        combine(internal.udfpsOverlayParams, promptViewModel.modalities) { params, modalities ->
+                if (!modalities.hasUdfps) return@combine false
+                val displayHeight = params.naturalDisplayHeight
+                if (displayHeight <= 0) return@combine false
+                params.sensorBounds.bottom > displayHeight * LOW_UDFPS_THRESHOLD
+            }
+            .distinctUntilChanged()
+
     /** Current icon state */
     val iconState: Flow<PromptIconState> = internal.iconState
 
@@ -176,5 +185,9 @@ constructor(
 
     override suspend fun onActivated(): Nothing {
         coroutineScope { awaitCancellation() }
+    }
+
+    companion object {
+        private const val LOW_UDFPS_THRESHOLD = 0.93f
     }
 }
