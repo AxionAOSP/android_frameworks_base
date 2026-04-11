@@ -21,7 +21,9 @@ import static com.android.graphics.surfaceflinger.flags.Flags.FLAG_READBACK_SCRE
 import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.annotation.SystemApi;
+import android.graphics.Bitmap;
 import android.graphics.ColorSpace;
 import android.graphics.ParcelableColorSpace;
 import android.hardware.HardwareBuffer;
@@ -30,12 +32,15 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.os.RemoteException;
 import android.os.SystemProperties;
+import android.util.Log;
 import android.view.IWindowManager;
 import android.view.WindowManagerGlobal;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Provides an API for capturing the contents of a display.
@@ -575,6 +580,39 @@ public class ScreenCapture {
      */
     public static boolean isScreenCaptureOptimizationEnabled() {
         return SystemProperties.getBoolean("debug.sf.productionize_readback_screenshot", false);
+    }
+
+    /** @hide */
+    @Nullable
+    public static Bitmap captureDisplaySync(int displayId) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final Bitmap[] result = new Bitmap[1];
+        final ScreenCaptureParams params = new ScreenCaptureParams.Builder(displayId).build();
+        capture(params, Runnable::run,
+                new OutcomeReceiver<ScreenCaptureResult, Exception>() {
+                    @Override
+                    public void onResult(@NonNull ScreenCaptureResult r) {
+                        try {
+                            result[0] = Bitmap.wrapHardwareBuffer(
+                                    r.getHardwareBuffer(), r.getColorSpace());
+                        } catch (Exception e) {
+                            Log.e("ScreenCapture", "wrapHardwareBuffer failed", e);
+                        }
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onError(@NonNull Exception e) {
+                        Log.e("ScreenCapture", "captureDisplaySync failed", e);
+                        latch.countDown();
+                    }
+                });
+        try {
+            latch.await(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return result[0];
     }
 
     private ScreenCapture() {
