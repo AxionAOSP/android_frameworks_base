@@ -79,11 +79,10 @@
         android:key="bluetooth"
         android:title="@string/quick_settings_bluetooth_label" />
 
-    <com.android.systemui.tuner.TunerSwitch
+    <com.android.systemui.tuner.StatusBarSwitch
         android:icon="@drawable/ic_statusbar_bluetooth_battery"
         android:key="bluetooth_show_battery"
-        android:title="@string/status_bar_bluetooth_battery"
-        sysui:defValue="true" />
+        android:title="@string/status_bar_bluetooth_battery" />
 
     <com.android.systemui.tuner.StatusBarSwitch
         android:icon="@drawable/ic_statusbar_camera"
