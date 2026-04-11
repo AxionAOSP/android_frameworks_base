@@ -41,7 +41,8 @@
             android:dropDownWidth="274dp"
             android:importantForAccessibility="yes"/>
 
-        <Switch
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:theme="@style/Theme.Material3.DynamicColors.DayNight"
             android:layout_width="wrap_content"
             android:minWidth="48dp"
             android:layout_height="48dp"
@@ -76,7 +77,8 @@
             android:textAppearance="@style/TextAppearance.ScreenRecord.SwitchLabel"
             android:contentDescription="@string/screenrecord_taps_label"/>
 
-        <Switch
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:theme="@style/Theme.Material3.DynamicColors.DayNight"
             android:layout_width="wrap_content"
             android:minWidth="48dp"
             android:layout_height="48dp"
@@ -124,7 +126,8 @@
                 android:textColor="?android:textColorSecondary"/>
         </LinearLayout>
 
-        <Switch
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:theme="@style/Theme.Material3.DynamicColors.DayNight"
             android:layout_width="wrap_content"
             android:minWidth="48dp"
             android:layout_height="48dp"
@@ -172,7 +175,8 @@
                 android:textColor="?android:textColorSecondary"/>
         </LinearLayout>
 
-        <Switch
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:theme="@style/Theme.Material3.DynamicColors.DayNight"
             android:layout_width="wrap_content"
             android:minWidth="48dp"
             android:layout_height="48dp"
@@ -217,7 +221,8 @@
                 android:textColor="?android:textColorSecondary"/>
         </LinearLayout>
 
-        <Switch
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:theme="@style/Theme.Material3.DynamicColors.DayNight"
             android:layout_width="wrap_content"
             android:minWidth="48dp"
             android:layout_height="48dp"
@@ -417,7 +422,8 @@
                 android:textColor="?android:textColorSecondary"/>
         </LinearLayout>
 
-        <Switch
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:theme="@style/Theme.Material3.DynamicColors.DayNight"
             android:layout_width="wrap_content"
             android:minWidth="48dp"
             android:layout_height="48dp"

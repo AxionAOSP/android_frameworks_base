@@ -40,7 +40,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Spinner
-import android.widget.Switch
+import com.google.android.material.materialswitch.MaterialSwitch
 import androidx.annotation.LayoutRes
 import com.android.systemui.Prefs
 import com.android.systemui.mediaprojection.MediaProjectionCaptureTarget
@@ -110,12 +110,12 @@ class ScreenRecordPermissionContentManager(
         ): ScreenRecordPermissionContentManager
     }
 
-    private lateinit var tapsSwitch: Switch
-    private lateinit var audioSwitch: Switch
-    private lateinit var lowQualitySwitch: Switch
-    private lateinit var longerDurationSwitch: Switch
-    private lateinit var skipTimeSwitch: Switch
-    private lateinit var hevcSwitch: Switch
+    private lateinit var tapsSwitch: MaterialSwitch
+    private lateinit var audioSwitch: MaterialSwitch
+    private lateinit var lowQualitySwitch: MaterialSwitch
+    private lateinit var longerDurationSwitch: MaterialSwitch
+    private lateinit var skipTimeSwitch: MaterialSwitch
+    private lateinit var hevcSwitch: MaterialSwitch
     private lateinit var tapsView: View
     private lateinit var options: Spinner
     private lateinit var bitrateSpinner: Spinner
@@ -166,12 +166,12 @@ class ScreenRecordPermissionContentManager(
 
     @SuppressLint("ClickableViewAccessibility")
     private fun initRecordOptionsView() {
-        audioSwitch = containerView.requireViewById(R.id.screenrecord_audio_switch)
-        tapsSwitch = containerView.requireViewById(R.id.screenrecord_taps_switch)
-        lowQualitySwitch = containerView.requireViewById(R.id.screenrecord_lowquality_switch)
-        longerDurationSwitch = containerView.requireViewById(R.id.screenrecord_longer_timeout_switch)
-        skipTimeSwitch = containerView.requireViewById(R.id.screenrecord_skip_time_switch)
-        hevcSwitch = containerView.requireViewById(R.id.screenrecord_hevc_switch)
+        audioSwitch = containerView.requireViewById<MaterialSwitch>(R.id.screenrecord_audio_switch)
+        tapsSwitch = containerView.requireViewById<MaterialSwitch>(R.id.screenrecord_taps_switch)
+        lowQualitySwitch = containerView.requireViewById<MaterialSwitch>(R.id.screenrecord_lowquality_switch)
+        longerDurationSwitch = containerView.requireViewById<MaterialSwitch>(R.id.screenrecord_longer_timeout_switch)
+        skipTimeSwitch = containerView.requireViewById<MaterialSwitch>(R.id.screenrecord_skip_time_switch)
+        hevcSwitch = containerView.requireViewById<MaterialSwitch>(R.id.screenrecord_hevc_switch)
 
         tapsView = containerView.requireViewById(R.id.show_taps)
         updateTapsViewVisibility()
