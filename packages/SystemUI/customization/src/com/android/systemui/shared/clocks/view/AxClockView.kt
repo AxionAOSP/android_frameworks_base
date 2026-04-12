@@ -25,15 +25,16 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
 import android.view.ViewGroup
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -45,6 +46,7 @@ import com.android.systemui.log.core.MessageBuffer
 import com.android.systemui.plugins.keyguard.data.model.AlarmData
 import com.android.systemui.plugins.keyguard.ui.clocks.*
 import com.android.systemui.shared.clocks.ClockConfigs
+import com.android.systemui.shared.clocks.ClockEditScaleGeometry
 import com.android.systemui.shared.clocks.ClockSettingsRepository
 import com.android.systemui.shared.clocks.extensions.*
 import java.util.Locale
@@ -85,12 +87,15 @@ abstract class AxClockView @JvmOverloads constructor(
         }
 
     var touchEnabled: Boolean = true
-    var onFidgetTapListener: ((Float, Float) -> Unit)? = null
+    var previewSizeScaleOverride: Float? by mutableStateOf(null)
 
     private val depthController = ClockDepthController(this)
     var depthEffectEnabled: Boolean
         get() = depthController.enabled
         set(value) { depthController.enabled = value }
+    var depthSourceBoundsProvider: (() -> RectF?)?
+        get() = depthController.sourceBoundsProvider
+        set(value) { depthController.sourceBoundsProvider = value }
 
     protected open val clockHeightBase: Int get() = context.scaledDimenInt(R.dimen.clock_height)
     val clockPaddingTop get() = context.scaledDimen(R.dimen.clock_padding_top)
@@ -98,13 +103,13 @@ abstract class AxClockView @JvmOverloads constructor(
     val clockDateTextSize get() = context.scaledDimen(R.dimen.clock_date_text_size)
     val clockDateMarginTop get() = context.scaledDimen(R.dimen.clock_date_margin_top)
     val scaleRatio get() = context.scaleRatio
-    val sizeScale get() = if (isPreviewMode) 1f else ClockSettingsRepository.sizeScale.value
+    val sizeScale: Float get() = clockScaleState(ClockSettingsRepository.sizeScale.value).value
     val iconSize get() = context.scaledDimenInt(R.dimen.clock_icon_secondary_size)
 
     protected val config: ClockConfigs.ClockStyleConfig?
         get() {
             val className = this::class.simpleName ?: return null
-            return ClockConfigs.resolveConfig(context, className, isLargeClock)
+            return ClockConfigs.resolveConfig(className, isLargeClock, state.alignmentState.value)
         }
 
     val isLeftAligned: Boolean get() = config?.align == ClockConfigs.Align.LEFT
@@ -158,7 +163,7 @@ abstract class AxClockView @JvmOverloads constructor(
     @Composable
     protected abstract fun Content()
 
-    internal open val useGlitchInteraction: Boolean = false
+    open val animationSpec: AxClockAnimationSpec = AxClockAnimationSpecs.Default
 
     open fun onAlarmDataChanged(data: AlarmData) { interactor.onAlarmDataChanged(data) }
     open fun onClockDataChanged(data: ClockData) { interactor.onClockDataChanged(data) }
@@ -171,11 +176,15 @@ abstract class AxClockView @JvmOverloads constructor(
     fun onDepthEffectVisibilityChanged(visible: Boolean) { depthController.setDepthVisible(visible) }
     fun setMessageBuffer(buffer: MessageBuffer) {}
     open fun onDozeChanged(doze: Boolean) { interactor.onDozeChanged(doze) }
+    open fun onFidgetAnimation() {}
     open fun onChargeAnimation() {}
     open fun onPulsingChanged(doze: Boolean) {}
     open fun onScreenOff(screenOff: Boolean) { interactor.onScreenOff(screenOff) }
     open fun onRegionDarknessChanged(regionDark: Boolean) { interactor.onRegionDarknessChanged(regionDark) }
-    open fun onFontSettingChanged() { interactor.onFontSettingChanged() }
+    open fun onFontSettingChanged(fontSizePx: Float = 0f) {
+        interactor.onFontSettingChanged()
+        onDisplayMetricsChanged()
+    }
     open fun onTimeZoneChanged(timeZone: TimeZone) { interactor.onTimeZoneChanged(timeZone) }
 
     open fun onDozeAmountChanged(linear: Float, eased: Float) {
@@ -207,8 +216,6 @@ abstract class AxClockView @JvmOverloads constructor(
     }
 
     fun refreshDate() { interactor.refreshDate() }
-
-    open fun animateFidgetTap(x: Float, y: Float) = animateFidgetTapDefault(x, y)
 
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
         if (!touchEnabled) return false
@@ -256,26 +263,35 @@ abstract class AxClockView @JvmOverloads constructor(
         }
     }
 
+    protected open fun onDisplayMetricsChanged() {
+        state.configurationVersion.intValue++
+        host.view.requestLayout()
+        requestLayout()
+        invalidate()
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = getDefaultSize(suggestedMinimumWidth, widthMeasureSpec)
-        if (isLargeClock) {
-            val maxH = MeasureSpec.getSize(heightMeasureSpec)
-            val cv = host.view
+        val cv = host.view
+        val mode = MeasureSpec.getMode(heightMeasureSpec)
+        val maxH = MeasureSpec.getSize(heightMeasureSpec)
+
+        cv.measure(
+            MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+        )
+        val naturalH = cv.measuredHeight
+        val floor = if (isLargeClock) 0 else clockHeight
+        val finalH = when (mode) {
+            MeasureSpec.EXACTLY -> maxOf(naturalH, maxH, floor)
+            else -> maxOf(naturalH, floor)
+        }
+        setMeasuredDimension(w, finalH)
+        if (w > 0 && finalH > 0 && finalH != naturalH) {
             cv.measure(
                 MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(maxH, MeasureSpec.AT_MOST),
+                MeasureSpec.makeMeasureSpec(finalH, MeasureSpec.EXACTLY),
             )
-            setMeasuredDimension(w, cv.measuredHeight)
-        } else {
-            setMeasuredDimension(w, clockHeight)
-            val mw = measuredWidth
-            val mh = measuredHeight
-            if (mw > 0 && mh > 0) {
-                host.view.measure(
-                    MeasureSpec.makeMeasureSpec(mw, MeasureSpec.EXACTLY),
-                    MeasureSpec.makeMeasureSpec(mh, MeasureSpec.EXACTLY),
-                )
-            }
         }
     }
 
@@ -299,6 +315,16 @@ abstract class AxClockView @JvmOverloads constructor(
 
     protected open fun getContentBounds(): RectF? = null
 
+    open fun getClockEditScaleGeometry(
+        availableWidthDp: Float,
+        requestedScale: Float,
+    ): ClockEditScaleGeometry =
+        ClockEditScaleGeometry.default(
+            availableWidthDp = availableWidthDp,
+            requestedScale = requestedScale,
+            scaleRange = ClockSettingsRepository.sizeScaleRange,
+        )
+
     open fun setupPreview() {
         interactor.setupPreview {
             isPreviewMode = true
@@ -315,28 +341,36 @@ abstract class AxClockView @JvmOverloads constructor(
     protected fun tintColor(isDoze: Boolean, screenOff: Boolean, regionDark: Boolean): Color =
         viewModel.tintColor(isDoze, screenOff, regionDark)
 
-    protected val fidgetTapModifier: Modifier
-        @Composable get() {
-            val display = viewModel.rememberResolvedDisplay()
-            return Modifier.pointerInput(touchEnabled, display.tapAction) {
-                if (!touchEnabled) return@pointerInput
-                detectTapGestures { offset ->
-                    if (!state.isDoze) {
-                        onFidgetTapListener?.invoke(offset.x, offset.y)
-                        display.tapAction?.let { fireTapAction(it) }
-                    }
-                }
-            }
-        }
+    @Composable
+    protected fun inverseSizeScaleModifier(): Modifier = Modifier
 
     @Composable
-    protected fun DigitArea(
-        modifier: Modifier = Modifier,
-        content: @Composable () -> Unit,
-    ) {
-        Box(modifier = modifier.then(fidgetTapModifier)) {
-            content()
+    protected fun digitScaleModifier(): Modifier {
+        val scaleState = rememberClockScaleState()
+        if (!scaleState.appliesToContent || scaleState.value == 1f) return Modifier
+        return Modifier.graphicsLayer {
+            scaleX = scaleState.value
+            scaleY = scaleState.value
         }
+    }
+
+    @Composable
+    protected fun rememberClockScaleState(): ClockScaleState {
+        val repositoryScale by ClockSettingsRepository.sizeScale.collectAsState()
+        return clockScaleState(repositoryScale)
+    }
+
+    @Composable
+    protected fun rememberSmallClockSizeScale(): Float = rememberClockScaleState().value
+
+    private fun clockScaleState(repositoryScale: Float): ClockScaleState {
+        return ClockScaleState(
+            isLargeClock = isLargeClock,
+            isPreviewMode = isPreviewMode,
+            repositoryScale = repositoryScale,
+            previewOverride = previewSizeScaleOverride,
+            range = ClockSettingsRepository.sizeScaleRange,
+        )
     }
 
     @Composable
@@ -357,11 +391,12 @@ abstract class AxClockView @JvmOverloads constructor(
         },
     ) {
         val display = viewModel.rememberResolvedDisplay()
+        val inverseModifier = inverseSizeScaleModifier()
         QuickLookDateArea(
-            modifier = modifier,
+            modifier = modifier.then(inverseModifier),
             display = display,
             dateStr = state.dateStr,
-            sizeScale = sizeScale,
+            sizeScale = 1f,
             textColor = textColor,
             textSize = textSize,
             fontFamily = fontFamily,

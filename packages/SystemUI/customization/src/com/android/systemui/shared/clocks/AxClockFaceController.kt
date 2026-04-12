@@ -51,7 +51,7 @@ class AxClockFaceController(
             }
 
             override fun onFontSettingChanged(fontSizePx: Float) {
-                view.onFontSettingChanged()
+                view.onFontSettingChanged(fontSizePx)
             }
 
             override fun onSecondaryDisplayChanged(onSecondaryDisplay: Boolean) {}

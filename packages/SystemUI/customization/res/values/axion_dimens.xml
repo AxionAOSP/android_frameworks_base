@@ -73,7 +73,6 @@
     <dimen name="bitmap_digit_clocks_margin_top_v2">36dp</dimen>
 
     <!-- Large Clock Dimensions -->
-    <dimen name="large_clock_height">400dp</dimen>
     <dimen name="large_clock_digit_spacing">4dp</dimen>
     <dimen name="large_clock_line_spacing">16dp</dimen>
 </resources>

@@ -22,7 +22,8 @@ import android.text.format.DateFormat
 import com.android.systemui.plugins.keyguard.data.model.AlarmData
 import com.android.systemui.plugins.keyguard.ui.clocks.ClockData
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Calendar
+import java.util.Locale
 import java.util.TimeZone as JavaTimeZone
 
 class AxClockInteractor(
@@ -36,6 +37,10 @@ class AxClockInteractor(
     var timeStr: String = ""
         internal set
     var locale: Locale = Locale.getDefault()
+
+    private var cachedSdf: SimpleDateFormat? = null
+    private var cachedDateFormat: SimpleDateFormat? = null
+    private var cachedDateLocale: Locale = locale
 
     var needsSeconds: Boolean = false
     var useStandardFormat: Boolean = false
@@ -58,6 +63,9 @@ class AxClockInteractor(
 
     fun onTimeZoneChanged(timeZone: TimeZone) {
         calendar.timeZone = JavaTimeZone.getTimeZone(timeZone.id)
+        cachedSdf?.timeZone = calendar.timeZone
+        cachedDateFormat?.timeZone = calendar.timeZone
+        refreshTime()
     }
 
     fun refreshFormat(use24: Boolean, newLocale: Locale = locale) {
@@ -70,13 +78,20 @@ class AxClockInteractor(
         if (format == newFormat && locale == newLocale) return
         format = newFormat
         locale = newLocale
+        cachedSdf = null
+        cachedDateFormat = null
         refreshTime()
     }
 
     fun refreshTime(): Boolean {
         format ?: return false
         calendar.timeInMillis = System.currentTimeMillis()
-        val newTime = SimpleDateFormat(format, Locale.ENGLISH).format(calendar.time)
+        if (cachedSdf == null) {
+            cachedSdf = SimpleDateFormat(format, Locale.ENGLISH).apply {
+                timeZone = calendar.timeZone
+            }
+        }
+        val newTime = cachedSdf!!.format(calendar.time)
         refreshDate()
         val changed = timeStr != newTime
         if (changed) {
@@ -87,8 +102,13 @@ class AxClockInteractor(
     }
 
     fun refreshDate() {
-        val dateFormat = SimpleDateFormat("EEE, dd MMM", locale)
-        state.dateStrFlow.value = dateFormat.format(calendar.time)
+        if (cachedDateFormat == null || cachedDateLocale != locale) {
+            cachedDateFormat = SimpleDateFormat("EEE, dd MMM", locale).apply {
+                timeZone = calendar.timeZone
+            }
+            cachedDateLocale = locale
+        }
+        state.dateStrFlow.value = cachedDateFormat!!.format(calendar.time)
     }
 
     fun setupPreview(setPreviewMode: () -> Unit) {
@@ -111,6 +131,8 @@ class AxClockInteractor(
     val talkBackContent: String
         get() {
             val pattern = if (DateFormat.is24HourFormat(context)) CLOCK_PATTERN_24_STANDARD else "hh:mm"
-            return SimpleDateFormat(pattern, Locale.ENGLISH).format(calendar.time)
+            return SimpleDateFormat(pattern, Locale.ENGLISH).apply {
+                timeZone = calendar.timeZone
+            }.format(calendar.time)
         }
 }

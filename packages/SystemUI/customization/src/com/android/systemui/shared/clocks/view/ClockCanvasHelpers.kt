@@ -31,6 +31,12 @@ import androidx.compose.ui.unit.IntSize
 import kotlin.math.cos
 import kotlin.math.sin
 
+internal fun DrawScope.fitToWidth(naturalWidth: Float, marginDp: Float = 16f): Float {
+    val marginPx = marginDp * density
+    val available = (size.width - 2f * marginPx).coerceAtLeast(1f)
+    return if (naturalWidth > available) available / naturalWidth else 1f
+}
+
 internal fun DrawScope.drawScaledBitmap(
     bitmap: Bitmap,
     x: Float,

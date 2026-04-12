@@ -35,6 +35,7 @@ import com.android.systemui.res.R
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shared.clocks.ClockRegistry
+import com.android.systemui.shared.clocks.ClockWidgetLayoutState
 import com.android.systemui.util.settings.SecureSettings
 import com.android.systemui.util.settings.SettingsProxyExt.observerFlow
 import javax.inject.Inject
@@ -174,7 +175,7 @@ constructor(
                 "lockscreen_widgets_config",
                 UserHandle.USER_CURRENT
             ) ?: ""
-            return isEnabled && widgetConfig.isNotEmpty()
+            return ClockWidgetLayoutState.fromSettings(isEnabled, widgetConfig).hasWidgets
         }
     private fun getClockSize(): ClockSizeSetting {
         return ClockSizeSetting.fromSettingValue(

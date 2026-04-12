@@ -140,8 +140,6 @@ constructor(
         if (clock == null) {
             return
         }
-        (clock.smallClock.view as? AxClockView)?.onFidgetTapListener = null
-        (clock.largeClock.view as? AxClockView)?.onFidgetTapListener = null
         smallClockOnAttachStateChangeListener?.let {
             clock.smallClock.view.removeOnAttachStateChangeListener(it)
             smallClockFrame?.viewTreeObserver?.removeOnGlobalLayoutListener(onGlobalLayoutListener)
@@ -160,9 +158,6 @@ constructor(
 
         clock.eventListeners.attach(clockListener)
         clock.initialize(isDarkTheme(), dozeAmount.value, 0f)
-
-        (clock.smallClock.view as? AxClockView)?.onFidgetTapListener = ::handleFidgetTap
-        (clock.largeClock.view as? AxClockView)?.onFidgetTapListener = ::handleFidgetTap
 
         if (!regionSamplingEnabled) {
             updateColors()
@@ -266,6 +261,7 @@ constructor(
     private var isCharging = false
     private var isKeyguardVisible = false
     private var isRegistered = false
+    private var areClockViewsShowing: Boolean? = null
     private val regionSamplingEnabled = featureFlags.isEnabled(REGION_SAMPLING)
     private var largeClockOnSecondaryDisplay = false
 
@@ -337,7 +333,10 @@ constructor(
     var smallTimeListener: TimeListener? = null
     var largeTimeListener: TimeListener? = null
     val shouldTimeListenerRun: Boolean
-        get() = !isPreview && isKeyguardVisible && dozeAmount.value < DOZE_TICKRATE_THRESHOLD
+        get() =
+            !isPreview &&
+                shouldShowClock &&
+                dozeAmount.value < DOZE_TICKRATE_THRESHOLD
 
     private var weatherData: WeatherData? = null
     private var zenData: ZenData? = null
@@ -417,9 +416,8 @@ constructor(
                 if (visible) {
                     refreshTime()
                 }
-
-                smallTimeListener?.update(shouldTimeListenerRun)
-                largeTimeListener?.update(shouldTimeListenerRun)
+                syncClockVisibility(animate = visible)
+                updateTimeListenersRunning()
             }
 
             override fun onTimeFormatChanged(timeFormat: String?) {
@@ -477,14 +475,22 @@ constructor(
             }
 
             override fun onTimeChanged() {
-                refreshTime()
-            }
-
-            private fun refreshTime() {
-                clock?.smallClock?.events?.onTimeTick()
-                clock?.largeClock?.events?.onTimeTick()
+                if (ScrimUtils.get().isKeyguardShowing()) {
+                    refreshTime()
+                }
             }
         }
+
+    private fun refreshTime() {
+        clock?.smallClock?.events?.onTimeTick()
+        clock?.largeClock?.events?.onTimeTick()
+    }
+
+    private fun updateTimeListenersRunning() {
+        val shouldRun = shouldTimeListenerRun
+        smallTimeListener?.update(shouldRun)
+        largeTimeListener?.update(shouldRun)
+    }
 
     @DeprecatedSysuiVisibleForTesting
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
@@ -524,6 +530,8 @@ constructor(
                 override fun onDozingChanged(isDozing: Boolean) {
                     clock?.smallClock?.events?.onDozeChanged(isDozing)
                     clock?.largeClock?.events?.onDozeChanged(isDozing)
+                    syncClockVisibility(animate = false)
+                    updateTimeListenersRunning()
                 }
                 override fun onDozeAmountChanged(linear: Float, eased: Float) {
                     clock?.smallClock?.events?.onDozeAmountChanged(linear, eased)
@@ -532,6 +540,8 @@ constructor(
                 override fun onPulsingChanged(pulsing: Boolean) {
                     clock?.smallClock?.events?.onPulsingChanged(pulsing)
                     clock?.largeClock?.events?.onPulsingChanged(pulsing)
+                    syncClockVisibility(animate = false)
+                    updateTimeListenersRunning()
                 }
             }
     private var depthBlockedByFading = false
@@ -541,12 +551,25 @@ constructor(
     private var depthBlockedByDozeAmount = false
     private var depthBlockedByMediaArt = false
     private val depthScrimListener = object : ScrimUtils.ScrimEventListener {
+        override fun onKeyguardShowingChanged(showing: Boolean) {
+            if (showing) {
+                refreshTime()
+            }
+            syncClockVisibility(animate = showing)
+            updateTimeListenersRunning()
+            updateDepthVisibility()
+        }
+
         override fun onKeyguardFadingAwayChanged(fadingAway: Boolean) {
             depthBlockedByFading = fadingAway
+            syncClockVisibility(animate = false)
+            updateTimeListenersRunning()
             updateDepthVisibility()
         }
         override fun onKeyguardGoingAwayChanged(goingAway: Boolean) {
             depthBlockedByGoingAway = goingAway
+            syncClockVisibility(animate = false)
+            updateTimeListenersRunning()
             updateDepthVisibility()
         }
         override fun onPrimaryBouncerShowingChanged(showing: Boolean) {
@@ -554,9 +577,6 @@ constructor(
             updateDepthVisibility()
         }
         override fun onDozingChanged() {
-            updateDepthVisibility()
-        }
-        override fun onKeyguardShowingChanged(showing: Boolean) {
             updateDepthVisibility()
         }
         override fun onKeyguardAlphaChanged(alpha: Float) {
@@ -633,6 +653,7 @@ constructor(
         keyguardUpdateMonitor.registerCallback(keyguardUpdateMonitorCallback)
         zenModeController.addCallback(zenModeCallback)
         ScrimUtils.get().addListener(depthScrimListener)
+        syncClockVisibility(animate = false)
         if (SceneContainerFlag.isEnabled) {
             handleDoze(
                 when (AOD) {
@@ -642,8 +663,7 @@ constructor(
                 }
             )
         }
-        smallTimeListener?.update(shouldTimeListenerRun)
-        largeTimeListener?.update(shouldTimeListenerRun)
+        updateTimeListenersRunning()
 
         bgExecutor.execute {
             // Query ZenMode data
@@ -667,11 +687,52 @@ constructor(
         largeRegionSampler?.stopRegionSampler()
         smallTimeListener?.stop()
         largeTimeListener?.stop()
+        areClockViewsShowing = null
         clock?.run {
             smallClock.view.removeOnAttachStateChangeListener(smallClockOnAttachStateChangeListener)
             largeClock.view.removeOnAttachStateChangeListener(largeClockOnAttachStateChangeListener)
         }
         smallClockFrame?.viewTreeObserver?.removeOnGlobalLayoutListener(onGlobalLayoutListener)
+    }
+
+    fun syncClockVisibility(animate: Boolean) {
+        updateClockVisibility(shouldShowClock, animate)
+    }
+
+    private val shouldShowClock: Boolean
+        get() =
+            largeClockOnSecondaryDisplay ||
+                (!depthBlockedByFading &&
+                    !depthBlockedByGoingAway &&
+                    (isKeyguardVisible ||
+                        statusBarStateController.isDozing ||
+                        statusBarStateController.isPulsing))
+
+    private fun updateClockVisibility(showing: Boolean, animate: Boolean) {
+        if (isPreview) return
+        val currentClock = clock ?: return
+        val shouldAnimate = animate && areClockViewsShowing == false
+        areClockViewsShowing = showing
+        if (showing) {
+            showClock(currentClock.smallClock, shouldAnimate)
+            showClock(currentClock.largeClock, shouldAnimate)
+            return
+        }
+        hideClock(currentClock.smallClock)
+        hideClock(currentClock.largeClock)
+    }
+
+    private fun hideClock(face: ClockFaceController) {
+        val view = face.view as? AxClockView ?: return
+        view.animAlpha = 0f
+    }
+
+    private fun showClock(face: ClockFaceController, animate: Boolean) {
+        val view = face.view as? AxClockView ?: return
+        view.animAlpha = 1f
+        if (animate) {
+            face.animations.enter()
+        }
     }
 
     fun setFallbackWeatherData(data: WeatherData) {
@@ -727,14 +788,6 @@ constructor(
         }
     }
 
-    fun handleFidgetTap(x: Float, y: Float) {
-        if (isPreview || isCharging) return
-        clock?.run {
-            smallClock.animations.onFidgetTap(x, y)
-            largeClock.animations.onFidgetTap(x, y)
-        }
-    }
-
     private fun handleDoze(doze: Float) {
         if (isPreview) {
             dozeAmount.value = doze
@@ -749,9 +802,8 @@ constructor(
             largeClock.animations.doze(doze)
             Trace.endSection()
         }
-        smallTimeListener?.update(doze < DOZE_TICKRATE_THRESHOLD)
-        largeTimeListener?.update(doze < DOZE_TICKRATE_THRESHOLD)
         dozeAmount.value = doze
+        updateTimeListenersRunning()
 
         val blocked = doze > 0f && doze < 1f
         if (depthBlockedByDozeAmount != blocked) {

@@ -42,6 +42,7 @@ class AxClockViewModel(
             }
             is DateDisplay.IconText -> display.text
             is DateDisplay.DateOnly -> display.text
+            is DateDisplay.Hidden -> ""
         }
         return ClockUiState(
             time, displayDate, isDoze, screenOff, regionDark,

@@ -83,7 +83,7 @@ open class DefaultClockFaceLayout(val view: View) : ClockFaceLayout {
         override fun LockscreenScope<MovableElementContentScope>.LockscreenElement() {
             clockView(
                 view,
-                Modifier.wrapContentSize()
+                Modifier.wrapContentSize(unbounded = true)
                     .then(contentScope.largeClockModifier())
                     .then(context.burnInModifier),
             )

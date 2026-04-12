@@ -49,11 +49,15 @@ import com.android.systemui.res.R
 import com.android.systemui.shade.LargeScreenHeaderHelper
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shared.R as sharedR
+import com.android.systemui.shared.clocks.ClockSettingsRepository
 import com.android.systemui.shared.clocks.useAxClocks
+import com.android.systemui.shared.clocks.view.AxClockView
+import com.android.systemui.shared.clocks.view.NoClockView
 import com.android.systemui.util.ui.value
 import dagger.Lazy
 import javax.inject.Inject
 import kotlinx.coroutines.DisposableHandle
+import kotlin.math.roundToInt
 
 internal fun ConstraintSet.setVisibility(views: Iterable<View>, visibility: Int) =
     views.forEach { view -> this.setVisibility(view.id, visibility) }
@@ -118,7 +122,7 @@ constructor(
         val targetViews = targetFace.views
         val nonTargetViews = nonTargetFace.views
         // Add constraint between rootView and clockContainer
-        applyDefaultConstraints(constraintSet)
+        applyDefaultConstraints(constraintSet, clock)
         nonTargetFace.applyConstraints(constraintSet)
         targetFace.applyConstraints(constraintSet)
 
@@ -161,6 +165,13 @@ constructor(
         if (keyguardClockViewModel.isLargeClockVisible.value) clock.smallClock.layout
         else clock.largeClock.layout
 
+    private fun getSmallClockHeight(clock: ClockController?): Int {
+        val baseHeight = context.resources.getDimensionPixelSize(custR.dimen.clock_height)
+        if (!useAxClocks) return baseHeight
+        return (clock?.smallClock?.view as? AxClockView)?.clockHeight
+            ?: (baseHeight * ClockSettingsRepository.sizeScale.value).roundToInt()
+    }
+
     private fun constrainWeatherClockDateIconsBarrier(constraints: ConstraintSet) {
         constraints.apply {
             createBarrier(
@@ -193,8 +204,15 @@ constructor(
         }
     }
 
-    fun applyDefaultConstraints(constraints: ConstraintSet) {
+    fun applyDefaultConstraints(
+        constraints: ConstraintSet,
+        clock: ClockController? = keyguardClockViewModel.currentClock.value,
+    ) {
         val isLargeVisible = keyguardClockViewModel.isLargeClockVisible.value
+        val smallClockHeight = getSmallClockHeight(clock)
+        val smallClockView = clock?.smallClock?.view
+        val hasVisibleAxSmallClock =
+            useAxClocks && !isLargeVisible && smallClockView != null && smallClockView !is NoClockView
         val guideline =
             if (keyguardClockViewModel.clockShouldBeCentered.value) PARENT_ID
             else R.id.split_shade_guideline
@@ -256,7 +274,7 @@ constructor(
             constrainWidth(ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL, MATCH_CONSTRAINT)
             constrainHeight(
                 ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL,
-                context.resources.getDimensionPixelSize(custR.dimen.clock_height),
+                smallClockHeight,
             )
             connect(
                 ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL,
@@ -285,8 +303,7 @@ constructor(
             setTransformPivot(ClockViewIds.LOCKSCREEN_CLOCK_VIEW_LARGE, Float.NaN, Float.NaN)
 
             val smallClockBottom =
-                keyguardClockViewModel.getSmallClockTopMargin() +
-                    context.resources.getDimensionPixelSize(custR.dimen.clock_height)
+                keyguardClockViewModel.getSmallClockTopMargin() + smallClockHeight
             val marginBetweenSmartspaceAndNotification =
                 context.resources.getDimensionPixelSize(
                     R.dimen.keyguard_status_view_bottom_margin
@@ -297,7 +314,11 @@ constructor(
                         0
                     }
 
-            if (keyguardClockViewModel.shouldDateWeatherBeBelowSmallClock.value && !useAxClocks) {
+            if (hasVisibleAxSmallClock) {
+                clockInteractor.setNotificationStackDefaultTop(
+                    (smallClockBottom + marginBetweenSmartspaceAndNotification).toFloat()
+                )
+            } else if (!useAxClocks && keyguardClockViewModel.shouldDateWeatherBeBelowSmallClock.value) {
                 val dateWeatherSmartspaceHeight =
                     context.resources
                         .getDimensionPixelSize(clocksR.dimen.date_weather_view_height)

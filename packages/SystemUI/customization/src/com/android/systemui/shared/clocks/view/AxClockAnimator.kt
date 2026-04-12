@@ -17,41 +17,57 @@
 package com.android.systemui.shared.clocks.view
 
 import android.animation.ValueAnimator
-import android.content.Context
-import android.os.VibrationEffect
-import android.os.Vibrator
 import android.util.Log
 import androidx.compose.ui.geometry.Offset
-import com.android.app.animation.Interpolators
 
 fun AxClockView.animateAppear() {
     Log.d(tag, "animateAppear")
-    animAlpha = 0f
+    val spec = animationSpec.appear
+    if (!spec.enabled || isPreviewMode) {
+        animAlpha = 1f
+        scaleX = 1f
+        scaleY = 1f
+        translationY = 0f
+        return
+    }
+    val startTranslationY = spec.startTranslationYDp * resources.displayMetrics.density
+    animAlpha = spec.startAlpha
+    scaleX = spec.startScaleX
+    scaleY = spec.startScaleY
+    translationY = startTranslationY
     ValueAnimator.ofFloat(0f, 1f).apply {
-        duration = APPEAR_DURATION
-        interpolator = Interpolators.EMPHASIZED_DECELERATE
-        addUpdateListener { animAlpha = it.animatedValue as Float }
+        duration = spec.durationMs
+        interpolator = spec.interpolator
+        addUpdateListener {
+            val fraction = it.animatedValue as Float
+            animAlpha = lerp(spec.startAlpha, 1f, fraction)
+            scaleX = lerp(spec.startScaleX, 1f, fraction)
+            scaleY = lerp(spec.startScaleY, 1f, fraction)
+            translationY = lerp(startTranslationY, 0f, fraction)
+        }
         start()
     }
+}
+
+fun AxClockView.animateFidget(x: Float, y: Float) {
+    Log.d(tag, "animateFidget")
+    if (isPreviewMode) return
+    state.fidgetPosition.value = Offset(x, y)
+    state.fidgetTrigger.value = System.currentTimeMillis()
+    onFidgetAnimation()
+}
+
+fun AxClockView.setAodFraction(fraction: Float) {
+    if (isPreviewMode) return
+    state.dozeAmountFlow.value = fraction.coerceIn(0f, 1f)
 }
 
 fun AxClockView.animateCharge() {
     Log.d(tag, "animateCharge")
     if (isPreviewMode) return
-    val cx = width / 2f
-    val cy = height / 2f
-    state.fidgetPosition.value = Offset(cx, cy)
-    state.fidgetTrigger.value = System.currentTimeMillis()
+    animateFidget(width / 2f, height / 2f)
     onChargeAnimation()
 }
 
-fun AxClockView.animateFidgetTapDefault(x: Float, y: Float) {
-    state.fidgetPosition.value = Offset(x, y)
-    state.fidgetTrigger.value = System.currentTimeMillis()
-    val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-    if (useGlitchInteraction) {
-        vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
-    } else {
-        vibrator?.vibrate(FIDGET_HAPTICS)
-    }
-}
+private fun lerp(start: Float, end: Float, fraction: Float): Float =
+    start + (end - start) * fraction

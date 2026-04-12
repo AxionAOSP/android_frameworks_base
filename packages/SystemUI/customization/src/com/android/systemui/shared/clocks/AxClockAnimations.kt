@@ -18,6 +18,8 @@ import com.android.systemui.plugins.keyguard.ui.clocks.*
 import com.android.systemui.shared.clocks.view.AxClockView
 import com.android.systemui.shared.clocks.view.animateAppear
 import com.android.systemui.shared.clocks.view.animateCharge
+import com.android.systemui.shared.clocks.view.animateFidget
+import com.android.systemui.shared.clocks.view.setAodFraction
 
 class AxClockAnimations(
     private val clockView: AxClockView,
@@ -35,7 +37,19 @@ class AxClockAnimations(
     }
 
     override fun doze(fraction: Float) {
+        val wasDozing = dozeState.fraction > 0f
         dozeState.update(fraction)
+        clockView.setAodFraction(fraction)
+        val aodSpec = clockView.animationSpec.aod
+        if (
+            wasDozing &&
+                fraction <= 0f &&
+                aodSpec.fallbackToAppearWhenSmall &&
+                !clockView.isLargeClock &&
+                clockView.sizeScale < aodSpec.minSizeScaleForTransition
+        ) {
+            clockView.animateAppear()
+        }
     }
 
     override fun fold(fraction: Float) {
@@ -51,7 +65,7 @@ class AxClockAnimations(
     }
 
     override fun onFidgetTap(x: Float, y: Float) {
-        clockView.animateFidgetTap(x, y)
+        clockView.animateFidget(x, y)
     }
 
     override fun onPositionAnimated(args: ClockPositionAnimationArgs) {}

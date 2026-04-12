@@ -16,7 +16,8 @@ package com.android.systemui.shared.clocks
 
 import android.content.Context
 import android.content.res.Resources
-import android.graphics.drawable.Drawable
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Vibrator
 import android.util.Log
 import android.view.LayoutInflater
@@ -40,42 +41,41 @@ class AxClockProvider(
     }
 
     override fun getClockPickerConfig(settings: ClockSettings): ClockPickerConfig {
-        return ClockPickerConfig(
-                settings.clockId ?: "NTYPE",
-                resources.getString(R.string.clock_id_general),
-                resources.getString(R.string.clock_id_general),
-                resources.getDrawable(R.drawable.clock_default_thumbnail, null),
-                isReactiveToTone = true,
+        val resolvedType = resolveClockType(settings.clockId)
+        val clockId = resources.getString(resolvedType.clockId)
+        if (resolvedType == AxClockType.NONE) {
+            return ClockPickerConfig(
+                clockId,
+                resources.getString(R.string.clock_none_name),
+                resources.getString(R.string.clock_none_description),
+                ColorDrawable(Color.TRANSPARENT),
+                isReactiveToTone = false,
                 axes = emptyList(),
                 presetConfig = null,
             )
+        }
+        return ClockPickerConfig(
+            clockId,
+            resources.getString(resolvedType.pickerName),
+            resources.getString(resolvedType.pickerDescription),
+            resources.getDrawable(R.drawable.clock_default_thumbnail, null),
+            isReactiveToTone = true,
+            axes = emptyList(),
+            presetConfig = null,
+        )
     }
 
     override fun createClock(ctx: Context, settings: ClockSettings): AxClockController {
-        val clockId = settings.clockId
-        val resolvedType = AxClockType.values().firstOrNull {
-            clockId == resources.getString(it.clockId)
-        } ?: AxClockType.NTYPE
-
-        return AxClockController(ctx, resolvedType, layoutInflater, messageBuffers)
+        return AxClockController(
+            ctx,
+            resolveClockType(settings.clockId),
+            layoutInflater,
+            messageBuffers,
+        )
     }
 
     override fun getClocks(): List<ClockMetadata> {
-        val availableTypes = buildList {
-            add(AxClockType.NTYPE)
-            add(AxClockType.NDOT)
-            add(AxClockType.GRAPHIC)
-            add(AxClockType.GENERAL)
-            add(AxClockType.LONDON_UG)
-            add(AxClockType.OLD_QUICKLOOK)
-            add(AxClockType.SPACE_AGE)
-            add(AxClockType.POLYLINE)
-            add(AxClockType.CYBERPUNK)
-            add(AxClockType.AXION_AGE)
-            add(AxClockType.SEGMENTS)
-        }
-
-        return availableTypes.map { type ->
+        return pickerClockTypes.map { type ->
             val id = resources.getString(type.clockId)
             ClockMetadata(id)
         }
@@ -83,5 +83,29 @@ class AxClockProvider(
 
     override fun initialize(buffers: ClockMessageBuffers?) {
         messageBuffers = buffers
+    }
+
+    private fun resolveClockType(clockId: String?): AxClockType {
+        return AxClockType.resolve(resources, clockId)
+    }
+
+    private companion object {
+        val pickerClockTypes = listOf(
+            AxClockType.NTYPE,
+            AxClockType.NDOT,
+            AxClockType.GRAPHIC,
+            AxClockType.GENERAL,
+            AxClockType.LONDON_UG,
+            AxClockType.OLD_QUICKLOOK,
+            AxClockType.SPACE_AGE,
+            AxClockType.POLYLINE,
+            AxClockType.CYBERPUNK,
+            AxClockType.AXION_AGE,
+            AxClockType.SEGMENTS,
+            AxClockType.OPLUS_CLASSIC,
+            AxClockType.OPLUS_BIG,
+            AxClockType.OPLUS_PLAYFUL,
+            AxClockType.NONE,
+        )
     }
 }

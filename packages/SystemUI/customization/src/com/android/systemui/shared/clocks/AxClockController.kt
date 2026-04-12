@@ -15,14 +15,19 @@
 package com.android.systemui.shared.clocks
 
 import android.content.Context
-import android.content.res.Resources
-import android.view.LayoutInflater
-import android.view.ViewGroup
+import android.icu.util.TimeZone
 import android.util.Log
+import android.view.LayoutInflater
 import android.widget.FrameLayout
-import com.android.systemui.plugins.keyguard.ui.clocks.*
-import com.android.systemui.shared.clocks.view.BitmapDigitComposeClockView
+import com.android.systemui.plugins.keyguard.ui.clocks.ClockConfig
+import com.android.systemui.plugins.keyguard.ui.clocks.ClockController
+import com.android.systemui.plugins.keyguard.ui.clocks.ClockEventListeners
+import com.android.systemui.plugins.keyguard.ui.clocks.ClockEvents
+import com.android.systemui.plugins.keyguard.ui.clocks.ClockMessageBuffers
+import com.android.systemui.plugins.keyguard.ui.clocks.ClockTickRate
 import com.android.systemui.shared.clocks.view.AxClockView
+import com.android.systemui.shared.clocks.view.BitmapDigitComposeClockView
+import com.android.systemui.shared.clocks.view.setAodFraction
 import java.io.PrintWriter
 
 class AxClockController @JvmOverloads constructor(
@@ -91,8 +96,11 @@ class AxClockController @JvmOverloads constructor(
     override fun initialize(isDarkTheme: Boolean, dozeFraction: Float, foldFraction: Float) {
         smallClock.animations = AxClockAnimations(smallClock.view, dozeFraction, foldFraction)
         largeClock.animations = AxClockAnimations(largeClock.view, dozeFraction, foldFraction)
+        smallClock.view.setAodFraction(dozeFraction)
+        largeClock.view.setAodFraction(dozeFraction)
 
         events.onUiModeChanged(isDarkTheme)
+        events.onTimeZoneChanged(TimeZone.getDefault())
 
         smallClock.events.onTimeTick()
         largeClock.events.onTimeTick()

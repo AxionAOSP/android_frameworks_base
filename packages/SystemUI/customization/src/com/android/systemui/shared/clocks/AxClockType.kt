@@ -14,6 +14,7 @@
 
 package com.android.systemui.shared.clocks
 
+import android.content.res.Resources
 import com.android.systemui.customization.R
 import com.android.systemui.shared.clocks.view.ClockFaceStyle
 
@@ -21,7 +22,10 @@ enum class AxClockType(
     val clockId: Int,
     val viewId: Int,
     val largeViewId: Int = viewId,
-    val bitmapFaceStyle: ClockFaceStyle? = null
+    val bitmapFaceStyle: ClockFaceStyle? = null,
+    val pickerName: Int = R.string.clock_id_general,
+    val pickerDescription: Int = pickerName,
+    val visibleInPicker: Boolean = true,
 ) {
     GENERAL(
         clockId = R.string.clock_id_general,
@@ -84,9 +88,85 @@ enum class AxClockType(
         viewId = R.layout.clock_bitmap_compose,
         largeViewId = R.layout.clock_bitmap_compose_large,
         bitmapFaceStyle = ClockFaceStyle.SEGMENTS
+    ),
+    OPLUS_CLASSIC(
+        clockId = R.string.clock_id_oplus_classic,
+        viewId = R.layout.clock_oplus_classic,
+        pickerName = R.string.clock_oplus_classic_name,
+        pickerDescription = R.string.clock_oplus_classic_description
+    ),
+    OPLUS_BIG(
+        clockId = R.string.clock_id_oplus_big,
+        viewId = R.layout.clock_oplus_big,
+        pickerName = R.string.clock_oplus_big_name,
+        pickerDescription = R.string.clock_oplus_big_description
+    ),
+    OPLUS_PLAYFUL(
+        clockId = R.string.clock_id_oplus_playful,
+        viewId = R.layout.clock_oplus_playful,
+        pickerName = R.string.clock_oplus_playful_name,
+        pickerDescription = R.string.clock_oplus_playful_description
+    ),
+    NONE(
+        clockId = R.string.clock_id_none,
+        viewId = R.layout.clock_none,
+        largeViewId = R.layout.clock_none
     );
+
+    val clockConfigKey: String?
+        get() = when (this) {
+            GENERAL -> "GeneralClockView"
+            GRAPHIC,
+            LONDON_UG,
+            NDOT,
+            NTYPE,
+            SPACE_AGE,
+            POLYLINE,
+            SEGMENTS -> "BitmapDigitComposeClockView"
+            OLD_QUICKLOOK -> "OldQuickLookClockView"
+            CYBERPUNK -> "CyberpunkClockView"
+            AXION_AGE -> "AxionAgeClockView"
+            OPLUS_CLASSIC -> "OplusClassicClockView"
+            OPLUS_BIG -> "OplusBigClockView"
+            OPLUS_PLAYFUL -> "OplusGraffitiClockView"
+            NONE -> null
+        }
 
     companion object {
         val entries: List<AxClockType> = values().toList()
+        val pickerEntries: List<AxClockType> = entries.filter { it.visibleInPicker }
+
+        fun resolve(resources: Resources, clockId: String?): AxClockType {
+            val id = clockId ?: return NTYPE
+            return legacyClockAliases(resources)[id]
+                ?: entries.firstOrNull { resources.getString(it.clockId) == id }
+                ?: NTYPE
+        }
+
+        private fun legacyClockAliases(resources: Resources): Map<String, AxClockType> =
+            mapOf(
+                resources.getString(R.string.clock_id_oplus_classic_start) to OPLUS_CLASSIC,
+                resources.getString(R.string.clock_id_oplus_classic_end) to OPLUS_CLASSIC,
+                resources.getString(R.string.clock_id_oplus_classic_stacked) to OPLUS_CLASSIC,
+                resources.getString(R.string.clock_id_oplus_classic_start_vertical) to OPLUS_CLASSIC,
+                resources.getString(R.string.clock_id_oplus_classic_end_vertical) to OPLUS_CLASSIC,
+                resources.getString(R.string.clock_id_oplus_classic_dual_horizontal) to OPLUS_CLASSIC,
+                resources.getString(R.string.clock_id_oplus_classic_dual_vertical) to OPLUS_CLASSIC,
+                resources.getString(R.string.clock_id_oplus_big_center_vertical) to OPLUS_BIG,
+                resources.getString(R.string.clock_id_oplus_big_vertical) to OPLUS_BIG,
+                resources.getString(R.string.clock_id_oplus_big_wide) to OPLUS_BIG,
+                resources.getString(R.string.clock_id_oplus_big_start_horizontal) to OPLUS_BIG,
+                resources.getString(R.string.clock_id_oplus_big_end_horizontal) to OPLUS_BIG,
+                resources.getString(R.string.clock_id_oplus_snapshot) to NTYPE,
+                resources.getString(R.string.clock_id_oplus_snapshot_old) to NTYPE,
+                resources.getString(R.string.clock_id_oplus_playful_bright) to OPLUS_PLAYFUL,
+                resources.getString(R.string.clock_id_oplus_playful_cute) to OPLUS_PLAYFUL,
+                resources.getString(R.string.clock_id_oplus_playful_game) to OPLUS_PLAYFUL,
+                resources.getString(R.string.clock_id_oplus_playful_keep) to OPLUS_PLAYFUL,
+                resources.getString(R.string.clock_id_oplus_cover) to NTYPE,
+                resources.getString(R.string.clock_id_oplus_cover_start) to NTYPE,
+                resources.getString(R.string.clock_id_oplus_cover_center) to NTYPE,
+                resources.getString(R.string.clock_id_oplus_cover_end) to NTYPE,
+            )
     }
 }

@@ -97,6 +97,9 @@ object KeyguardClockViewBinder {
                                     viewModel.clockSize.value,
                                 )
                                 applyConstraints(clockSection, keyguardRootView, true)
+                                keyguardClockInteractor.clockEventController.syncClockVisibility(
+                                    animate = false
+                                )
                                 currentClock?.apply { eventListeners.fire { onChangeComplete() } }
                             }
                         }
@@ -109,6 +112,12 @@ object KeyguardClockViewBinder {
                         viewModel.clockSize.collect { clockSize ->
                             updateBurnInLayer(keyguardRootView, viewModel, clockSize)
                             blueprintInteractor.refreshBlueprint(Type.ClockSize)
+                        }
+                    }
+
+                    launch {
+                        viewModel.smallClockTopMargin.collect {
+                            blueprintInteractor.refreshBlueprint(Type.DefaultTransition)
                         }
                     }
 

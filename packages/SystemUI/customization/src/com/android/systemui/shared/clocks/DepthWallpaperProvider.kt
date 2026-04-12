@@ -32,6 +32,8 @@ object DepthWallpaperProvider {
     private const val TAG = "DepthWallpaperProvider"
     private const val SETTING_DEPTH_MASK = "ax_depth_subject_mask"
     private const val SETTING_DEPTH_ENABLED = "ax_depth_clock_enabled"
+    private const val EFFECTS_PACKAGE = "com.android.axion.wallpapereffects"
+    private const val MAGIC_PORTRAIT_SERVICE = "MagicPortraitService"
     private const val PATH_VERSION = 0x01
 
     @Volatile
@@ -99,9 +101,15 @@ object DepthWallpaperProvider {
         val cr = contentResolver ?: return
         Thread {
             try {
-                val isLiveWallpaper = wallpaperManager?.wallpaperInfo != null
-                val enabled = !isLiveWallpaper &&
+                val liveInfo = wallpaperManager?.wallpaperInfo
+                val enabled =
                     Settings.Secure.getInt(cr, SETTING_DEPTH_ENABLED, 0) == 1
+                        && (
+                            liveInfo == null ||
+                                hasLockWallpaper() ||
+                                liveInfo.component.packageName == EFFECTS_PACKAGE &&
+                                    liveInfo.component.className.endsWith(MAGIC_PORTRAIT_SERVICE)
+                            )
                 val maskStr = if (enabled) {
                     Settings.Secure.getString(cr, SETTING_DEPTH_MASK)
                 } else null
@@ -161,6 +169,14 @@ object DepthWallpaperProvider {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to decode depth path", e)
             null
+        }
+    }
+
+    private fun hasLockWallpaper(): Boolean {
+        return try {
+            wallpaperManager?.getWallpaperFile(WallpaperManager.FLAG_LOCK)?.use { true } == true
+        } catch (_: Exception) {
+            false
         }
     }
 

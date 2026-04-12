@@ -18,10 +18,6 @@
 package com.android.systemui.keyguard.ui.view.layout.sections
 
 import android.content.Context
-import android.database.ContentObserver
-import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import android.view.View
 import android.view.View.GONE
 import android.view.View.VISIBLE
@@ -32,6 +28,7 @@ import androidx.constraintlayout.widget.ConstraintSet.END
 import androidx.constraintlayout.widget.ConstraintSet.PARENT_ID
 import androidx.constraintlayout.widget.ConstraintSet.START
 import androidx.constraintlayout.widget.ConstraintSet.TOP
+import androidx.constraintlayout.widget.ConstraintSet.WRAP_CONTENT
 import com.android.systemui.common.ui.ConfigurationState
 import com.android.systemui.customization.clocks.R as clocksR
 import com.android.systemui.keyguard.shared.model.KeyguardSection
@@ -39,6 +36,7 @@ import com.android.systemui.keyguard.ui.viewmodel.KeyguardRootViewModel
 import com.android.systemui.res.R
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
+import com.android.systemui.shared.clocks.ClockSettingsRepository
 import com.android.systemui.statusbar.notification.icon.ui.viewbinder.AlwaysOnDisplayNotificationIconViewStore
 import com.android.systemui.statusbar.notification.icon.ui.viewbinder.NotificationIconContainerViewBinder
 import com.android.systemui.statusbar.notification.icon.ui.viewbinder.StatusBarIconViewBindingFailureTracker
@@ -49,7 +47,6 @@ import com.android.systemui.statusbar.ui.SystemBarUtilsState
 import com.android.systemui.util.ui.value
 import javax.inject.Inject
 import kotlinx.coroutines.DisposableHandle
-import com.android.systemui.shared.clocks.ClockSettingsRepository
 
 class AodNotificationIconsSection
 @Inject
@@ -67,54 +64,53 @@ constructor(
     private var nicBindingDisposable: DisposableHandle? = null
     private val nicId = R.id.aod_notification_icon_container
     private lateinit var nic: NotificationIconContainer
-    private var shouldCenterNic = true
-    private val clockSettingsObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
-        override fun onChange(selfChange: Boolean, uri: Uri?) {
-            updateShouldCenterNic()
-        }
-    }
-    private fun updateShouldCenterNic() {
-        val newShouldCenter = ClockSettingsRepository.shouldCenterIcons(context)
-        if (shouldCenterNic != newShouldCenter) {
-            shouldCenterNic = newShouldCenter
-            if (::nic.isInitialized) {
-                nic.setPaddingRelative(
-                    if (shouldCenterNic) 0
-                    else context.resources.getDimensionPixelSize(R.dimen.below_clock_padding_start_icons),
-                    0,
-                    0,
-                    0,
-                )
+    private var clockAlignment = ClockSettingsRepository.ALIGNMENT_CENTER
+    private val clockLayoutAlignmentListener =
+        object : ClockSettingsRepository.ClockLayoutAlignmentListener {
+            override fun onClockLayoutAlignmentChanged(alignment: String) {
+                updateNicClockAlignment(alignment)
             }
         }
+
+    private fun updateNicClockAlignment(newAlignment: String) {
+        if (clockAlignment != newAlignment) {
+            clockAlignment = newAlignment
+            if (::nic.isInitialized) {
+                updateNicPadding()
+                (nic.parent as? ConstraintLayout)?.let { parent ->
+                    val constraintSet = ConstraintSet()
+                    constraintSet.clone(parent)
+                    applyConstraints(constraintSet)
+                    constraintSet.applyTo(parent)
+                }
+            }
+        }
+    }
+
+    private fun updateNicPadding() {
+        val sidePadding =
+            context.resources.getDimensionPixelSize(R.dimen.below_clock_padding_start_icons)
+        nic.setPaddingRelative(
+            if (clockAlignment == ClockSettingsRepository.ALIGNMENT_LEFT) sidePadding else 0,
+            0,
+            if (clockAlignment == ClockSettingsRepository.ALIGNMENT_RIGHT) sidePadding else 0,
+            0,
+        )
     }
 
     override fun addViews(constraintLayout: ConstraintLayout) {
-        updateShouldCenterNic()
+        clockAlignment = ClockSettingsRepository.clockLayoutAlignment(context)
         nic =
             NotificationIconContainer(context, null).apply {
                 id = nicId
-                setPaddingRelative(
-                    if (shouldCenterNic) 0
-                    else resources.getDimensionPixelSize(R.dimen.below_clock_padding_start_icons),
-                    0,
-                    resources.getDimensionPixelOffset(R.dimen.shelf_icon_container_padding),
-                    0,
-                )
                 setVisibility(View.INVISIBLE)
             }
+        updateNicPadding()
 
         constraintLayout.addView(nic)
-        ClockSettingsRepository.init(context)
-        context.contentResolver.registerContentObserver(
-            ClockSettingsRepository.clockFaceUri,
-            false,
-            clockSettingsObserver
-        )
-        context.contentResolver.registerContentObserver(
-            ClockSettingsRepository.alignmentUri,
-            false,
-            clockSettingsObserver
+        ClockSettingsRepository.addClockLayoutAlignmentListener(
+            context,
+            clockLayoutAlignmentListener,
         )
     }
 
@@ -152,12 +148,22 @@ constructor(
 
             clear(nicId, START)
             clear(nicId, END)
-            if (PromotedNotificationUi.isEnabled && !isFullWidthShade) {
-                // Don't create a start constraint, so the icons can hopefully right-align.
-            } else {
-                connect(nicId, START, PARENT_ID, START)
+            constrainWidth(nicId, WRAP_CONTENT)
+            when {
+                PromotedNotificationUi.isEnabled && !isFullWidthShade -> {
+                    connect(nicId, END, PARENT_ID, END, horizontalMargin)
+                }
+                clockAlignment == ClockSettingsRepository.ALIGNMENT_LEFT -> {
+                    connect(nicId, START, PARENT_ID, START, horizontalMargin)
+                }
+                clockAlignment == ClockSettingsRepository.ALIGNMENT_RIGHT -> {
+                    connect(nicId, END, PARENT_ID, END, horizontalMargin)
+                }
+                else -> {
+                    connect(nicId, START, PARENT_ID, START)
+                    connect(nicId, END, PARENT_ID, END)
+                }
             }
-            connect(nicId, END, PARENT_ID, END)
 
             constrainHeight(nicId, height)
         }
@@ -166,6 +172,6 @@ constructor(
     override fun removeViews(constraintLayout: ConstraintLayout) {
         constraintLayout.removeView(nicId)
         nicBindingDisposable?.dispose()
-        context.contentResolver.unregisterContentObserver(clockSettingsObserver)
+        ClockSettingsRepository.removeClockLayoutAlignmentListener(clockLayoutAlignmentListener)
     }
 }

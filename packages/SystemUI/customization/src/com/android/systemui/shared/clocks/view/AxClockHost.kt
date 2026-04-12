@@ -20,8 +20,10 @@ import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -30,16 +32,18 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import com.android.axion.compose.host.AxComposeView
 import com.android.systemui.shared.clocks.ClockSettingsRepository
+import kotlinx.coroutines.launch
 
 class AxClockHost(private val clock: AxClockView) {
 
@@ -55,7 +59,7 @@ class AxClockHost(private val clock: AxClockView) {
         composeView = AxComposeView(clock.context).apply {
             setContent { Host { content() } }
         }
-        
+
         try {
             clock.addView(composeView, ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -85,23 +89,79 @@ class AxClockHost(private val clock: AxClockView) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
             val align = state.alignmentState.value
             val trigger by state.fidgetTrigger
-            val isDoze by state.dozeFlow.collectAsState()
-            val animScale = remember { Animatable(1f) }
-            var initialDoze by remember { mutableStateOf(true) }
+            val dozeAmount by state.dozeAmountFlow.collectAsState()
+            val repositoryScale by ClockSettingsRepository.sizeScale.collectAsState()
+            val configurationVersion = state.configurationVersion.intValue
+            val density = LocalDensity.current.density
+            val animationSpec = clock.animationSpec
+            val fidgetSpec = animationSpec.fidget
+            val aodSpec = animationSpec.aod
+            val sizeScale = ClockSettingsRepository.sizeScaleRange.clamp(repositoryScale)
+            val awakeScale = clock.awakeScale(sizeScale, aodSpec)
+            val scaleBudgetX = maxOf(1f, awakeScale, aodSpec.scaleX)
+            val scaleBudgetY = maxOf(1f, awakeScale, aodSpec.scaleY)
+            val aodAmount = remember { Animatable(dozeAmount.coerceIn(0f, 1f)) }
+            val fidgetScaleX = remember { Animatable(1f) }
+            val fidgetScaleY = remember { Animatable(1f) }
+            val fidgetTranslationX = remember { Animatable(0f) }
+            val fidgetTranslationY = remember { Animatable(0f) }
+            val fidgetRotation = remember { Animatable(0f) }
+            val fidgetAlpha = remember { Animatable(1f) }
 
-            LaunchedEffect(trigger) {
-                if (trigger == 0L || clock.useGlitchInteraction) return@LaunchedEffect
-                animScale.snapTo(1f)
-                animScale.animateTo(COMPOSE_FIDGET_SQUEEZE, tween(COMPOSE_FIDGET_PHASE_MS, easing = COMPOSE_FIDGET_EASING))
-                animScale.animateTo(COMPOSE_FIDGET_EXPAND, tween(COMPOSE_FIDGET_PHASE_MS, easing = COMPOSE_FIDGET_EASING))
-                animScale.animateTo(1f, tween(COMPOSE_FIDGET_SETTLE_MS, easing = COMPOSE_FIDGET_EASING))
+            LaunchedEffect(dozeAmount, aodSpec) {
+                val target = dozeAmount.coerceIn(0f, 1f)
+                if (aodSpec.durationMs <= 0) {
+                    aodAmount.snapTo(target)
+                    return@LaunchedEffect
+                }
+                aodAmount.animateTo(
+                    target,
+                    tween(durationMillis = aodSpec.durationMs, easing = aodSpec.easing),
+                )
             }
 
-            LaunchedEffect(isDoze) {
-                if (initialDoze) { initialDoze = false; return@LaunchedEffect }
-                if (!isDoze) {
-                    animScale.snapTo(DOZE_WAKE_START)
-                    animScale.animateTo(1f, tween(DOZE_WAKE_MS, easing = DOZE_EASING))
+            LaunchedEffect(trigger, fidgetSpec) {
+                if (trigger == 0L || !fidgetSpec.enabled) {
+                    fidgetScaleX.snapTo(1f)
+                    fidgetScaleY.snapTo(1f)
+                    fidgetTranslationX.snapTo(0f)
+                    fidgetTranslationY.snapTo(0f)
+                    fidgetRotation.snapTo(0f)
+                    fidgetAlpha.snapTo(1f)
+                    return@LaunchedEffect
+                }
+                launch {
+                    fidgetScaleX.animateFidgetValue(1f, fidgetSpec.firstScaleX, fidgetSpec.secondScaleX, fidgetSpec)
+                }
+                launch {
+                    fidgetScaleY.animateFidgetValue(1f, fidgetSpec.firstScaleY, fidgetSpec.secondScaleY, fidgetSpec)
+                }
+                launch {
+                    fidgetTranslationX.animateFidgetValue(
+                        0f,
+                        fidgetSpec.firstTranslationXDp,
+                        fidgetSpec.secondTranslationXDp,
+                        fidgetSpec,
+                    )
+                }
+                launch {
+                    fidgetTranslationY.animateFidgetValue(
+                        0f,
+                        fidgetSpec.firstTranslationYDp,
+                        fidgetSpec.secondTranslationYDp,
+                        fidgetSpec,
+                    )
+                }
+                launch {
+                    fidgetRotation.animateFidgetValue(
+                        0f,
+                        fidgetSpec.firstRotationZ,
+                        fidgetSpec.secondRotationZ,
+                        fidgetSpec,
+                    )
+                }
+                launch {
+                    fidgetAlpha.animateFidgetValue(1f, fidgetSpec.firstAlpha, fidgetSpec.secondAlpha, fidgetSpec)
                 }
             }
 
@@ -110,23 +170,80 @@ class AxClockHost(private val clock: AxClockView) {
             } else {
                 Modifier.fillMaxSize()
             }
-            Box(
-                modifier = sizeModifier
-                    .graphicsLayer {
-                        val s = clock.sizeScale
-                        val a = animScale.value
-                        scaleX = a
-                        scaleY = s * a
-                        when (align) {
-                            ClockSettingsRepository.ALIGNMENT_LEFT ->
-                                transformOrigin = TransformOrigin(0f, 0.5f)
-                            ClockSettingsRepository.ALIGNMENT_RIGHT ->
-                                transformOrigin = TransformOrigin(1f, 0.5f)
+            val transformModifier = Modifier.graphicsLayer {
+                val amount = aodAmount.value.coerceIn(0f, 1f)
+                val aodScaleX = lerp(awakeScale, aodSpec.scaleX, amount)
+                val aodScaleY = lerp(awakeScale, aodSpec.scaleY, amount)
+                val aodTranslationX = lerp(0f, aodSpec.translationXDp * density, amount)
+                val aodTranslationY = lerp(0f, aodSpec.translationYDp * density, amount)
+                val aodRotation = lerp(0f, aodSpec.rotationZ, amount)
+                val aodAlpha = lerp(1f, aodSpec.alpha, amount)
+                alpha = aodAlpha * fidgetAlpha.value
+                scaleX = aodScaleX * fidgetScaleX.value
+                scaleY = aodScaleY * fidgetScaleY.value
+                translationX = aodTranslationX + fidgetTranslationX.value * density
+                translationY = aodTranslationY + fidgetTranslationY.value * density
+                rotationZ = aodRotation + fidgetRotation.value
+                transformOrigin = clockTransformOrigin(align)
+            }
+            if (!clock.isLargeClock && (scaleBudgetX > 1f || scaleBudgetY > 1f)) {
+                Box(
+                    modifier = sizeModifier,
+                    contentAlignment = clockContentAlignment(align),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(1f / scaleBudgetX)
+                            .fillMaxHeight(1f / scaleBudgetY)
+                            .then(transformModifier),
+                    ) {
+                        key(configurationVersion) {
+                            content()
                         }
                     }
-            ) {
-                content()
+                }
+            } else {
+                Box(
+                    modifier = sizeModifier.then(transformModifier),
+                ) {
+                    key(configurationVersion) {
+                        content()
+                    }
+                }
             }
         }
     }
+}
+
+private suspend fun Animatable<Float, AnimationVector1D>.animateFidgetValue(
+    neutral: Float,
+    first: Float,
+    second: Float,
+    spec: AxClockFidgetAnimationSpec,
+) {
+    snapTo(neutral)
+    animateTo(first, tween(durationMillis = spec.phaseMs, easing = spec.easing))
+    animateTo(second, tween(durationMillis = spec.phaseMs, easing = spec.easing))
+    animateTo(neutral, tween(durationMillis = spec.settleMs, easing = spec.easing))
+}
+
+private fun lerp(start: Float, end: Float, fraction: Float): Float =
+    start + (end - start) * fraction
+
+private fun AxClockView.awakeScale(sizeScale: Float, spec: AxClockAodAnimationSpec): Float {
+    if (isLargeClock || !spec.awakeScaleUsesSizeSetting) return 1f
+    if (sizeScale < spec.minSizeScaleForTransition) return 1f
+    return sizeScale
+}
+
+private fun clockContentAlignment(align: String): Alignment = when (align) {
+    ClockSettingsRepository.ALIGNMENT_LEFT -> Alignment.CenterStart
+    ClockSettingsRepository.ALIGNMENT_RIGHT -> Alignment.CenterEnd
+    else -> Alignment.Center
+}
+
+private fun clockTransformOrigin(align: String): TransformOrigin = when (align) {
+    ClockSettingsRepository.ALIGNMENT_LEFT -> TransformOrigin(0f, 0.5f)
+    ClockSettingsRepository.ALIGNMENT_RIGHT -> TransformOrigin(1f, 0.5f)
+    else -> TransformOrigin(0.5f, 0.5f)
 }

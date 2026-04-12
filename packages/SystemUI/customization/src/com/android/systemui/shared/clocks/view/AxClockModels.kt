@@ -17,6 +17,7 @@
 package com.android.systemui.shared.clocks.view
 
 import android.graphics.Bitmap
+import com.android.systemui.shared.clocks.ClockSizeScaleRange
 
 data class ClockMediaState(
     val isPlaying: Boolean = false,
@@ -36,3 +37,30 @@ data class ClockUiState(
     val display: DateDisplay = DateDisplay.DateOnly(""),
     val colorOverride: Int? = null,
 )
+
+data class ClockScaleState(
+    val isLargeClock: Boolean,
+    val isPreviewMode: Boolean,
+    val repositoryScale: Float,
+    val previewOverride: Float?,
+    val range: ClockSizeScaleRange,
+) {
+    val value: Float
+        get() = when {
+            isLargeClock -> range.standard
+            previewOverride != null -> range.clamp(previewOverride)
+            isPreviewMode -> range.standard
+            else -> range.clamp(repositoryScale)
+        }
+
+    val appliesToContent: Boolean
+        get() = !isLargeClock && (!isPreviewMode || previewOverride != null)
+
+    val contentValue: Float
+        get() = if (appliesToContent) value else range.standard
+
+    fun constrainedContentValue(maxVisualScale: Float, minVisualScale: Float): Float {
+        return minOf(contentValue, maxVisualScale)
+            .coerceAtLeast(minOf(contentValue, minVisualScale))
+    }
+}

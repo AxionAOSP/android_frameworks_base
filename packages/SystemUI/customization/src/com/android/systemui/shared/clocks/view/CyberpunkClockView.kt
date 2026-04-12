@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -37,8 +39,10 @@ import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import com.android.systemui.shared.clocks.ClockSettingsRepository
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -59,7 +63,7 @@ class CyberpunkClockView @JvmOverloads constructor(
     defStyleRes: Int = 0
 ) : AxClockView(context, attrs, defStyleAttr, defStyleRes) {
 
-    override val useGlitchInteraction: Boolean = true
+    override val animationSpec: AxClockAnimationSpec = AxClockAnimationSpecs.Cyberpunk
 
     @Composable
     override fun Content() {
@@ -68,8 +72,10 @@ class CyberpunkClockView @JvmOverloads constructor(
 
     @Composable
     private fun SmallContent() {
-        val (time, date, isDoze) = rememberClockState()
+        val (time, date, isDoze, _, _, _, _, display) = rememberClockState()
         val fidget by state.fidgetTrigger
+        val showDate = display !is DateDisplay.Hidden
+        val badgeDate = if (showDate) date else ""
 
         val cpYellow = Color(0xFFFCEE0A)
         val cpCyan = Color(0xFF00F0FF)
@@ -117,7 +123,6 @@ class CyberpunkClockView @JvmOverloads constructor(
         ) {
             Box(
                 modifier = Modifier
-                    .then(fidgetTapModifier)
                     .graphicsLayer {
                         if (progress > 0f) {
                             translationX = (if (glitchSeed > 0.5f) 8f else -8f) * progress
@@ -135,12 +140,12 @@ class CyberpunkClockView @JvmOverloads constructor(
                             }
                     ) {
                         ClockBadge(
-                            time, date,
+                            time, badgeDate,
                             cpCyan,
                             frameColor.copy(alpha = 0.3f),
                             statColor1.copy(alpha = 0.5f), statColor2.copy(alpha = 0.5f), statColor3.copy(alpha = 0.5f),
                             cpCyan,
-                            progress, isDoze
+                            progress, isDoze, showDate
                         )
                     }
                 }
@@ -155,24 +160,24 @@ class CyberpunkClockView @JvmOverloads constructor(
                             }
                     ) {
                         ClockBadge(
-                            time, date,
+                            time, badgeDate,
                             cpRed,
                             frameColor.copy(alpha = 0.3f),
                             statColor1.copy(alpha = 0.5f), statColor2.copy(alpha = 0.5f), statColor3.copy(alpha = 0.5f),
                             cpRed,
-                            progress, isDoze
+                            progress, isDoze, showDate
                         )
                     }
                 }
 
-                ClockBadge(time, date, primaryTimeColor, frameColor, statColor1, statColor2, statColor3, textColor, progress, isDoze)
+                ClockBadge(time, badgeDate, primaryTimeColor, frameColor, statColor1, statColor2, statColor3, textColor, progress, isDoze, showDate)
             }
         }
     }
 
     @Composable
     private fun LargeContent() {
-        val (time, date, isDoze) = rememberClockState()
+        val (time, date, isDoze, _, _, _, _, display) = rememberClockState()
         val fidget by state.fidgetTrigger
 
         val cpYellow = Color(0xFFFCEE0A)
@@ -201,9 +206,8 @@ class CyberpunkClockView @JvmOverloads constructor(
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .wrapContentSize()
                     .padding(horizontal = 16.dp)
-                    .then(fidgetTapModifier)
                     .graphicsLayer {
                         if (progress > 0f) {
                             translationX = (if (glitchSeed > 0.5f) 15f else -15f) * progress
@@ -230,63 +234,64 @@ class CyberpunkClockView @JvmOverloads constructor(
 
                 val barColor = if (isDoze) Color.White else accentColor
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
+                if (display !is DateDisplay.Hidden) {
+                    Row(
                         modifier = Modifier
-                            .height(2.dp)
-                            .weight(1f)
-                            .background(barColor.copy(alpha = 0.6f))
-                    )
-
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "//",
-                        style = TextStyle(
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            color = barColor.copy(alpha = 0.8f),
-                            letterSpacing = (-1).sp
+                            .fillMaxWidth(0.9f)
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .height(2.dp)
+                                .weight(1f)
+                                .background(barColor.copy(alpha = 0.6f))
                         )
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
 
-                    Text(
-                        text = dateStr.uppercase().ifEmpty { "2077" },
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                        style = TextStyle(
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            color = barColor,
-                            letterSpacing = 2.sp
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "//",
+                            style = TextStyle(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                color = barColor.copy(alpha = 0.8f),
+                                letterSpacing = (-1).sp
+                            )
                         )
-                    )
+                        Spacer(modifier = Modifier.width(8.dp))
 
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "//",
-                        style = TextStyle(
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            color = barColor.copy(alpha = 0.8f),
-                            letterSpacing = (-1).sp
+                        Text(
+                            text = dateStr.uppercase().ifEmpty { "2077" },
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                            style = TextStyle(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                color = barColor,
+                                letterSpacing = 2.sp
+                            )
                         )
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "//",
+                            style = TextStyle(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                color = barColor.copy(alpha = 0.8f),
+                                letterSpacing = (-1).sp
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
 
-                    Box(
-                        modifier = Modifier
-                            .height(2.dp)
-                            .weight(1f)
-                            .background(barColor.copy(alpha = 0.6f))
-                    )
+                        Box(
+                            modifier = Modifier
+                                .height(2.dp)
+                                .weight(1f)
+                                .background(barColor.copy(alpha = 0.6f))
+                        )
+                    }
                 }
 
                 Text(
@@ -302,18 +307,19 @@ class CyberpunkClockView @JvmOverloads constructor(
                     )
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                EnhancedDateArea(
-                    textColor = barColor,
-                    textSize = 14.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                    iconSize = 16.dp,
-                    uppercase = true,
-                    rowArrangement = Arrangement.Center,
-                )
+                if (display !is DateDisplay.Hidden) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    EnhancedDateArea(
+                        textColor = barColor,
+                        textSize = 14.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        iconSize = 16.dp,
+                        uppercase = true,
+                        rowArrangement = Arrangement.Center,
+                    )
+                }
             }
 
             if (progress > 0.05f && !isDoze) {
@@ -347,7 +353,8 @@ class CyberpunkClockView @JvmOverloads constructor(
         c1: Color, c2: Color, c3: Color,
         textColor: Color,
         progress: Float,
-        isDoze: Boolean
+        isDoze: Boolean,
+        showDate: Boolean,
     ) {
         val colAlign = when {
             isLeftAligned -> Alignment.Start
@@ -389,10 +396,11 @@ class CyberpunkClockView @JvmOverloads constructor(
                     .padding(horizontal = 24.dp, vertical = 6.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val dynSizeScale = rememberSmallClockSizeScale()
                     Text(
                         text = time,
                         style = TextStyle(
-                            fontSize = 80.sp,
+                            fontSize = 80.sp * dynSizeScale,
                             fontWeight = FontWeight.Black,
                             fontFamily = FontFamily.Monospace,
                             color = primaryColor,
@@ -430,20 +438,21 @@ class CyberpunkClockView @JvmOverloads constructor(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = date.uppercase().ifEmpty { "2077" },
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = TextStyle(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    color = if (isDoze) Color.White else primaryColor,
-                    letterSpacing = 1.sp,
-                ),
-            )
+            if (showDate) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = date.uppercase().ifEmpty { "2077" },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = if (isDoze) Color.White else primaryColor,
+                        letterSpacing = 1.sp,
+                    ),
+                )
+            }
         }
     }
 

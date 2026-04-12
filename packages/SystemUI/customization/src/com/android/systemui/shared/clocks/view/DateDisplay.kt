@@ -25,6 +25,13 @@ sealed interface DateDisplay {
     val tintIcon: Boolean
     val tapAction: PendingIntent?
 
+    object Hidden : DateDisplay {
+        override val text: String get() = ""
+        override val icon: Bitmap? get() = null
+        override val tintIcon: Boolean get() = true
+        override val tapAction: PendingIntent? get() = null
+    }
+
     data class DateOnly(override val text: String) : DateDisplay {
         override val icon: Bitmap? get() = null
         override val tintIcon: Boolean get() = true
