@@ -97,6 +97,7 @@ public class NotificationShadeWindowView extends WindowRootView {
     private Handler mGcHandler;
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private final Runnable mGcTask = this::scheduleGcOnIdle;
+    private AxAmbientStateEx mAxAmbientStateEx;
     public NotificationShadeWindowView(Context context, AttributeSet attrs) {
         super(context, attrs);
         setMotionEventSplittingEnabled(false);
@@ -173,7 +174,10 @@ public class NotificationShadeWindowView extends WindowRootView {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
-        AxAmbientStateEx axAmbientStateEx = Dependency.get(AxAmbientStateEx.class);
+        if (mAxAmbientStateEx == null) {
+            mAxAmbientStateEx = Dependency.get(AxAmbientStateEx.class);
+        }
+        AxAmbientStateEx axAmbientStateEx = mAxAmbientStateEx;
         if (ev.getAction() == MotionEvent.ACTION_DOWN) {
             axAmbientStateEx.setDispatchingDownTouchWithoutOtherEvent(true);
         } else {
