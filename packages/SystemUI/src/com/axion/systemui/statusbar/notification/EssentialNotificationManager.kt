@@ -131,11 +131,11 @@ class EssentialNotificationManager @Inject constructor(
 
     private fun calculateIsEssential(notification: EssentialNotification): Boolean {
         if (notification.isInheritEssential) {
-            return notification.canBeEssentialNotification()
+            return notification.hasNotificationContent()
         }
         notification.packageName?.let { pkg ->
             if (pkg in essentialPackages) {
-                return notification.canBeEssentialNotification()
+                return notification.hasNotificationContent()
             }
         }
         return false
