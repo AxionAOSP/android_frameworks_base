@@ -21,6 +21,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.nfc.NfcAdapter
 import android.os.Handler
+import com.android.systemui.CoreStartable
 import com.android.systemui.broadcast.BroadcastDispatcher
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
@@ -45,12 +46,13 @@ class PhoneStatusBarPolicyExt @Inject constructor(
     @Main private val mainHandler: Handler,
     @Application private val applicationScope: CoroutineScope,
     @Main private val mainDispatcher: CoroutineDispatcher,
-) {
+) : CoreStartable {
 
     private val slotNfc: String =
         context.resources.getString(com.android.internal.R.string.status_bar_nfc)
 
     private var nfcAdapter: NfcAdapter? = null
+    private var hideListListener: Runnable? = null
 
     private val nfcReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -60,7 +62,16 @@ class PhoneStatusBarPolicyExt @Inject constructor(
         }
     }
 
-    fun start(onHideListChanged: Runnable) {
+    override fun start() {
+        broadcastDispatcher.registerReceiverWithHandler(
+            nfcReceiver,
+            IntentFilter(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED),
+            mainHandler,
+        )
+    }
+
+    fun setOnHideListChangedListener(listener: Runnable) {
+        hideListListener = listener
         iconController.setIcon(
             slotNfc,
             R.drawable.stat_sys_nfc,
@@ -69,18 +80,12 @@ class PhoneStatusBarPolicyExt @Inject constructor(
         iconController.setIconVisibility(slotNfc, false)
         updateNfc()
 
-        broadcastDispatcher.registerReceiverWithHandler(
-            nfcReceiver,
-            IntentFilter(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED),
-            mainHandler,
-        )
-
         applicationScope.launch(mainDispatcher) {
             secureSettings
                 .observerFlow(StatusBarIconController.ICON_HIDE_LIST)
                 .collect {
                     updateNfc()
-                    onHideListChanged.run()
+                    listener.run()
                 }
         }
     }
