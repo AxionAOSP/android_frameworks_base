@@ -229,6 +229,15 @@ fun ContentScope.Tile(
                 modifier
                     .fillMaxWidth()
                     .height(CommonTileDefaults.TileHeight * LocalTileScale.current)
+                    .verticalSquish(squishiness)
+                    .graphicsLayer {
+                        val s = squishiness()
+                        scaleX = s
+                        scaleY = s
+                        transformOrigin = TransformOrigin(0.5f, 0.5f)
+                        alpha = if (s < 0.83f) 0f
+                            else ((s - 0.83f) / (1f - 0.83f)).coerceIn(0f, 1f)
+                    }
             if (tile.spec.spec == RingerModeTileImpl.TILE_SPEC) {
                 RingerSliderTileContent(modifier = sliderTileModifier)
                 return@trace
