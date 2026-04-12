@@ -44,6 +44,7 @@ interface AxionVolumeDialogInteractor {
     fun openVolumePanel()
     fun rescheduleTimeout()
     fun setExpanded(expanded: Boolean)
+    fun setShowing(showing: Boolean)
     val isLeftSide: Flow<Boolean>
 }
 
@@ -182,5 +183,9 @@ class AxionVolumeDialogInteractorImpl @Inject constructor(
     override val isLeftSide: Flow<Boolean> = volumeRepository.isLeftSideFlow
     override fun setExpanded(expanded: Boolean) {
         volumeRepository.setExpanded(expanded)
+    }
+
+    override fun setShowing(showing: Boolean) {
+        volumeRepository.setShowing(showing)
     }
 }

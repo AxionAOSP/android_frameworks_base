@@ -163,6 +163,7 @@ class AxionVolumeDialogViewModel @Inject constructor(
         get() = _visibilityState.value
         set(value) {
             _visibilityState.value = value
+            interactor.setShowing(value == VisibilityState.SHOWING)
         }
 
     var expansionState: ExpansionState

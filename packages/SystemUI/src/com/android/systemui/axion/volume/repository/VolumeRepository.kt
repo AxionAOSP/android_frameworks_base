@@ -62,6 +62,7 @@ interface AxionVolumeRepository {
     fun setRingerMode(mode: Int)
     fun setActiveStream(streamType: Int)
     fun setExpanded(expanded: Boolean)
+    fun setShowing(showing: Boolean)
     fun userActivity()
     fun getMaxVolume(streamType: Int): Int
     fun getMinVolume(streamType: Int): Int
@@ -209,9 +210,14 @@ class AxionVolumeRepositoryImpl @Inject constructor(
         .flowOn(backgroundDispatcher)
 
     private val isExpanded = MutableStateFlow(false)
+    private val isShowing = MutableStateFlow(false)
 
     override fun setExpanded(expanded: Boolean) {
         isExpanded.value = expanded
+    }
+
+    override fun setShowing(showing: Boolean) {
+        isShowing.value = showing
     }
 
     private val _activeAppPackageName = MutableStateFlow<String?>(null)
@@ -221,12 +227,22 @@ class AxionVolumeRepositoryImpl @Inject constructor(
         _activeAppPackageName.value = packageName
     }
 
-    override val activeAppVolumes: Flow<List<AxionAppVolumeModel>> = flow {
-        while (currentCoroutineContext().isActive) {
-            emit(getAppVolumes())
-            delay(1000)
+    override val activeAppVolumes: Flow<List<AxionAppVolumeModel>> = isShowing
+        .flatMapLatest { showing ->
+            if (!showing) {
+                flowOf(emptyList())
+            } else {
+                flow {
+                    while (currentCoroutineContext().isActive) {
+                        emit(getAppVolumes())
+                        delay(1000)
+                    }
+                }
+            }
         }
-    }.flowOn(backgroundDispatcher)
+        .distinctUntilChanged()
+        .flowOn(backgroundDispatcher)
+        .shareIn(applicationScope, SharingStarted.WhileSubscribed(5000), 1)
 
     private fun <T> settingsFlow(uri: android.net.Uri, getValue: () -> T): Flow<T> = conflatedCallbackFlow {
         val observer = object : ContentObserver(mainHandler) {
