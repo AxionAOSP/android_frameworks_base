@@ -64,6 +64,7 @@ import static android.app.ActivityManagerInternal.OOM_ADJ_REASON_UID_IDLE;
 import static android.app.ActivityManagerInternal.OOM_ADJ_REASON_UI_VISIBILITY;
 import static android.app.ActivityManagerInternal.OOM_ADJ_REASON_UNBIND_SERVICE;
 import static android.os.Process.THREAD_GROUP_AX_FOREGROUND;
+import static android.os.Process.THREAD_GROUP_AUDIO_APP;
 import static android.os.Process.THREAD_GROUP_BACKGROUND;
 import static android.os.Process.THREAD_GROUP_DEFAULT;
 import static android.os.Process.THREAD_GROUP_FOREGROUND_WINDOW;
@@ -2254,6 +2255,13 @@ public abstract class OomAdjuster {
         if (curSchedGroup != SCHED_GROUP_TOP_APP
                 && AxUtils.isSystemUi(state.processName)) {
             setAppAndChildProcessGroup(state, THREAD_GROUP_SYSTEMUI);
+        }
+        if (curSchedGroup == SCHED_GROUP_DEFAULT
+                && state.getCurProcState() >= PROCESS_STATE_FOREGROUND_SERVICE
+                && state instanceof ProcessRecord
+                && (((ProcessRecord) state).mServices.getForegroundServiceTypes()
+                    & ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK) != 0) {
+            setAppAndChildProcessGroup(state, THREAD_GROUP_AUDIO_APP);
         }
         if (state.getHasRepForegroundActivities() != state.getHasForegroundActivities()) {
             state.setRepForegroundActivities(state.getHasForegroundActivities());
