@@ -97,8 +97,8 @@ public class AxRefreshRateController {
     // Display state
     // ──────────────────────────────────────────────────────────────────────
 
-    private float mMaxSupportedHz = 60f;
-    private float mDefaultMinHz = 60f;
+    private volatile float mMaxSupportedHz = 60f;
+    private volatile float mDefaultMinHz = 60f;
 
     // ──────────────────────────────────────────────────────────────────────
     // Mode state — written on bgHandler or WM thread, read from both
@@ -142,8 +142,8 @@ public class AxRefreshRateController {
     // Sync dedup state — accessed on bgHandler
     // ──────────────────────────────────────────────────────────────────────
 
-    private float mLastSyncedPeak = -1f;
-    private float mLastSyncedMin = -1f;
+    private volatile float mLastSyncedPeak = -1f;
+    private volatile float mLastSyncedMin = -1f;
 
     // ──────────────────────────────────────────────────────────────────────
     // Runnables
@@ -162,8 +162,10 @@ public class AxRefreshRateController {
         scheduleIdleCheck();
     };
 
+    private final Runnable mSyncRunnable = this::syncDisplaySettings;
+
     private final Runnable mDisplayChangeRequeryRunnable = () -> {
-        refreshDisplayModes();
+        queryAndApplyDisplayModes();
         mLastSyncedPeak = -1f;
         mLastSyncedMin = -1f;
         syncDisplaySettings();
@@ -203,6 +205,7 @@ public class AxRefreshRateController {
                 + " vrr=" + mVrrEnabled + " supportsVRR=" + sSupportsVrr
                 + " fixedRate=" + mFixedRefreshRate
                 + " idleTimeout=" + mIdleTimeoutMs);
+        mBgHandler.postDelayed(mDisplayChangeRequeryRunnable, DISPLAY_CHANGE_REQUERY_DELAY_MS);
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -460,8 +463,10 @@ public class AxRefreshRateController {
             mCurrentVote.updateVote("GlobalMode", (float) mFixedRefreshRate, mFixedRefreshRate);
         }
 
-        if (mVrrEnabled && hasBoost(BOOST_OVERLAY)) {
-            mBgHandler.post(this::syncDisplaySettings);
+        if (mVrrEnabled && (mActiveBoosts.get() & BOOST_OVERLAY) != 0) {
+            if (!mBgHandler.hasCallbacks(mSyncRunnable)) {
+                mBgHandler.post(mSyncRunnable);
+            }
         }
     }
 
@@ -519,6 +524,10 @@ public class AxRefreshRateController {
     }
 
     private void refreshDisplayModes() {
+        queryAndApplyDisplayModes();
+    }
+
+    private void queryAndApplyDisplayModes() {
         final DisplayManager dm = mContext.getSystemService(DisplayManager.class);
         Display display = dm.getDisplay(Display.DEFAULT_DISPLAY);
         if (display == null) return;
@@ -562,12 +571,24 @@ public class AxRefreshRateController {
 
         if (newMax <= 0 || newMax < newMin) return;
 
-        float oldMax = mMaxSupportedHz;
-        mMaxSupportedHz = newMax;
+        float oldMin = mDefaultMinHz;
         mDefaultMinHz = newMin;
 
-        if (oldMax != mMaxSupportedHz) {
-            Slog.i(TAG, "refreshDisplayModes: maxHz=" + mMaxSupportedHz
+        if (newMax < mMaxSupportedHz) {
+            if (oldMin != newMin) {
+                Slog.i(TAG, "queryDisplayModes: minHz updated " + oldMin + " -> " + newMin
+                        + " (maxHz=" + mMaxSupportedHz + " kept, queried=" + newMax + ")");
+                mLastSyncedPeak = -1f;
+                mLastSyncedMin = -1f;
+            }
+            return;
+        }
+
+        float oldMax = mMaxSupportedHz;
+        mMaxSupportedHz = newMax;
+
+        if (oldMax != mMaxSupportedHz || oldMin != newMin) {
+            Slog.i(TAG, "queryDisplayModes: maxHz=" + mMaxSupportedHz
                     + " minHz=" + mDefaultMinHz);
             mLastSyncedPeak = -1f;
             mLastSyncedMin = -1f;
@@ -579,44 +600,59 @@ public class AxRefreshRateController {
     // ──────────────────────────────────────────────────────────────────────
 
     private void syncDisplaySettings() {
+        final int boosts = mActiveBoosts.get();
+        final boolean boosted = boosts != 0;
+        final boolean vrr = mVrrEnabled;
+        final boolean lsLimit = mLockscreenLimitEnabled;
+        final boolean kgDone = mKeyguardDone;
+        final float maxHz = mMaxSupportedHz;
+        final float minHz = mDefaultMinHz;
         float peak;
         float min;
+        String src;
         if (mAppOverrideActive && mPerAppOverrideRate > 0) {
             peak = mPerAppOverrideRate + 1.0f;
             min = mPerAppOverrideRate;
+            src = "APP";
         } else if (mGamingActive) {
-            float cap = mVrrEnabled ? mMaxSupportedHz : mFixedRefreshRate;
+            float cap = vrr ? maxHz : mFixedRefreshRate;
             peak = cap + 1.0f;
             min = 0f;
-        } else if (mLockscreenLimitEnabled && !mKeyguardDone) {
-            peak = mDefaultMinHz + 1.0f;
+            src = "GAME";
+        } else if (lsLimit && !kgDone) {
+            peak = minHz + 1.0f;
             min = 0f;
-        } else if (mVrrEnabled) {
-            if (isBoosted()) {
-                peak = mMaxSupportedHz + 1.0f;
+            src = "LS_LIMIT";
+        } else if (vrr) {
+            if (boosted) {
+                peak = maxHz + 1.0f;
+                src = "VRR_BOOST";
             } else {
-                peak = mDefaultMinHz + 1.0f;
+                peak = minHz + 1.0f;
+                src = "VRR_IDLE";
             }
             min = 0f;
         } else {
-            float rate = mFixedRefreshRate > 0 ? mFixedRefreshRate : mMaxSupportedHz;
+            float rate = mFixedRefreshRate > 0 ? mFixedRefreshRate : maxHz;
             peak = rate + 1.0f;
             min = rate;
+            src = "FIXED";
         }
         if (peak == mLastSyncedPeak && min == mLastSyncedMin) return;
         mLastSyncedPeak = peak;
         mLastSyncedMin = min;
         Slog.d(TAG, "syncDisplaySettings: peak=" + peak + " min=" + min
-                + " boosts=" + boostString()
-                + " vrr=" + mVrrEnabled + " fixedRate=" + mFixedRefreshRate
+                + " src=" + src + " boosts=" + boostString(boosts)
+                + " vrr=" + vrr + " fixedRate=" + mFixedRefreshRate
+                + " maxHz=" + maxHz
+                + " lsLimit=" + lsLimit + " kgDone=" + kgDone
                 + " perApp=" + mAppOverrideActive + "(" + mPerAppOverrideRate + ")");
         if (mRateCallback != null) {
             mRateCallback.onRefreshRateChanged(min, peak, Display.DEFAULT_DISPLAY);
         }
     }
 
-    private String boostString() {
-        int boosts = mActiveBoosts.get();
+    private String boostString(int boosts) {
         if (boosts == 0) return "NONE";
         StringBuilder sb = new StringBuilder();
         if ((boosts & BOOST_TOUCH) != 0) sb.append("TOUCH|");
@@ -638,7 +674,6 @@ public class AxRefreshRateController {
         if (!mVrrEnabled) mFixedRefreshRate = value > 0 ? value : Math.round(mMaxSupportedHz);
         mLockscreenLimitEnabled = Settings.System.getInt(mContext.getContentResolver(),
                 LOCKSCREEN_LIMIT_REFRESH_RATE, 0) != 0;
-        syncDisplaySettings();
     }
 
     private void loadPerAppRefreshRates() {
@@ -754,6 +789,9 @@ public class AxRefreshRateController {
                 return;
             }
             loadRefreshRateSetting();
+            mLastSyncedPeak = -1f;
+            mLastSyncedMin = -1f;
+            syncDisplaySettings();
             if (mPerAppRefreshRateUri.equals(uri)) {
                 loadPerAppRefreshRates();
                 refreshFocusedAppOverride();
