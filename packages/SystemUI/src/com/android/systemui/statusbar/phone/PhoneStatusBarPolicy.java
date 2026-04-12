@@ -384,7 +384,7 @@ public class PhoneStatusBarPolicy
         mJavaAdapter.alwaysCollectFlow(mConnectedDisplayInteractor.getConnectedDisplayState(),
                 this::onConnectedDisplayAvailabilityChanged);
 
-        mPolicyExt.start(this::refreshStatefulIcons);
+        mPolicyExt.setOnHideListChangedListener(this::refreshStatefulIcons);
 
         mCommandQueue.addCallback(this);
     }

@@ -26,6 +26,7 @@ import com.android.systemui.overlay.KeyguardOverlayViewManager
 import com.android.systemui.axdynamicbar.domain.AxDynamicBarChipsRefiner
 import com.android.systemui.axdynamicbar.ui.AxDynamicBarManager
 import com.android.systemui.statusbar.chips.ui.viewmodel.OngoingActivityChipsRefiner
+import com.android.systemui.statusbar.phone.PhoneStatusBarPolicyExt
 import com.android.systemui.axsmartpixel.ui.AxSmartPixelManager
 import com.android.systemui.axsmartpixel.ui.AxSmartPixelTile
 import com.android.systemui.routines.ui.RoutinesManager
@@ -96,6 +97,11 @@ abstract class AxionStartableModule {
     @IntoMap
     @ClassKey(KeyguardOverlayViewManager::class)
     abstract fun bindKeyguardOverlayViewManager(impl: KeyguardOverlayViewManager): CoreStartable
+
+    @Binds
+    @IntoMap
+    @ClassKey(PhoneStatusBarPolicyExt::class)
+    abstract fun bindPhoneStatusBarPolicyExt(impl: PhoneStatusBarPolicyExt): CoreStartable
 
     companion object {
         @JvmStatic
