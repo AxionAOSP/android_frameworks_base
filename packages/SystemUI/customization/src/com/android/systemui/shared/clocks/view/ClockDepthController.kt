@@ -24,6 +24,10 @@ class ClockDepthController(private val view: View) {
     private val transformedPath = Path()
     private val pathMatrix = Matrix()
     private val location = IntArray(2)
+    private var cachedZoom = 0f
+    private var cachedScreenW = 0f
+    private var cachedScreenH = 0f
+    private var pathDirty = true
     private val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         style = Paint.Style.FILL
@@ -51,6 +55,7 @@ class ClockDepthController(private val view: View) {
             subjectPath = path
             this@ClockDepthController.pathAspect = pathAspect
             depthActive = path != null && !path.isEmpty
+            pathDirty = true
 
             if (!depthVisible) {
                 view.postInvalidateOnAnimation()
@@ -112,12 +117,17 @@ class ClockDepthController(private val view: View) {
         val viewX = location[0].toFloat()
         val viewY = location[1].toFloat()
 
-        val realMetrics = DisplayMetrics()
-        view.context.display?.getRealMetrics(realMetrics)
-        val screenW = realMetrics.widthPixels.toFloat()
-        val screenH = realMetrics.heightPixels.toFloat()
-
-        val zoom = getZoom()
+        if (cachedScreenW == 0f) {
+            val realMetrics = DisplayMetrics()
+            view.context.display?.getRealMetrics(realMetrics)
+            cachedScreenW = realMetrics.widthPixels.toFloat()
+            cachedScreenH = realMetrics.heightPixels.toFloat()
+            cachedZoom = getZoom()
+            pathDirty = true
+        }
+        val screenW = cachedScreenW
+        val screenH = cachedScreenH
+        val zoom = cachedZoom
 
         val wallAspect = pathAspect
         val screenAspect = screenW / screenH
@@ -137,22 +147,25 @@ class ClockDepthController(private val view: View) {
             cropTop = (10000f - visibleH) / 2f
         }
 
-        pathMatrix.reset()
-        pathMatrix.setTranslate(-cropLeft, -cropTop)
-        pathMatrix.postScale(screenW / visibleW, screenH / visibleH)
-        if (zoom != 1f) {
-            pathMatrix.postScale(zoom, zoom, screenW / 2f, screenH / 2f)
-        }
-        pathMatrix.postTranslate(-viewX, -viewY)
+        if (pathDirty || revealProgress < 1f) {
+            pathMatrix.reset()
+            pathMatrix.setTranslate(-cropLeft, -cropTop)
+            pathMatrix.postScale(screenW / visibleW, screenH / visibleH)
+            if (zoom != 1f) {
+                pathMatrix.postScale(zoom, zoom, screenW / 2f, screenH / 2f)
+            }
+            pathMatrix.postTranslate(-viewX, -viewY)
 
-        val viewScaleX = view.scaleX
-        val viewScaleY = view.scaleY
-        if (viewScaleX != 1f || viewScaleY != 1f) {
-            pathMatrix.postScale(1f / viewScaleX, 1f / viewScaleY)
-        }
+            val viewScaleX = view.scaleX
+            val viewScaleY = view.scaleY
+            if (viewScaleX != 1f || viewScaleY != 1f) {
+                pathMatrix.postScale(1f / viewScaleX, 1f / viewScaleY)
+            }
 
-        transformedPath.reset()
-        path.transform(pathMatrix, transformedPath)
+            transformedPath.reset()
+            path.transform(pathMatrix, transformedPath)
+            pathDirty = false
+        }
 
         val pathBounds = RectF()
         transformedPath.computeBounds(pathBounds, true)
