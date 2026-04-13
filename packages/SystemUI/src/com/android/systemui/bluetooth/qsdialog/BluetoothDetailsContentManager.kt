@@ -31,7 +31,7 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction
 import android.widget.Button
-import android.widget.CompoundButton
+import com.google.android.material.materialswitch.MaterialSwitch
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -133,11 +133,11 @@ constructor(
 
     // UI Components
     private lateinit var contentView: View
-    private lateinit var bluetoothToggle: com.google.android.material.materialswitch.MaterialSwitch
+    private lateinit var bluetoothToggle: MaterialSwitch
     private lateinit var seeAllButton: View
     private lateinit var pairNewDeviceButton: View
     private lateinit var deviceListView: RecyclerView
-    private lateinit var autoOnToggle: com.google.android.material.materialswitch.MaterialSwitch
+    private lateinit var autoOnToggle: MaterialSwitch
     private lateinit var autoOnToggleLayout: View
     private lateinit var autoOnToggleInfoTextView: TextView
     private lateinit var audioSharingButton: Button
