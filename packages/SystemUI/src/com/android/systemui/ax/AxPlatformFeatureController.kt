@@ -302,6 +302,8 @@ class AxPlatformFeatureController @Inject constructor(
             AxPlatformClient.FEATURE_ROTATION ->
                 rotationLockController.setRotationLocked(!enabled, TAG)
             AxPlatformClient.FEATURE_BATTERY_SAVER -> batteryController.setPowerSaveMode(enabled)
+            AxPlatformClient.FEATURE_ZEN ->
+                zenModeController.setZen(if (enabled) 1 else 0, null, TAG)
             AxPlatformClient.FEATURE_DATA_SAVER -> dataSaverController.setDataSaverEnabled(enabled)
             AxPlatformClient.FEATURE_AOD ->
                 stateManager.setSecureBool(Settings.Secure.DOZE_ALWAYS_ON, enabled)
