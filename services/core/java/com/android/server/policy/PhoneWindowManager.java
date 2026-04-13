@@ -6051,7 +6051,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             voiceIntent.putExtra(RecognizerIntent.EXTRA_SECURE, true);
         }
         startActivityAsUser(voiceIntent, UserHandle.CURRENT_OR_SELF);
-        mBroadcastWakeLock.release();
+        if (mBroadcastWakeLock.isHeld()) {
+            mBroadcastWakeLock.release();
+        }
     }
 
     BroadcastReceiver mDockReceiver = new BroadcastReceiver() {
