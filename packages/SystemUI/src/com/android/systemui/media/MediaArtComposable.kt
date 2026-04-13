@@ -163,7 +163,7 @@ private fun ConceptModeArt(
                         .size(cardSize)
                         .clip(RoundedCornerShape(28.dp))
                 )
-                Spacer(modifier = Modifier.height(120.dp))
+                Spacer(modifier = Modifier.height(136.dp))
             }
         }
     }
