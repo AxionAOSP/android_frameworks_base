@@ -16,6 +16,7 @@
 
 package com.android.systemui.routines.data
 
+import com.android.axion.platform.AxPlatformClient
 import com.android.systemui.routines.model.Action
 import com.android.systemui.routines.model.Condition
 import com.android.systemui.routines.model.Routine
@@ -170,7 +171,7 @@ class RoutineSerializer @Inject constructor() {
                 on = json.getBoolean(KEY_ON),
             )
             Trigger.TYPE_FEATURE_STATE -> Trigger.FeatureState(
-                feature = json.getString(KEY_FEATURE),
+                feature = resolveFeature(json.getString(KEY_FEATURE)),
                 active = json.getBoolean(KEY_ACTIVE),
             )
             Trigger.TYPE_HEADPHONES_STATE -> Trigger.HeadphonesState(
@@ -279,7 +280,7 @@ class RoutineSerializer @Inject constructor() {
                 on = json.getBoolean(KEY_ON),
             )
             Condition.TYPE_FEATURE_ACTIVE -> Condition.FeatureActive(
-                feature = json.getString(KEY_FEATURE),
+                feature = resolveFeature(json.getString(KEY_FEATURE)),
                 active = json.getBoolean(KEY_ACTIVE),
             )
             Condition.TYPE_SENSOR_BLOCKED -> Condition.SensorBlocked(
@@ -347,17 +348,22 @@ class RoutineSerializer @Inject constructor() {
                 put(KEY_SENSOR, action.sensor)
                 put(KEY_BLOCKED, action.blocked)
             }
+            is Action.PlaySound -> {
+                put(KEY_TYPE, Action.TYPE_PLAY_SOUND)
+                put(KEY_SOUND_TYPE, action.soundType)
+                action.uri?.let { put(KEY_URI, it) }
+            }
         }
     }
 
     private fun deserializeAction(json: JSONObject): Action =
         when (json.getString(KEY_TYPE)) {
             Action.TYPE_SET_FEATURE -> Action.SetFeature(
-                feature = json.getString(KEY_FEATURE),
+                feature = resolveFeature(json.getString(KEY_FEATURE)),
                 enabled = json.getBoolean(KEY_ENABLED),
             )
             Action.TYPE_TOGGLE_FEATURE -> Action.ToggleFeature(
-                feature = json.getString(KEY_FEATURE),
+                feature = resolveFeature(json.getString(KEY_FEATURE)),
             )
             Action.TYPE_SET_VOLUME -> Action.SetVolume(
                 streamType = json.getInt(KEY_STREAM_TYPE),
@@ -392,6 +398,10 @@ class RoutineSerializer @Inject constructor() {
                 sensor = json.getInt(KEY_SENSOR),
                 blocked = json.getBoolean(KEY_BLOCKED),
             )
+            Action.TYPE_PLAY_SOUND -> Action.PlaySound(
+                soundType = json.getInt(KEY_SOUND_TYPE),
+                uri = json.optString(KEY_URI, null),
+            )
             else -> throw IllegalArgumentException("Unknown action type: ${json.getString(KEY_TYPE)}")
         }
 
@@ -403,7 +413,7 @@ class RoutineSerializer @Inject constructor() {
     }
 
     private fun deserializeIntSet(array: JSONArray?): Set<Int> {
-        if (array == null) return Trigger.ALL_DAYS
+        if (array == null || array.length() == 0) return Trigger.ALL_DAYS
         return (0 until array.length()).map { array.getInt(it) }.toSet()
     }
 
@@ -412,7 +422,17 @@ class RoutineSerializer @Inject constructor() {
         return json.keys().asSequence().associateWith { json.getString(it) }
     }
 
+    private fun resolveFeature(name: String): String =
+        AxPlatformClient.resolveFeature(name)
+            ?: GUI_TO_FEATURE[name]
+            ?: name
+
     companion object {
+
+        private val GUI_TO_FEATURE = mapOf(
+            "do_not_disturb" to AxPlatformClient.FEATURE_ZEN,
+            "auto_rotate" to AxPlatformClient.FEATURE_ROTATION,
+        )
         private const val KEY_ID = "id"
         private const val KEY_NAME = "name"
         private const val KEY_ENABLED = "enabled"
@@ -460,5 +480,7 @@ class RoutineSerializer @Inject constructor() {
         private const val KEY_LONGITUDE = "longitude"
         private const val KEY_RADIUS_METERS = "radius_meters"
         private const val KEY_ENTERING = "entering"
+        private const val KEY_SOUND_TYPE = "sound_type"
+        private const val KEY_URI = "uri"
     }
 }

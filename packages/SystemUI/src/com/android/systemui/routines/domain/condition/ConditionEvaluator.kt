@@ -20,6 +20,7 @@ import android.content.Context
 import android.location.Location
 import android.location.LocationManager
 import android.net.wifi.WifiManager
+import android.os.BatteryManager
 import android.os.PowerManager
 import com.android.systemui.ax.AxPlatformStateManager
 import com.android.systemui.dagger.SysUISingleton
@@ -75,8 +76,12 @@ class ConditionEvaluator @Inject constructor(
     }
 
     private fun evaluateBatteryRange(condition: Condition.BatteryRange): Boolean {
-        val state = stateManager.getState(KEY_BATTERY)
-        val level = state.getInt("level", -1)
+        var level = stateManager.getState(KEY_BATTERY).getInt("level", -1)
+        if (level < 0) {
+            val bm = context.getSystemService(BatteryManager::class.java)
+            level = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+        }
+        if (level < 0) return false
         return level in condition.min..condition.max
     }
 
@@ -89,8 +94,7 @@ class ConditionEvaluator @Inject constructor(
         if (!isActive) return false
         if (condition.ssid == null) return true
         val wifiManager = context.getSystemService(WifiManager::class.java) ?: return false
-        val info = wifiManager.connectionInfo ?: return false
-        val currentSsid = info.ssid?.removeSurrounding("\"")
+        val currentSsid = wifiManager.connectionInfo?.ssid?.removeSurrounding("\"")
         return currentSsid == condition.ssid
     }
 

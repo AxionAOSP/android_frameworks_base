@@ -71,6 +71,11 @@ sealed interface Action {
         val blocked: Boolean,
     ) : Action
 
+    data class PlaySound(
+        val soundType: Int,
+        val uri: String? = null,
+    ) : Action
+
     companion object {
         const val TYPE_SET_FEATURE = "set_feature"
         const val TYPE_TOGGLE_FEATURE = "toggle_feature"
@@ -83,5 +88,6 @@ sealed interface Action {
         const val TYPE_DELAY = "delay"
         const val TYPE_SET_SETTING = "set_setting"
         const val TYPE_SET_SENSOR_PRIVACY = "set_sensor_privacy"
+        const val TYPE_PLAY_SOUND = "play_sound"
     }
 }

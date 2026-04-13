@@ -23,13 +23,19 @@ import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.hardware.SensorPrivacyManager
+import android.media.AudioAttributes
 import android.media.AudioManager
+import android.media.Ringtone
+import android.media.RingtoneManager
+import android.net.Uri
+import android.os.Handler
 import android.os.UserHandle
 import android.provider.Settings
 import android.util.Log
 import com.android.systemui.ax.AxPlatformFeatureController
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
+import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.res.R
 import com.android.systemui.routines.model.Action
 import com.android.systemui.statusbar.policy.IndividualSensorPrivacyController
@@ -41,6 +47,7 @@ class ActionExecutor @Inject constructor(
     @Application private val context: Context,
     private val featureController: AxPlatformFeatureController,
     private val sensorPrivacyController: IndividualSensorPrivacyController,
+    @Main private val mainHandler: Handler,
 ) {
 
     private val audioManager by lazy {
@@ -52,6 +59,7 @@ class ActionExecutor @Inject constructor(
     }
 
     private val resolver: ContentResolver = context.contentResolver
+    private var activeRingtone: Ringtone? = null
 
     @Volatile
     private var channelCreated = false
@@ -79,6 +87,7 @@ class ActionExecutor @Inject constructor(
             is Action.Delay -> delay(action.durationMs)
             is Action.SetSetting -> setSetting(action)
             is Action.SetSensorPrivacy -> setSensorPrivacy(action)
+            is Action.PlaySound -> playSound(action)
         }
     }
 
@@ -164,6 +173,25 @@ class ActionExecutor @Inject constructor(
         )
     }
 
+    private fun playSound(action: Action.PlaySound) {
+        activeRingtone?.stop()
+        val soundUri = action.uri?.let { Uri.parse(it) }
+            ?: RingtoneManager.getDefaultUri(action.soundType)
+            ?: return
+        val ringtone = RingtoneManager.getRingtone(context, soundUri) ?: return
+        ringtone.audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+            .build()
+        ringtone.isLooping = false
+        activeRingtone = ringtone
+        ringtone.play()
+        mainHandler.postDelayed({
+            ringtone.stop()
+            if (activeRingtone === ringtone) activeRingtone = null
+        }, SOUND_MAX_DURATION_MS)
+    }
+
     private fun ensureNotificationChannel() {
         if (channelCreated) return
         val channel = NotificationChannel(
@@ -178,5 +206,6 @@ class ActionExecutor @Inject constructor(
     companion object {
         private const val TAG = "RoutinesActionExecutor"
         private const val NOTIFICATION_CHANNEL_ID = "ax_routines"
+        private const val SOUND_MAX_DURATION_MS = 5000L
     }
 }

@@ -71,7 +71,6 @@ class TimeTriggerScheduler @Inject constructor(
             context.unregisterReceiver(alarmReceiver)
             receiverRegistered = false
         }
-        callback = null
     }
 
     fun scheduleTimeOfDay(routineId: String, triggerIndex: Int, trigger: Trigger.TimeOfDay) {
