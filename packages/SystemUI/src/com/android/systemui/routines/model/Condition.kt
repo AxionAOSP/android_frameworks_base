@@ -40,6 +40,7 @@ sealed interface Condition {
 
     data class WifiConnected(
         val ssid: String? = null,
+        val ssidPattern: String? = null,
     ) : Condition
 
     data class BluetoothConnected(
@@ -66,6 +67,11 @@ sealed interface Condition {
         val radiusMeters: Float,
     ) : Condition
 
+    data class IpAddress(
+        val cidr: String,
+        val isRegex: Boolean = false,
+    ) : Condition
+
     companion object {
         const val TYPE_TIME_RANGE = "time_range"
         const val TYPE_DAY_OF_WEEK = "day_of_week"
@@ -77,5 +83,7 @@ sealed interface Condition {
         const val TYPE_FEATURE_ACTIVE = "feature_active"
         const val TYPE_SENSOR_BLOCKED = "sensor_blocked"
         const val TYPE_LOCATION_NEAR = "location_near"
+        const val TYPE_IP_ADDRESS = "ip_address"
+        const val TYPE_INTERNET_AVAILABLE = "internet_available"
     }
 }

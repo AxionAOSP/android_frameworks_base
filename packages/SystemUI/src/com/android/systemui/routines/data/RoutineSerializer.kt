@@ -16,6 +16,7 @@
 
 package com.android.systemui.routines.data
 
+import com.android.axion.platform.AxPlatformFeature
 import com.android.systemui.routines.model.Action
 import com.android.systemui.routines.model.Condition
 import com.android.systemui.routines.model.Routine
@@ -34,9 +35,11 @@ class RoutineSerializer @Inject constructor() {
 
     fun deserializeRoutines(json: String): List<Routine> {
         if (json.isBlank()) return emptyList()
-        val array = JSONArray(json)
+        val array = runCatching { JSONArray(json) }.getOrNull() ?: return emptyList()
         return (0 until array.length()).mapNotNull { i ->
-            runCatching { deserializeRoutine(array.getJSONObject(i)) }.getOrNull()
+            runCatching { array.getJSONObject(i) }.getOrNull()?.let { obj ->
+                runCatching { deserializeRoutine(obj) }.getOrNull()
+            }
         }
     }
 
@@ -95,6 +98,7 @@ class RoutineSerializer @Inject constructor() {
                 put(KEY_TYPE, Trigger.TYPE_WIFI_STATE)
                 put(KEY_CONNECTED, trigger.connected)
                 trigger.ssid?.let { put(KEY_SSID, it) }
+                trigger.ssidPattern?.let { put(KEY_SSID_PATTERN, it) }
             }
             is Trigger.BluetoothState -> {
                 put(KEY_TYPE, Trigger.TYPE_BLUETOOTH_STATE)
@@ -118,6 +122,15 @@ class RoutineSerializer @Inject constructor() {
                 put(KEY_TYPE, Trigger.TYPE_RINGER_MODE)
                 put(KEY_MODE, trigger.mode)
             }
+            is Trigger.IncomingCall -> {
+                put(KEY_TYPE, Trigger.TYPE_INCOMING_CALL)
+                put(KEY_PHONE_NUMBERS, JSONArray(trigger.phoneNumbers.toList()))
+            }
+            is Trigger.SmsMessage -> {
+                put(KEY_TYPE, Trigger.TYPE_SMS_MESSAGE)
+                put(KEY_TEXT, trigger.text)
+                put(KEY_SENDER_NUMBERS, JSONArray(trigger.senderNumbers.toList()))
+            }
             is Trigger.AppLaunch -> {
                 put(KEY_TYPE, Trigger.TYPE_APP_LAUNCH)
                 put(KEY_PACKAGE_NAME, trigger.packageName)
@@ -137,6 +150,10 @@ class RoutineSerializer @Inject constructor() {
                 put(KEY_LONGITUDE, trigger.longitude)
                 put(KEY_RADIUS_METERS, trigger.radiusMeters.toDouble())
                 put(KEY_ENTERING, trigger.entering)
+            }
+            is Trigger.CaptivePortal -> {
+                put(KEY_TYPE, Trigger.TYPE_CAPTIVE_PORTAL)
+                trigger.ssid?.let { put(KEY_SSID, it) }
             }
         }
     }
@@ -161,6 +178,7 @@ class RoutineSerializer @Inject constructor() {
             Trigger.TYPE_WIFI_STATE -> Trigger.WifiState(
                 connected = json.getBoolean(KEY_CONNECTED),
                 ssid = json.optString(KEY_SSID, null),
+                ssidPattern = json.optString(KEY_SSID_PATTERN, null),
             )
             Trigger.TYPE_BLUETOOTH_STATE -> Trigger.BluetoothState(
                 connected = json.getBoolean(KEY_CONNECTED),
@@ -170,7 +188,7 @@ class RoutineSerializer @Inject constructor() {
                 on = json.getBoolean(KEY_ON),
             )
             Trigger.TYPE_FEATURE_STATE -> Trigger.FeatureState(
-                feature = json.getString(KEY_FEATURE),
+                feature = resolveFeature(json.getString(KEY_FEATURE)),
                 active = json.getBoolean(KEY_ACTIVE),
             )
             Trigger.TYPE_HEADPHONES_STATE -> Trigger.HeadphonesState(
@@ -178,6 +196,13 @@ class RoutineSerializer @Inject constructor() {
             )
             Trigger.TYPE_RINGER_MODE -> Trigger.RingerMode(
                 mode = json.getInt(KEY_MODE),
+            )
+            Trigger.TYPE_INCOMING_CALL -> Trigger.IncomingCall(
+                phoneNumbers = deserializeStringSet(json.optJSONArray(KEY_PHONE_NUMBERS)),
+            )
+            Trigger.TYPE_SMS_MESSAGE -> Trigger.SmsMessage(
+                text = json.optString(KEY_TEXT, ""),
+                senderNumbers = deserializeStringSet(json.optJSONArray(KEY_SENDER_NUMBERS)),
             )
             Trigger.TYPE_APP_LAUNCH -> Trigger.AppLaunch(
                 packageName = json.getString(KEY_PACKAGE_NAME),
@@ -194,6 +219,9 @@ class RoutineSerializer @Inject constructor() {
                 longitude = json.getDouble(KEY_LONGITUDE),
                 radiusMeters = json.getDouble(KEY_RADIUS_METERS).toFloat(),
                 entering = json.getBoolean(KEY_ENTERING),
+            )
+            Trigger.TYPE_CAPTIVE_PORTAL -> Trigger.CaptivePortal(
+                ssid = json.optString(KEY_SSID, null),
             )
             else -> throw IllegalArgumentException("Unknown trigger type: ${json.getString(KEY_TYPE)}")
         }
@@ -223,6 +251,7 @@ class RoutineSerializer @Inject constructor() {
             is Condition.WifiConnected -> {
                 put(KEY_TYPE, Condition.TYPE_WIFI_CONNECTED)
                 condition.ssid?.let { put(KEY_SSID, it) }
+                condition.ssidPattern?.let { put(KEY_SSID_PATTERN, it) }
             }
             is Condition.BluetoothConnected -> {
                 put(KEY_TYPE, Condition.TYPE_BLUETOOTH_CONNECTED)
@@ -248,6 +277,11 @@ class RoutineSerializer @Inject constructor() {
                 put(KEY_LONGITUDE, condition.longitude)
                 put(KEY_RADIUS_METERS, condition.radiusMeters.toDouble())
             }
+            is Condition.IpAddress -> {
+                put(KEY_TYPE, Condition.TYPE_IP_ADDRESS)
+                put(KEY_CIDR, condition.cidr)
+                put(KEY_IS_REGEX, condition.isRegex)
+            }
         }
     }
 
@@ -271,6 +305,7 @@ class RoutineSerializer @Inject constructor() {
             )
             Condition.TYPE_WIFI_CONNECTED -> Condition.WifiConnected(
                 ssid = json.optString(KEY_SSID, null),
+                ssidPattern = json.optString(KEY_SSID_PATTERN, null),
             )
             Condition.TYPE_BLUETOOTH_CONNECTED -> Condition.BluetoothConnected(
                 deviceAddress = json.optString(KEY_DEVICE_ADDRESS, null),
@@ -279,7 +314,7 @@ class RoutineSerializer @Inject constructor() {
                 on = json.getBoolean(KEY_ON),
             )
             Condition.TYPE_FEATURE_ACTIVE -> Condition.FeatureActive(
-                feature = json.getString(KEY_FEATURE),
+                feature = resolveFeature(json.getString(KEY_FEATURE)),
                 active = json.getBoolean(KEY_ACTIVE),
             )
             Condition.TYPE_SENSOR_BLOCKED -> Condition.SensorBlocked(
@@ -290,6 +325,10 @@ class RoutineSerializer @Inject constructor() {
                 latitude = json.getDouble(KEY_LATITUDE),
                 longitude = json.getDouble(KEY_LONGITUDE),
                 radiusMeters = json.getDouble(KEY_RADIUS_METERS).toFloat(),
+            )
+            Condition.TYPE_IP_ADDRESS -> Condition.IpAddress(
+                cidr = json.getString(KEY_CIDR),
+                isRegex = json.optBoolean(KEY_IS_REGEX, false),
             )
             else -> throw IllegalArgumentException("Unknown condition type: ${json.getString(KEY_TYPE)}")
         }
@@ -324,8 +363,18 @@ class RoutineSerializer @Inject constructor() {
             }
             is Action.SendBroadcast -> {
                 put(KEY_TYPE, Action.TYPE_SEND_BROADCAST)
-                put(KEY_ACTION, action.action)
-                put(KEY_EXTRAS, JSONObject(action.extras))
+                action.action?.let { put(KEY_ACTION, it) }
+                put(KEY_INTENT_MODE, action.mode.name)
+                action.componentPackage?.let { put(KEY_COMPONENT_PACKAGE, it) }
+                action.componentClass?.let { put(KEY_COMPONENT_CLASS, it) }
+                put(KEY_EXTRAS, JSONObject().apply {
+                    action.extras.forEach { (key, extra) ->
+                        put(key, JSONObject().apply {
+                            put(KEY_EXTRA_TYPE, extra.type.name)
+                            put(KEY_EXTRA_VALUE, extra.value)
+                        })
+                    }
+                })
             }
             is Action.ShowNotification -> {
                 put(KEY_TYPE, Action.TYPE_SHOW_NOTIFICATION)
@@ -347,17 +396,38 @@ class RoutineSerializer @Inject constructor() {
                 put(KEY_SENSOR, action.sensor)
                 put(KEY_BLOCKED, action.blocked)
             }
+            is Action.PlaySound -> {
+                put(KEY_TYPE, Action.TYPE_PLAY_SOUND)
+                put(KEY_SOUND_TYPE, action.soundType)
+                action.uri?.let { put(KEY_URI, it) }
+            }
+            is Action.SendLocationSms -> {
+                put(KEY_TYPE, Action.TYPE_SEND_LOCATION_SMS)
+                action.phoneNumber?.let { put(KEY_PHONE_NUMBER, it) }
+            }
+            is Action.HttpRequest -> {
+                put(KEY_TYPE, Action.TYPE_HTTP_REQUEST)
+                put(KEY_URL, action.url)
+                put(KEY_METHOD, action.method)
+                if (action.headers.isNotEmpty()) {
+                    put(KEY_HEADERS, JSONObject(action.headers))
+                }
+                action.body?.let { put(KEY_BODY, it) }
+                put(KEY_TIMEOUT_MS, action.timeoutMs)
+                put(KEY_IGNORE_SSL_ERRORS, action.ignoreSslErrors)
+                put(KEY_REQUIRE_VALIDATED_INTERNET, action.requireValidatedInternet)
+            }
         }
     }
 
     private fun deserializeAction(json: JSONObject): Action =
         when (json.getString(KEY_TYPE)) {
             Action.TYPE_SET_FEATURE -> Action.SetFeature(
-                feature = json.getString(KEY_FEATURE),
+                feature = resolveFeature(json.getString(KEY_FEATURE)),
                 enabled = json.getBoolean(KEY_ENABLED),
             )
             Action.TYPE_TOGGLE_FEATURE -> Action.ToggleFeature(
-                feature = json.getString(KEY_FEATURE),
+                feature = resolveFeature(json.getString(KEY_FEATURE)),
             )
             Action.TYPE_SET_VOLUME -> Action.SetVolume(
                 streamType = json.getInt(KEY_STREAM_TYPE),
@@ -373,8 +443,15 @@ class RoutineSerializer @Inject constructor() {
                 packageName = json.getString(KEY_PACKAGE_NAME),
             )
             Action.TYPE_SEND_BROADCAST -> Action.SendBroadcast(
-                action = json.getString(KEY_ACTION),
-                extras = deserializeStringMap(json.optJSONObject(KEY_EXTRAS)),
+                action = json.optString(KEY_ACTION, null),
+                mode = runCatching {
+                    Action.SendBroadcast.Mode.valueOf(
+                        json.optString(KEY_INTENT_MODE, Action.SendBroadcast.Mode.BROADCAST.name)
+                    )
+                }.getOrDefault(Action.SendBroadcast.Mode.BROADCAST),
+                componentPackage = json.optString(KEY_COMPONENT_PACKAGE, null),
+                componentClass = json.optString(KEY_COMPONENT_CLASS, null),
+                extras = deserializeIntentExtras(json.optJSONObject(KEY_EXTRAS)),
             )
             Action.TYPE_SHOW_NOTIFICATION -> Action.ShowNotification(
                 title = json.getString(KEY_TITLE),
@@ -392,6 +469,22 @@ class RoutineSerializer @Inject constructor() {
                 sensor = json.getInt(KEY_SENSOR),
                 blocked = json.getBoolean(KEY_BLOCKED),
             )
+            Action.TYPE_PLAY_SOUND -> Action.PlaySound(
+                soundType = json.getInt(KEY_SOUND_TYPE),
+                uri = json.optString(KEY_URI, null),
+            )
+            Action.TYPE_SEND_LOCATION_SMS -> Action.SendLocationSms(
+                phoneNumber = json.optString(KEY_PHONE_NUMBER, null),
+            )
+            Action.TYPE_HTTP_REQUEST -> Action.HttpRequest(
+                url = json.getString(KEY_URL),
+                method = json.optString(KEY_METHOD, Action.METHOD_GET),
+                headers = deserializeStringMap(json.optJSONObject(KEY_HEADERS)),
+                body = json.optString(KEY_BODY, null),
+                timeoutMs = json.optInt(KEY_TIMEOUT_MS, Action.DEFAULT_HTTP_TIMEOUT_MS),
+                ignoreSslErrors = json.optBoolean(KEY_IGNORE_SSL_ERRORS, false),
+                requireValidatedInternet = json.optBoolean(KEY_REQUIRE_VALIDATED_INTERNET, true),
+            )
             else -> throw IllegalArgumentException("Unknown action type: ${json.getString(KEY_TYPE)}")
         }
 
@@ -403,8 +496,17 @@ class RoutineSerializer @Inject constructor() {
     }
 
     private fun deserializeIntSet(array: JSONArray?): Set<Int> {
-        if (array == null) return Trigger.ALL_DAYS
+        if (array == null || array.length() == 0) return Trigger.ALL_DAYS
         return (0 until array.length()).map { array.getInt(it) }.toSet()
+    }
+
+    private fun deserializeStringSet(array: JSONArray?): Set<String> {
+        if (array == null) return emptySet()
+        return (0 until array.length())
+            .mapNotNull { index ->
+                array.optString(index).trim().takeIf { value -> value.isNotBlank() }
+            }
+            .toSet()
     }
 
     private fun deserializeStringMap(json: JSONObject?): Map<String, String> {
@@ -412,7 +514,42 @@ class RoutineSerializer @Inject constructor() {
         return json.keys().asSequence().associateWith { json.getString(it) }
     }
 
+    private fun deserializeIntentExtras(
+        json: JSONObject?,
+    ): Map<String, Action.SendBroadcast.IntentExtra> {
+        if (json == null) return emptyMap()
+        return json.keys().asSequence().associateWith { key ->
+            val obj = json.optJSONObject(key)
+            if (obj != null) {
+                val type = runCatching {
+                    Action.SendBroadcast.IntentExtra.ExtraType.valueOf(
+                        obj.optString(
+                            KEY_EXTRA_TYPE,
+                            Action.SendBroadcast.IntentExtra.ExtraType.STRING.name,
+                        )
+                    )
+                }.getOrDefault(Action.SendBroadcast.IntentExtra.ExtraType.STRING)
+                Action.SendBroadcast.IntentExtra(type, obj.optString(KEY_EXTRA_VALUE, ""))
+            } else {
+                Action.SendBroadcast.IntentExtra(
+                    Action.SendBroadcast.IntentExtra.ExtraType.STRING,
+                    json.getString(key),
+                )
+            }
+        }
+    }
+
+    private fun resolveFeature(name: String): String =
+        AxPlatformFeature.resolve(name)
+            ?: GUI_TO_FEATURE[name]
+            ?: name
+
     companion object {
+
+        private val GUI_TO_FEATURE = mapOf(
+            "do_not_disturb" to AxPlatformFeature.ZEN,
+            "auto_rotate" to AxPlatformFeature.ROTATION,
+        )
         private const val KEY_ID = "id"
         private const val KEY_NAME = "name"
         private const val KEY_ENABLED = "enabled"
@@ -431,6 +568,10 @@ class RoutineSerializer @Inject constructor() {
         private const val KEY_DIRECTION = "direction"
         private const val KEY_CONNECTED = "connected"
         private const val KEY_SSID = "ssid"
+        private const val KEY_SSID_PATTERN = "ssid_pattern"
+        private const val KEY_PHONE_NUMBER = "phone_number"
+        private const val KEY_PHONE_NUMBERS = "phone_numbers"
+        private const val KEY_SENDER_NUMBERS = "sender_numbers"
         private const val KEY_DEVICE_ADDRESS = "device_address"
         private const val KEY_ON = "on"
         private const val KEY_FEATURE = "feature"
@@ -460,5 +601,21 @@ class RoutineSerializer @Inject constructor() {
         private const val KEY_LONGITUDE = "longitude"
         private const val KEY_RADIUS_METERS = "radius_meters"
         private const val KEY_ENTERING = "entering"
+        private const val KEY_SOUND_TYPE = "sound_type"
+        private const val KEY_URI = "uri"
+        private const val KEY_CIDR = "cidr"
+        private const val KEY_URL = "url"
+        private const val KEY_METHOD = "method"
+        private const val KEY_HEADERS = "headers"
+        private const val KEY_BODY = "body"
+        private const val KEY_TIMEOUT_MS = "timeout_ms"
+        private const val KEY_IS_REGEX = "is_regex"
+        private const val KEY_IGNORE_SSL_ERRORS = "ignore_ssl_errors"
+        private const val KEY_REQUIRE_VALIDATED_INTERNET = "require_validated_internet"
+        private const val KEY_INTENT_MODE = "intent_mode"
+        private const val KEY_COMPONENT_PACKAGE = "component_package"
+        private const val KEY_COMPONENT_CLASS = "component_class"
+        private const val KEY_EXTRA_TYPE = "extra_type"
+        private const val KEY_EXTRA_VALUE = "extra_value"
     }
 }

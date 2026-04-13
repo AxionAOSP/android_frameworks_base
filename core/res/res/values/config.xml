@@ -30,6 +30,7 @@
         <item><xliff:g id="id">@string/status_bar_no_calling</xliff:g></item>
         <item><xliff:g id="id">@string/status_bar_call_strength</xliff:g></item>
         <item><xliff:g id="id">@string/status_bar_alarm_clock</xliff:g></item>
+        <item><xliff:g id="id">@string/status_bar_routines</xliff:g></item>
         <item><xliff:g id="id">@string/status_bar_rotate</xliff:g></item>
         <item><xliff:g id="id">@string/status_bar_headset</xliff:g></item>
         <item><xliff:g id="id">@string/status_bar_data_saver</xliff:g></item>
@@ -92,6 +93,7 @@
     <string translatable="false" name="status_bar_phone_signal">phone_signal</string>
     <string translatable="false" name="status_bar_battery">battery</string>
     <string translatable="false" name="status_bar_alarm_clock">alarm_clock</string>
+    <string translatable="false" name="status_bar_routines">routines</string>
     <string translatable="false" name="status_bar_secure">secure</string>
     <string translatable="false" name="status_bar_clock">clock</string>
     <string translatable="false" name="status_bar_mobile">mobile</string>

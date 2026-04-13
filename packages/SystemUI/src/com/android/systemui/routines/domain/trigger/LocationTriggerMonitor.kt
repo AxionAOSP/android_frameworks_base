@@ -70,7 +70,6 @@ class LocationTriggerMonitor @Inject constructor(
         started = false
         removeAllGeofences()
         context.unregisterReceiver(geofenceReceiver)
-        callback = null
         Log.d(TAG, "Location trigger monitor stopped")
     }
 

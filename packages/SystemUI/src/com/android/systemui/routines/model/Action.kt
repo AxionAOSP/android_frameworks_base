@@ -45,9 +45,18 @@ sealed interface Action {
     ) : Action
 
     data class SendBroadcast(
-        val action: String,
-        val extras: Map<String, String> = emptyMap(),
-    ) : Action
+        val action: String? = null,
+        val mode: Mode = Mode.BROADCAST,
+        val componentPackage: String? = null,
+        val componentClass: String? = null,
+        val extras: Map<String, IntentExtra> = emptyMap(),
+    ) : Action {
+        enum class Mode { BROADCAST, START_SERVICE, START_FOREGROUND_SERVICE }
+
+        data class IntentExtra(val type: ExtraType, val value: String) {
+            enum class ExtraType { STRING, INT, LONG, BOOLEAN, FLOAT, DOUBLE }
+        }
+    }
 
     data class ShowNotification(
         val title: String,
@@ -71,6 +80,25 @@ sealed interface Action {
         val blocked: Boolean,
     ) : Action
 
+    data class PlaySound(
+        val soundType: Int,
+        val uri: String? = null,
+    ) : Action
+
+    data class SendLocationSms(
+        val phoneNumber: String? = null,
+    ) : Action
+
+    data class HttpRequest(
+        val url: String,
+        val method: String = METHOD_GET,
+        val headers: Map<String, String> = emptyMap(),
+        val body: String? = null,
+        val timeoutMs: Int = DEFAULT_HTTP_TIMEOUT_MS,
+        val ignoreSslErrors: Boolean = false,
+        val requireValidatedInternet: Boolean = true,
+    ) : Action
+
     companion object {
         const val TYPE_SET_FEATURE = "set_feature"
         const val TYPE_TOGGLE_FEATURE = "toggle_feature"
@@ -83,5 +111,11 @@ sealed interface Action {
         const val TYPE_DELAY = "delay"
         const val TYPE_SET_SETTING = "set_setting"
         const val TYPE_SET_SENSOR_PRIVACY = "set_sensor_privacy"
+        const val TYPE_PLAY_SOUND = "play_sound"
+        const val TYPE_SEND_LOCATION_SMS = "send_location_sms"
+        const val TYPE_HTTP_REQUEST = "http_request"
+        const val METHOD_GET = "GET"
+        const val DEFAULT_HTTP_TIMEOUT_MS = 15_000
+        const val MAX_HTTP_TIMEOUT_MS = 30_000
     }
 }
