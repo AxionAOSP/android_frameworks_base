@@ -19,6 +19,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.android.systemui.dagger.SysUISingleton
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 
 val LocalVolumeSliderViewModel = staticCompositionLocalOf<VolumeSliderViewModel> {
@@ -30,6 +31,7 @@ class VolumeSliderViewModel @Inject constructor(
     private val interactor: VolumeSliderInteractor
 ) {
     val volumeChanges: Flow<Float> get() = interactor.volumeChanges
+    val enabledFlow: StateFlow<Boolean> get() = interactor.enabledFlow
     fun isActive(): Boolean = interactor.isActive()
     fun onTap(enabled: Boolean) = interactor.onTap(enabled)
     fun currentLevel(): Float = interactor.currentLevel()

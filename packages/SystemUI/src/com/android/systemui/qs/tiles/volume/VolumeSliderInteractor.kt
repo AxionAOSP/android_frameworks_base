@@ -30,6 +30,9 @@ import com.android.systemui.broadcast.BroadcastDispatcher
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -47,15 +50,18 @@ class VolumeSliderInteractor @Inject constructor(
     val maxVolume: Int = audioManager.getStreamMaxVolume(streamType)
 
     private val spec = "volume"
+    private val prefsKey = "slider_enabled_$spec"
 
-    var enabled: Boolean = Prefs.getBoolean(context, "slider_enabled_$spec", false)
-        private set
+    private val _enabledFlow =
+        MutableStateFlow(Prefs.getBoolean(context, prefsKey, false))
+    val enabledFlow: StateFlow<Boolean> = _enabledFlow.asStateFlow()
 
-    fun isActive(): Boolean = enabled
+    fun isActive(): Boolean = _enabledFlow.value
 
     fun onTap(enabled: Boolean) {
-        this.enabled = enabled
-        Prefs.putBoolean(context, "slider_enabled_$spec", enabled)
+        if (_enabledFlow.value == enabled) return
+        _enabledFlow.value = enabled
+        Prefs.putBoolean(context, prefsKey, enabled)
     }
 
     fun currentLevel(): Float {

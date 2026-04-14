@@ -47,6 +47,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,21 +74,12 @@ fun VolumeSliderTileContent(
     var level by remember { mutableFloatStateOf(viewModel.currentLevel()) }
     var dragLevel by remember { mutableFloatStateOf(level) }
     var isDragging by remember { mutableStateOf(false) }
-    var isEnabled by remember { mutableStateOf(viewModel.isActive()) }
+    val isEnabled by viewModel.enabledFlow.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         viewModel.volumeChanges.collect { newLevel ->
             level = newLevel
             if (!isDragging) dragLevel = newLevel
-        }
-    }
-
-    LaunchedEffect(level) {
-        if (!isDragging) {
-            val shouldBeEnabled = viewModel.isActive()
-            if (shouldBeEnabled != isEnabled) {
-                isEnabled = shouldBeEnabled
-            }
         }
     }
 
@@ -148,8 +140,7 @@ fun VolumeSliderTileContent(
         Modifier
             .pointerInput(Unit) {
                 detectTapGestures {
-                    isEnabled = !isEnabled
-                    viewModel.onTap(isEnabled)
+                    viewModel.onTap(!viewModel.isActive())
                 }
             }
             .pointerInput(isEnabled) {
