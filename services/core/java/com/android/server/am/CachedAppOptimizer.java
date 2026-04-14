@@ -278,10 +278,10 @@ public class CachedAppOptimizer {
     // Defaults for phenotype flags.
     @VisibleForTesting static final boolean DEFAULT_USE_COMPACTION = true;
     @VisibleForTesting static final boolean DEFAULT_USE_FREEZER = true;
-    @VisibleForTesting static final long DEFAULT_COMPACT_THROTTLE_1 = 5_000;
-    @VisibleForTesting static final long DEFAULT_COMPACT_THROTTLE_2 = 10_000;
-    @VisibleForTesting static final long DEFAULT_COMPACT_THROTTLE_3 = 500;
-    @VisibleForTesting static final long DEFAULT_COMPACT_THROTTLE_4 = 5*60*1000;
+    @VisibleForTesting static final long DEFAULT_COMPACT_THROTTLE_1 = 30_000;
+    @VisibleForTesting static final long DEFAULT_COMPACT_THROTTLE_2 = 60_000;
+    @VisibleForTesting static final long DEFAULT_COMPACT_THROTTLE_3 = 10_000;
+    @VisibleForTesting static final long DEFAULT_COMPACT_THROTTLE_4 = 15*60*1000;
     @VisibleForTesting static final long DEFAULT_COMPACT_THROTTLE_5 = 10 * 60 * 1000;
     @VisibleForTesting static final long DEFAULT_COMPACT_THROTTLE_6 = 10 * 60 * 1000;
     @VisibleForTesting static final long DEFAULT_COMPACT_THROTTLE_MIN_OOM_ADJ =
