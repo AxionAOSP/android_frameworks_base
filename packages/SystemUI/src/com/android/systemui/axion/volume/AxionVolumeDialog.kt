@@ -26,6 +26,7 @@ import android.view.MotionEvent
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.view.Window
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.activity.ComponentDialog
@@ -185,6 +186,15 @@ class AxionVolumeDialog @Inject constructor(
             clipToPadding = false
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             addView(compose, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+            setOnApplyWindowInsetsListener { v, insets ->
+                val safe = insets.getInsets(
+                    WindowInsets.Type.displayCutout() or
+                        WindowInsets.Type.navigationBars() or
+                        WindowInsets.Type.statusBars()
+                )
+                v.setPadding(safe.left, safe.top, safe.right, safe.bottom)
+                WindowInsets.CONSUMED
+            }
         }
 
         override fun onAttachedToWindow() {
