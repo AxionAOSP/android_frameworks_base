@@ -48,7 +48,7 @@ constructor(
             sensorManager.registerListener(
                 sensorListener,
                 sensor,
-                SensorManager.SENSOR_DELAY_FASTEST,
+                SensorManager.SENSOR_DELAY_GAME,
                 listenerHandler
             )
             Trace.endSection()
