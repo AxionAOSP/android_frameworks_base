@@ -511,7 +511,7 @@ public final class DeviceStateProviderImpl implements DeviceStateProvider,
         final SensorManager sensorManager = mContext.getSystemService(SensorManager.class);
         for (int i = 0; i < sensorsToListenTo.size(); i++) {
             Sensor sensor = sensorsToListenTo.valueAt(i);
-            sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_FASTEST);
+            sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL);
         }
     }
 
