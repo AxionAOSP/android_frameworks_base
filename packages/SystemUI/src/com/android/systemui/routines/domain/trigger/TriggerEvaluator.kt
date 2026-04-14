@@ -61,6 +61,9 @@ class TriggerEvaluator @Inject constructor() {
         trigger is Trigger.Location && event is Trigger.Location ->
             matchesLocation(trigger, event)
 
+        trigger is Trigger.CaptivePortal && event is Trigger.CaptivePortal ->
+            trigger.ssid == null || trigger.ssid == event.ssid
+
         else -> false
     }
 
@@ -85,6 +88,11 @@ class TriggerEvaluator @Inject constructor() {
 
     private fun matchesWifiState(trigger: Trigger.WifiState, event: Trigger.WifiState): Boolean {
         if (trigger.connected != event.connected) return false
+        if (trigger.ssidPattern != null) {
+            val eventSsid = event.ssid ?: return false
+            return runCatching { Regex(trigger.ssidPattern).containsMatchIn(eventSsid) }
+                .getOrDefault(false)
+        }
         if (trigger.ssid != null && trigger.ssid != event.ssid) return false
         return true
     }

@@ -16,9 +16,14 @@
 
 package com.android.systemui.routines.domain
 
+import android.content.Context
+import android.os.Handler
 import android.util.Log
+import android.widget.Toast
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
+import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.res.R
 import com.android.systemui.routines.data.RoutinesRepository
 import com.android.systemui.routines.domain.action.ActionExecutor
 import com.android.systemui.routines.domain.condition.ConditionEvaluator
@@ -38,7 +43,9 @@ import javax.inject.Inject
 
 @SysUISingleton
 class RoutinesInteractor @Inject constructor(
+    @Application private val context: Context,
     @Application private val scope: CoroutineScope,
+    @Main private val mainHandler: Handler,
     private val repository: RoutinesRepository,
     private val settings: RoutinesSettings,
     private val timeTriggerScheduler: TimeTriggerScheduler,
@@ -94,16 +101,24 @@ class RoutinesInteractor @Inject constructor(
         timeTriggerScheduler.cancelAll()
         locationTriggerMonitor.removeAllGeofences()
         timeTriggerScheduler.start()
-        eventTriggerMonitor.start()
         locationTriggerMonitor.start()
 
+        val activeRoutines = routines.filter { it.enabled }
         val activeIds = mutableSetOf<String>()
-        routines.filter { it.enabled }.forEach { routine ->
+
+        val requiredGroups = mutableSetOf<EventTriggerMonitor.ListenerGroup>()
+        activeRoutines.forEach { routine ->
             registerTriggers(routine)
             activeIds.add(routine.id)
+            routine.triggers.forEach { trigger ->
+                EventTriggerMonitor.triggerToGroup(trigger)?.let { requiredGroups.add(it) }
+            }
         }
+
+        eventTriggerMonitor.updateListeners(requiredGroups)
         executionGuard.keys.removeAll { it !in activeIds }
-        Log.d(TAG, "Monitoring started for ${activeIds.size} routines")
+        Log.d(TAG, "Monitoring started for ${activeIds.size} routines, " +
+            "${requiredGroups.size} listener groups")
     }
 
     private fun stopMonitoring() {
@@ -163,6 +178,13 @@ class RoutinesInteractor @Inject constructor(
     private suspend fun executeRoutine(routine: Routine) {
         if (!checkExecutionGuard(routine.id)) return
         Log.d(TAG, "Executing routine: ${routine.name} (${routine.id})")
+        mainHandler.post {
+            Toast.makeText(
+                context,
+                context.getString(R.string.ax_routines_toast_executing, routine.name),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
         runCatching {
             actionExecutor.executeActions(routine.actions, routine.name)
             repository.markTriggered(routine.id)

@@ -30,6 +30,7 @@
 
     <!-- Routines -->
     <string name="ax_routines_notification_channel_name">Routines</string>
+    <string name="ax_routines_toast_executing">Running routine: <xliff:g id="name">%1$s</xliff:g></string>
 
     <!-- Essential Notifications -->
     <string name="essential_notifications_title">Essentials</string>

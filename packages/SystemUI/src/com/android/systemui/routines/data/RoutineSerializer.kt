@@ -96,6 +96,7 @@ class RoutineSerializer @Inject constructor() {
                 put(KEY_TYPE, Trigger.TYPE_WIFI_STATE)
                 put(KEY_CONNECTED, trigger.connected)
                 trigger.ssid?.let { put(KEY_SSID, it) }
+                trigger.ssidPattern?.let { put(KEY_SSID_PATTERN, it) }
             }
             is Trigger.BluetoothState -> {
                 put(KEY_TYPE, Trigger.TYPE_BLUETOOTH_STATE)
@@ -139,6 +140,10 @@ class RoutineSerializer @Inject constructor() {
                 put(KEY_RADIUS_METERS, trigger.radiusMeters.toDouble())
                 put(KEY_ENTERING, trigger.entering)
             }
+            is Trigger.CaptivePortal -> {
+                put(KEY_TYPE, Trigger.TYPE_CAPTIVE_PORTAL)
+                trigger.ssid?.let { put(KEY_SSID, it) }
+            }
         }
     }
 
@@ -162,6 +167,7 @@ class RoutineSerializer @Inject constructor() {
             Trigger.TYPE_WIFI_STATE -> Trigger.WifiState(
                 connected = json.getBoolean(KEY_CONNECTED),
                 ssid = json.optString(KEY_SSID, null),
+                ssidPattern = json.optString(KEY_SSID_PATTERN, null),
             )
             Trigger.TYPE_BLUETOOTH_STATE -> Trigger.BluetoothState(
                 connected = json.getBoolean(KEY_CONNECTED),
@@ -196,6 +202,9 @@ class RoutineSerializer @Inject constructor() {
                 radiusMeters = json.getDouble(KEY_RADIUS_METERS).toFloat(),
                 entering = json.getBoolean(KEY_ENTERING),
             )
+            Trigger.TYPE_CAPTIVE_PORTAL -> Trigger.CaptivePortal(
+                ssid = json.optString(KEY_SSID, null),
+            )
             else -> throw IllegalArgumentException("Unknown trigger type: ${json.getString(KEY_TYPE)}")
         }
 
@@ -224,6 +233,7 @@ class RoutineSerializer @Inject constructor() {
             is Condition.WifiConnected -> {
                 put(KEY_TYPE, Condition.TYPE_WIFI_CONNECTED)
                 condition.ssid?.let { put(KEY_SSID, it) }
+                condition.ssidPattern?.let { put(KEY_SSID_PATTERN, it) }
             }
             is Condition.BluetoothConnected -> {
                 put(KEY_TYPE, Condition.TYPE_BLUETOOTH_CONNECTED)
@@ -249,6 +259,10 @@ class RoutineSerializer @Inject constructor() {
                 put(KEY_LONGITUDE, condition.longitude)
                 put(KEY_RADIUS_METERS, condition.radiusMeters.toDouble())
             }
+            is Condition.IpAddress -> {
+                put(KEY_TYPE, Condition.TYPE_IP_ADDRESS)
+                put(KEY_CIDR, condition.cidr)
+            }
         }
     }
 
@@ -272,6 +286,7 @@ class RoutineSerializer @Inject constructor() {
             )
             Condition.TYPE_WIFI_CONNECTED -> Condition.WifiConnected(
                 ssid = json.optString(KEY_SSID, null),
+                ssidPattern = json.optString(KEY_SSID_PATTERN, null),
             )
             Condition.TYPE_BLUETOOTH_CONNECTED -> Condition.BluetoothConnected(
                 deviceAddress = json.optString(KEY_DEVICE_ADDRESS, null),
@@ -291,6 +306,9 @@ class RoutineSerializer @Inject constructor() {
                 latitude = json.getDouble(KEY_LATITUDE),
                 longitude = json.getDouble(KEY_LONGITUDE),
                 radiusMeters = json.getDouble(KEY_RADIUS_METERS).toFloat(),
+            )
+            Condition.TYPE_IP_ADDRESS -> Condition.IpAddress(
+                cidr = json.getString(KEY_CIDR),
             )
             else -> throw IllegalArgumentException("Unknown condition type: ${json.getString(KEY_TYPE)}")
         }
@@ -353,6 +371,16 @@ class RoutineSerializer @Inject constructor() {
                 put(KEY_SOUND_TYPE, action.soundType)
                 action.uri?.let { put(KEY_URI, it) }
             }
+            is Action.HttpRequest -> {
+                put(KEY_TYPE, Action.TYPE_HTTP_REQUEST)
+                put(KEY_URL, action.url)
+                put(KEY_METHOD, action.method)
+                if (action.headers.isNotEmpty()) {
+                    put(KEY_HEADERS, JSONObject(action.headers))
+                }
+                action.body?.let { put(KEY_BODY, it) }
+                put(KEY_TIMEOUT_MS, action.timeoutMs)
+            }
         }
     }
 
@@ -401,6 +429,13 @@ class RoutineSerializer @Inject constructor() {
             Action.TYPE_PLAY_SOUND -> Action.PlaySound(
                 soundType = json.getInt(KEY_SOUND_TYPE),
                 uri = json.optString(KEY_URI, null),
+            )
+            Action.TYPE_HTTP_REQUEST -> Action.HttpRequest(
+                url = json.getString(KEY_URL),
+                method = json.optString(KEY_METHOD, Action.METHOD_GET),
+                headers = deserializeStringMap(json.optJSONObject(KEY_HEADERS)),
+                body = json.optString(KEY_BODY, null),
+                timeoutMs = json.optInt(KEY_TIMEOUT_MS, Action.DEFAULT_HTTP_TIMEOUT_MS),
             )
             else -> throw IllegalArgumentException("Unknown action type: ${json.getString(KEY_TYPE)}")
         }
@@ -451,6 +486,7 @@ class RoutineSerializer @Inject constructor() {
         private const val KEY_DIRECTION = "direction"
         private const val KEY_CONNECTED = "connected"
         private const val KEY_SSID = "ssid"
+        private const val KEY_SSID_PATTERN = "ssid_pattern"
         private const val KEY_DEVICE_ADDRESS = "device_address"
         private const val KEY_ON = "on"
         private const val KEY_FEATURE = "feature"
@@ -482,5 +518,11 @@ class RoutineSerializer @Inject constructor() {
         private const val KEY_ENTERING = "entering"
         private const val KEY_SOUND_TYPE = "sound_type"
         private const val KEY_URI = "uri"
+        private const val KEY_CIDR = "cidr"
+        private const val KEY_URL = "url"
+        private const val KEY_METHOD = "method"
+        private const val KEY_HEADERS = "headers"
+        private const val KEY_BODY = "body"
+        private const val KEY_TIMEOUT_MS = "timeout_ms"
     }
 }

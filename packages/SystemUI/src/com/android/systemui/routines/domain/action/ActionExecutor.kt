@@ -27,19 +27,41 @@ import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.Ringtone
 import android.media.RingtoneManager
+import android.net.ConnectivityManager
+import android.net.DnsResolver
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.Uri
 import android.os.Handler
 import android.os.UserHandle
 import android.provider.Settings
+import android.os.Binder
 import android.util.Log
 import com.android.systemui.ax.AxPlatformFeatureController
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Socket
+import java.net.URL
+import javax.net.ssl.SNIHostName
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLSocket
+import org.json.JSONObject
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
+import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.res.R
 import com.android.systemui.routines.model.Action
 import com.android.systemui.statusbar.policy.IndividualSensorPrivacyController
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 @SysUISingleton
@@ -48,6 +70,8 @@ class ActionExecutor @Inject constructor(
     private val featureController: AxPlatformFeatureController,
     private val sensorPrivacyController: IndividualSensorPrivacyController,
     @Main private val mainHandler: Handler,
+    @Background private val bgDispatcher: CoroutineDispatcher,
+    private val connectivityManager: ConnectivityManager,
 ) {
 
     private val audioManager by lazy {
@@ -69,7 +93,7 @@ class ActionExecutor @Inject constructor(
             runCatching {
                 execute(action, routineName)
             }.onFailure { e ->
-                Log.e(TAG, "Failed to execute action: $action", e)
+                Log.e(TAG, "Failed to execute action: $action [${e.javaClass.simpleName}: ${e.message}]", e)
             }
         }
     }
@@ -88,6 +112,7 @@ class ActionExecutor @Inject constructor(
             is Action.SetSetting -> setSetting(action)
             is Action.SetSensorPrivacy -> setSensorPrivacy(action)
             is Action.PlaySound -> playSound(action)
+            is Action.HttpRequest -> executeHttpRequest(action)
         }
     }
 
@@ -192,6 +217,160 @@ class ActionExecutor @Inject constructor(
         }, SOUND_MAX_DURATION_MS)
     }
 
+    private suspend fun resolveHost(network: Network, host: String): List<InetAddress>? =
+        withTimeoutOrNull(DNS_TIMEOUT_MS) {
+            suspendCancellableCoroutine<List<InetAddress>?> { cont ->
+                DnsResolver.getInstance().query(
+                    network,
+                    host,
+                    DnsResolver.FLAG_EMPTY,
+                    { it.run() },
+                    null,
+                    object : DnsResolver.Callback<List<InetAddress>> {
+                        override fun onAnswer(answer: List<InetAddress>, rcode: Int) {
+                            if (cont.isActive) cont.resumeWith(Result.success(answer))
+                        }
+
+                        override fun onError(error: DnsResolver.DnsException) {
+                            Log.e(TAG, "DNS query failed for $host", error)
+                            if (cont.isActive) cont.resumeWith(Result.success(null))
+                        }
+                    },
+                )
+            }
+        }
+
+    private suspend fun awaitValidatedInternet(): Network? {
+        connectivityManager.activeNetwork?.let { current ->
+            val caps = connectivityManager.getNetworkCapabilities(current)
+            if (caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true &&
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                return current
+            }
+        }
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            .build()
+        var registered: ConnectivityManager.NetworkCallback? = null
+        return try {
+            withTimeoutOrNull(NETWORK_WAIT_TIMEOUT_MS) {
+                suspendCancellableCoroutine { cont ->
+                    val callback = object : ConnectivityManager.NetworkCallback() {
+                        override fun onAvailable(network: Network) {
+                            if (cont.isActive) cont.resumeWith(Result.success(network))
+                        }
+                    }
+                    registered = callback
+                    connectivityManager.registerNetworkCallback(request, callback)
+                    cont.invokeOnCancellation {
+                        runCatching { connectivityManager.unregisterNetworkCallback(callback) }
+                        registered = null
+                    }
+                }
+            }
+        } finally {
+            registered?.let {
+                runCatching { connectivityManager.unregisterNetworkCallback(it) }
+            }
+        }
+    }
+
+    private suspend fun executeHttpRequest(action: Action.HttpRequest) =
+        withContext(bgDispatcher) {
+            val token = Binder.clearCallingIdentity()
+            try {
+                val timeout = action.timeoutMs.coerceIn(1000, Action.MAX_HTTP_TIMEOUT_MS)
+                val network = awaitValidatedInternet()
+                    ?: error("No validated internet within timeout")
+                val url = URL(action.url)
+                val resolved = resolveHost(network, url.host)?.takeIf { it.isNotEmpty() }
+                    ?: resolveViaDoh(network, url.host)
+                    ?: error("Unable to resolve ${url.host}")
+                val ip = resolved.first()
+                val responseCode = performRawHttpRequest(network, ip, url, action, timeout)
+                Log.d(TAG, "HTTP ${action.method} ${action.url} -> $responseCode " +
+                    "(via ${ip.hostAddress})")
+            } finally {
+                Binder.restoreCallingIdentity(token)
+            }
+        }
+
+    private suspend fun resolveViaDoh(network: Network, host: String): List<InetAddress>? =
+        withTimeoutOrNull(DNS_TIMEOUT_MS) {
+            runCatching {
+                val dohUrl = URL("https://1.1.1.1/dns-query?name=$host&type=A")
+                val conn = network.openConnection(dohUrl) as HttpURLConnection
+                conn.setRequestProperty("Accept", "application/dns-json")
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                val json = conn.inputStream.bufferedReader().use { it.readText() }
+                conn.disconnect()
+                val answers = JSONObject(json).optJSONArray("Answer") ?: return@runCatching null
+                val results = mutableListOf<InetAddress>()
+                for (i in 0 until answers.length()) {
+                    val data = answers.getJSONObject(i).optString("data")
+                    if (data.isNotBlank()) {
+                        runCatching { InetAddress.getByName(data) }
+                            .getOrNull()?.let { results.add(it) }
+                    }
+                }
+                Log.d(TAG, "DoH $host -> ${results.map { it.hostAddress }}")
+                results.ifEmpty { null }
+            }.getOrNull()
+        }
+
+    private fun performRawHttpRequest(
+        network: Network,
+        ip: InetAddress,
+        url: URL,
+        action: Action.HttpRequest,
+        timeoutMs: Int,
+    ): Int {
+        val host = url.host
+        val isHttps = url.protocol.equals("https", ignoreCase = true)
+        val port = if (url.port != -1) url.port else if (isHttps) 443 else 80
+        val path = (url.path.ifEmpty { "/" }) +
+            (url.query?.let { "?$it" } ?: "")
+
+        val rawSocket: Socket = network.socketFactory.createSocket()
+        rawSocket.connect(InetSocketAddress(ip, port), timeoutMs)
+        rawSocket.soTimeout = timeoutMs
+
+        val socket: Socket = if (isHttps) {
+            val ctx = SSLContext.getInstance("TLS")
+            ctx.init(null, null, null)
+            val ssl = ctx.socketFactory.createSocket(rawSocket, host, port, true) as SSLSocket
+            ssl.sslParameters = ssl.sslParameters.apply {
+                serverNames = listOf(SNIHostName(host))
+            }
+            ssl.startHandshake()
+            ssl
+        } else rawSocket
+
+        return socket.use { s ->
+            val req = buildString {
+                append("${action.method} $path HTTP/1.1\r\n")
+                append("Host: $host\r\n")
+                append("Connection: close\r\n")
+                action.headers.forEach { (k, v) -> append("$k: $v\r\n") }
+                val bodyBytes = action.body?.toByteArray(Charsets.UTF_8)
+                if (bodyBytes != null) {
+                    append("Content-Length: ${bodyBytes.size}\r\n")
+                }
+                append("\r\n")
+                if (action.body != null) append(action.body)
+            }
+            s.getOutputStream().apply {
+                write(req.toByteArray(Charsets.UTF_8))
+                flush()
+            }
+            val reader = BufferedReader(InputStreamReader(s.getInputStream()))
+            val statusLine = reader.readLine() ?: return@use -1
+            statusLine.split(" ", limit = 3).getOrNull(1)?.toIntOrNull() ?: -1
+        }
+    }
+
     private fun ensureNotificationChannel() {
         if (channelCreated) return
         val channel = NotificationChannel(
@@ -207,5 +386,7 @@ class ActionExecutor @Inject constructor(
         private const val TAG = "RoutinesActionExecutor"
         private const val NOTIFICATION_CHANNEL_ID = "ax_routines"
         private const val SOUND_MAX_DURATION_MS = 5000L
+        private const val NETWORK_WAIT_TIMEOUT_MS = 30_000L
+        private const val DNS_TIMEOUT_MS = 10_000L
     }
 }

@@ -44,6 +44,7 @@ sealed interface Trigger {
     data class WifiState(
         val connected: Boolean,
         val ssid: String? = null,
+        val ssidPattern: String? = null,
     ) : Trigger
 
     data class BluetoothState(
@@ -88,6 +89,10 @@ sealed interface Trigger {
         val entering: Boolean,
     ) : Trigger
 
+    data class CaptivePortal(
+        val ssid: String? = null,
+    ) : Trigger
+
     companion object {
         val ALL_DAYS = setOf(
             Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY,
@@ -109,5 +114,6 @@ sealed interface Trigger {
         const val TYPE_APP_CLOSE = "app_close"
         const val TYPE_SENSOR_PRIVACY_STATE = "sensor_privacy_state"
         const val TYPE_LOCATION = "location"
+        const val TYPE_CAPTIVE_PORTAL = "captive_portal"
     }
 }

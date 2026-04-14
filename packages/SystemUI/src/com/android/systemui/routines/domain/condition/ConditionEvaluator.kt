@@ -19,9 +19,13 @@ package com.android.systemui.routines.domain.condition
 import android.content.Context
 import android.location.Location
 import android.location.LocationManager
+import android.net.ConnectivityManager
 import android.net.wifi.WifiManager
 import android.os.BatteryManager
+import android.os.Binder
 import android.os.PowerManager
+import android.util.Log
+import java.net.InetAddress
 import com.android.systemui.ax.AxPlatformStateManager
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
@@ -40,6 +44,7 @@ class ConditionEvaluator @Inject constructor(
     private val stateManager: AxPlatformStateManager,
     private val sensorPrivacyController: IndividualSensorPrivacyController,
     private val locationManager: LocationManager,
+    private val connectivityManager: ConnectivityManager,
 ) {
 
     fun evaluateAll(conditions: List<Condition>): Boolean =
@@ -56,6 +61,7 @@ class ConditionEvaluator @Inject constructor(
         is Condition.FeatureActive -> evaluateFeatureActive(condition)
         is Condition.SensorBlocked -> evaluateSensorBlocked(condition)
         is Condition.LocationNear -> evaluateLocationNear(condition)
+        is Condition.IpAddress -> evaluateIpAddress(condition)
     }
 
     private fun evaluateTimeRange(condition: Condition.TimeRange): Boolean {
@@ -92,9 +98,13 @@ class ConditionEvaluator @Inject constructor(
         val state = stateManager.getState(FEATURE_WIFI)
         val isActive = state.getBoolean("active", false)
         if (!isActive) return false
-        if (condition.ssid == null) return true
+        if (condition.ssid == null && condition.ssidPattern == null) return true
         val wifiManager = context.getSystemService(WifiManager::class.java) ?: return false
-        val currentSsid = wifiManager.connectionInfo?.ssid?.removeSurrounding("\"")
+        val currentSsid = wifiManager.connectionInfo?.ssid?.removeSurrounding("\"") ?: return false
+        if (condition.ssidPattern != null) {
+            return runCatching { Regex(condition.ssidPattern).containsMatchIn(currentSsid) }
+                .getOrDefault(false)
+        }
         return currentSsid == condition.ssid
     }
 
@@ -130,7 +140,69 @@ class ConditionEvaluator @Inject constructor(
         return lastLocation.distanceTo(target) <= condition.radiusMeters
     }
 
+    private fun evaluateIpAddress(condition: Condition.IpAddress): Boolean {
+        val token = Binder.clearCallingIdentity()
+        try {
+            return evaluateIpAddressInternal(condition)
+        } finally {
+            Binder.restoreCallingIdentity(token)
+        }
+    }
+
+    private fun evaluateIpAddressInternal(condition: Condition.IpAddress): Boolean {
+        val network = connectivityManager.activeNetwork
+        if (network == null) {
+            Log.d(TAG, "IP condition: no active network")
+            return false
+        }
+        val linkProperties = connectivityManager.getLinkProperties(network)
+        if (linkProperties == null) {
+            Log.d(TAG, "IP condition: no link properties")
+            return false
+        }
+        val parts = condition.cidr.split("/")
+        if (parts.size != 2) {
+            Log.d(TAG, "IP condition: invalid CIDR format: ${condition.cidr}")
+            return false
+        }
+        val cidrAddress = runCatching { InetAddress.getByName(parts[0]) }.getOrNull()
+        if (cidrAddress == null) {
+            Log.d(TAG, "IP condition: cannot resolve CIDR address: ${parts[0]}")
+            return false
+        }
+        val prefixLength = parts[1].toIntOrNull()
+        if (prefixLength == null) {
+            Log.d(TAG, "IP condition: invalid prefix length: ${parts[1]}")
+            return false
+        }
+        val cidrBytes = cidrAddress.address
+        val matched = linkProperties.linkAddresses.any { linkAddr ->
+            val addrBytes = linkAddr.address.address
+            if (addrBytes.size != cidrBytes.size) return@any false
+            matchesCidr(addrBytes, cidrBytes, prefixLength)
+        }
+        Log.d(TAG, "IP condition: cidr=${condition.cidr} " +
+            "addrs=${linkProperties.linkAddresses.map { it.address.hostAddress }} " +
+            "matched=$matched")
+        return matched
+    }
+
+    private fun matchesCidr(address: ByteArray, network: ByteArray, prefixLength: Int): Boolean {
+        val fullBytes = prefixLength / 8
+        val remainingBits = prefixLength % 8
+        for (i in 0 until fullBytes) {
+            if (address[i] != network[i]) return false
+        }
+        if (remainingBits > 0 && fullBytes < address.size) {
+            val mask = (0xFF shl (8 - remainingBits)).toByte()
+            if ((address[fullBytes].toInt() and mask.toInt()) !=
+                (network[fullBytes].toInt() and mask.toInt())) return false
+        }
+        return true
+    }
+
     companion object {
+        private const val TAG = "RoutinesCondition"
         private const val KEY_BATTERY = "battery"
         private const val FEATURE_WIFI = "wifi"
     }

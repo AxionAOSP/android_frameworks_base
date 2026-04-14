@@ -76,6 +76,14 @@ sealed interface Action {
         val uri: String? = null,
     ) : Action
 
+    data class HttpRequest(
+        val url: String,
+        val method: String = METHOD_GET,
+        val headers: Map<String, String> = emptyMap(),
+        val body: String? = null,
+        val timeoutMs: Int = DEFAULT_HTTP_TIMEOUT_MS,
+    ) : Action
+
     companion object {
         const val TYPE_SET_FEATURE = "set_feature"
         const val TYPE_TOGGLE_FEATURE = "toggle_feature"
@@ -89,5 +97,9 @@ sealed interface Action {
         const val TYPE_SET_SETTING = "set_setting"
         const val TYPE_SET_SENSOR_PRIVACY = "set_sensor_privacy"
         const val TYPE_PLAY_SOUND = "play_sound"
+        const val TYPE_HTTP_REQUEST = "http_request"
+        const val METHOD_GET = "GET"
+        const val DEFAULT_HTTP_TIMEOUT_MS = 15_000
+        const val MAX_HTTP_TIMEOUT_MS = 30_000
     }
 }
