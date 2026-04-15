@@ -1072,5 +1072,11 @@ interface IActivityManager {
     
     void systemThreadBoost(int tid, long duration);
 
+    void flingBoost(boolean active);
+
+    void compositionBoost(long durationMs);
+
+    void gpuBoost(boolean active);
+
     void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera);
 }

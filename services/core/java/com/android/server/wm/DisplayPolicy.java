@@ -143,6 +143,7 @@ import com.android.internal.statusbar.LetterboxDetails;
 import com.android.internal.util.function.TriFunction;
 import com.android.internal.view.AppearanceRegion;
 import com.android.internal.widget.PointerLocationView;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.LocalServices;
 import com.android.server.UiModeManagerInternal;
 import com.android.server.UiThread;
@@ -198,6 +199,10 @@ public class DisplayPolicy {
     private final DisplayContent mDisplayContent;
     private final Object mLock;
     private final Handler mHandler;
+    private final Runnable mFlingBoostEndRunnable = () -> {
+        AxExtServiceFactory.getAxBurstEngine().flingBoost(false);
+        AxExtServiceFactory.getAxBurstEngine().gpuBoost(false);
+    };
 
     private Resources mCurrentUserResources;
 
@@ -568,6 +573,12 @@ public class DisplayPolicy {
                         mService.mPowerManagerInternal.setPowerBoost(
                                 Boost.INTERACTION, duration);
                     }
+                    AxExtServiceFactory.getAxBurstEngine().flingBoost(true);
+                    if (mNotificationShade != null && mNotificationShade.isVisible()) {
+                        AxExtServiceFactory.getAxBurstEngine().gpuBoost(true);
+                    }
+                    mHandler.removeCallbacks(mFlingBoostEndRunnable);
+                    mHandler.postDelayed(mFlingBoostEndRunnable, duration + 160);
                 }
 
                 @Override

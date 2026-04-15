@@ -48,4 +48,13 @@ public interface IAxBurstEngine {
 
     default void launcherItemsLoadingBoost(long duration) {
     }
+
+    default void flingBoost(boolean active) {
+    }
+
+    default void compositionBoost(long durationMs) {
+    }
+
+    default void gpuBoost(boolean active) {
+    }
 }

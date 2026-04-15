@@ -19878,6 +19878,21 @@ public class ActivityManagerService extends IActivityManager.Stub
     }
 
     @Override
+    public void flingBoost(boolean active) {
+        AxExtServiceFactory.getAxBurstEngine().flingBoost(active);
+    }
+
+    @Override
+    public void compositionBoost(long durationMs) {
+        AxExtServiceFactory.getAxBurstEngine().compositionBoost(durationMs);
+    }
+
+    @Override
+    public void gpuBoost(boolean active) {
+        AxExtServiceFactory.getAxBurstEngine().gpuBoost(active);
+    }
+
+    @Override
     public void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera) {
         mHandler.post(() -> {
             AxExtServiceFactory.getMemoryManager().releaseMemory(

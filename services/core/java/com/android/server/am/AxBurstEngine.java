@@ -30,6 +30,7 @@ import android.provider.Settings;
 import android.util.Slog;
 import com.android.server.NtServiceInjector;
 import com.android.server.UiThread;
+import com.android.server.wm.AxRefreshRateController;
 import com.android.internal.util.ScrollOptimizer;
 import java.io.File;
 import java.io.IOException;
@@ -88,6 +89,8 @@ public class AxBurstEngine implements IAxBurstEngine {
 
     private boolean mBackgroundLimited = false;
     private boolean mSfBoosted = false;
+    private boolean mSfBindPersistent = false;
+    private boolean mFlingBoosted = false;
     private final Runnable inputReset = new InputBoostResetRunnable();
     private final Runnable sfBindReset = new SfBindControlRunnable();
 
@@ -161,8 +164,17 @@ public class AxBurstEngine implements IAxBurstEngine {
         BoostSettingsRepository repo = new BoostSettingsRepository(mDeviceData, mHandler);
 
         repo.setOnSettingsChangeListener(this::updateConfigs);
-        
+
+        mSfBindPersistent = true;
+        mHandler.post(() -> sfBindCoreControll(true));
+
         mSystemReady = true;
+    }
+
+    public void onWakefulnessChanged(boolean awake) {
+        if (!mSystemReady) return;
+        mSfBindPersistent = awake;
+        mHandler.post(() -> sfBindCoreControll(awake));
     }
 
     public DeviceData getDeviceData() {
@@ -185,10 +197,10 @@ public class AxBurstEngine implements IAxBurstEngine {
         sDefaultsCpu.put(CPU_BG, data.bgCpus);
         sDefaultsCpu.put(CPU_TOP_APP, data.allCores);
         sDefaultsCpu.put(CPU_CAMERA, data.allCores);
-        sDefaultsCpu.put(CPU_FG, data.allCores);
-        sDefaultsCpu.put(CPU_SVP, data.boostCpus);
+        sDefaultsCpu.put(CPU_FG, data.fgCpus);
+        sDefaultsCpu.put(CPU_SVP, data.svpCpus);
         sDefaultsCpu.put(CPU_DEX2OAT, data.bgCpus);
-        sDefaultsCpu.put(CPU_AX_FG, data.allCores);
+        sDefaultsCpu.put(CPU_AX_FG, data.fgCpus);
         sDefaultsCpu.put(CPU_L_BG, data.bgLimit);
         sDefaultsCpu.put(CPU_H_BG, data.bgCpus);
         sDefaultsCpu.put(CPU_NNAPI_HAL, data.sCores);
@@ -291,7 +303,7 @@ public class AxBurstEngine implements IAxBurstEngine {
         if (mData == null) return;
         final long duration = limit ? 0L : -1L;
         final String bgLimit = limit ? mData.bgLimit : mData.bgCpus;
-        final String axFgLimit = limit ? mData.uiLimit : mData.allCores;
+        final String axFgLimit = limit ? mData.uiLimit : mData.fgCpus;
         adjustCpusetCpus(CPU_H_BG, bgLimit, duration);
         adjustCpusetCpus(CPU_AX_FG, axFgLimit, duration);
         adjustCpusetCpus(CPU_DEX2OAT, bgLimit, duration);
@@ -315,6 +327,70 @@ public class AxBurstEngine implements IAxBurstEngine {
         public void run() {
             sfBindCoreControll(false);
         }
+    }
+
+    private boolean mGpuBoosted = false;
+    private final Runnable mGpuBoostReset = () -> gpuBoost(false);
+
+    public void gpuBoost(boolean active) {
+        if (mGpuBoosted == active) return;
+        String path = DeviceData.getGpuMinPath();
+        if (path == null) return;
+        int target = active ? DeviceData.getGpuBoostHz() : DeviceData.getGpuDefaultMinHz();
+        if (target <= 0) return;
+        mHandler.post(() -> AxUtils.write(path, String.valueOf(target)));
+        mGpuBoosted = active;
+    }
+
+    public void compositionBoost(long durationMs) {
+        if (durationMs <= 0) return;
+        flingBoost(true);
+        gpuBoost(true);
+        mHandler.removeCallbacks(mCompositionBoostReset);
+        mHandler.postDelayed(mCompositionBoostReset, durationMs);
+    }
+
+    private final Runnable mCompositionBoostReset = () -> {
+        flingBoost(false);
+        gpuBoost(false);
+    };
+
+    public void flingBoost(boolean active) {
+        if (mData == null) return;
+        if (gameActive()) return;
+        if (mFlingBoosted == active) return;
+
+        if (active) {
+            applyFlingFreq();
+            adjustCpusetCpus(CPU_TOP_APP, mData.boostCpus, 0L);
+            AxRefreshRateController.getInstance().setFlingBoost(true);
+            mFlingBoosted = true;
+        } else {
+            restoreFlingFreq();
+            adjustCpusetCpus(CPU_TOP_APP, mData.allCores, -1L);
+            AxRefreshRateController.getInstance().setFlingBoost(false);
+            mFlingBoosted = false;
+        }
+    }
+
+    private void applyFlingFreq() {
+        if (mData == null) return;
+        mHandler.post(() -> {
+            if (mData.bMin != null && mData.bBoostHz > 0) {
+                AxUtils.write(mData.bMin, String.valueOf(mData.bBoostHz));
+            }
+            if (mData.pMin != null && mData.pBoostHz > 0) {
+                AxUtils.write(mData.pMin, String.valueOf(mData.pBoostHz));
+            }
+        });
+    }
+
+    private void restoreFlingFreq() {
+        if (mData == null) return;
+        mHandler.post(() -> {
+            if (mData.bMin != null && mData.uBMin != null) AxUtils.write(mData.bMin, mData.uBMin);
+            if (mData.pMin != null && mData.uPMin != null) AxUtils.write(mData.pMin, mData.uPMin);
+        });
     }
 
     private static class CpusetData {
@@ -368,13 +444,13 @@ public class AxBurstEngine implements IAxBurstEngine {
                 case MSG_CPU_UPDATE_FG:
                     fgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
                     if (fgCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_FG, mData.allCores);
+                        restoreCpuset(CPU_FG, mData.fgCpus);
                     }
                     break;
                 case MSG_CPU_UPDATE_RES:
                     svpCpusetOverrides.remove(Integer.valueOf(msg.arg1));
                     if (svpCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_SVP, mData.boostCpus);
+                        restoreCpuset(CPU_SVP, mData.svpCpus);
                     }
                     break;
                 case MSG_CPU_UPDATE_DEX:
@@ -386,7 +462,7 @@ public class AxBurstEngine implements IAxBurstEngine {
                 case MSG_CPU_UPDATE_AX_FG:
                     axFgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
                     if (axFgCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_AX_FG, mData.allCores);
+                        restoreCpuset(CPU_AX_FG, mData.fgCpus);
                     }
                     break;
                 case MSG_CPU_UPDATE_L_BG:
@@ -445,6 +521,7 @@ public class AxBurstEngine implements IAxBurstEngine {
     }
 
     private void sfBindCoreControll(boolean enabled) {
+        if (!enabled && mSfBindPersistent) return;
         IBinder b = ServiceManager.getService("SurfaceFlinger");
         if (b == null) return;
         Parcel p = Parcel.obtain();

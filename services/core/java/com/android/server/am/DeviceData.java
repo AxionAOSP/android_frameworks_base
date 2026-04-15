@@ -38,6 +38,7 @@ public final class DeviceData {
     private static final String CPUINFO_MAX_FREQ_FILE = "/cpufreq/cpuinfo_max_freq";
     private static final String SCALING_AVAILABLE_FREQ_FILE = "/cpufreq/scaling_available_frequencies";
 
+
     public static final String CPU_BG = AxUtils.cpuPath("background");
     public static final String CPU_SYS_BG = AxUtils.cpuPath("system-background");
     public static final String CPU_FG = AxUtils.cpuPath("foreground");
@@ -80,8 +81,9 @@ public final class DeviceData {
                 cData.sMax, cData.bMax, cData.pMax, cData.allCores,
                 s(uSMin), s(uBMin), s(uPMin),
                 s(uSMax), s(uBMax), s(uPMax),
-                cData.bgCpus, cData.fgCpus,
-                cData.bgLimit, cData.uiLimit, cData.fgLimited
+                cData.bgCpus, cData.fgCpus, cData.svpCpus,
+                cData.bgLimit, cData.uiLimit, cData.fgLimited,
+                cData.sBoostHz, cData.bBoostHz, cData.pBoostHz
         );
         logger("updateSettings: " + data);
     }
@@ -110,10 +112,15 @@ public final class DeviceData {
 
         public final String bgCpus;
         public final String fgCpus;
+        public final String svpCpus;
 
         public final String bgLimit;
         public final String uiLimit;
         public final String fgLimited;
+
+        public final int sBoostHz;
+        public final int bBoostHz;
+        public final int pBoostHz;
 
         public BoostData(
                 boolean hasPrime,
@@ -136,9 +143,13 @@ public final class DeviceData {
                 String uPMax,
                 String bgCpus,
                 String fgCpus,
+                String svpCpus,
                 String bgLimit,
                 String uiLimit,
-                String fgLimited
+                String fgLimited,
+                int sBoostHz,
+                int bBoostHz,
+                int pBoostHz
         ) {
             this.hasPrime = hasPrime;
 
@@ -163,10 +174,15 @@ public final class DeviceData {
 
             this.bgCpus = bgCpus;
             this.fgCpus = fgCpus;
+            this.svpCpus = svpCpus;
 
             this.bgLimit = bgLimit;
             this.uiLimit = uiLimit;
             this.fgLimited = fgLimited;
+
+            this.sBoostHz = sBoostHz;
+            this.bBoostHz = bBoostHz;
+            this.pBoostHz = pBoostHz;
         }
     }
 
@@ -185,20 +201,26 @@ public final class DeviceData {
 
         public final String bgCpus;
         public final String fgCpus;
+        public final String svpCpus;
         public final String bgLimit;
         public final String uiLimit;
         public final String fgLimited;
-        
+
         public boolean hasPrime;
+
+        public final int sBoostHz;
+        public final int bBoostHz;
+        public final int pBoostHz;
 
         public CpuData(
                 String sCores, String bCores, String pCores, String boostCpus,
                 String sMin, String bMin, String pMin,
                 String sMax, String bMax, String pMax,
                 String allCores,
-                String bgCpus, String fgCpus,
+                String bgCpus, String fgCpus, String svpCpus,
                 String bgLimit, String uiLimit, String fgLimited,
-                boolean hasPrime
+                boolean hasPrime,
+                int sBoostHz, int bBoostHz, int pBoostHz
         ) {
             this.sCores = sCores;
             this.bCores = bCores;
@@ -213,10 +235,14 @@ public final class DeviceData {
             this.allCores = allCores;
             this.bgCpus = bgCpus;
             this.fgCpus = fgCpus;
+            this.svpCpus = svpCpus;
             this.bgLimit = bgLimit;
             this.uiLimit = uiLimit;
             this.hasPrime = hasPrime;
             this.fgLimited = fgLimited;
+            this.sBoostHz = sBoostHz;
+            this.bBoostHz = bBoostHz;
+            this.pBoostHz = pBoostHz;
         }
     }
 
@@ -323,15 +349,23 @@ public final class DeviceData {
                 "ax_cpu_prime_freqs", String.join(",", pAvailableFreqs), UserHandle.USER_CURRENT);
         }
 
+        int sBoostHz = pickBoostFreq(sAvailableFreqs, BOOST_PERCENT_LITTLE);
+        int bBoostHz = pickBoostFreq(bAvailableFreqs, BOOST_PERCENT_BIG);
+        int pBoostHz = pickBoostFreq(pAvailableFreqs, BOOST_PERCENT_PRIME);
+        if (pBoostHz == 0) pBoostHz = bBoostHz;
+
         String smallR = toRange(sCores);
         String bigR = toRange(bCores);
         String primeR = toRange(pCores);
 
         String bgCpus = rangeTo(sCores, 3);
-        String fgLimited = joinRanges(smallR, rangeTo(bCores, 2));
-        String fgCpus = allCores;
+        String fgLimited = joinRanges(smallR, rangeTo(bCores, 1));
         String boostCpus = joinRanges(bigR, primeR);
         if (boostCpus.isEmpty()) boostCpus = allCores;
+
+        int primeCount = pCores.isEmpty() ? 0 : pCores.split(",").length;
+        String fgCpus = (primeCount >= 2) ? joinRanges(smallR, bigR) : allCores;
+        String svpCpus = (primeCount >= 2) ? primeR : boostCpus;
 
         String bgLimit = rangeTo(sCores, 2);
         String uiLimit = rangeTo(sCores, 3);
@@ -367,9 +401,10 @@ public final class DeviceData {
                 sMin, bMin, pMin,
                 sMax, bMax, pMax,
                 allCores,
-                bgCpus, fgCpus,
+                bgCpus, fgCpus, svpCpus,
                 bgLimit, uiLimit, fgLimited,
-                hasPrime
+                hasPrime,
+                sBoostHz, bBoostHz, pBoostHz
         );
     }
     
@@ -378,6 +413,86 @@ public final class DeviceData {
         if (memGb <= 0) return;
         AxUtils.propSetF("persist.sys.device_ram_size", String.valueOf(memGb));
         AxUtils.logger("initDeviceMemoryData: RAM size data: " + memGb + "GB");
+    }
+
+    private static final int BOOST_PERCENT_LITTLE = 0;
+    private static final int BOOST_PERCENT_BIG = 85;
+    private static final int BOOST_PERCENT_PRIME = 75;
+    private static final int BOOST_PERCENT_GPU = 67;
+
+    private static volatile String sGpuMinPath = null;
+    private static volatile int sGpuBoostHz = 0;
+    private static volatile int sGpuDefaultMinHz = 0;
+    private static volatile String[] sGpuFreqs = new String[0];
+    private static volatile boolean sGpuInitDone = false;
+
+    public static String getGpuMinPath() { ensureGpuInit(); return sGpuMinPath; }
+    public static int getGpuBoostHz() { ensureGpuInit(); return sGpuBoostHz; }
+    public static int getGpuDefaultMinHz() { ensureGpuInit(); return sGpuDefaultMinHz; }
+    public static String[] getGpuFreqs() { ensureGpuInit(); return sGpuFreqs; }
+
+    private static synchronized void ensureGpuInit() {
+        if (sGpuInitDone) return;
+        sGpuInitDone = true;
+        String minPath = SystemProperties.get("persist.sys.axion_gpu_minfreq_file", "");
+        String freqsPath = SystemProperties.get("persist.sys.axion_gpu_freqs_path", "");
+        if (minPath.isEmpty() || freqsPath.isEmpty()) return;
+
+        String[] freqs = readGpuAvailableFreqs(freqsPath);
+        if (freqs.length == 0) return;
+
+        int boostHz = pickBoostFreq(freqs, BOOST_PERCENT_GPU);
+        int idleHz = pickMinFreq(freqs);
+        if (boostHz <= 0) return;
+
+        sGpuMinPath = minPath;
+        sGpuBoostHz = boostHz;
+        sGpuDefaultMinHz = idleHz;
+        sGpuFreqs = freqs;
+
+        Context ctx = NtServiceInjector.get().getContext();
+        if (ctx != null) {
+            Settings.Secure.putStringForUser(ctx.getContentResolver(),
+                "ax_gpu_freqs", String.join(",", freqs), UserHandle.USER_CURRENT);
+        }
+
+        AxUtils.logger("Gpu init: minPath=" + minPath + " freqs=" + Arrays.toString(freqs)
+                + " boostHz=" + boostHz + " idleHz=" + idleHz);
+    }
+
+    private static String[] readGpuAvailableFreqs(String path) {
+        String buf = AxUtils.readBufFile(path);
+        if (buf == null || buf.trim().isEmpty()) return new String[0];
+        return buf.trim().split("\\s+");
+    }
+
+    private static int pickMinFreq(String[] freqs) {
+        int min = Integer.MAX_VALUE;
+        for (String f : freqs) {
+            try {
+                int v = Integer.parseInt(f.trim());
+                if (v > 0 && v < min) min = v;
+            } catch (NumberFormatException ignored) {}
+        }
+        return min == Integer.MAX_VALUE ? 0 : min;
+    }
+
+    private static int pickBoostFreq(String[] freqs, int percent) {
+        if (percent <= 0 || freqs == null || freqs.length == 0) return 0;
+        int[] sorted = new int[freqs.length];
+        int n = 0;
+        for (String f : freqs) {
+            try {
+                sorted[n++] = Integer.parseInt(f.trim());
+            } catch (NumberFormatException ignored) {}
+        }
+        if (n == 0) return 0;
+        Arrays.sort(sorted, 0, n);
+        long target = (long) sorted[n - 1] * percent / 100;
+        for (int i = 0; i < n; i++) {
+            if (sorted[i] >= target) return sorted[i];
+        }
+        return sorted[n - 1];
     }
 
     private String[] readAvailableFrequencies(String cpuIndex) {

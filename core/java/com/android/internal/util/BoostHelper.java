@@ -49,7 +49,31 @@ public class BoostHelper {
             logException("systemThreadBoost", e);
         }
     }
-    
+
+    public static void flingBoost(boolean active) {
+        try {
+            ActivityManager.getService().flingBoost(active);
+        } catch (Exception e) {
+            logException("flingBoost", e);
+        }
+    }
+
+    public static void compositionBoost(long durationMs) {
+        try {
+            ActivityManager.getService().compositionBoost(durationMs);
+        } catch (Exception e) {
+            logException("compositionBoost", e);
+        }
+    }
+
+    public static void gpuBoost(boolean active) {
+        try {
+            ActivityManager.getService().gpuBoost(active);
+        } catch (Exception e) {
+            logException("gpuBoost", e);
+        }
+    }
+
     private static void logException(String method, Exception e) {
         if (DEBUG) {
             Log.w(TAG, method + " failed", e);

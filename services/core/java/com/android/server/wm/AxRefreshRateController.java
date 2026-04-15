@@ -71,6 +71,7 @@ public class AxRefreshRateController {
     private static final int BOOST_ANIM = 1 << 1;
     private static final int BOOST_FOCUS = 1 << 2;
     private static final int BOOST_OVERLAY = 1 << 3;
+    private static final int BOOST_FLING = 1 << 4;
 
     private static final long DISPLAY_CHANGE_REQUERY_DELAY_MS = 500;
 
@@ -151,7 +152,7 @@ public class AxRefreshRateController {
 
     private final Runnable mIdleRunnable = () -> {
         long elapsed = SystemClock.uptimeMillis() - mLastActivityTime;
-        if (elapsed >= mIdleTimeoutMs && !hasBoost(BOOST_ANIM | BOOST_OVERLAY)) {
+        if (elapsed >= mIdleTimeoutMs && !hasBoost(BOOST_ANIM | BOOST_OVERLAY | BOOST_FLING)) {
             clearBoost(BOOST_TOUCH);
             syncDisplaySettings();
         }
@@ -238,6 +239,25 @@ public class AxRefreshRateController {
             mBgHandler.post(this::syncDisplaySettings);
         }
         scheduleIdleCheck();
+    }
+
+    public void setFlingBoost(boolean active) {
+        if (!mInitialized || !mVrrEnabled) return;
+        if (mAppOverrideActive || mGamingActive) return;
+        if (mLockscreenLimitEnabled && !mKeyguardDone) return;
+        boolean was = hasBoost(BOOST_FLING);
+        if (was == active) return;
+        if (active) {
+            setBoost(BOOST_FLING);
+        } else {
+            clearBoost(BOOST_FLING);
+        }
+        mLastActivityTime = SystemClock.uptimeMillis();
+        if (active) {
+            mBgHandler.post(this::syncDisplaySettings);
+        } else {
+            scheduleIdleCheck();
+        }
     }
 
     public void setAnimating(boolean animating) {
@@ -659,6 +679,7 @@ public class AxRefreshRateController {
         if ((boosts & BOOST_ANIM) != 0) sb.append("ANIM|");
         if ((boosts & BOOST_FOCUS) != 0) sb.append("FOCUS|");
         if ((boosts & BOOST_OVERLAY) != 0) sb.append("OVERLAY|");
+        if ((boosts & BOOST_FLING) != 0) sb.append("FLING|");
         sb.setLength(sb.length() - 1);
         return sb.toString();
     }
