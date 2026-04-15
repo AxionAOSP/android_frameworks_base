@@ -49,7 +49,7 @@ public class ScrollOptimizer {
     private static final long DEFAULT_FRAME_DELAY_MS = 10L;
     private static final long OPTIMIZED_FRAME_DELAY_MS = 3L;
     private static final long FLING_END_TIMEOUT_MS = 3000L;
-    private static final long ANIM_AHEAD_MARGIN_NS = 2_000_000L;
+    private static final long ANIM_AHEAD_MARGIN_NS = 1_500_000L;
 
     private static int sInitialUndequeued = 4;
     private static int sFallbackUndequeued = 3;
@@ -492,7 +492,7 @@ public class ScrollOptimizer {
         if (!sFeatureEnabled || !sAnimAheadEnabled || Process.myTid() != sPid) {
             return false;
         }
-        if (mLastFlingFlg != FLING_START) {
+        if (mLastFlingFlg != FLING_START && sMotionType != MOTION_SCROLL) {
             return false;
         }
         if (sAnimAheadActive) {
