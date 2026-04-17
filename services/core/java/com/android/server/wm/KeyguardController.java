@@ -61,6 +61,8 @@ import android.view.Display;
 import android.view.WindowManager;
 
 import com.android.internal.policy.IKeyguardDismissCallback;
+import com.android.internal.os.BackgroundThread;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.inputmethod.InputMethodManagerInternal;
 import com.android.server.policy.WindowManagerPolicy;
 import com.android.window.flags.Flags;
@@ -247,6 +249,11 @@ class KeyguardController {
         if (displayId == DEFAULT_DISPLAY && keyguardChanged) {
             AxRefreshRateController.getInstance().setKeyguardDone(!keyguardShowing);
             GameSpaceService.get().onKeyguardChanged(keyguardShowing);
+            if (!keyguardShowing) {
+                AxExtServiceFactory.getAxBurstEngine().shadeBoost(true);
+                BackgroundThread.getHandler().removeCallbacks(mKeyguardDoneBoostRelease);
+                BackgroundThread.getHandler().postDelayed(mKeyguardDoneBoostRelease, 600L);
+            }
         }
 
         if (keyguardChanged || (mWindowManager.mFlags.mAodTransition && aodChanged)) {
@@ -647,6 +654,9 @@ class KeyguardController {
             updateDeferTransitionForAod(false /* waiting */);
         }
     };
+
+    private final Runnable mKeyguardDoneBoostRelease = () ->
+            AxExtServiceFactory.getAxBurstEngine().shadeBoost(false);
 
     // Defer transition until AOD dismissed.
     void updateDeferTransitionForAod(boolean waiting) {

@@ -55,6 +55,13 @@ public interface IAxBurstEngine {
     default void compositionBoost(long durationMs) {
     }
 
+    default void compositionBoost(long durationMs, int topAppPid) {
+    }
+
+    default boolean isCompositionBoosting() {
+        return false;
+    }
+
     default void gpuBoost(boolean active) {
     }
 

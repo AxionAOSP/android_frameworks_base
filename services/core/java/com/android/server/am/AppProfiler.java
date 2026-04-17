@@ -102,6 +102,7 @@ import com.android.internal.util.FastPrintWriter;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.internal.util.MemInfoReader;
 import com.android.internal.util.QuickSelect;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.am.LowMemDetector.MemFactor;
 import com.android.server.power.stats.BatteryStatsImpl;
 import com.android.server.utils.PriorityDump;
@@ -1398,6 +1399,9 @@ public class AppProfiler {
         mLastNumProcesses = mService.mProcessList.getLruSizeLOSP();
 
         // Dispatch UI_HIDDEN to processes that need it
+        if (AxExtServiceFactory.getAxBurstEngine().isCompositionBoosting()) {
+            return;
+        }
         mService.mProcessList.forEachLruProcessesLOSP(
                 true,
                 app -> {
@@ -1440,6 +1444,9 @@ public class AppProfiler {
 
     @GuardedBy({"mService", "mProcLock"})
     private void scheduleTrimMemoryLSP(ProcessRecord app, int level, String msg) {
+        if (AxExtServiceFactory.getAxBurstEngine().isCompositionBoosting()) {
+            return;
+        }
         IApplicationThread thread;
         if (app.mProfile.getTrimMemoryLevel() < level && (thread = app.getThread()) != null) {
             try {

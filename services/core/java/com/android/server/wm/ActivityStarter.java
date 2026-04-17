@@ -1742,6 +1742,8 @@ class ActivityStarter {
             mService.deferWindowLayout();
             r.mTransitionController.collect(r);
             try {
+                AxExtServiceFactory.getAxBurstEngine().compositionBoost(800L,
+                        r.app != null ? r.app.getPid() : 0);
                 Trace.traceBegin(Trace.TRACE_TAG_WINDOW_MANAGER, "startActivityInner");
                 result = startActivityInner(r, sourceRecord, voiceSession, voiceInteractor,
                         startFlags, options, inTask, inTaskFragment, balVerdict,

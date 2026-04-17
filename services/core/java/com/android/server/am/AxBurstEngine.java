@@ -22,7 +22,6 @@ import static android.os.Process.*;
 
 import android.app.role.RoleManager;
 import android.content.Context;
-import android.hardware.power.Mode;
 import android.os.*;
 import android.os.Process;
 import android.os.Handler;
@@ -78,6 +77,8 @@ public class AxBurstEngine implements IAxBurstEngine {
     public static final String CPU_RT = AxUtils.cpuPath("rt");
     public static final String CPU_SYSTEM = AxUtils.cpuPath("system");
     public static final String CPU_SYSUI = AxUtils.cpuPath("systemui");
+
+    private static final String FG_UCLAMP_MIN = "/dev/cpuctl/foreground/cpu.uclamp.min";
     
     private ProcessList procList;
     private Context mContext;
@@ -173,6 +174,7 @@ public class AxBurstEngine implements IAxBurstEngine {
 
         mSfBindPersistent = true;
         mHandler.post(() -> sfBindCoreControll(true));
+        mHandler.post(() -> AxUtils.write(FG_UCLAMP_MIN, "30"));
 
         mSystemReady = true;
     }
@@ -337,6 +339,7 @@ public class AxBurstEngine implements IAxBurstEngine {
     }
 
     private boolean mGpuBoosted = false;
+    private boolean mGpuMaxBoosted = false;
     private final Runnable mGpuBoostReset = () -> gpuBoost(false);
 
     public void gpuBoost(boolean active) {
@@ -357,17 +360,89 @@ public class AxBurstEngine implements IAxBurstEngine {
         mGpuBoosted = active;
     }
 
+    public void gpuMaxBoost(boolean active) {
+        if (mGpuMaxBoosted == active) return;
+        if (DeviceData.isGpuOppMode()) {
+            String oppPath = DeviceData.getGpuOppPath();
+            if (oppPath == null) return;
+            int idx = active ? 0 : DeviceData.getGpuDefaultOppIndex();
+            mHandler.post(() -> AxUtils.write(oppPath, String.valueOf(idx)));
+            mGpuMaxBoosted = active;
+            return;
+        }
+        gpuBoost(active);
+    }
+
     public void compositionBoost(long durationMs) {
+        compositionBoost(durationMs, 0);
+    }
+
+    private int mCompTopAppPid = 0;
+    private int mCompRenderTid = 0;
+    private volatile boolean mCompositionBoosting = false;
+
+    @Override
+    public boolean isCompositionBoosting() {
+        return mCompositionBoosting;
+    }
+
+    public void compositionBoost(long durationMs, int topAppPid) {
         if (durationMs <= 0) return;
+        mCompositionBoosting = true;
         flingBoost(true);
-        gpuBoost(true);
+        applySmallFreqBoost();
+        gpuMaxBoost(true);
+        if (mData != null && !mShadeBoosted) {
+            String uiCpus = (mData.pCores != null && !mData.pCores.isEmpty())
+                    ? mData.pCores : mData.bCores;
+            if (uiCpus != null && !uiCpus.isEmpty()) {
+                adjustCpusetCpus(CPU_SVP, uiCpus, 0L);
+            }
+        }
+        if (topAppPid > 0) {
+            ProcessRecord pr = NtServiceInjector.getAm().getProcessRecordByPid(topAppPid);
+            if (pr != null) {
+                int rtTid = pr.getRenderThreadTid();
+                mCompTopAppPid = topAppPid;
+                mCompRenderTid = rtTid;
+                mHandler.post(() -> {
+                    bumpToUrgentDisplay(topAppPid);
+                    if (rtTid > 0) bumpToUrgentDisplay(rtTid);
+                });
+            }
+        }
         mHandler.removeCallbacks(mCompositionBoostReset);
         mHandler.postDelayed(mCompositionBoostReset, durationMs);
     }
 
+    private final HashMap<Integer, Integer> mCompOrigPriorities = new HashMap<>();
+
+    private void bumpToUrgentDisplay(int tid) {
+        try {
+            int orig = Process.getThreadPriority(tid);
+            mCompOrigPriorities.put(tid, orig);
+            Process.setThreadPriority(tid, Process.THREAD_PRIORITY_URGENT_DISPLAY);
+        } catch (Exception ignored) {}
+    }
+
+    private void restoreCompPriorities() {
+        for (HashMap.Entry<Integer, Integer> e : mCompOrigPriorities.entrySet()) {
+            try { Process.setThreadPriority(e.getKey(), e.getValue()); } catch (Exception ignored) {}
+        }
+        mCompOrigPriorities.clear();
+        mCompTopAppPid = 0;
+        mCompRenderTid = 0;
+    }
+
     private final Runnable mCompositionBoostReset = () -> {
         flingBoost(false);
-        gpuBoost(false);
+        restoreSmallFreq();
+        gpuMaxBoost(false);
+        if (mData != null && !mShadeBoosted) {
+            adjustCpusetCpus(CPU_SVP, mData.svpCpus, -1L);
+        }
+        restoreCompPriorities();
+        mCompositionBoosting = false;
     };
 
     public void shadeBoost(boolean active) {
@@ -438,6 +513,22 @@ public class AxBurstEngine implements IAxBurstEngine {
         mHandler.post(() -> {
             if (mData.bMin != null && mData.uBMin != null) AxUtils.write(mData.bMin, mData.uBMin);
             if (mData.pMin != null && mData.uPMin != null) AxUtils.write(mData.pMin, mData.uPMin);
+        });
+    }
+
+    private void applySmallFreqBoost() {
+        if (mData == null) return;
+        mHandler.post(() -> {
+            if (mData.sMin != null && mData.sBoostHz > 0) {
+                AxUtils.write(mData.sMin, String.valueOf(mData.sBoostHz));
+            }
+        });
+    }
+
+    private void restoreSmallFreq() {
+        if (mData == null) return;
+        mHandler.post(() -> {
+            if (mData.sMin != null && mData.uSMin != null) AxUtils.write(mData.sMin, mData.uSMin);
         });
     }
 

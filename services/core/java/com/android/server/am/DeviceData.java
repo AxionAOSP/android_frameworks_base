@@ -445,7 +445,7 @@ public final class DeviceData {
         AxUtils.logger("initDeviceMemoryData: RAM size data: " + memGb + "GB");
     }
 
-    private static final int BOOST_PERCENT_LITTLE = 0;
+    private static final int BOOST_PERCENT_LITTLE = 100;
     private static final int BOOST_PERCENT_BIG = 85;
     private static final int BOOST_PERCENT_PRIME = 75;
     private static final int BOOST_PERCENT_GPU = 67;
