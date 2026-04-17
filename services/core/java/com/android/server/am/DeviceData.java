@@ -360,11 +360,38 @@ public final class DeviceData {
 
         String bgCpus = rangeTo(sCores, 3);
         String fgLimited = joinRanges(smallR, rangeTo(bCores, 1));
-        String boostCpus = joinRanges(bigR, primeR);
-        if (boostCpus.isEmpty()) boostCpus = allCores;
 
         int primeCount = pCores.isEmpty() ? 0 : pCores.split(",").length;
-        String fgCpus = (primeCount >= 2) ? joinRanges(smallR, bigR) : allCores;
+        int bigCount = bCores.isEmpty() ? 0 : bCores.split(",").length;
+        int smallCount = sCores.isEmpty() ? 0 : sCores.split(",").length;
+
+        int nonPrimeTotal = smallCount + bigCount;
+        int fgTarget = Math.max((cpuCount * 3 + 3) / 4, nonPrimeTotal);
+        String fgCpus;
+        if (primeCount >= 2) {
+            fgCpus = joinRanges(smallR, bigR);
+        } else if (fgTarget >= nonPrimeTotal) {
+            fgCpus = joinRanges(smallR, bigR);
+        } else {
+            fgCpus = allCores;
+        }
+
+        String boostCpus;
+        if (primeCount > 0) {
+            boostCpus = joinRanges(bigR, primeR);
+        } else {
+            int boostTarget = cpuCount / 2;
+            if (bigCount >= boostTarget) {
+                boostCpus = bigR;
+            } else {
+                int smallNeeded = boostTarget - bigCount;
+                int smallTailStart = smallCount - smallNeeded;
+                if (smallTailStart < 0) smallTailStart = 0;
+                String smallTail = rangeTail(sCores, smallTailStart);
+                boostCpus = joinRanges(smallTail, bigR);
+            }
+        }
+
         String svpCpus = (primeCount >= 2) ? primeR : boostCpus;
 
         String bgLimit = rangeTo(sCores, 2);
@@ -380,6 +407,9 @@ public final class DeviceData {
         propSet("cpu_audio", fgLimited);
         propSet("cpu_limit_bg", bgLimit);
         propSet("cpu_limit_ui", uiLimit);
+        propSet("cpu_boost_small", String.valueOf(sBoostHz));
+        propSet("cpu_boost_big", String.valueOf(bBoostHz));
+        propSet("cpu_boost_prime", String.valueOf(pBoostHz));
         
         boolean hasPrime = pCores != null && !pCores.isEmpty();
 
@@ -420,20 +450,35 @@ public final class DeviceData {
     private static final int BOOST_PERCENT_PRIME = 75;
     private static final int BOOST_PERCENT_GPU = 67;
 
+    private static final int GPU_OPP_DEFAULT_INDEX = -1;
+
     private static volatile String sGpuMinPath = null;
     private static volatile int sGpuBoostHz = 0;
     private static volatile int sGpuDefaultMinHz = 0;
     private static volatile String[] sGpuFreqs = new String[0];
     private static volatile boolean sGpuInitDone = false;
 
+    private static volatile boolean sGpuUseOpp = false;
+    private static volatile String sGpuOppPath = null;
+    private static volatile int sGpuBoostOppIndex = GPU_OPP_DEFAULT_INDEX;
+    private static volatile int sGpuOppCount = 0;
+
     public static String getGpuMinPath() { ensureGpuInit(); return sGpuMinPath; }
     public static int getGpuBoostHz() { ensureGpuInit(); return sGpuBoostHz; }
     public static int getGpuDefaultMinHz() { ensureGpuInit(); return sGpuDefaultMinHz; }
     public static String[] getGpuFreqs() { ensureGpuInit(); return sGpuFreqs; }
 
+    public static boolean isGpuOppMode() { ensureGpuInit(); return sGpuUseOpp; }
+    public static String getGpuOppPath() { ensureGpuInit(); return sGpuOppPath; }
+    public static int getGpuBoostOppIndex() { ensureGpuInit(); return sGpuBoostOppIndex; }
+    public static int getGpuDefaultOppIndex() { return GPU_OPP_DEFAULT_INDEX; }
+
     private static synchronized void ensureGpuInit() {
         if (sGpuInitDone) return;
         sGpuInitDone = true;
+
+        if (initGpuOpp()) return;
+
         String minPath = SystemProperties.get("persist.sys.axion_gpu_minfreq_file", "");
         String freqsPath = SystemProperties.get("persist.sys.axion_gpu_freqs_path", "");
         if (minPath.isEmpty() || freqsPath.isEmpty()) return;
@@ -458,6 +503,52 @@ public final class DeviceData {
 
         AxUtils.logger("Gpu init: minPath=" + minPath + " freqs=" + Arrays.toString(freqs)
                 + " boostHz=" + boostHz + " idleHz=" + idleHz);
+    }
+
+    private static boolean initGpuOpp() {
+        String oppIndexPath = SystemProperties.get("persist.sys.axion_gpu_opp_index_file", "");
+        String oppTablePath = SystemProperties.get("persist.sys.axion_gpu_opp_table_file", "");
+        if (oppIndexPath.isEmpty() || oppTablePath.isEmpty()) return false;
+
+        String buf = AxUtils.readBufFile(oppIndexPath);
+        if (buf == null) {
+            AxUtils.logger("GPU opp path not found!!");
+            propSet("gpu_boost_use_opp", "false");
+            return false;
+        }
+
+        int maxOpp = parseOppCount(oppTablePath);
+        if (maxOpp <= 0) {
+            AxUtils.logger("GPU opp not available!!");
+            propSet("gpu_boost_use_opp", "false");
+            return false;
+        }
+
+        sGpuOppCount = maxOpp;
+        sGpuBoostOppIndex = (int) ((long) maxOpp * (100 - BOOST_PERCENT_GPU) / 100);
+        if (sGpuBoostOppIndex < 0) sGpuBoostOppIndex = 0;
+        sGpuOppPath = oppIndexPath;
+        sGpuUseOpp = true;
+        
+        propSet("gpu_boost_use_opp", "true");
+
+        AxUtils.write(oppIndexPath, String.valueOf(GPU_OPP_DEFAULT_INDEX));
+
+        AxUtils.logger("Gpu OPP init: indexPath=" + oppIndexPath
+                + " tablePath=" + oppTablePath
+                + " oppCount=" + maxOpp
+                + " boostIndex=" + sGpuBoostOppIndex);
+        return true;
+    }
+
+    private static int parseOppCount(String tablePath) {
+        String buf = AxUtils.readBufFile(tablePath);
+        if (buf == null || buf.trim().isEmpty()) return 0;
+        int count = 0;
+        for (int i = 0; i < buf.length(); i++) {
+            if (buf.charAt(i) == '[') count++;
+        }
+        return count > 0 ? count - 1 : 0;
     }
 
     private static String[] readGpuAvailableFreqs(String path) {

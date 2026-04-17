@@ -370,9 +370,9 @@ constructor(
 
     private fun onBlurApplied(appliedBlurRadius: Int, zoomOutFromShadeRadius: Float) {
         if (lastAppliedBlur == 0 && appliedBlurRadius > 0) {
-            BoostHelper.gpuBoost(true)
+            BoostHelper.shadeBoost(true)
         } else if (lastAppliedBlur > 0 && appliedBlurRadius == 0) {
-            BoostHelper.gpuBoost(false)
+            BoostHelper.shadeBoost(false)
         }
         lastAppliedBlur = appliedBlurRadius
         onZoomOutChanged(zoomOutFromShadeRadius)

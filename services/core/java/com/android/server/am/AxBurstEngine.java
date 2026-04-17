@@ -69,6 +69,7 @@ public class AxBurstEngine implements IAxBurstEngine {
     private static final HashMap<Integer, Object> axFgCpusetOverrides = new HashMap<>();
     private static final HashMap<Integer, Object> lBgCpusetOverrides = new HashMap<>();
     private static final HashMap<Integer, Object> hBgCpusetOverrides = new HashMap<>();
+    private static final HashMap<Integer, Object> sysuiCpusetOverrides = new HashMap<>();
     private static final HashMap<String, String> sConfig = new HashMap<>();
     private static final HashMap<String, String> sDefaultsCpu = new HashMap<>();
     
@@ -76,6 +77,7 @@ public class AxBurstEngine implements IAxBurstEngine {
     public static final String CPU_NNAPI_HAL = AxUtils.cpuPath("nnapi-hal");
     public static final String CPU_RT = AxUtils.cpuPath("rt");
     public static final String CPU_SYSTEM = AxUtils.cpuPath("system");
+    public static final String CPU_SYSUI = AxUtils.cpuPath("systemui");
     
     private ProcessList procList;
     private Context mContext;
@@ -101,6 +103,8 @@ public class AxBurstEngine implements IAxBurstEngine {
     private boolean mSystemReady = false;
     
     private boolean mInstallBoostActive = false;
+    
+    private boolean mShadeBoosted = false;
 
     private final HashMap<Integer, Integer> mBoostCount = new HashMap<>();
     private final HashMap<Integer, Integer> mOriginalPriorities = new HashMap<>();
@@ -121,6 +125,7 @@ public class AxBurstEngine implements IAxBurstEngine {
         sFileCache.put(CPU_NNAPI_HAL, new File(CPU_NNAPI_HAL));
         sFileCache.put(CPU_RT, new File(CPU_RT));
         sFileCache.put(CPU_SYSTEM, new File(CPU_SYSTEM));
+        sFileCache.put(CPU_SYSUI, new File(CPU_SYSUI));
 
         sCpuUpdateMessages.put(CPU_SYS_BG, Integer.valueOf(MSG_CPU_UPDATE_SYS_BG));
         sCpuUpdateMessages.put(CPU_BG, Integer.valueOf(MSG_CPU_UPDATE_BACKGROUND));
@@ -143,6 +148,7 @@ public class AxBurstEngine implements IAxBurstEngine {
         sCpusetGroups.put(CPU_AX_FG, axFgCpusetOverrides);
         sCpusetGroups.put(CPU_L_BG, lBgCpusetOverrides);
         sCpusetGroups.put(CPU_H_BG, hBgCpusetOverrides);
+        sCpusetGroups.put(CPU_SYSUI, sysuiCpusetOverrides);
     }
 
     public AxBurstEngine() {
@@ -206,6 +212,7 @@ public class AxBurstEngine implements IAxBurstEngine {
         sDefaultsCpu.put(CPU_NNAPI_HAL, data.sCores);
         sDefaultsCpu.put(CPU_RT, data.allCores);
         sDefaultsCpu.put(CPU_SYSTEM, data.sCores);
+        sDefaultsCpu.put(CPU_SYSUI, data.allCores);
 
         write(sConfig);
         writeDefaultCpusets();
@@ -334,6 +341,14 @@ public class AxBurstEngine implements IAxBurstEngine {
 
     public void gpuBoost(boolean active) {
         if (mGpuBoosted == active) return;
+        if (DeviceData.isGpuOppMode()) {
+            String oppPath = DeviceData.getGpuOppPath();
+            if (oppPath == null) return;
+            int idx = active ? DeviceData.getGpuBoostOppIndex() : DeviceData.getGpuDefaultOppIndex();
+            mHandler.post(() -> AxUtils.write(oppPath, String.valueOf(idx)));
+            mGpuBoosted = active;
+            return;
+        }
         String path = DeviceData.getGpuMinPath();
         if (path == null) return;
         int target = active ? DeviceData.getGpuBoostHz() : DeviceData.getGpuDefaultMinHz();
@@ -354,6 +369,39 @@ public class AxBurstEngine implements IAxBurstEngine {
         flingBoost(false);
         gpuBoost(false);
     };
+
+    public void shadeBoost(boolean active) {
+        if (mData == null) return;
+        if (gameActive()) return;
+        if (mShadeBoosted == active) return;
+
+        if (active) {
+            String uiCpus = (mData.pCores != null && !mData.pCores.isEmpty())
+                    ? mData.pCores : mData.bCores;
+            if (uiCpus == null || uiCpus.isEmpty()) return;
+
+            adjustCpusetCpus(CPU_SVP, uiCpus, 0L);
+            adjustCpusetCpus(CPU_SYSUI, uiCpus, 0L);
+            adjustCpusetCpus(CPU_TOP_APP, mData.sCores, 0L);
+
+            applyFlingFreq();
+            gpuBoost(true);
+
+            mShadeBoosted = true;
+            logger("shadeBoost: ON svp=" + uiCpus + " sysui=" + uiCpus
+                    + " top=" + mData.sCores);
+        } else {
+            adjustCpusetCpus(CPU_SVP, mData.svpCpus, -1L);
+            adjustCpusetCpus(CPU_SYSUI, mData.allCores, -1L);
+            adjustCpusetCpus(CPU_TOP_APP, mData.allCores, -1L);
+
+            restoreFlingFreq();
+            gpuBoost(false);
+
+            mShadeBoosted = false;
+            logger("shadeBoost: OFF");
+        }
+    }
 
     public void flingBoost(boolean active) {
         if (mData == null) return;

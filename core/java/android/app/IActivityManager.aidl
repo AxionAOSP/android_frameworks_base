@@ -1078,5 +1078,7 @@ interface IActivityManager {
 
     void gpuBoost(boolean active);
 
+    void shadeBoost(boolean active);
+
     void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera);
 }

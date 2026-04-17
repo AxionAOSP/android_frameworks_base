@@ -57,4 +57,7 @@ public interface IAxBurstEngine {
 
     default void gpuBoost(boolean active) {
     }
+
+    default void shadeBoost(boolean active) {
+    }
 }

@@ -19893,6 +19893,11 @@ public class ActivityManagerService extends IActivityManager.Stub
     }
 
     @Override
+    public void shadeBoost(boolean active) {
+        AxExtServiceFactory.getAxBurstEngine().shadeBoost(active);
+    }
+
+    @Override
     public void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera) {
         mHandler.post(() -> {
             AxExtServiceFactory.getMemoryManager().releaseMemory(

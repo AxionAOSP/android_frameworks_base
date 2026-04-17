@@ -74,6 +74,14 @@ public class BoostHelper {
         }
     }
 
+    public static void shadeBoost(boolean active) {
+        try {
+            ActivityManager.getService().shadeBoost(active);
+        } catch (Exception e) {
+            logException("shadeBoost", e);
+        }
+    }
+
     private static void logException(String method, Exception e) {
         if (DEBUG) {
             Log.w(TAG, method + " failed", e);

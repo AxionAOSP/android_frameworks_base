@@ -172,6 +172,18 @@ public class AxUtils {
         return cores[0] + "-" + cores[limit - 1];
     }
 
+    public static String rangeTail(String value, int startIdx) {
+        String[] cores = value.split(",");
+        if (cores.length == 0 || startIdx >= cores.length) return "";
+        if (startIdx <= 0) return toRange(value);
+        StringBuilder sb = new StringBuilder();
+        for (int i = startIdx; i < cores.length; i++) {
+            if (sb.length() > 0) sb.append(",");
+            sb.append(cores[i]);
+        }
+        return toRange(sb.toString());
+    }
+
     public static String joinRanges(String a, String b) {
         if (a.isEmpty()) return b;
         if (b.isEmpty()) return a;
