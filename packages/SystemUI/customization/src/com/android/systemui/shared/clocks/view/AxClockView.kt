@@ -25,14 +25,21 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
 import android.view.ViewGroup
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -98,13 +105,17 @@ abstract class AxClockView @JvmOverloads constructor(
     val clockDateTextSize get() = context.scaledDimen(R.dimen.clock_date_text_size)
     val clockDateMarginTop get() = context.scaledDimen(R.dimen.clock_date_margin_top)
     val scaleRatio get() = context.scaleRatio
-    val sizeScale get() = if (isPreviewMode) 1f else ClockSettingsRepository.sizeScale.value
+    val sizeScale get() = when {
+        isPreviewMode -> 1f
+        isLargeClock -> 1f
+        else -> ClockSettingsRepository.sizeScale.value
+    }
     val iconSize get() = context.scaledDimenInt(R.dimen.clock_icon_secondary_size)
 
     protected val config: ClockConfigs.ClockStyleConfig?
         get() {
             val className = this::class.simpleName ?: return null
-            return ClockConfigs.resolveConfig(context, className, isLargeClock)
+            return ClockConfigs.resolveConfig(className, isLargeClock, state.alignmentState.value)
         }
 
     val isLeftAligned: Boolean get() = config?.align == ClockConfigs.Align.LEFT
@@ -258,24 +269,26 @@ abstract class AxClockView @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = getDefaultSize(suggestedMinimumWidth, widthMeasureSpec)
-        if (isLargeClock) {
-            val maxH = MeasureSpec.getSize(heightMeasureSpec)
-            val cv = host.view
+        val cv = host.view
+        val mode = MeasureSpec.getMode(heightMeasureSpec)
+        val maxH = MeasureSpec.getSize(heightMeasureSpec)
+
+        cv.measure(
+            MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+        )
+        val naturalH = cv.measuredHeight
+        val floor = if (isLargeClock) 0 else clockHeight
+        val finalH = when (mode) {
+            MeasureSpec.EXACTLY -> maxOf(naturalH, maxH, floor)
+            else -> maxOf(naturalH, floor)
+        }
+        setMeasuredDimension(w, finalH)
+        if (w > 0 && finalH > 0 && finalH != naturalH) {
             cv.measure(
                 MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(maxH, MeasureSpec.AT_MOST),
+                MeasureSpec.makeMeasureSpec(finalH, MeasureSpec.EXACTLY),
             )
-            setMeasuredDimension(w, cv.measuredHeight)
-        } else {
-            setMeasuredDimension(w, clockHeight)
-            val mw = measuredWidth
-            val mh = measuredHeight
-            if (mw > 0 && mh > 0) {
-                host.view.measure(
-                    MeasureSpec.makeMeasureSpec(mw, MeasureSpec.EXACTLY),
-                    MeasureSpec.makeMeasureSpec(mh, MeasureSpec.EXACTLY),
-                )
-            }
         }
     }
 
@@ -315,19 +328,35 @@ abstract class AxClockView @JvmOverloads constructor(
     protected fun tintColor(isDoze: Boolean, screenOff: Boolean, regionDark: Boolean): Color =
         viewModel.tintColor(isDoze, screenOff, regionDark)
 
+    @Composable
+    protected fun inverseSizeScaleModifier(): Modifier = Modifier
+
+    @Composable
+    protected fun digitScaleModifier(): Modifier {
+        if (isLargeClock || isPreviewMode) return Modifier
+        val scaleValue by ClockSettingsRepository.sizeScale.collectAsState()
+        if (scaleValue == 1f) return Modifier
+        return Modifier.graphicsLayer {
+            scaleX = scaleValue
+            scaleY = scaleValue
+        }
+    }
+
     protected val fidgetTapModifier: Modifier
-        @Composable get() {
-            val display = viewModel.rememberResolvedDisplay()
-            return Modifier.pointerInput(touchEnabled, display.tapAction) {
-                if (!touchEnabled) return@pointerInput
-                detectTapGestures { offset ->
-                    if (!state.isDoze) {
-                        onFidgetTapListener?.invoke(offset.x, offset.y)
-                        display.tapAction?.let { fireTapAction(it) }
-                    }
-                }
+        @Composable get() = fidgetTapModifierFor(null)
+
+    @Composable
+    protected fun fidgetTapModifierFor(boundsProvider: (() -> Rect?)?): Modifier {
+        return Modifier.pointerInput(touchEnabled) {
+            if (!touchEnabled) return@pointerInput
+            detectTapGestures { offset ->
+                if (state.isDoze) return@detectTapGestures
+                val bounds = boundsProvider?.invoke()
+                if (bounds != null && !bounds.contains(offset)) return@detectTapGestures
+                onFidgetTapListener?.invoke(offset.x, offset.y)
             }
         }
+    }
 
     @Composable
     protected fun DigitArea(
@@ -357,11 +386,12 @@ abstract class AxClockView @JvmOverloads constructor(
         },
     ) {
         val display = viewModel.rememberResolvedDisplay()
+        val inverseModifier = inverseSizeScaleModifier()
         QuickLookDateArea(
-            modifier = modifier,
+            modifier = modifier.then(inverseModifier),
             display = display,
             dateStr = state.dateStr,
-            sizeScale = sizeScale,
+            sizeScale = 1f,
             textColor = textColor,
             textSize = textSize,
             fontFamily = fontFamily,

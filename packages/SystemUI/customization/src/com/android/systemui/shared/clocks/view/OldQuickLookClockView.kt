@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.android.systemui.customization.clocks.R as clocksR
+import com.android.systemui.shared.clocks.ClockSettingsRepository
 import java.util.Locale
 
 class OldQuickLookClockView @JvmOverloads constructor(
@@ -81,6 +83,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
     private fun SmallContent() {
         val (time, date, isDoze, screenOff, regionDark, icon, tintIcon, display) = rememberClockState()
 
+        val dynSizeScale by ClockSettingsRepository.sizeScale.collectAsState()
         val textColor = tintColor(isDoze, screenOff, regionDark)
         val horizontalAlign = when {
             isLeftAligned -> Alignment.Start
@@ -119,7 +122,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
                 text = time,
                 maxLines = 1,
                 style = TextStyle(
-                    fontSize = primaryTextSize,
+                    fontSize = primaryTextSize * dynSizeScale,
                     fontWeight = FontWeight.Bold,
                     fontFamily = clockFontFamily,
                     color = textColor,

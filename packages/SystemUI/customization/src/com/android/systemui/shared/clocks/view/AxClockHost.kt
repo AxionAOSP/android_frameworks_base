@@ -113,10 +113,9 @@ class AxClockHost(private val clock: AxClockView) {
             Box(
                 modifier = sizeModifier
                     .graphicsLayer {
-                        val s = clock.sizeScale
                         val a = animScale.value
                         scaleX = a
-                        scaleY = s * a
+                        scaleY = a
                         when (align) {
                             ClockSettingsRepository.ALIGNMENT_LEFT ->
                                 transformOrigin = TransformOrigin(0f, 0.5f)

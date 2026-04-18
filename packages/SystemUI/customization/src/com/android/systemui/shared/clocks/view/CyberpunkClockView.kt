@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -37,8 +39,10 @@ import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import com.android.systemui.shared.clocks.ClockSettingsRepository
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -201,7 +205,7 @@ class CyberpunkClockView @JvmOverloads constructor(
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .wrapContentSize()
                     .padding(horizontal = 16.dp)
                     .then(fidgetTapModifier)
                     .graphicsLayer {
@@ -389,10 +393,11 @@ class CyberpunkClockView @JvmOverloads constructor(
                     .padding(horizontal = 24.dp, vertical = 6.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val dynSizeScale by ClockSettingsRepository.sizeScale.collectAsState()
                     Text(
                         text = time,
                         style = TextStyle(
-                            fontSize = 80.sp,
+                            fontSize = 80.sp * dynSizeScale,
                             fontWeight = FontWeight.Black,
                             fontFamily = FontFamily.Monospace,
                             color = primaryColor,

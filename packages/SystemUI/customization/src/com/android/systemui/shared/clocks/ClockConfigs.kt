@@ -35,12 +35,13 @@ object ClockConfigs {
     enum class Position { ABOVE, BELOW }
     enum class Align { LEFT, CENTER, RIGHT }
 
-    fun resolveConfig(context: Context, className: String, isLarge: Boolean = false): ClockStyleConfig? {
+    fun resolveConfig(context: Context, className: String, isLarge: Boolean = false): ClockStyleConfig? =
+        resolveConfig(className, isLarge, ClockSettingsRepository.alignment.value)
+
+    fun resolveConfig(className: String, isLarge: Boolean, alignValue: String): ClockStyleConfig? {
         val key = if (isLarge) "${className}_large" else className
         val base = clockConfigMap[key] ?: clockConfigMap[className] ?: return null
         if (base.position == Position.BELOW) return base
-
-        val alignValue = ClockSettingsRepository.alignment.value
 
         val resolvedAlign = when (alignValue) {
             ALIGNMENT_LEFT -> Align.LEFT
@@ -80,13 +81,11 @@ object ClockConfigs {
             Position.BELOW,
             Align.CENTER,
             visible = false,
-            customHeightRes = R.dimen.large_clock_height,
         ),
         "GeneralClockView_large" to ClockStyleConfig(
             Position.BELOW,
             Align.CENTER,
             visible = false,
-            customHeightRes = R.dimen.large_clock_height,
         ),
         "BitmapDigitComposeClockView" to ClockStyleConfig(
             Position.ABOVE,
@@ -97,7 +96,6 @@ object ClockConfigs {
             Position.BELOW,
             Align.CENTER,
             visible = false,
-            customHeightRes = R.dimen.large_clock_height,
         ),
         "CyberpunkClockView" to ClockStyleConfig(
             Position.ABOVE,
@@ -108,7 +106,6 @@ object ClockConfigs {
             Position.BELOW,
             Align.CENTER,
             visible = false,
-            customHeightRes = R.dimen.large_clock_height,
         ),
         "AxionAgeClockView" to ClockStyleConfig(
             Position.ABOVE,
@@ -119,7 +116,6 @@ object ClockConfigs {
             Position.BELOW,
             Align.CENTER,
             visible = false,
-            customHeightRes = R.dimen.large_clock_height,
         ),
     )
 }

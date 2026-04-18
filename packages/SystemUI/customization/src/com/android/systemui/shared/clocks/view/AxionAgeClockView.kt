@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -52,6 +53,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.android.systemui.shared.clocks.ClockSettingsRepository
 import kotlinx.coroutines.launch
 
 class AxionAgeClockView @JvmOverloads constructor(
@@ -99,9 +101,11 @@ class AxionAgeClockView @JvmOverloads constructor(
         val fidgetValue = weightFidget.value
         val textColor = tintColor(isDoze, screenOff, regionDark)
         val isDark = isDoze || regionDark
-        val digitW = if (large) 90.dp else 48.dp
-        val digitH = if (large) 150.dp else 108.dp
-        val digitSpacing = if (large) 8.dp else 2.dp
+        val dynSizeScale by ClockSettingsRepository.sizeScale.collectAsState()
+        val sz = if (large) 1f else dynSizeScale
+        val digitW = (if (large) 90.dp else 48.dp) * sz
+        val digitH = (if (large) 150.dp else 108.dp) * sz
+        val digitSpacing = (if (large) 8.dp else 2.dp) * sz
         val digitStroke = if (large) 1.5.dp else 1.dp
         val glowExtra = if (large) 4f else 3f
         val infoTextSize = if (large) 18.sp else 14.sp

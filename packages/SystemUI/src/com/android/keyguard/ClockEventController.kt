@@ -728,7 +728,7 @@ constructor(
     }
 
     fun handleFidgetTap(x: Float, y: Float) {
-        if (isPreview || isCharging) return
+        if (isPreview) return
         clock?.run {
             smallClock.animations.onFidgetTap(x, y)
             largeClock.animations.onFidgetTap(x, y)

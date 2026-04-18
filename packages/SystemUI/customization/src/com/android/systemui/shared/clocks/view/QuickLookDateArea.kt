@@ -20,7 +20,8 @@ import android.app.PendingIntent
 import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,13 +30,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -72,11 +73,10 @@ fun QuickLookDateArea(
 
     val inverseScale = if (sizeScale > 0f) 1f / sizeScale else 1f
     val tapModifier = display.tapAction?.let { action ->
-        Modifier.pointerInput(action) {
-            detectTapGestures {
-                fireTapAction(action)
-            }
-        }
+        Modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+        ) { fireTapAction(action) }
     } ?: Modifier
 
     Row(
@@ -84,7 +84,10 @@ fun QuickLookDateArea(
         horizontalArrangement = rowArrangement,
         modifier = modifier
             .widthIn(max = 280.dp)
-            .graphicsLayer { scaleY = inverseScale }
+            .graphicsLayer {
+                scaleX = inverseScale
+                scaleY = inverseScale
+            }
             .then(tapModifier),
     ) {
         if (display is DateDisplay.Weather) {

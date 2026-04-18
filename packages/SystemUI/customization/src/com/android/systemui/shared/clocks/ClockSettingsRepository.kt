@@ -44,7 +44,7 @@ object ClockSettingsRepository {
     const val DATE_POSITION_ABOVE = "above"
     const val DATE_POSITION_BELOW = "below"
 
-    private const val LARGE_SIZE_SCALE = 1.15f
+    private const val LARGE_SIZE_SCALE = 1.4f
 
     @JvmField val clockFaceUri: Uri = Settings.Secure.getUriFor(SETTING_CLOCK_FACE)
     @JvmField val alignmentUri: Uri = Settings.Secure.getUriFor(SETTING_ALIGNMENT)

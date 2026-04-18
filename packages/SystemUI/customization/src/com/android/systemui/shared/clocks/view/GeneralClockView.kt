@@ -35,11 +35,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
@@ -57,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import com.android.systemui.customization.R
+import com.android.systemui.shared.clocks.ClockSettingsRepository
 import com.android.systemui.shared.clocks.extensions.scaledDimen
 import com.android.systemui.shared.clocks.extensions.scaleRatio
 import java.util.Locale
@@ -140,6 +144,7 @@ class GeneralClockView @JvmOverloads constructor(
         val canvasHeightDp = with(LocalDensity.current) {
             (digitH * 2 + lineSpacing).toDp()
         }
+        val digitBoundsState = remember { mutableStateOf<Rect?>(null) }
 
         Column(
             modifier = Modifier.fillMaxWidth().wrapContentHeight(),
@@ -149,7 +154,7 @@ class GeneralClockView @JvmOverloads constructor(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(canvasHeightDp)
-                    .then(fidgetTapModifier),
+                    .then(fidgetTapModifierFor { digitBoundsState.value }),
             ) {
                 if (time.isEmpty() || !TextUtils.isDigitsOnly(time)) return@Canvas
 
@@ -190,6 +195,14 @@ class GeneralClockView @JvmOverloads constructor(
 
                 drawLine(hours, (size.width - hoursW) / 2f, 0f)
                 drawLine(minutes, (size.width - minutesW) / 2f, dh + lineSpacing)
+
+                val maxW = maxOf(hoursW, minutesW)
+                digitBoundsState.value = Rect(
+                    left = (size.width - maxW) / 2f,
+                    top = 0f,
+                    right = (size.width + maxW) / 2f,
+                    bottom = dh * 2 + lineSpacing,
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -207,8 +220,9 @@ class GeneralClockView @JvmOverloads constructor(
     private fun SmallContent() {
         val (time, date, isDoze, screenOff, regionDark, icon, tintIcon, display) = rememberClockState()
 
-        val scale = context.scaleRatio
-        val paddingV = context.scaledDimen(R.dimen.clock_padding)
+        val dynSizeScale by ClockSettingsRepository.sizeScale.collectAsState()
+        val scale = context.scaleRatio * dynSizeScale
+        val paddingV = context.scaledDimen(R.dimen.clock_padding) * dynSizeScale
         val dotSz = context.scaledDimen(R.dimen.dot_small_size)
         val dotMgn = context.scaledDimen(R.dimen.dot_margin)
 
@@ -238,6 +252,9 @@ class GeneralClockView @JvmOverloads constructor(
         }
         val canvasHeightDp = with(LocalDensity.current) { canvasHeight.toDp() }
 
+        val inverseModifier = inverseSizeScaleModifier()
+        val smallDigitBounds = remember { mutableStateOf<Rect?>(null) }
+
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Center,
@@ -253,70 +270,79 @@ class GeneralClockView @JvmOverloads constructor(
                     color = tintColor.copy(alpha = if (isDoze) 0.6f else 0.8f),
                     letterSpacing = 0.5.sp,
                 ),
-                modifier = Modifier.padding(
-                    start = if (isRightAligned) 0.dp else sidePadding,
-                    end = if (isRightAligned) sidePadding else 0.dp,
-                    top = 4.dp,
-                    bottom = 4.dp,
-                ),
+                modifier = Modifier
+                    .padding(
+                        start = if (isRightAligned) 0.dp else sidePadding,
+                        end = if (isRightAligned) sidePadding else 0.dp,
+                        top = 4.dp,
+                        bottom = 4.dp,
+                    )
+                    .then(inverseModifier),
             )
 
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(canvasHeightDp)
-                    .then(fidgetTapModifier),
+                    .then(fidgetTapModifierFor { smallDigitBounds.value }),
             ) {
                 if (time.isEmpty() || !TextUtils.isDigitsOnly(time)) return@Canvas
 
                 val bitmapMap = if (useLight) lightBitmaps else bitmaps
 
-                var totalWidth = 0f
+                var naturalWidth = 0f
                 for ((i, char) in time.withIndex()) {
                     val bmp = bitmapMap[char] ?: continue
-                    totalWidth += bmp.width * scale
-                    if (time.length - i == 3) totalWidth += 2 * paddingV
+                    naturalWidth += bmp.width * scale
+                    if (time.length - i == 3) naturalWidth += 2 * paddingV
                 }
-                if (totalWidth <= 0f) return@Canvas
-                if (totalWidth > size.width) totalWidth = size.width
+                if (naturalWidth <= 0f) return@Canvas
 
-                var x = when {
+                val fitScale = fitToWidth(naturalWidth)
+                val drawScale = scale * fitScale
+                val drawPaddingV = paddingV * fitScale
+                val totalWidth = naturalWidth * fitScale
+
+                val startX = when {
                     isLeftAligned -> clockPaddingStart
                     isRightAligned -> size.width - clockPaddingStart - totalWidth
                     else -> (size.width - totalWidth) / 2f
                 }
+                smallDigitBounds.value = Rect(startX, 0f, startX + totalWidth, size.height)
+                var x = startX
 
                 for ((i, char) in time.withIndex()) {
                     val bmp = bitmapMap[char] ?: continue
-                    val yOffset = (size.height - bmp.height * scale) / 2f
+                    val yOffset = (size.height - bmp.height * drawScale) / 2f
 
                     drawImage(
                         image = bmp.asImageBitmap(),
                         srcOffset = IntOffset.Zero,
                         srcSize = IntSize(bmp.width, bmp.height),
                         dstOffset = IntOffset(x.toInt(), yOffset.toInt()),
-                        dstSize = IntSize((bmp.width * scale).toInt(), (bmp.height * scale).toInt()),
+                        dstSize = IntSize((bmp.width * drawScale).toInt(), (bmp.height * drawScale).toInt()),
                         colorFilter = ColorFilter.tint(tintColor, BlendMode.SrcIn),
                     )
-                    x += bmp.width * scale
+                    x += bmp.width * drawScale
 
                     if (time.length - i == 3) {
-                        val centerX = x + paddingV
+                        val centerX = x + drawPaddingV
                         val centerY = size.height / 2f
-                        val dotRadius = dotSz / 2
-                        val topDotY = centerY - (dotMgn / 2 + dotRadius)
-                        val bottomDotY = centerY + (dotMgn / 2 + dotRadius)
+                        val dotRadius = dotSz * fitScale / 2
+                        val topDotY = centerY - (dotMgn * fitScale / 2 + dotRadius)
+                        val bottomDotY = centerY + (dotMgn * fitScale / 2 + dotRadius)
+                        val adjDotSz = dotSz * fitScale
                         drawOval(
                             color = tintColor,
                             topLeft = Offset(centerX - dotRadius, topDotY - dotRadius),
-                            size = Size(dotSz, dotSz),
+                            size = Size(adjDotSz, adjDotSz),
                         )
                         drawOval(
                             color = tintColor,
                             topLeft = Offset(centerX - dotRadius, bottomDotY - dotRadius),
-                            size = Size(dotSz, dotSz),
+                            size = Size(adjDotSz, adjDotSz),
                         )
-                        x += 2 * paddingV
+                        x += 2 * drawPaddingV
                     }
                 }
             }
@@ -330,6 +356,7 @@ class GeneralClockView @JvmOverloads constructor(
                 textColor = tintColor,
                 startPadding = sidePadding,
                 horizontalAlign = horizontalAlign,
+                modifier = inverseModifier,
             )
         }
     }
@@ -344,6 +371,7 @@ class GeneralClockView @JvmOverloads constructor(
         textColor: Color,
         startPadding: androidx.compose.ui.unit.Dp,
         horizontalAlign: Alignment.Horizontal,
+        modifier: Modifier = Modifier,
     ) {
         Column(
             horizontalAlignment = horizontalAlign,
@@ -354,7 +382,8 @@ class GeneralClockView @JvmOverloads constructor(
                     start = if (isRightAligned) 0.dp else startPadding,
                     end = if (isRightAligned) startPadding else 0.dp,
                     bottom = 4.dp,
-                ),
+                )
+                .then(modifier),
         ) {
             if (hasSpecialContent) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
