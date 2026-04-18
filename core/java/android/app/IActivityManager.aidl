@@ -1081,4 +1081,14 @@ interface IActivityManager {
     void shadeBoost(boolean active);
 
     void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera);
+
+    String getSpoofPifConfig();
+
+    String getSpoofGamePropsConfig();
+
+    String getSpoofTrickyStoreTarget();
+
+    String getSpoofTrickyStoreKeyBox();
+
+    String getSpoofTrickyStorePatch();
 }

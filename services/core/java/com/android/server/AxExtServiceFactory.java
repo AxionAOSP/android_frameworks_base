@@ -19,6 +19,8 @@ import android.content.Context;
 
 import com.android.server.am.*;
 import com.android.server.pm.*;
+import com.android.server.spoof.AxSpoofManager;
+import com.android.server.spoof.IAxSpoofManager;
 import com.android.server.wm.AxSandboxService;
 import com.android.server.wm.GameSpaceService;
 import com.android.server.wm.WindowManagerService;
@@ -32,6 +34,7 @@ public class AxExtServiceFactory {
     private static volatile IAxMemoryManager sAxMemoryManager;
     private static volatile IUxPerformance sUxPerformance;
     private static volatile IAxPcModeService sPcModeManager;
+    private static volatile IAxSpoofManager sAxSpoofManager;
 
     private AxExtServiceFactory(Context context) {
         NtServiceInjector.get().setCtx(context);
@@ -111,6 +114,17 @@ public class AxExtServiceFactory {
                 instance = sPcModeManager;
                 break;
 
+            case AX_SPOOF_MANAGER:
+                if (sAxSpoofManager == null) {
+                    synchronized (sLock) {
+                        if (sAxSpoofManager == null) {
+                            sAxSpoofManager = new AxSpoofManager();
+                        }
+                    }
+                }
+                instance = sAxSpoofManager;
+                break;
+
             default:
                 throw new IllegalArgumentException("Unknown ExtType: " + type);
         }
@@ -129,6 +143,7 @@ public class AxExtServiceFactory {
         getAxBurstEngine().systemReady();
         getMemoryManager().systemReady();
         getUxPerformance().systemReady();
+        getSpoofManager().systemReady();
     }
     
     public static IAxBurstEngine getAxBurstEngine() {
@@ -145,5 +160,9 @@ public class AxExtServiceFactory {
 
     public static IAxPcModeService getAxPcModeService() {
         return getOrCreate(IAxExtServiceFactory.ExtType.PC_MODE_SERVICE);
+    }
+
+    public static IAxSpoofManager getSpoofManager() {
+        return getOrCreate(IAxExtServiceFactory.ExtType.AX_SPOOF_MANAGER);
     }
 }

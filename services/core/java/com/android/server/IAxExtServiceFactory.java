@@ -16,13 +16,15 @@
 package com.android.server;
 
 import com.android.server.am.*;
+import com.android.server.spoof.IAxSpoofManager;
 
 public interface IAxExtServiceFactory {
     enum ExtType {
         AX_BURST_ENGINE(IAxBurstEngine.class),
         AX_MEMORY_MANAGER(IAxMemoryManager.class),
         UX_PERFORMANCE(IUxPerformance.class),
-        PC_MODE_SERVICE(IAxPcModeService.class);
+        PC_MODE_SERVICE(IAxPcModeService.class),
+        AX_SPOOF_MANAGER(IAxSpoofManager.class);
         private final Class<?> clazz;
 
         ExtType(Class<?> clazz) {
