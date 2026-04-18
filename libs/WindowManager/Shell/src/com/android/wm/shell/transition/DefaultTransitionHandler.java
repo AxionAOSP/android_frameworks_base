@@ -105,6 +105,7 @@ import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.jank.InteractionJankMonitor;
 import com.android.internal.policy.ScreenDecorationsUtils;
+import com.android.internal.util.BoostHelper;
 import com.android.internal.policy.TransitionAnimation;
 import com.android.internal.protolog.ProtoLog;
 import com.android.window.flags.Flags;
@@ -659,6 +660,18 @@ public class DefaultTransitionHandler implements Transitions.TransitionHandler {
             if (isTaskTransition) {
                 mInteractionJankMonitor.begin(info.getRoot(0).getLeash(), mContext,
                         mMainHandler, CUJ_DEFAULT_TASK_TO_TASK_ANIMATION);
+            }
+
+            long longestDurationMs = 0L;
+            for (int i = 0; i < animations.size(); ++i) {
+                final Animator a = animations.get(i);
+                if (a instanceof ValueAnimator) {
+                    final long d = ((ValueAnimator) a).getDuration();
+                    if (d > longestDurationMs) longestDurationMs = d;
+                }
+            }
+            if (longestDurationMs > 0L) {
+                BoostHelper.compositionBoost(longestDurationMs + 100L);
             }
 
             // now start animations. they are started on another thread, so we have to post them
