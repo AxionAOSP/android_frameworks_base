@@ -20,9 +20,11 @@ import android.view.HapticFeedbackConstants
 import android.view.View
 import com.android.keyguard.AuthInteractionProperties
 import com.android.systemui.Flags
+import com.android.systemui.dagger.qualifiers.Background
 //noinspection CleanArchitectureDependencyViolation: Data layer only referenced for this enum class
 import com.google.android.msdl.data.model.MSDLToken
 import com.google.android.msdl.domain.MSDLPlayer
+import java.util.concurrent.Executor
 import javax.inject.Inject
 
 /**
@@ -30,7 +32,12 @@ import javax.inject.Inject
  *
  * @param[msdlPlayer] The [MSDLPlayer] used to deliver MSDL feedback.
  */
-class BouncerHapticPlayer @Inject constructor(private val msdlPlayer: dagger.Lazy<MSDLPlayer>) {
+class BouncerHapticPlayer
+@Inject
+constructor(
+    private val msdlPlayer: dagger.Lazy<MSDLPlayer>,
+    @Background private val bgExecutor: Executor,
+) {
 
     private val authInteractionProperties by
         lazy(LazyThreadSafetyMode.NONE) { AuthInteractionProperties() }
@@ -52,7 +59,7 @@ class BouncerHapticPlayer @Inject constructor(private val msdlPlayer: dagger.Laz
             } else {
                 MSDLToken.FAILURE
             }
-        msdlPlayer.get().playToken(token, authInteractionProperties)
+        bgExecutor.execute { msdlPlayer.get().playToken(token, authInteractionProperties) }
     }
 
     /**
@@ -69,23 +76,29 @@ class BouncerHapticPlayer @Inject constructor(private val msdlPlayer: dagger.Laz
                 HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING,
             )
         } else {
-            msdlPlayer.get().playToken(MSDLToken.DRAG_INDICATOR_DISCRETE)
+            bgExecutor.execute { msdlPlayer.get().playToken(MSDLToken.DRAG_INDICATOR_DISCRETE) }
         }
     }
 
     /** Deliver MSDL feedback when the delete key of the pin bouncer is pressed */
-    fun playDeleteKeyPressFeedback() = msdlPlayer.get().playToken(MSDLToken.KEYPRESS_DELETE)
+    fun playDeleteKeyPressFeedback() {
+        bgExecutor.execute { msdlPlayer.get().playToken(MSDLToken.KEYPRESS_DELETE) }
+    }
 
     /** Deliver MSDL feedback when the delete key of the pin bouncer is long-pressed. */
-    fun playDeleteKeyLongPressedFeedback() = msdlPlayer.get().playToken(MSDLToken.LONG_PRESS)
+    fun playDeleteKeyLongPressedFeedback() {
+        bgExecutor.execute { msdlPlayer.get().playToken(MSDLToken.LONG_PRESS) }
+    }
 
     /** Deliver MSDL feedback when a numpad key is pressed on the pin bouncer */
-    fun playNumpadKeyFeedback() = msdlPlayer.get().playToken(MSDLToken.KEYPRESS_STANDARD)
+    fun playNumpadKeyFeedback() {
+        bgExecutor.execute { msdlPlayer.get().playToken(MSDLToken.KEYPRESS_STANDARD) }
+    }
 
     /** Deliver MSDL feedback when clicking on the emergency button */
     fun playEmergencyButtonClickFeedback() {
         if (isEnabled) {
-            msdlPlayer.get().playToken(MSDLToken.KEYPRESS_RETURN)
+            bgExecutor.execute { msdlPlayer.get().playToken(MSDLToken.KEYPRESS_RETURN) }
         }
     }
 }
