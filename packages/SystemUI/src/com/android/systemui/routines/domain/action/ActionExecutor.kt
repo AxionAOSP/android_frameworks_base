@@ -29,6 +29,7 @@ import android.media.Ringtone
 import android.media.RingtoneManager
 import android.net.ConnectivityManager
 import android.net.DnsResolver
+import android.net.InetAddresses
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
@@ -289,9 +290,13 @@ class ActionExecutor @Inject constructor(
                 val network = awaitInternet(action.requireValidatedInternet)
                     ?: error("No internet within timeout")
                 val url = URL(action.url)
-                val resolved = resolveHost(network, url.host)?.takeIf { it.isNotEmpty() }
-                    ?: resolveViaDoh(network, url.host)
-                    ?: error("Unable to resolve ${url.host}")
+                val host = url.host
+                val resolved = if (InetAddresses.isNumericAddress(host)) {
+                    listOf(InetAddresses.parseNumericAddress(host))
+                } else {
+                    resolveHost(network, host)?.takeIf { it.isNotEmpty() }
+                        ?: resolveViaDoh(network, host)
+                } ?: error("Unable to resolve $host")
                 val ip = resolved.first()
                 val responseCode = performRawHttpRequest(network, ip, url, action, timeout)
                 Log.d(TAG, "HTTP ${action.method} ${action.url} -> $responseCode " +
@@ -348,7 +353,9 @@ class ActionExecutor @Inject constructor(
             ctx.init(null, trustManagers, null)
             val ssl = ctx.socketFactory.createSocket(rawSocket, host, port, true) as SSLSocket
             ssl.sslParameters = ssl.sslParameters.apply {
-                serverNames = listOf(SNIHostName(host))
+                if (!InetAddresses.isNumericAddress(host)) {
+                    serverNames = listOf(SNIHostName(host))
+                }
                 if (action.ignoreSslErrors) endpointIdentificationAlgorithm = null
             }
             ssl.startHandshake()
