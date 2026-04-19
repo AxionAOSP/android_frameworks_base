@@ -1,7 +1,9 @@
 package com.android.systemui.axdynamicbar.ui
 
+import com.android.systemui.animation.Expandable
 import com.android.systemui.axdynamicbar.domain.AxDynamicBarInteractor
 import com.android.systemui.axdynamicbar.model.IslandEvent
+import com.android.systemui.statusbar.chips.ui.model.OngoingActivityChipModel
 import com.android.systemui.biometrics.AuthController
 import com.android.systemui.biometrics.domain.interactor.UdfpsOverlayInteractor
 import com.android.systemui.dagger.SysUISingleton
@@ -30,7 +32,6 @@ data class AxDynamicBarChipState(
     val eventCount: Int,
     val pinnedIndex: Int,
     val allEvents: List<IslandEvent>,
-    val notificationAlert: IslandEvent.Notification? = null,
 )
 
 data class KeyguardBatteryInfo(
@@ -69,14 +70,12 @@ constructor(
         interactor.uiState
             .map { uiState ->
                 if (!uiState.shouldShow) return@map null
-                val alert = uiState.notificationAlert
-                val topEvent = uiState.topEvent ?: alert ?: return@map null
+                val topEvent = uiState.topEvent ?: return@map null
                 AxDynamicBarChipState(
                     event = topEvent,
                     eventCount = uiState.activeEvents.size,
                     pinnedIndex = uiState.pinnedEventIndex,
                     allEvents = uiState.events,
-                    notificationAlert = alert,
                 )
             }
             .stateIn(applicationScope, SharingStarted.Lazily, null)
@@ -189,10 +188,27 @@ constructor(
 
     fun toggleTorch() = interactor.toggleTorch()
 
-    fun stopScreenRecording() = interactor.stopScreenRecording()
-
     fun launchNotificationFromKeyguard(event: IslandEvent.Notification) {
         interactor.launchNotificationDismissingKeyguard(event)
+    }
+
+    fun handleAospChipTap(event: IslandEvent.AospChip, expandable: Expandable): Boolean {
+        val active = event.active
+        return when (val behavior = active.clickBehavior) {
+            is OngoingActivityChipModel.ClickBehavior.ShowHeadsUpNotification -> {
+                behavior.onClick()
+                true
+            }
+            is OngoingActivityChipModel.ClickBehavior.HideHeadsUpNotification -> {
+                behavior.onClick()
+                true
+            }
+            is OngoingActivityChipModel.ClickBehavior.ExpandAction -> {
+                behavior.onClick(expandable)
+                true
+            }
+            is OngoingActivityChipModel.ClickBehavior.None -> false
+        }
     }
 
     companion object {

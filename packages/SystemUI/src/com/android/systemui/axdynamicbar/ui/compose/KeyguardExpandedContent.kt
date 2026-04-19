@@ -40,7 +40,6 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.AvTimer
-import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -111,7 +110,6 @@ internal fun KeyguardExpandedContent(
             is IslandEvent.Media -> KeyguardMediaPanel(event, interactor)
             is IslandEvent.Timer -> KeyguardTimerPanel(event, interactor)
             is IslandEvent.Stopwatch -> KeyguardStopwatchPanel(event, interactor)
-            is IslandEvent.ScreenRecording -> KeyguardRecordingPanel(event, interactor)
             is IslandEvent.AudioRecording -> KeyguardAudioRecordingPanel(event, interactor)
             else -> KeyguardGenericPanel(event, interactor, hapticsViewModelFactory)
         }
@@ -644,93 +642,6 @@ private fun KeyguardStopwatchPanel(event: IslandEvent.Stopwatch, interactor: Isl
                 onClick = { interactor.dismissEvent(event) },
             )
         }
-    }
-}
-}
-
-@Composable
-private fun KeyguardRecordingPanel(event: IslandEvent.ScreenRecording, interactor: IslandActions) {
-    val colors = rememberIslandColors(event)
-
-    if (event.isCountdown) {
-        KeyguardPanelSurface { Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(SpaceSection),
-            verticalArrangement = Arrangement.spacedBy(SpaceXxl),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            TonalBanner(colors) {
-                Icon(Icons.Filled.Videocam, null, tint = colors.accent, modifier = Modifier.size(SizeIconSm))
-                Text(
-                    stringResource(R.string.ax_dynamic_bar_screen_recording).uppercase(),
-                    color = colors.accent,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
-
-            Text(
-                formatCountdownSeconds(event.countdownSeconds),
-                color = OnCardText,
-                style = MaterialTheme.typography.displayLarge,
-            )
-
-            Text(
-                stringResource(R.string.ax_dynamic_bar_screen_recording),
-                color = SubtleGray,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        } }
-        return
-    }
-
-    var elapsedMs by remember(event.startTimeMs) {
-        mutableLongStateOf((System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L))
-    }
-    LaunchedEffect(event.startTimeMs) {
-        while (true) {
-            delay(1000)
-            elapsedMs = (System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L)
-        }
-    }
-
-    KeyguardPanelSurface { Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(SpaceSection),
-        verticalArrangement = Arrangement.spacedBy(SpaceXxl),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        TonalBanner(colors) {
-            PulsingDot(color = colors.accent, size = SpaceMd)
-            Icon(Icons.Filled.Videocam, null, tint = colors.accent, modifier = Modifier.size(SizeIconSm))
-            Text(
-                stringResource(R.string.ax_dynamic_bar_screen_recording).uppercase(),
-                color = colors.accent,
-                style = MaterialTheme.typography.labelMedium,
-            )
-        }
-
-        Text(
-            formatElapsedTime(elapsedMs),
-            color = OnCardText,
-            style = MaterialTheme.typography.displayLarge,
-        )
-
-        LinearWavyProgressIndicator(
-            modifier = Modifier.fillMaxWidth().clip(ShapeChip),
-            color = colors.accent,
-            trackColor = colors.accent.copy(alpha = AlphaFaint),
-        )
-
-        ExpressivePillButton(
-            label = stringResource(R.string.ax_dynamic_bar_stop),
-            icon = Icons.Filled.Stop,
-            contentColor = colors.onAccent,
-            backgroundColor = colors.accent,
-            modifier = Modifier.fillMaxWidth(),
-            onClick = { interactor.stopScreenRecording() },
-        )
     }
 }
 }
