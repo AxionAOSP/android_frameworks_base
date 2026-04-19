@@ -167,7 +167,7 @@ class EventTriggerMonitor @Inject constructor(
         ) {
             val isWifi = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
             val isCaptive = isWifi &&
-                !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL)
             if (isCaptive != lastCaptivePortalState) {
                 lastCaptivePortalState = isCaptive
                 if (isCaptive) {

@@ -69,6 +69,7 @@ sealed interface Condition {
 
     data class IpAddress(
         val cidr: String,
+        val isRegex: Boolean = false,
     ) : Condition
 
     companion object {

@@ -82,6 +82,8 @@ sealed interface Action {
         val headers: Map<String, String> = emptyMap(),
         val body: String? = null,
         val timeoutMs: Int = DEFAULT_HTTP_TIMEOUT_MS,
+        val ignoreSslErrors: Boolean = false,
+        val requireValidatedInternet: Boolean = true,
     ) : Action
 
     companion object {

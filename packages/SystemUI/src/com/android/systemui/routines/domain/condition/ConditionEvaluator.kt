@@ -160,6 +160,21 @@ class ConditionEvaluator @Inject constructor(
             Log.d(TAG, "IP condition: no link properties")
             return false
         }
+        if (condition.isRegex) {
+            val regex = runCatching { Regex(condition.cidr) }.getOrNull()
+            if (regex == null) {
+                Log.d(TAG, "IP condition: invalid regex: ${condition.cidr}")
+                return false
+            }
+            val matched = linkProperties.linkAddresses.any { linkAddr ->
+                val host = linkAddr.address.hostAddress ?: return@any false
+                regex.containsMatchIn(host)
+            }
+            Log.d(TAG, "IP condition: regex=${condition.cidr} " +
+                "addrs=${linkProperties.linkAddresses.map { it.address.hostAddress }} " +
+                "matched=$matched")
+            return matched
+        }
         val parts = condition.cidr.split("/")
         if (parts.size != 2) {
             Log.d(TAG, "IP condition: invalid CIDR format: ${condition.cidr}")
