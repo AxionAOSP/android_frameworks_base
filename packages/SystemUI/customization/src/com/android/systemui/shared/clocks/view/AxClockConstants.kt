@@ -16,7 +16,6 @@
 
 package com.android.systemui.shared.clocks.view
 
-import android.os.VibrationEffect
 import androidx.compose.animation.core.CubicBezierEasing
 
 internal const val FONT_FAMILY_BODY = "variable-title-small"
@@ -33,11 +32,6 @@ internal const val CLOCK_PATTERN_24_STANDARD = "HH:mm"
 internal const val CLOCK_PATTERN_ALL = "hhmmss"
 
 internal const val APPEAR_DURATION = 400L
-
-internal val FIDGET_HAPTICS: VibrationEffect = VibrationEffect.startComposition()
-    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 1.0f, 0)
-    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_QUICK_RISE, 1.0f, 43)
-    .compose()
 
 const val PREVIEW_TIME_12 = "1008"
 const val PREVIEW_TIME_12_STANDARD = "10:08"

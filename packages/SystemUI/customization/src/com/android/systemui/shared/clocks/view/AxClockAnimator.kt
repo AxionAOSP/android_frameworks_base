@@ -17,9 +17,6 @@
 package com.android.systemui.shared.clocks.view
 
 import android.animation.ValueAnimator
-import android.content.Context
-import android.os.VibrationEffect
-import android.os.Vibrator
 import android.util.Log
 import androidx.compose.ui.geometry.Offset
 import com.android.app.animation.Interpolators
@@ -45,13 +42,3 @@ fun AxClockView.animateCharge() {
     onChargeAnimation()
 }
 
-fun AxClockView.animateFidgetTapDefault(x: Float, y: Float) {
-    state.fidgetPosition.value = Offset(x, y)
-    state.fidgetTrigger.value = System.currentTimeMillis()
-    val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-    if (useGlitchInteraction) {
-        vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
-    } else {
-        vibrator?.vibrate(FIDGET_HAPTICS)
-    }
-}

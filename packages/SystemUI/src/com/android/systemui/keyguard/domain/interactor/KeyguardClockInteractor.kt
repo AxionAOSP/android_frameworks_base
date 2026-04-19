@@ -227,8 +227,6 @@ constructor(
 
         if (wallpaperFocalAreaInteractor.hasFocalArea.value) {
             wallpaperFocalAreaInteractor.sendTapPosition(x, y)
-        } else {
-            clockEventController.handleFidgetTap(x, y)
         }
     }
 

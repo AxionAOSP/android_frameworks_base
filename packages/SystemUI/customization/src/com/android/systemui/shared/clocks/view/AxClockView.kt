@@ -25,22 +25,14 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
 import android.view.ViewGroup
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -92,7 +84,6 @@ abstract class AxClockView @JvmOverloads constructor(
         }
 
     var touchEnabled: Boolean = true
-    var onFidgetTapListener: ((Float, Float) -> Unit)? = null
 
     private val depthController = ClockDepthController(this)
     var depthEffectEnabled: Boolean
@@ -219,8 +210,6 @@ abstract class AxClockView @JvmOverloads constructor(
 
     fun refreshDate() { interactor.refreshDate() }
 
-    open fun animateFidgetTap(x: Float, y: Float) = animateFidgetTapDefault(x, y)
-
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
         if (!touchEnabled) return false
         return super.dispatchTouchEvent(ev)
@@ -339,32 +328,6 @@ abstract class AxClockView @JvmOverloads constructor(
         return Modifier.graphicsLayer {
             scaleX = scaleValue
             scaleY = scaleValue
-        }
-    }
-
-    protected val fidgetTapModifier: Modifier
-        @Composable get() = fidgetTapModifierFor(null)
-
-    @Composable
-    protected fun fidgetTapModifierFor(boundsProvider: (() -> Rect?)?): Modifier {
-        return Modifier.pointerInput(touchEnabled) {
-            if (!touchEnabled) return@pointerInput
-            detectTapGestures { offset ->
-                if (state.isDoze) return@detectTapGestures
-                val bounds = boundsProvider?.invoke()
-                if (bounds != null && !bounds.contains(offset)) return@detectTapGestures
-                onFidgetTapListener?.invoke(offset.x, offset.y)
-            }
-        }
-    }
-
-    @Composable
-    protected fun DigitArea(
-        modifier: Modifier = Modifier,
-        content: @Composable () -> Unit,
-    ) {
-        Box(modifier = modifier.then(fidgetTapModifier)) {
-            content()
         }
     }
 

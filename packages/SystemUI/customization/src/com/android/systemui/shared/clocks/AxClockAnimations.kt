@@ -50,9 +50,7 @@ class AxClockAnimations(
         clockView.translationY = 0.5f * clockView.bottom * (1 - swipingFraction)
     }
 
-    override fun onFidgetTap(x: Float, y: Float) {
-        clockView.animateFidgetTap(x, y)
-    }
+    override fun onFidgetTap(x: Float, y: Float) {}
 
     override fun onPositionAnimated(args: ClockPositionAnimationArgs) {}
 

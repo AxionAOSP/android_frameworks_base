@@ -55,12 +55,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Rect as ComposeRect
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -263,13 +261,11 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
 
         val dateColor = dateTextColor(config, isDoze, screenOff, regionDark)
 
-        val bitmapDigitBounds = remember { mutableStateOf<ComposeRect?>(null) }
         SmallShell(config, dateColor) {
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(canvasHeightDp)
-                    .then(fidgetTapModifierFor { bitmapDigitBounds.value }),
+                    .height(canvasHeightDp),
             ) {
                 state.clockColorOverrideState.value
                 if (time.isEmpty() || !TextUtils.isDigitsOnly(time)) return@Canvas
@@ -293,10 +289,6 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
                     isRightAligned -> size.width - clockPaddingStart - finalWidth
                     else -> (size.width - finalWidth) / 2f
                 }
-                bitmapDigitBounds.value = ComposeRect(
-                    startX, 0f, startX + finalWidth, size.height
-                )
-
                 val minuteStartIndex = if (time.length == 4) 2 else 1
                 val minuteTint = if (config.minuteAlpha < 1f && !isDoze && !screenOff) {
                     tintColor.copy(alpha = config.minuteAlpha)
@@ -345,13 +337,11 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         val canvasHeightDp = with(LocalDensity.current) { canvasHeight.toDp() }
         val dateColor = dateTextColor(config, isDoze, screenOff, regionDark)
 
-        val fontDigitBounds = remember { mutableStateOf<ComposeRect?>(null) }
         SmallShell(config, dateColor) {
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(canvasHeightDp)
-                    .then(fidgetTapModifierFor { fontDigitBounds.value }),
+                    .height(canvasHeightDp),
             ) {
                 weightVersion.intValue
                 state.clockColorOverrideState.value
@@ -403,10 +393,6 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
                     isWakingUp -> (size.width / 2f) + (totalWidth / 2f)
                     else -> (size.width - totalWidth) / 2f
                 }
-                fontDigitBounds.value = ComposeRect(
-                    (size.width - totalWidth) / 2f, 0f,
-                    (size.width + totalWidth) / 2f, size.height,
-                )
                 var x = startX
 
                 for (i in indices) {
@@ -537,8 +523,6 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         val canvasHeightDp = with(LocalDensity.current) {
             (digitHeightPx * 2 + lineSpacing).toDp()
         }
-        val largeBitmapBounds = remember { mutableStateOf<ComposeRect?>(null) }
-
         Column(
             modifier = Modifier.fillMaxWidth().wrapContentHeight(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -546,8 +530,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(canvasHeightDp)
-                    .then(fidgetTapModifierFor { largeBitmapBounds.value }),
+                    .height(canvasHeightDp),
             ) {
                 state.clockColorOverrideState.value
                 if (time.isEmpty() || !TextUtils.isDigitsOnly(time)) return@Canvas
@@ -560,12 +543,6 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
 
                 val sampleBitmap = bitmaps['0'] ?: return@Canvas
                 val digitHeight = sampleBitmap.height * scale
-
-                val maxW = maxOf(hoursWidth, minutesWidth)
-                largeBitmapBounds.value = ComposeRect(
-                    (size.width - maxW) / 2f, 0f,
-                    (size.width + maxW) / 2f, size.height,
-                )
 
                 val hoursX = (size.width - hoursWidth) / 2f
                 val minutesX = (size.width - minutesWidth) / 2f
@@ -620,7 +597,6 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
             )
         }
         val canvasHeightDp = fontLayout.canvasHeightDp
-        val largeFontBounds = remember { mutableStateOf<ComposeRect?>(null) }
 
         Column(
             modifier = Modifier.fillMaxWidth().wrapContentHeight(),
@@ -629,8 +605,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(canvasHeightDp.dp)
-                    .then(fidgetTapModifierFor { largeFontBounds.value }),
+                    .height(canvasHeightDp.dp),
             ) {
                 weightVersion.intValue
                 state.clockColorOverrideState.value
@@ -669,12 +644,6 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
 
                 drawCenteredLine(hours, hoursBaselineY, 0)
                 drawCenteredLine(minutes, minutesBaselineY, hours.length)
-
-                val maxLineW = cellWidth * maxOf(hours.length, minutes.length)
-                largeFontBounds.value = ComposeRect(
-                    (size.width - maxLineW) / 2f, 0f,
-                    (size.width + maxLineW) / 2f, size.height,
-                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -900,11 +869,6 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
             pos.y, screenHeight - pos.y
         )
         tapPos = pos
-    }
-
-    override fun animateFidgetTap(x: Float, y: Float) {
-        super.animateFidgetTap(x, y)
-        animateWeightPulse()
     }
 
     override fun onChargeAnimation() {

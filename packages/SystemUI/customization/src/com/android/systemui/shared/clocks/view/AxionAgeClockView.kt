@@ -144,7 +144,6 @@ class AxionAgeClockView @JvmOverloads constructor(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.then(fidgetTapModifier),
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(digitSpacing)) {
                         AxDigit(time[0], isDark, fidgetValue, digitW, digitH, digitStroke, glowExtra, textColor)
@@ -188,7 +187,6 @@ class AxionAgeClockView @JvmOverloads constructor(
             if (time.length >= 4) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.then(fidgetTapModifier),
                 ) {
                     AxDigit(time[0], isDark, fidgetValue, digitW, digitH, digitStroke, glowExtra, textColor)
                     Spacer(modifier = Modifier.width(digitSpacing))

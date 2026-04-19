@@ -37,12 +37,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
@@ -144,8 +142,6 @@ class GeneralClockView @JvmOverloads constructor(
         val canvasHeightDp = with(LocalDensity.current) {
             (digitH * 2 + lineSpacing).toDp()
         }
-        val digitBoundsState = remember { mutableStateOf<Rect?>(null) }
-
         Column(
             modifier = Modifier.fillMaxWidth().wrapContentHeight(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -153,8 +149,7 @@ class GeneralClockView @JvmOverloads constructor(
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(canvasHeightDp)
-                    .then(fidgetTapModifierFor { digitBoundsState.value }),
+                    .height(canvasHeightDp),
             ) {
                 if (time.isEmpty() || !TextUtils.isDigitsOnly(time)) return@Canvas
 
@@ -195,14 +190,6 @@ class GeneralClockView @JvmOverloads constructor(
 
                 drawLine(hours, (size.width - hoursW) / 2f, 0f)
                 drawLine(minutes, (size.width - minutesW) / 2f, dh + lineSpacing)
-
-                val maxW = maxOf(hoursW, minutesW)
-                digitBoundsState.value = Rect(
-                    left = (size.width - maxW) / 2f,
-                    top = 0f,
-                    right = (size.width + maxW) / 2f,
-                    bottom = dh * 2 + lineSpacing,
-                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -253,7 +240,6 @@ class GeneralClockView @JvmOverloads constructor(
         val canvasHeightDp = with(LocalDensity.current) { canvasHeight.toDp() }
 
         val inverseModifier = inverseSizeScaleModifier()
-        val smallDigitBounds = remember { mutableStateOf<Rect?>(null) }
 
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -283,8 +269,7 @@ class GeneralClockView @JvmOverloads constructor(
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(canvasHeightDp)
-                    .then(fidgetTapModifierFor { smallDigitBounds.value }),
+                    .height(canvasHeightDp),
             ) {
                 if (time.isEmpty() || !TextUtils.isDigitsOnly(time)) return@Canvas
 
@@ -308,7 +293,6 @@ class GeneralClockView @JvmOverloads constructor(
                     isRightAligned -> size.width - clockPaddingStart - totalWidth
                     else -> (size.width - totalWidth) / 2f
                 }
-                smallDigitBounds.value = Rect(startX, 0f, startX + totalWidth, size.height)
                 var x = startX
 
                 for ((i, char) in time.withIndex()) {

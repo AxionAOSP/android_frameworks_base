@@ -127,7 +127,6 @@ class OldQuickLookClockView @JvmOverloads constructor(
                     fontFamily = clockFontFamily,
                     color = textColor,
                 ),
-                modifier = Modifier.then(fidgetTapModifier),
             )
 
             Text(
@@ -213,8 +212,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.then(fidgetTapModifier),
-                ) {
+                    ) {
                     Text(
                         text = hours,
                         maxLines = 1,

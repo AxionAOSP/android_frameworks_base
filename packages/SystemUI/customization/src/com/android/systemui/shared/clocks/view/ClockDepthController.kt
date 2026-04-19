@@ -8,6 +8,8 @@ import com.android.systemui.shared.clocks.DepthWallpaperProvider
 import android.content.res.Resources
 import android.provider.Settings
 import android.util.DisplayMetrics
+import kotlin.math.ceil
+import kotlin.math.floor
 
 class ClockDepthController(private val view: View) {
 
@@ -17,12 +19,16 @@ class ClockDepthController(private val view: View) {
     private var pathAspect: Float = 1f
     private var depthActive = false
     private var depthVisible = true
+    private var depthSuppressed = false
     private var maskAlpha = 0f
     private var revealProgress = 0f
     private var maskAnimator: ValueAnimator? = null
 
     private val transformedPath = Path()
     private val pathMatrix = Matrix()
+    private val coverageRegion = Region()
+    private val coverageClip = Region()
+    private val coverageDiff = Region()
     private val location = IntArray(2)
     private var cachedZoom = 0f
     private var cachedScreenW = 0f
@@ -87,6 +93,7 @@ class ClockDepthController(private val view: View) {
         DepthWallpaperProvider.removeListener(listener)
         subjectPath = null
         depthActive = false
+        depthSuppressed = false
     }
 
     fun setDepthVisible(visible: Boolean) {
@@ -181,6 +188,24 @@ class ClockDepthController(private val view: View) {
             return
         }
 
+        val suppressed = pathBounds.contains(layerRect) && pathFullyCovers(layerRect)
+        if (suppressed) {
+            if (maskAnimator?.isRunning == true) {
+                maskAnimator?.cancel()
+            }
+            maskAlpha = 0f
+            revealProgress = 0f
+            depthSuppressed = true
+            drawSuper(canvas)
+            return
+        }
+        if (depthSuppressed) {
+            depthSuppressed = false
+            if (depthActive && depthVisible) {
+                animateReveal()
+            }
+        }
+
         if (revealProgress >= 1f && maskAlpha >= 1f) {
             canvas.save()
             canvas.clipOutPath(transformedPath)
@@ -208,6 +233,19 @@ class ClockDepthController(private val view: View) {
 
             canvas.restoreToCount(layerCount)
         }
+    }
+
+    private fun pathFullyCovers(layerRect: RectF): Boolean {
+        coverageClip.set(
+            floor(layerRect.left).toInt(),
+            floor(layerRect.top).toInt(),
+            ceil(layerRect.right).toInt(),
+            ceil(layerRect.bottom).toInt()
+        )
+        coverageRegion.setPath(transformedPath, coverageClip)
+        coverageDiff.set(coverageClip)
+        coverageDiff.op(coverageRegion, Region.Op.DIFFERENCE)
+        return coverageDiff.isEmpty
     }
 
     private fun animateReveal() {

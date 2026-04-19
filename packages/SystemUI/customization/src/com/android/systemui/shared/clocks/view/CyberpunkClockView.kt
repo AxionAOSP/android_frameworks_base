@@ -121,7 +121,6 @@ class CyberpunkClockView @JvmOverloads constructor(
         ) {
             Box(
                 modifier = Modifier
-                    .then(fidgetTapModifier)
                     .graphicsLayer {
                         if (progress > 0f) {
                             translationX = (if (glitchSeed > 0.5f) 8f else -8f) * progress
@@ -207,7 +206,6 @@ class CyberpunkClockView @JvmOverloads constructor(
                 modifier = Modifier
                     .wrapContentSize()
                     .padding(horizontal = 16.dp)
-                    .then(fidgetTapModifier)
                     .graphicsLayer {
                         if (progress > 0f) {
                             translationX = (if (glitchSeed > 0.5f) 15f else -15f) * progress
