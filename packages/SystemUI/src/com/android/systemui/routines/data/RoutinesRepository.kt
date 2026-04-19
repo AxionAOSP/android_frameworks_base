@@ -59,7 +59,11 @@ class RoutinesRepository @Inject constructor(
             Log.e(TAG, "Failed to read routines from Settings", e)
             ""
         }
-        return serializer.deserializeRoutines(json)
+        return runCatching { serializer.deserializeRoutines(json) }
+            .getOrElse { e ->
+                Log.e(TAG, "Failed to deserialize routines: $json", e)
+                emptyList()
+            }
     }
 
     fun updateCache(routines: List<Routine>) {

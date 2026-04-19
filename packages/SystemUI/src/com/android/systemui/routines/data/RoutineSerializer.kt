@@ -35,9 +35,11 @@ class RoutineSerializer @Inject constructor() {
 
     fun deserializeRoutines(json: String): List<Routine> {
         if (json.isBlank()) return emptyList()
-        val array = JSONArray(json)
+        val array = runCatching { JSONArray(json) }.getOrNull() ?: return emptyList()
         return (0 until array.length()).mapNotNull { i ->
-            runCatching { deserializeRoutine(array.getJSONObject(i)) }.getOrNull()
+            runCatching { array.getJSONObject(i) }.getOrNull()?.let { obj ->
+                runCatching { deserializeRoutine(obj) }.getOrNull()
+            }
         }
     }
 
