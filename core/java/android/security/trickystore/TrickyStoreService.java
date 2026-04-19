@@ -25,9 +25,11 @@ import android.util.Log;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.spec.ECGenParameterSpec;
+import java.util.Base64;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -181,14 +183,19 @@ public class TrickyStoreService {
     }
 
     public void refreshKeyBox() {
-        String xml = fetchFromAms(() -> ActivityManager.getService().getSpoofTrickyStoreKeyBox());
-        if (xml == null || xml.isEmpty()) {
+        String raw = fetchFromAms(() -> ActivityManager.getService().getSpoofTrickyStoreKeyBox());
+        if (raw == null || raw.isEmpty()) {
             mKeyBoxManager.clear();
             mLastKeyboxFingerprint = null;
             return;
         }
-        String fingerprint = Integer.toHexString(xml.hashCode()) + ":" + xml.length();
+        String fingerprint = Integer.toHexString(raw.hashCode()) + ":" + raw.length();
         if (fingerprint.equals(mLastKeyboxFingerprint)) {
+            return;
+        }
+        String xml = decodeKeybox(raw);
+        if (xml == null) {
+            Log.e(TAG, "Keybox payload not recognised as XML or base64-encoded XML");
             return;
         }
         try {
@@ -198,6 +205,22 @@ public class TrickyStoreService {
         } catch (Exception e) {
             Log.e(TAG, "Failed to update keybox", e);
         }
+    }
+
+    private String decodeKeybox(String payload) {
+        String trimmed = payload.trim();
+        if (trimmed.startsWith("<")) {
+            return trimmed;
+        }
+        try {
+            byte[] decoded = Base64.getDecoder().decode(trimmed);
+            String asXml = new String(decoded, StandardCharsets.UTF_8).trim();
+            if (asXml.startsWith("<")) {
+                return asXml;
+            }
+        } catch (IllegalArgumentException ignored) {
+        }
+        return null;
     }
 
     public void refreshPatchLevel() {
