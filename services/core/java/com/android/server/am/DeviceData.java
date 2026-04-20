@@ -448,116 +448,8 @@ public final class DeviceData {
     private static final int BOOST_PERCENT_LITTLE = 100;
     private static final int BOOST_PERCENT_BIG = 85;
     private static final int BOOST_PERCENT_PRIME = 75;
-    private static final int BOOST_PERCENT_GPU = 67;
 
-    private static final int GPU_OPP_DEFAULT_INDEX = -1;
-
-    private static volatile String sGpuMinPath = null;
-    private static volatile int sGpuBoostHz = 0;
-    private static volatile int sGpuDefaultMinHz = 0;
-    private static volatile String[] sGpuFreqs = new String[0];
-    private static volatile boolean sGpuInitDone = false;
-
-    private static volatile boolean sGpuUseOpp = false;
-    private static volatile String sGpuOppPath = null;
-    private static volatile int sGpuBoostOppIndex = GPU_OPP_DEFAULT_INDEX;
-    private static volatile int sGpuOppCount = 0;
-
-    public static String getGpuMinPath() { ensureGpuInit(); return sGpuMinPath; }
-    public static int getGpuBoostHz() { ensureGpuInit(); return sGpuBoostHz; }
-    public static int getGpuDefaultMinHz() { ensureGpuInit(); return sGpuDefaultMinHz; }
-    public static String[] getGpuFreqs() { ensureGpuInit(); return sGpuFreqs; }
-
-    public static boolean isGpuOppMode() { ensureGpuInit(); return sGpuUseOpp; }
-    public static String getGpuOppPath() { ensureGpuInit(); return sGpuOppPath; }
-    public static int getGpuBoostOppIndex() { ensureGpuInit(); return sGpuBoostOppIndex; }
-    public static int getGpuDefaultOppIndex() { return GPU_OPP_DEFAULT_INDEX; }
-
-    private static synchronized void ensureGpuInit() {
-        if (sGpuInitDone) return;
-        sGpuInitDone = true;
-
-        if (initGpuOpp()) return;
-
-        String minPath = SystemProperties.get("persist.sys.axion_gpu_minfreq_file", "");
-        String freqsPath = SystemProperties.get("persist.sys.axion_gpu_freqs_path", "");
-        if (minPath.isEmpty() || freqsPath.isEmpty()) return;
-
-        String[] freqs = readGpuAvailableFreqs(freqsPath);
-        if (freqs.length == 0) return;
-
-        int boostHz = pickBoostFreq(freqs, BOOST_PERCENT_GPU);
-        int idleHz = pickMinFreq(freqs);
-        if (boostHz <= 0) return;
-
-        sGpuMinPath = minPath;
-        sGpuBoostHz = boostHz;
-        sGpuDefaultMinHz = idleHz;
-        sGpuFreqs = freqs;
-
-        Context ctx = NtServiceInjector.get().getContext();
-        if (ctx != null) {
-            Settings.Secure.putStringForUser(ctx.getContentResolver(),
-                "ax_gpu_freqs", String.join(",", freqs), UserHandle.USER_CURRENT);
-        }
-
-        AxUtils.logger("Gpu init: minPath=" + minPath + " freqs=" + Arrays.toString(freqs)
-                + " boostHz=" + boostHz + " idleHz=" + idleHz);
-    }
-
-    private static boolean initGpuOpp() {
-        String oppIndexPath = SystemProperties.get("persist.sys.axion_gpu_opp_index_file", "");
-        String oppTablePath = SystemProperties.get("persist.sys.axion_gpu_opp_table_file", "");
-        if (oppIndexPath.isEmpty() || oppTablePath.isEmpty()) return false;
-
-        String buf = AxUtils.readBufFile(oppIndexPath);
-        if (buf == null) {
-            AxUtils.logger("GPU opp path not found!!");
-            propSet("gpu_boost_use_opp", "false");
-            return false;
-        }
-
-        int maxOpp = parseOppCount(oppTablePath);
-        if (maxOpp <= 0) {
-            AxUtils.logger("GPU opp not available!!");
-            propSet("gpu_boost_use_opp", "false");
-            return false;
-        }
-
-        sGpuOppCount = maxOpp;
-        sGpuBoostOppIndex = (int) ((long) maxOpp * (100 - BOOST_PERCENT_GPU) / 100);
-        if (sGpuBoostOppIndex < 0) sGpuBoostOppIndex = 0;
-        sGpuOppPath = oppIndexPath;
-        sGpuUseOpp = true;
-        
-        propSet("gpu_boost_use_opp", "true");
-
-        AxUtils.write(oppIndexPath, String.valueOf(GPU_OPP_DEFAULT_INDEX));
-
-        AxUtils.logger("Gpu OPP init: indexPath=" + oppIndexPath
-                + " tablePath=" + oppTablePath
-                + " oppCount=" + maxOpp
-                + " boostIndex=" + sGpuBoostOppIndex);
-        return true;
-    }
-
-    private static int parseOppCount(String tablePath) {
-        String buf = AxUtils.readBufFile(tablePath);
-        if (buf == null || buf.trim().isEmpty()) return 0;
-        int count = 0;
-        for (int i = 0; i < buf.length(); i++) {
-            if (buf.charAt(i) == '[') count++;
-        }
-        return count > 0 ? count - 1 : 0;
-    }
-
-    private static String[] readGpuAvailableFreqs(String path) {
-        String buf = AxUtils.readBufFile(path);
-        if (buf == null || buf.trim().isEmpty()) return new String[0];
-        return buf.trim().split("\\s+");
-    }
-
-    private static int pickMinFreq(String[] freqs) {
+    static int pickMinFreq(String[] freqs) {
         int min = Integer.MAX_VALUE;
         for (String f : freqs) {
             try {
@@ -568,7 +460,7 @@ public final class DeviceData {
         return min == Integer.MAX_VALUE ? 0 : min;
     }
 
-    private static int pickBoostFreq(String[] freqs, int percent) {
+    static int pickBoostFreq(String[] freqs, int percent) {
         if (percent <= 0 || freqs == null || freqs.length == 0) return 0;
         int[] sorted = new int[freqs.length];
         int n = 0;

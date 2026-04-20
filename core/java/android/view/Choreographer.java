@@ -44,6 +44,7 @@ import android.util.Log;
 import android.util.TimeUtils;
 import android.view.animation.AnimationUtils;
 
+import com.android.internal.util.BoostHelper;
 import com.android.internal.util.ScrollOptimizer;
 
 import java.io.PrintWriter;
@@ -1062,6 +1063,9 @@ public final class Choreographer {
 
     void doFrame(long frameTimeNanos, int frame,
             DisplayEventReceiver.VsyncEventData vsyncEventData) {
+        if ((frame & 63) == 0) {
+            BoostHelper.onFrameStage(BoostHelper.Frame.REAL_DRAW, frameTimeNanos);
+        }
         final long startNanos;
         final long frameIntervalNanos = vsyncEventData.frameInterval;
         // Original intended vsync time that is not adjusted by jitter

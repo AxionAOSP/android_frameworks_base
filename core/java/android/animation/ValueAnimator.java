@@ -35,6 +35,8 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.view.animation.LinearInterpolator;
 
+import com.android.internal.util.BoostHelper;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
@@ -1118,6 +1120,9 @@ public class ValueAnimator extends Animator implements AnimationHandler.Animatio
         if (Looper.myLooper() == null) {
             throw new AndroidRuntimeException("Animators may only be run on Looper threads");
         }
+        if (mDuration >= 500L) {
+            BoostHelper.onAnimation(BoostHelper.Animation.START);
+        }
         mReversing = playBackwards;
         mSelfPulse = !mSuppressSelfPulseRequested;
         // Special case: reversing from seek-to-0 should act as if not seeked at all.
@@ -1302,6 +1307,9 @@ public class ValueAnimator extends Animator implements AnimationHandler.Animatio
     private void endAnimation(boolean fromLastFrame) {
         if (mAnimationEndRequested) {
             return;
+        }
+        if (mDuration >= 500L) {
+            BoostHelper.onAnimation(BoostHelper.Animation.END);
         }
         final boolean postNotifyEndListener = sPostNotifyEndListenerEnabled && mListeners != null
                 && fromLastFrame && getScaledDuration() > 0;

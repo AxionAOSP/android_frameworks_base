@@ -19898,6 +19898,41 @@ public class ActivityManagerService extends IActivityManager.Stub
     }
 
     @Override
+    public void onScrollEvent(int action) {
+        AxExtServiceFactory.getAxBurstEngine().onScrollEvent(action);
+    }
+
+    @Override
+    public void onLaunch(int type) {
+        AxExtServiceFactory.getAxBurstEngine().onLaunch(type);
+    }
+
+    @Override
+    public void onFrameStage(int stage, long frameId) {
+        AxExtServiceFactory.getAxBurstEngine().onFrameStage(stage, frameId);
+    }
+
+    @Override
+    public void onRefreshRateEvent(int event) {
+        AxExtServiceFactory.getAxBurstEngine().onRefreshRateEvent(event);
+    }
+
+    @Override
+    public void onImeTransition(int action) {
+        AxExtServiceFactory.getAxBurstEngine().onImeTransition(action);
+    }
+
+    @Override
+    public void onConsistency(int mode) {
+        AxExtServiceFactory.getAxBurstEngine().onConsistency(mode);
+    }
+
+    @Override
+    public void onAnimation(int action) {
+        AxExtServiceFactory.getAxBurstEngine().onAnimation(action);
+    }
+
+    @Override
     public void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera) {
         mHandler.post(() -> {
             AxExtServiceFactory.getMemoryManager().releaseMemory(

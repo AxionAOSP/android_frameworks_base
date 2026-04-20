@@ -101,6 +101,7 @@ import android.widget.RemoteViews.InteractionHandler;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.util.BoostHelper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -2471,6 +2472,7 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
      */
     View obtainView(int position, boolean[] outMetadata) {
         Trace.traceBegin(Trace.TRACE_TAG_VIEW, "obtainView");
+        BoostHelper.onFrameStage(BoostHelper.Frame.OBTAIN_VIEW, position);
 
         outMetadata[0] = false;
 
@@ -4033,6 +4035,7 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
         vtev.offsetLocation(0, mNestedYOffset);
         switch (actionMasked) {
             case MotionEvent.ACTION_DOWN: {
+                BoostHelper.onScrollEvent(BoostHelper.Scroll.INPUT_EVENT);
                 onTouchDown(ev);
                 break;
             }
@@ -4935,6 +4938,12 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.P, trackingBug = 123769710)
     void reportScrollStateChange(int newState) {
         if (newState != mLastScrollState) {
+            if (newState == OnScrollListener.SCROLL_STATE_TOUCH_SCROLL) {
+                BoostHelper.onScrollEvent(BoostHelper.Scroll.VERTICAL);
+                BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.TOUCH_SCROLL_ENABLE);
+            } else if (newState == OnScrollListener.SCROLL_STATE_FLING) {
+                BoostHelper.onScrollEvent(BoostHelper.Scroll.PREFILING);
+            }
             if (mOnScrollListener != null) {
                 mLastScrollState = newState;
                 mOnScrollListener.onScrollStateChanged(this, newState);

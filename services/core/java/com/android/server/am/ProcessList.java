@@ -142,6 +142,7 @@ import com.android.internal.os.Zygote;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.MemInfoReader;
 import com.android.server.AppStateTracker;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.LocalServices;
 import com.android.server.ServiceThread;
 import com.android.server.StorageManagerInternal;
@@ -2954,6 +2955,14 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
                 UserHandle.getUserId(app.getStartUid()), pid, app.getStartUid(),
                 app.processName, app.getHostingRecord().getType(),
                 app.getHostingRecord().getName() != null ? app.getHostingRecord().getName() : "");
+
+        final String hostingType = app.getHostingRecord().getType();
+        if (HostingRecord.HOSTING_TYPE_NEXT_TOP_ACTIVITY.equals(hostingType)
+                || HostingRecord.HOSTING_TYPE_TOP_ACTIVITY.equals(hostingType)
+                || HostingRecord.HOSTING_TYPE_NEXT_ACTIVITY.equals(hostingType)
+                || HostingRecord.HOSTING_TYPE_ACTIVITY.equals(hostingType)) {
+            AxExtServiceFactory.getAxBurstEngine().systemThreadBoost(pid, 500L);
+        }
 
         try {
             AppGlobals.getPackageManager().logAppProcessStartIfNeeded(app.info.packageName,

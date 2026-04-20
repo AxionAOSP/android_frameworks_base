@@ -20,6 +20,8 @@ import android.annotation.Nullable;
 import android.os.Trace;
 import android.view.View;
 
+import com.android.internal.util.BoostHelper;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -33,6 +35,7 @@ final class GapWorker implements Runnable {
     ArrayList<RecyclerView> mRecyclerViews = new ArrayList<>();
     long mPostTimeNs;
     long mFrameIntervalNs;
+    private int mPrefetchTick;
 
     static class Task {
         public boolean immediate;
@@ -341,6 +344,9 @@ final class GapWorker implements Runnable {
     }
 
     void prefetch(long deadlineNs) {
+        if ((mPrefetchTick++ & 15) == 0) {
+            BoostHelper.onFrameStage(BoostHelper.Frame.PREFETCHER, deadlineNs);
+        }
         buildTaskList();
         flushTasksWithDeadline(deadlineNs);
     }

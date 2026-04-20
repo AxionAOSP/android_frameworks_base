@@ -143,6 +143,7 @@ import com.android.server.AxExtServiceFactory;
 import com.android.server.UiThread;
 import com.android.server.am.ActivityManagerService.IntentCreatorToken;
 import com.android.server.am.AxUtils;
+import com.android.server.am.IAxBurstEngine;
 import com.android.server.am.PendingIntentRecord;
 import com.android.server.pm.InstantAppResolver;
 import com.android.server.pm.PackageArchiver;
@@ -1744,6 +1745,11 @@ class ActivityStarter {
             try {
                 AxExtServiceFactory.getAxBurstEngine().compositionBoost(800L,
                         r.app != null ? r.app.getPid() : 0);
+                AxExtServiceFactory.getAxBurstEngine().onLaunch(
+                        r.app != null ? IAxBurstEngine.Launch.LAUNCH_HOT
+                                      : IAxBurstEngine.Launch.LAUNCH_COLD);
+                AxExtServiceFactory.getAxBurstEngine().onConsistency(
+                        IAxBurstEngine.Consistency.APP_LAUNCH_RESPONSE);
                 Trace.traceBegin(Trace.TRACE_TAG_WINDOW_MANAGER, "startActivityInner");
                 result = startActivityInner(r, sourceRecord, voiceSession, voiceInteractor,
                         startFlags, options, inTask, inTaskFragment, balVerdict,

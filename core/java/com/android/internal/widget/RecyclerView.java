@@ -58,6 +58,7 @@ import android.widget.OverScroller;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.util.BoostHelper;
 import com.android.internal.widget.RecyclerView.ItemAnimator.ItemHolderInfo;
 
 import java.lang.annotation.Retention;
@@ -1352,6 +1353,12 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                     new Exception());
         }
         mScrollState = state;
+        if (state == SCROLL_STATE_DRAGGING) {
+            BoostHelper.onScrollEvent(BoostHelper.Scroll.VERTICAL);
+            BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.TOUCH_SCROLL_ENABLE);
+        } else if (state == SCROLL_STATE_SETTLING) {
+            BoostHelper.onScrollEvent(BoostHelper.Scroll.PREFILING);
+        }
         if (state != SCROLL_STATE_SETTLING) {
             stopScrollersInternal();
         }
@@ -2812,6 +2819,7 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
 
         switch (action) {
             case MotionEvent.ACTION_DOWN: {
+                BoostHelper.onScrollEvent(BoostHelper.Scroll.INPUT_EVENT);
                 mScrollPointerId = e.getPointerId(0);
                 mInitialTouchX = mLastTouchX = (int) (e.getX() + 0.5f);
                 mInitialTouchY = mLastTouchY = (int) (e.getY() + 0.5f);

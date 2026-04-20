@@ -298,6 +298,7 @@ import com.android.internal.policy.PhoneFallbackEventHandler;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.FastPrintWriter;
 import com.android.internal.util.NtThreeFingerGestureHelper;
+import com.android.internal.util.BoostHelper;
 import com.android.internal.util.ScrollOptimizer;
 import com.android.internal.view.BaseSurfaceHolder;
 import com.android.internal.view.RootViewSurfaceTaker;
@@ -2886,6 +2887,7 @@ public final class ViewRootImpl implements ViewParent,
         }
         mBlastBufferQueue = new BLASTBufferQueue(mTag, true /* updateDestinationFrame */);
         ScrollOptimizer.setBLASTBufferQueue(mBlastBufferQueue);
+        BoostHelper.onFrameStage(BoostHelper.Frame.RENDER_INFO, 0L);
         // If we create and destroy BBQ without recreating the SurfaceControl, we can end up
         // queuing buffers on multiple apply tokens causing out of order buffer submissions. We
         // fix this by setting the same apply token on all BBQs created by this VRI.
@@ -8471,6 +8473,9 @@ public final class ViewRootImpl implements ViewParent,
 
             mAttachInfo.mUnbufferedDispatchRequested = false;
             mAttachInfo.mHandlingPointerEvent = true;
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                BoostHelper.onScrollEvent(BoostHelper.Scroll.INPUT_EVENT);
+            }
             // If the event was fully handled by the handwriting initiator, then don't dispatch it
             // to the view tree.
             handled = handled || mView.dispatchPointerEvent(event);

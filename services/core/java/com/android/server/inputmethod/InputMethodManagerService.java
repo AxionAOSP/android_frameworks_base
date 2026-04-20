@@ -206,6 +206,9 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
+import com.android.server.AxExtServiceFactory;
+import com.android.server.am.IAxBurstEngine;
+
 import java.lang.annotation.Target;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
@@ -1492,6 +1495,7 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
             ProtoLog.v(IMMS_DEBUG, "--- systemReady");
             if (!mSystemReady) {
                 mSystemReady = true;
+                AxExtServiceFactory.getAxBurstEngine().onImeTransition(IAxBurstEngine.Ime.IME_INIT);
                 final int currentImeUserId = mCurrentImeUserId;
 
                 // Must happen before registerContentObserverLocked
@@ -3389,6 +3393,7 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
     private boolean showCurrentInputLocked(IBinder windowToken,
             @NonNull ImeTracker.Token statsToken, @SoftInputShowHideReason int reason,
             @UserIdInt int userId) {
+        AxExtServiceFactory.getAxBurstEngine().onImeTransition(IAxBurstEngine.Ime.IME_SHOW);
         final var userData = getUserData(userId);
         final var visibilityStateComputer = userData.mVisibilityStateComputer;
         if (!visibilityStateComputer.isAllowedByAccessibilityAndDisplayPolicy()) {
@@ -3515,6 +3520,7 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
     private boolean hideCurrentInputLocked(IBinder windowToken,
             @NonNull ImeTracker.Token statsToken, @SoftInputShowHideReason int reason,
             @UserIdInt int userId) {
+        AxExtServiceFactory.getAxBurstEngine().onImeTransition(IAxBurstEngine.Ime.IME_HIDE);
         final var userData = getUserData(userId);
         final var bindingController = userData.mBindingController;
         final var visibilityStateComputer = userData.mVisibilityStateComputer;

@@ -166,6 +166,7 @@ import com.android.server.AxExtServiceFactory;
 import com.android.server.LocalServices;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.am.HostingRecord;
+import com.android.server.am.IAxBurstEngine;
 import com.android.server.am.UserState;
 import com.android.server.companion.virtual.VirtualDeviceManagerInternal;
 import com.android.server.pm.SaferIntentUtils;
@@ -483,6 +484,8 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
     private int mDeferResumeCount;
 
     private boolean mInitialized;
+
+    private boolean mWasAllActivitiesIdle;
 
     public ActivityTaskSupervisor(ActivityTaskManagerService service, Looper looper) {
         mService = service;
@@ -1622,7 +1625,13 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
             r.mRelaunchReason = RELAUNCH_REASON_NONE;
         }
 
-        if (mRootWindowContainer.allResumedActivitiesIdle()) {
+        final boolean allIdle = mRootWindowContainer.allResumedActivitiesIdle();
+        if (allIdle) {
+            if (!mWasAllActivitiesIdle) {
+                mWasAllActivitiesIdle = true;
+                AxExtServiceFactory.getAxBurstEngine().onConsistency(
+                        IAxBurstEngine.Consistency.NORMAL_MODE);
+            }
             if (r != null) {
                 mService.scheduleAppGcsLocked();
                 mRecentTasks.onActivityIdle(r);
@@ -1635,6 +1644,8 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
                 }
                 mLaunchingActivityWakeLock.release();
             }
+        } else {
+            mWasAllActivitiesIdle = false;
         }
 
         // Atomically retrieve all of the other things to do.
@@ -2250,10 +2261,13 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
 
     boolean reportResumedActivityLocked(ActivityRecord r) {
         this.mStoppingActivities.remove(r);
+        mWasAllActivitiesIdle = false;
         AxExtServiceFactory.getAxBurstEngine().getProcessesAndFrozen(r.packageName);
         AxExtServiceFactory.getAxBurstEngine().inputBoost();
         AxExtServiceFactory.getAxBurstEngine().compositionBoost(800L,
                 r.app != null ? r.app.getPid() : 0);
+        AxExtServiceFactory.getAxBurstEngine().onLaunch(
+                IAxBurstEngine.Launch.ACTIVITY_SWITCH);
         AxExtServiceFactory.getMemoryManager().releaseMemoryAtScreenOn();
         AxExtServiceFactory.getMemoryManager().loadProcessMemory("com.android.launcher3");
         Task rootTask = r.getRootTask();

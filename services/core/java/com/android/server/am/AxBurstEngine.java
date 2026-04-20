@@ -20,7 +20,6 @@ import static com.android.server.am.BoostFlagsManager.*;
 import static com.android.server.am.AxUtils.*;
 import static android.os.Process.*;
 
-import android.app.role.RoleManager;
 import android.content.Context;
 import android.os.*;
 import android.os.Process;
@@ -29,10 +28,7 @@ import android.provider.Settings;
 import android.util.Slog;
 import com.android.server.NtServiceInjector;
 import com.android.server.UiThread;
-import com.android.server.wm.AxRefreshRateController;
 import com.android.internal.util.ScrollOptimizer;
-import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -40,52 +36,29 @@ public class AxBurstEngine implements IAxBurstEngine {
 
     private static final String TAG = "AxBurstEngine";
 
-    private static final int MSG_CPU_UPDATE_BACKGROUND = 100;
-    private static final int MSG_CPU_UPDATE_SYS_BG = 101;
-    private static final int MSG_CPU_UPDATE_TOP_APP = 102;
-    private static final int MSG_CPU_UPDATE_CAMERA = 103;
-    private static final int MSG_CPU_UPDATE_FG = 104;
-    private static final int MSG_CPU_UPDATE_RES = 105;
-    private static final int MSG_CPU_UPDATE_DEX = 106;
-    private static final int MSG_CPU_UPDATE_AX_FG = 107;
     private static final int MSG_GAME_BOOST = 108;
-    private static final int MSG_CPU_UPDATE_L_BG = 109;
-    private static final int MSG_CPU_UPDATE_H_BG = 110;
     private static final long INPUT_BOOST_DURATION = SystemProperties.getLong(
             "persist.sys.ax.idle_timeout_ms", 1500);
 
-    private static final HashMap<String, File> sFileCache = new HashMap<>();
-    private static final HashMap<String, Integer> sCpuUpdateMessages = new HashMap<>();
-    private static final HashMap<String, HashMap> sCpusetGroups = new HashMap<>();
-
-    private static final HashMap<Integer, Object> bgCpusetOverrides = new HashMap<>();
-    private static final HashMap<Integer, Object> cameraCpusetOverrides = new HashMap<>();
-    private static final HashMap<Integer, Object> sysBgCpusetOverrides = new HashMap<>();
-    private static final HashMap<Integer, Object> topAppCpusetOverrides = new HashMap<>();
-    private static final HashMap<Integer, Object> fgCpusetOverrides = new HashMap<>();
-    private static final HashMap<Integer, Object> svpCpusetOverrides = new HashMap<>();
-    private static final HashMap<Integer, Object> dex2oatCpusetOverrides = new HashMap<>();
-    private static final HashMap<Integer, Object> axFgCpusetOverrides = new HashMap<>();
-    private static final HashMap<Integer, Object> lBgCpusetOverrides = new HashMap<>();
-    private static final HashMap<Integer, Object> hBgCpusetOverrides = new HashMap<>();
-    private static final HashMap<Integer, Object> sysuiCpusetOverrides = new HashMap<>();
     private static final HashMap<String, String> sConfig = new HashMap<>();
     private static final HashMap<String, String> sDefaultsCpu = new HashMap<>();
-    
-    public static final String CPU_CAMERA = AxUtils.cpuPath("camera-daemon");
-    public static final String CPU_NNAPI_HAL = AxUtils.cpuPath("nnapi-hal");
-    public static final String CPU_RT = AxUtils.cpuPath("rt");
-    public static final String CPU_SYSTEM = AxUtils.cpuPath("system");
-    public static final String CPU_SYSUI = AxUtils.cpuPath("systemui");
 
-    private static final String FG_UCLAMP_MIN = "/dev/cpuctl/foreground/cpu.uclamp.min";
-    
+    public static final String CPU_CAMERA = AxCpusetManager.CPU_CAMERA;
+    public static final String CPU_SYSUI = AxCpusetManager.CPU_SYSUI;
+    public static final String CPU_NNAPI_HAL = AxCpusetManager.CPU_NNAPI_HAL;
+    public static final String CPU_RT = AxCpusetManager.CPU_RT;
+    public static final String CPU_SYSTEM = AxCpusetManager.CPU_SYSTEM;
+
+    private static final String FG_UCLAMP_MIN_PATH = "/dev/cpuctl/foreground/cpu.uclamp.min";
+    private static final String UCLAMP_MIN_BOOT = "30";
+
     private ProcessList procList;
     private Context mContext;
     private final Handler mHandler;
     private final HandlerThread mBoostHandlerThread;
-    private final HandlerThread mFreezeHandlerThread;
-    
+    private final AxFreezeManager mFreezeManager = new AxFreezeManager();
+    private final AxBoostManager mBoostMgr;
+
     private DeviceData.BoostData mData;
     private DeviceData mDeviceData;
     private BoostFlagsManager mFlags;
@@ -93,75 +66,23 @@ public class AxBurstEngine implements IAxBurstEngine {
     private boolean mBackgroundLimited = false;
     private boolean mSfBoosted = false;
     private boolean mSfBindPersistent = false;
-    private boolean mFlingBoosted = false;
     private final Runnable inputReset = new InputBoostResetRunnable();
     private final Runnable sfBindReset = new SfBindControlRunnable();
 
-    private Handler mFreezeHandler;
-    private boolean mFreezing = false;
-    private int mFreezeDuration = 600;
-
     private boolean mSystemReady = false;
-    
     private boolean mInstallBoostActive = false;
+
+    private final AxThreadBoost mThreadBoost;
     
-    private boolean mShadeBoosted = false;
-
-    private final HashMap<Integer, Integer> mBoostCount = new HashMap<>();
-    private final HashMap<Integer, Integer> mOriginalPriorities = new HashMap<>();
-
-    private final Runnable mLauncherBoostReset = this::restoreLauncherBoost;
-    
-    static {
-        sFileCache.put(CPU_BG, new File(CPU_BG));
-        sFileCache.put(CPU_SYS_BG, new File(CPU_SYS_BG));
-        sFileCache.put(CPU_TOP_APP, new File(CPU_TOP_APP));
-        sFileCache.put(CPU_FG, new File(CPU_FG));
-        sFileCache.put(CPU_SVP, new File(CPU_SVP));
-        sFileCache.put(CPU_DEX2OAT, new File(CPU_DEX2OAT));
-        sFileCache.put(CPU_AX_FG, new File(CPU_AX_FG));
-        sFileCache.put(CPU_CAMERA, new File(CPU_CAMERA));
-        sFileCache.put(CPU_L_BG, new File(CPU_L_BG));
-        sFileCache.put(CPU_H_BG, new File(CPU_H_BG));
-        sFileCache.put(CPU_NNAPI_HAL, new File(CPU_NNAPI_HAL));
-        sFileCache.put(CPU_RT, new File(CPU_RT));
-        sFileCache.put(CPU_SYSTEM, new File(CPU_SYSTEM));
-        sFileCache.put(CPU_SYSUI, new File(CPU_SYSUI));
-
-        sCpuUpdateMessages.put(CPU_SYS_BG, Integer.valueOf(MSG_CPU_UPDATE_SYS_BG));
-        sCpuUpdateMessages.put(CPU_BG, Integer.valueOf(MSG_CPU_UPDATE_BACKGROUND));
-        sCpuUpdateMessages.put(CPU_TOP_APP, Integer.valueOf(MSG_CPU_UPDATE_TOP_APP));
-        sCpuUpdateMessages.put(CPU_CAMERA, Integer.valueOf(MSG_CPU_UPDATE_CAMERA));
-        sCpuUpdateMessages.put(CPU_FG, Integer.valueOf(MSG_CPU_UPDATE_FG));
-        sCpuUpdateMessages.put(CPU_SVP, Integer.valueOf(MSG_CPU_UPDATE_RES));
-        sCpuUpdateMessages.put(CPU_DEX2OAT, Integer.valueOf(MSG_CPU_UPDATE_DEX));
-        sCpuUpdateMessages.put(CPU_AX_FG, Integer.valueOf(MSG_CPU_UPDATE_AX_FG));
-        sCpuUpdateMessages.put(CPU_L_BG, Integer.valueOf(MSG_CPU_UPDATE_L_BG));
-        sCpuUpdateMessages.put(CPU_H_BG, Integer.valueOf(MSG_CPU_UPDATE_H_BG));
-
-        sCpusetGroups.put(CPU_BG, bgCpusetOverrides);
-        sCpusetGroups.put(CPU_SYS_BG, sysBgCpusetOverrides);
-        sCpusetGroups.put(CPU_TOP_APP, topAppCpusetOverrides);
-        sCpusetGroups.put(CPU_CAMERA, cameraCpusetOverrides);
-        sCpusetGroups.put(CPU_FG, fgCpusetOverrides);
-        sCpusetGroups.put(CPU_SVP, svpCpusetOverrides);
-        sCpusetGroups.put(CPU_DEX2OAT, dex2oatCpusetOverrides);
-        sCpusetGroups.put(CPU_AX_FG, axFgCpusetOverrides);
-        sCpusetGroups.put(CPU_L_BG, lBgCpusetOverrides);
-        sCpusetGroups.put(CPU_H_BG, hBgCpusetOverrides);
-        sCpusetGroups.put(CPU_SYSUI, sysuiCpusetOverrides);
-    }
 
     public AxBurstEngine() {
         mBoostHandlerThread = new HandlerThread("AxBurstEngineThread", -2);
         mBoostHandlerThread.start();
         mHandler = new AxBurstEngineHandler(mBoostHandlerThread.getLooper());
 
-        mFreezeHandlerThread = new HandlerThread("FreezeHandlerThread", -2);
-        mFreezeHandlerThread.start();
-        mFreezeHandler = new FreezerHandler(mFreezeHandlerThread.getLooper());
-
         mFlags = new BoostFlagsManager();
+        mThreadBoost = new AxThreadBoost(mHandler, this);
+        mBoostMgr = new AxBoostManager(this, mHandler);
     }
 
     public void systemReady() {
@@ -174,7 +95,9 @@ public class AxBurstEngine implements IAxBurstEngine {
 
         mSfBindPersistent = true;
         mHandler.post(() -> sfBindCoreControll(true));
-        mHandler.post(() -> AxUtils.write(FG_UCLAMP_MIN, "30"));
+        mHandler.post(() -> AxUtils.write(FG_UCLAMP_MIN_PATH, UCLAMP_MIN_BOOT));
+
+        mFreezeManager.setSystemReady(mContext, procList);
 
         mSystemReady = true;
     }
@@ -189,8 +112,13 @@ public class AxBurstEngine implements IAxBurstEngine {
         return mDeviceData;
     }
 
+    DeviceData.BoostData getData() {
+        return mData;
+    }
+
     private void updateConfigs(DeviceData.BoostData data) {
         mData = data;
+        mBoostMgr.onConfigsUpdated();
 
         sConfig.clear();
         sConfig.put(data.sMin, data.uSMin);
@@ -221,72 +149,11 @@ public class AxBurstEngine implements IAxBurstEngine {
     }
 
     private void writeDefaultCpusets() {
-        mHandler.post(() -> sDefaultsCpu.forEach(this::restoreCpuset));
-    }
-
-    private void restoreCpuset(String path, String cpus) {
-        if (cpus == null) return;
-        File file = sFileCache.get(path);
-        if (file == null) return;
-        try {
-            FileUtils.stringToFile(file, cpus);
-            logger("restore: cpuFile = " + file + ", cpus = " + cpus);
-        } catch (IOException e) {
-            logger("restore cpuset failed");
-        }
+        mHandler.post(() -> sDefaultsCpu.forEach(AxCpusetManager::restoreCpuset));
     }
 
     public void adjustCpusetCpus(String path, String value, long duration) {
-        int callingUid = Binder.getCallingUid();
-        logger("adjustCpusetCpus: uid=" + callingUid + " path=" + path + 
-                " value=" + value + " duration=" + duration);
-
-        HashMap map = sCpusetGroups.get(path);
-        long now = System.currentTimeMillis();
-        long expiry = (duration == -1L) ? -1L : now + duration;
-        CpusetData newData = new CpusetData(callingUid, value, now, expiry);
-
-        if (map == null) {
-            logger("unknown group: " + path + ", ignore!");
-            return;
-        }
-
-        if (duration >= 0) {
-            CpusetData existing = (CpusetData) map.get(Integer.valueOf(callingUid));
-            if (existing == null) {
-                map.put(Integer.valueOf(callingUid), newData);
-            } else {
-                if (existing.duration == -1L && (newData.duration == -1L || newData.duration > 0)
-                        || (existing.duration > 0 && newData.duration > 0 && newData.duration < existing.duration)) {
-                    logger(callingUid + " not need set again, return!");
-                    return;
-                }
-                existing.duration = newData.duration;
-            }
-        } else if (duration == -1) {
-            map.remove(Integer.valueOf(callingUid));
-        }
-
-        File file = sFileCache.get(path);
-        if (file.exists()) {
-            try {
-                logger("uid = " + callingUid + " group = " + path + 
-                        ", origin cpus: " + sDefaultsCpu.get(path) + 
-                        ", targetCpus = " + value + ", duration = " + duration);
-                FileUtils.stringToFile(file, value);
-            } catch (IOException e) {
-                logger("adjust cpuset failed");
-            }
-        }
-
-        if (duration > 0) {
-            Integer what = sCpuUpdateMessages.get(path);
-            if (what != null) {
-                Message delayedMsg = mHandler.obtainMessage(what.intValue());
-                delayedMsg.arg1 = callingUid;
-                mHandler.sendMessageDelayed(delayedMsg, duration);
-            }
-        }
+        AxCpusetManager.adjust(mHandler, path, value, duration, Binder.getCallingUid());
     }
 
     public void inputBoost() {
@@ -338,212 +205,61 @@ public class AxBurstEngine implements IAxBurstEngine {
         }
     }
 
-    private boolean mGpuBoosted = false;
-    private boolean mGpuMaxBoosted = false;
-    private final Runnable mGpuBoostReset = () -> gpuBoost(false);
-
     public void gpuBoost(boolean active) {
-        if (mGpuBoosted == active) return;
-        if (DeviceData.isGpuOppMode()) {
-            String oppPath = DeviceData.getGpuOppPath();
-            if (oppPath == null) return;
-            int idx = active ? DeviceData.getGpuBoostOppIndex() : DeviceData.getGpuDefaultOppIndex();
-            mHandler.post(() -> AxUtils.write(oppPath, String.valueOf(idx)));
-            mGpuBoosted = active;
-            return;
-        }
-        String path = DeviceData.getGpuMinPath();
-        if (path == null) return;
-        int target = active ? DeviceData.getGpuBoostHz() : DeviceData.getGpuDefaultMinHz();
-        if (target <= 0) return;
-        mHandler.post(() -> AxUtils.write(path, String.valueOf(target)));
-        mGpuBoosted = active;
+        mBoostMgr.gpuBoost(active);
     }
 
     public void gpuMaxBoost(boolean active) {
-        if (mGpuMaxBoosted == active) return;
-        if (DeviceData.isGpuOppMode()) {
-            String oppPath = DeviceData.getGpuOppPath();
-            if (oppPath == null) return;
-            int idx = active ? 0 : DeviceData.getGpuDefaultOppIndex();
-            mHandler.post(() -> AxUtils.write(oppPath, String.valueOf(idx)));
-            mGpuMaxBoosted = active;
-            return;
-        }
-        gpuBoost(active);
+        mBoostMgr.gpuMaxBoost(active);
     }
 
     public void compositionBoost(long durationMs) {
-        compositionBoost(durationMs, 0);
+        mBoostMgr.compositionBoost(durationMs);
     }
-
-    private int mCompTopAppPid = 0;
-    private int mCompRenderTid = 0;
-    private volatile boolean mCompositionBoosting = false;
 
     @Override
     public boolean isCompositionBoosting() {
-        return mCompositionBoosting;
+        return mBoostMgr.isCompositionBoosting();
     }
 
     public void compositionBoost(long durationMs, int topAppPid) {
-        if (durationMs <= 0) return;
-        mCompositionBoosting = true;
-        flingBoost(true);
-        applySmallFreqBoost();
-        gpuMaxBoost(true);
-        if (mData != null && !mShadeBoosted) {
-            String uiCpus = (mData.pCores != null && !mData.pCores.isEmpty())
-                    ? mData.pCores : mData.bCores;
-            if (uiCpus != null && !uiCpus.isEmpty()) {
-                adjustCpusetCpus(CPU_SVP, uiCpus, 0L);
-            }
-        }
-        if (topAppPid > 0) {
-            ProcessRecord pr = NtServiceInjector.getAm().getProcessRecordByPid(topAppPid);
-            if (pr != null) {
-                int rtTid = pr.getRenderThreadTid();
-                mCompTopAppPid = topAppPid;
-                mCompRenderTid = rtTid;
-                mHandler.post(() -> {
-                    bumpToUrgentDisplay(topAppPid);
-                    if (rtTid > 0) bumpToUrgentDisplay(rtTid);
-                });
-            }
-        }
-        mHandler.removeCallbacks(mCompositionBoostReset);
-        mHandler.postDelayed(mCompositionBoostReset, durationMs);
+        mBoostMgr.compositionBoost(durationMs, topAppPid);
     }
-
-    private final HashMap<Integer, Integer> mCompOrigPriorities = new HashMap<>();
-
-    private void bumpToUrgentDisplay(int tid) {
-        try {
-            int orig = Process.getThreadPriority(tid);
-            mCompOrigPriorities.put(tid, orig);
-            Process.setThreadPriority(tid, Process.THREAD_PRIORITY_URGENT_DISPLAY);
-        } catch (Exception ignored) {}
-    }
-
-    private void restoreCompPriorities() {
-        for (HashMap.Entry<Integer, Integer> e : mCompOrigPriorities.entrySet()) {
-            try { Process.setThreadPriority(e.getKey(), e.getValue()); } catch (Exception ignored) {}
-        }
-        mCompOrigPriorities.clear();
-        mCompTopAppPid = 0;
-        mCompRenderTid = 0;
-    }
-
-    private final Runnable mCompositionBoostReset = () -> {
-        flingBoost(false);
-        restoreSmallFreq();
-        gpuMaxBoost(false);
-        if (mData != null && !mShadeBoosted) {
-            adjustCpusetCpus(CPU_SVP, mData.svpCpus, -1L);
-        }
-        restoreCompPriorities();
-        mCompositionBoosting = false;
-    };
 
     public void shadeBoost(boolean active) {
-        if (mData == null) return;
-        if (gameActive()) return;
-        if (mShadeBoosted == active) return;
-
-        if (active) {
-            String uiCpus = (mData.pCores != null && !mData.pCores.isEmpty())
-                    ? mData.pCores : mData.bCores;
-            if (uiCpus == null || uiCpus.isEmpty()) return;
-
-            adjustCpusetCpus(CPU_SVP, uiCpus, 0L);
-            adjustCpusetCpus(CPU_SYSUI, uiCpus, 0L);
-            adjustCpusetCpus(CPU_TOP_APP, mData.sCores, 0L);
-
-            applyFlingFreq();
-            gpuBoost(true);
-
-            mShadeBoosted = true;
-            logger("shadeBoost: ON svp=" + uiCpus + " sysui=" + uiCpus
-                    + " top=" + mData.sCores);
-        } else {
-            adjustCpusetCpus(CPU_SVP, mData.svpCpus, -1L);
-            adjustCpusetCpus(CPU_SYSUI, mData.allCores, -1L);
-            adjustCpusetCpus(CPU_TOP_APP, mData.allCores, -1L);
-
-            restoreFlingFreq();
-            gpuBoost(false);
-
-            mShadeBoosted = false;
-            logger("shadeBoost: OFF");
-        }
+        mBoostMgr.shadeBoost(active);
     }
 
     public void flingBoost(boolean active) {
-        if (mData == null) return;
-        if (gameActive()) return;
-        if (mFlingBoosted == active) return;
-
-        if (active) {
-            applyFlingFreq();
-            adjustCpusetCpus(CPU_TOP_APP, mData.boostCpus, 0L);
-            AxRefreshRateController.getInstance().setFlingBoost(true);
-            mFlingBoosted = true;
-        } else {
-            restoreFlingFreq();
-            adjustCpusetCpus(CPU_TOP_APP, mData.allCores, -1L);
-            AxRefreshRateController.getInstance().setFlingBoost(false);
-            mFlingBoosted = false;
-        }
+        mBoostMgr.flingBoost(active);
     }
 
-    private void applyFlingFreq() {
-        if (mData == null) return;
-        mHandler.post(() -> {
-            if (mData.bMin != null && mData.bBoostHz > 0) {
-                AxUtils.write(mData.bMin, String.valueOf(mData.bBoostHz));
-            }
-            if (mData.pMin != null && mData.pBoostHz > 0) {
-                AxUtils.write(mData.pMin, String.valueOf(mData.pBoostHz));
-            }
-        });
+    public void onScrollEvent(int action) {
+        mBoostMgr.onScrollEvent(action);
     }
 
-    private void restoreFlingFreq() {
-        if (mData == null) return;
-        mHandler.post(() -> {
-            if (mData.bMin != null && mData.uBMin != null) AxUtils.write(mData.bMin, mData.uBMin);
-            if (mData.pMin != null && mData.uPMin != null) AxUtils.write(mData.pMin, mData.uPMin);
-        });
+    public void onLaunch(int type) {
+        mBoostMgr.onLaunch(type);
     }
 
-    private void applySmallFreqBoost() {
-        if (mData == null) return;
-        mHandler.post(() -> {
-            if (mData.sMin != null && mData.sBoostHz > 0) {
-                AxUtils.write(mData.sMin, String.valueOf(mData.sBoostHz));
-            }
-        });
+    public void onFrameStage(int stage, long frameId) {
+        mBoostMgr.onFrameStage(stage, frameId);
     }
 
-    private void restoreSmallFreq() {
-        if (mData == null) return;
-        mHandler.post(() -> {
-            if (mData.sMin != null && mData.uSMin != null) AxUtils.write(mData.sMin, mData.uSMin);
-        });
+    public void onRefreshRateEvent(int event) {
+        mBoostMgr.onRefreshRateEvent(event);
     }
 
-    private static class CpusetData {
-        private final String value;
-        private final int uid;
-        private long currentTime;
-        private long duration;
+    public void onImeTransition(int action) {
+        mBoostMgr.onImeTransition(action);
+    }
 
-        public CpusetData(int uid, String value, long currentTime, long duration) {
-            this.uid = uid;
-            this.value = value;
-            this.currentTime = currentTime;
-            this.duration = duration;
-        }
+    public void onConsistency(int mode) {
+        mBoostMgr.onConsistency(mode);
+    }
+
+    public void onAnimation(int action) {
+        mBoostMgr.onAnimation(action);
     }
 
     class AxBurstEngineHandler extends Handler {
@@ -556,70 +272,41 @@ public class AxBurstEngine implements IAxBurstEngine {
             if (!mSystemReady || mData == null) return;
             int what = msg.what;
             switch (what) {
-                case MSG_CPU_UPDATE_BACKGROUND:
-                    bgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
-                    if (bgCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_BG, mData.bgCpus);
-                    }
+                case AxCpusetManager.MSG_BG:
+                    AxCpusetManager.expireOverride(CPU_BG, msg.arg1, mData.bgCpus);
                     break;
-                case MSG_CPU_UPDATE_SYS_BG:
-                    sysBgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
-                    if (sysBgCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_SYS_BG, mData.sCores);
-                    }
+                case AxCpusetManager.MSG_SYS_BG:
+                    AxCpusetManager.expireOverride(CPU_SYS_BG, msg.arg1, mData.sCores);
                     break;
-                case MSG_CPU_UPDATE_TOP_APP:
-                    topAppCpusetOverrides.remove(Integer.valueOf(msg.arg1));
-                    if (topAppCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_TOP_APP, mData.allCores);
-                    }
+                case AxCpusetManager.MSG_TOP_APP:
+                    AxCpusetManager.expireOverride(CPU_TOP_APP, msg.arg1, mData.allCores);
                     break;
-                case MSG_CPU_UPDATE_CAMERA:
-                    cameraCpusetOverrides.remove(Integer.valueOf(msg.arg1));
-                    if (cameraCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_CAMERA, mData.allCores);
-                    }
+                case AxCpusetManager.MSG_CAMERA:
+                    AxCpusetManager.expireOverride(CPU_CAMERA, msg.arg1, mData.allCores);
                     break;
-                case MSG_CPU_UPDATE_FG:
-                    fgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
-                    if (fgCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_FG, mData.fgCpus);
-                    }
+                case AxCpusetManager.MSG_FG:
+                    AxCpusetManager.expireOverride(CPU_FG, msg.arg1, mData.fgCpus);
                     break;
-                case MSG_CPU_UPDATE_RES:
-                    svpCpusetOverrides.remove(Integer.valueOf(msg.arg1));
-                    if (svpCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_SVP, mData.svpCpus);
-                    }
+                case AxCpusetManager.MSG_SVP:
+                    AxCpusetManager.expireOverride(CPU_SVP, msg.arg1, mData.svpCpus);
                     break;
-                case MSG_CPU_UPDATE_DEX:
-                    dex2oatCpusetOverrides.remove(Integer.valueOf(msg.arg1));
-                    if (dex2oatCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_DEX2OAT, mData.bgCpus);
-                    }
+                case AxCpusetManager.MSG_DEX:
+                    AxCpusetManager.expireOverride(CPU_DEX2OAT, msg.arg1, mData.bgCpus);
                     break;
-                case MSG_CPU_UPDATE_AX_FG:
-                    axFgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
-                    if (axFgCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_AX_FG, mData.fgCpus);
-                    }
+                case AxCpusetManager.MSG_AX_FG:
+                    AxCpusetManager.expireOverride(CPU_AX_FG, msg.arg1, mData.fgCpus);
                     break;
-                case MSG_CPU_UPDATE_L_BG:
-                    lBgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
-                    if (lBgCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_L_BG, mData.bgLimit);
-                    }
+                case AxCpusetManager.MSG_L_BG:
+                    AxCpusetManager.expireOverride(CPU_L_BG, msg.arg1, mData.bgLimit);
                     break;
-                case MSG_CPU_UPDATE_H_BG:
-                    hBgCpusetOverrides.remove(Integer.valueOf(msg.arg1));
-                    if (hBgCpusetOverrides.isEmpty()) {
-                        restoreCpuset(CPU_H_BG, mData.bgCpus);
-                    }
+                case AxCpusetManager.MSG_H_BG:
+                    AxCpusetManager.expireOverride(CPU_H_BG, msg.arg1, mData.bgCpus);
                     break;
                 case MSG_GAME_BOOST:
                     final boolean boost = msg.arg1 == 1;
                     backgroundLoadLimit(boost);
                     sfBindCoreControll(boost);
+                    mBoostMgr.gameBoost(boost);
                     break;
                 default:
                     logger("unknown msg, drop it!");
@@ -641,6 +328,10 @@ public class AxBurstEngine implements IAxBurstEngine {
         final boolean boost = enabled;
         mFlags.setFlag(BOOST_GM, boost);
         mHandler.sendMessage(mHandler.obtainMessage(MSG_GAME_BOOST, enabled ? 1 : 0));
+    }
+
+    void boostSfDelegated(long duration) {
+        boostSf(duration);
     }
 
     private void boostSf(long duration) {
@@ -682,137 +373,15 @@ public class AxBurstEngine implements IAxBurstEngine {
         }));
     }
     
-    private boolean gameActive() {
+    boolean gameActive() {
         return mFlags.isActive(BOOST_GM);
     }
     
     public void getProcessesAndFrozen(String packageName) {
-        if (mFreezeHandler == null || packageName == null || mFreezing) {
-            logger("AnimationFreeze: freezing not needed. ignoring!");
-            return;
-        }
-        mFreezing = true;
-        Message message = new Message();
-        message.obj = packageName;
-        message.what = 1;
-        mFreezeHandler.sendMessage(message);
-    }
-    
-    private void setFrozen(int pid, int uid, boolean frozen) {
-        try {
-            Process.setProcessFrozen(pid, uid, frozen);
-        } catch (Exception e) {
-            logger(e.toString());
-        }
-        logger("AnimationFreeze: frozen: uid = " + uid + ", pid = " + pid + 
-                ", frozen: " + frozen);
+        mFreezeManager.freeze(packageName);
     }
 
-    private void animationUnfreeze(ArrayList<ProcessRecord> procListToUnfreeze) {
-        logger("AnimationFreeze: unfrozen processes start");
-        for (int i = 0; i < procListToUnfreeze.size(); i++) {
-            ProcessRecord record = procListToUnfreeze.get(i);
-            setFrozen(record.mPid, record.getUid(), false);
-        }
-        logger("AnimationFreeze: unfrozen processes end");
-    }
-    
-    private void animationFreeze(ArrayList<ProcessRecord> procListToFreeze) {
-        logger("AnimationFreeze: frozen processes start");
-        for (int i = 0; i < procListToFreeze.size(); i++) {
-            ProcessRecord record = procListToFreeze.get(i);
-            setFrozen(record.mPid, record.getUid(), true);
-        }
-        logger("AnimationFreeze: frozen processes end");
-    }
 
-    private void backgroundFreeze(String packageName) {
-        logger("AnimationFreeze: get frozen app list and frozen start");
-        ArrayList<ProcessRecord> freezeList = new ArrayList<>();
-        if (procList == null) {
-            Slog.e(TAG, "AnimationFreeze: system is not ready, return!");
-            mFreezing = false;
-            return;
-        }
-        ArrayList<ProcessRecord> lruProcesses = (ArrayList<ProcessRecord>) procList.ntGetLruProcesses().clone();
-        try {
-            boolean homeContains = packageName.isEmpty() ? false :
-                    ((RoleManager) mContext.getSystemService(RoleManager.class))
-                    .getRoleHolders("android.app.role.HOME").contains(packageName);
-
-            for (int i = 0; i < lruProcesses.size(); i++) {
-                ProcessRecord pr = lruProcesses.get(i);
-                if (pr != null && !pr.getProcessName().equals(packageName) 
-                        && !pr.getProcessName().contains("webview")
-                        && (!homeContains || !pr.getProcessName().equals(
-                                "com.google.android.googlequicksearchbox:search"))) {
-                    int curAdj = pr.getCurAdj();
-                    if (pr.getUid() > 10000 && curAdj >= 250 && 
-                            curAdj != 600 && curAdj != 700 && curAdj < 900) {
-                        logger("AnimationFreeze: freeze package: " + pr.getProcessName());
-                        freezeList.add(pr);
-                    }
-                }
-            }
-            
-            final int size = freezeList.size();
-
-            if (size == 0) {
-                mFreezing = false;
-                return;
-            }
-
-            mFreezeHandler.post(new AnimationFreezeRunnable(freezeList));
-            logger("AnimationFreeze: get frozen app list and frozen end, size=" + size);
-            mFreezeHandler.postDelayed(new AnimationUnfreezeRunnable(freezeList), 
-                    (long) mFreezeDuration);
-        } catch (Exception e) {
-            logger("AnimationFreeze: get process failed, return!");
-            mFreezing = false;
-        }
-    }
-
-    class FreezerHandler extends Handler {
-        FreezerHandler(Looper looper) {
-            super(looper);
-        }
-
-        @Override
-        public void handleMessage(Message msg) {
-            if (msg.what != 1) {
-                return;
-            }
-            backgroundFreeze(String.valueOf(msg.obj));
-        }
-    }
-    
-    class AnimationFreezeRunnable implements Runnable {
-        final ArrayList<ProcessRecord> freezeList;
-
-        AnimationFreezeRunnable(ArrayList<ProcessRecord> freezeList) {
-            this.freezeList = freezeList;
-        }
-
-        @Override
-        public void run() {
-            animationFreeze(freezeList);
-        }
-    }
-
-    class AnimationUnfreezeRunnable implements Runnable {
-        final ArrayList<ProcessRecord> procListToUnfreeze;
-
-        AnimationUnfreezeRunnable(ArrayList<ProcessRecord> procList) {
-            this.procListToUnfreeze = procList;
-        }
-
-        @Override
-        public void run() {
-            animationUnfreeze(procListToUnfreeze);
-            mFreezing = false;
-        }
-    }
-    
     public void boostInstall(boolean boost) {
         if (mData == null) return;
         
@@ -845,102 +414,14 @@ public class AxBurstEngine implements IAxBurstEngine {
     }
     
     public void boostThread(int tid) {
-        mHandler.post(() -> {
-            Process.setThreadScheduler(tid, SCHED_RR | SCHED_RESET_ON_FORK, 1);
-        });
+        mThreadBoost.boost(tid);
     }
-    
+
     public void systemThreadBoost(int tid, long duration) {
-        if (tid <= 0) return;
-        
-        boostSf(duration);
-
-        applyThreadPriorityBoost(tid, duration);
-
-        int myPid = Process.myPid();
-        if (myPid > 0) {
-            ProcessRecord pr = NtServiceInjector.getAm().getProcessRecordByPid(myPid);
-            if (pr != null) {
-                int renderTid = pr.getRenderThreadTid();
-                if (renderTid > 0) {
-                    applyThreadPriorityBoost(renderTid, duration);
-                }
-            }
-        }
-    }
-
-    private void applyThreadPriorityBoost(int tid, long duration) {
-        if (duration <= 0) {
-            if (duration == 0) tryBoostThreadPriority(tid);
-            else if (duration == -1) tryRestoreThreadPriority(tid);
-            return;
-        }
-
-        if (tryBoostThreadPriority(tid)) {
-            mHandler.postDelayed(() -> tryRestoreThreadPriority(tid), duration);
-        }
-    }
-
-    private synchronized boolean tryBoostThreadPriority(int tid) {
-        Integer count = mBoostCount.get(tid);
-        if (count != null) {
-            mBoostCount.put(tid, count + 1);
-        } else {
-            try {
-                mOriginalPriorities.put(tid, Process.getThreadPriority(tid));
-                ActivityManagerService.scheduleAsRoundRobinPriority(tid, true);
-                mBoostCount.put(tid, 1);
-            } catch (Exception e) {
-                return false;
-            }
-        }
-        return true;
+        mThreadBoost.systemBoost(tid, duration);
     }
 
     public void launcherItemsLoadingBoost(long duration) {
-        try {
-            final int pid = Process.myPid();
-            if (pid > 0) {
-                if (duration >= 0) {
-                    ActivityManagerService.scheduleAsRoundRobinPriority(pid, true);
-                    if (duration > 0) {
-                        mHandler.removeCallbacks(mLauncherBoostReset);
-                        mHandler.postDelayed(mLauncherBoostReset, duration);
-                    }
-                } else {
-                    restoreLauncherBoost();
-                }
-            }
-        } catch (Exception e) {
-        }
-    }
-
-    private void restoreLauncherBoost() {
-        try {
-            final int pid = Process.myPid();
-            Process.setThreadScheduler(pid, Process.SCHED_OTHER, 0);
-            Process.setThreadPriority(pid, Process.THREAD_PRIORITY_FOREGROUND);
-        } catch (Exception e) {
-        }
-    }
-
-    private synchronized void tryRestoreThreadPriority(int tid) {
-        Integer count = mBoostCount.get(tid);
-        if (count == null) return;
-
-        if (count > 1) {
-            mBoostCount.put(tid, count - 1);
-        } else {
-            try {
-                Integer origPrio = mOriginalPriorities.get(tid);
-                if (origPrio != null) {
-                    Process.setThreadScheduler(tid, SCHED_OTHER, 0);
-                    Process.setThreadPriority(tid, origPrio);
-                }
-            } catch (Exception e) {
-            }
-            mBoostCount.remove(tid);
-            mOriginalPriorities.remove(tid);
-        }
+        mThreadBoost.launcherLoadBoost(duration);
     }
 }

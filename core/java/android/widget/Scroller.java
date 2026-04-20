@@ -25,6 +25,8 @@ import android.view.ViewConfiguration;
 import android.view.animation.AnimationUtils;
 import android.view.animation.Interpolator;
 
+import com.android.internal.util.BoostHelper;
+
 /**
  * <p>This class encapsulates scrolling. You can use scrollers ({@link Scroller}
  * or {@link OverScroller}) to collect the data you need to produce a scrolling
@@ -394,6 +396,7 @@ public class Scroller  {
      * @param duration Duration of the scroll in milliseconds.
      */
     public void startScroll(int startX, int startY, int dx, int dy, int duration) {
+        BoostHelper.onScrollEvent(BoostHelper.Scroll.SCROLLER);
         mMode = SCROLL_MODE;
         mFinished = false;
         mDuration = duration;

@@ -1080,6 +1080,14 @@ interface IActivityManager {
 
     void shadeBoost(boolean active);
 
+    void onScrollEvent(int action);
+    void onLaunch(int type);
+    void onFrameStage(int stage, long frameId);
+    void onRefreshRateEvent(int event);
+    void onImeTransition(int action);
+    void onConsistency(int mode);
+    void onAnimation(int action);
+
     void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera);
 
     String getSpoofPifConfig();
