@@ -17,6 +17,7 @@ package com.android.internal.util;
 
 import android.graphics.BLASTBufferQueue;
 import android.os.Process;
+import android.view.DisplayEventReceiver;
 import android.os.StrictMode;
 import android.os.SystemClock;
 import android.os.SystemProperties;
@@ -49,7 +50,8 @@ public class ScrollOptimizer {
     private static final long DEFAULT_FRAME_DELAY_MS = 10L;
     private static final long OPTIMIZED_FRAME_DELAY_MS = 3L;
     private static final long FLING_END_TIMEOUT_MS = 3000L;
-    private static final long ANIM_AHEAD_MARGIN_NS = 1_500_000L;
+    private static final long ANIM_AHEAD_MARGIN_NS = 2_000_000L;
+    private static final long TIME_BACKWARD_THRESHOLD_NS = 500_000L;
 
     private static int sInitialUndequeued = 4;
     private static int sFallbackUndequeued = 3;
@@ -76,6 +78,20 @@ public class ScrollOptimizer {
     private static long sLastFlingStartMs = -1;
     private static long sLastUIStartNs = -1;
     private static long sLastUIEndNs = -1;
+    private static long sLastFrameAnimOptTimeNs = 0L;
+    private static long sLastFrameTimeNs = 0L;
+    private static long sOriginalFrameTimeNs = 0L;
+    private static long sAdjustedFrameTimeNs = 0L;
+    private static boolean sIsTimeBackward = false;
+    private static boolean sIgnoreFling = false;
+    private static boolean sWebViewFlutterFling = false;
+    private static volatile boolean sVsyncIndexFull = false;
+    private static int sInsertNum = 1;
+    private static long sVsyncTimestampNs = 0L;
+    private static int sVsyncPreferTimelineIndex = 0;
+    private static boolean sIsFlingVague = false;
+    private static boolean sIsFlingAccurate = false;
+    private static boolean sScrollChangedEnable = false;
 
     private static int sPid = -1;
     private static int sHeavyAppProp = -1;
@@ -187,6 +203,7 @@ public class ScrollOptimizer {
         mLastFlingFlg = 0;
         sAnimAheadActive = false;
         sTimerSlackUpdated = false;
+        sVsyncIndexFull = false;
     }
 
     private static void updateExpectedFromPreRender() {
@@ -300,17 +317,23 @@ public class ScrollOptimizer {
                 }
                 if (mLastFlingFlg == 1) {
                     resetFlingState();
+                    sIsFlingVague = false;
+                    sIsFlingAccurate = false;
                     logger("Fling end.");
                 }
                 return;
             }
             if (mLastFlingFlg == 1) {
                 resetFlingState();
+                sIsFlingVague = false;
+                sIsFlingAccurate = false;
                 logger("avoid concurrent fling");
                 return;
             }
             if (sMotionType == MOTION_FLING) {
                 mLastFlingFlg = flingFlg;
+                sIsFlingVague = true;
+                sIsFlingAccurate = true;
                 if (!sTimerSlackUpdated) {
                     writeTimerSlack();
                 }
@@ -443,6 +466,18 @@ public class ScrollOptimizer {
                 sLastUseVsync = true;
                 return true;
             }
+            if (sVsyncIndexFull) {
+                sLastUseVsync = true;
+                return true;
+            }
+            if (isEnabledFlingScene() && sFrameIntervalNs > 0) {
+                long now = System.nanoTime();
+                long intendedNext = sLastFrameTimeNs + sFrameIntervalNs;
+                if (!reachInsertCountThreshold(now, intendedNext) && hasAvailableBuffer()) {
+                    sLastUseVsync = false;
+                    return false;
+                }
+            }
             if (sAppType == APP_TYPE_HEAVY) {
                 sLastUseVsync = false;
                 return false;
@@ -488,11 +523,205 @@ public class ScrollOptimizer {
         }
         return result;
     }
+    public static boolean isEnabledFlingScene() {
+        return !sIgnoreFling && !sWebViewFlutterFling;
+    }
+
+    public static void setIgnoreFling(boolean state) {
+        sIgnoreFling = state;
+    }
+
+    public static boolean isIgnoreFling() {
+        return sIgnoreFling;
+    }
+
+    public static void setWebViewFlutterFling(boolean state) {
+        sWebViewFlutterFling = state;
+    }
+
+    public static long syncWithVsync(long timeNanos, long referVsyncTimeNanos) {
+        long frameIntervalNanos = sFrameIntervalNs;
+        if (frameIntervalNanos <= 0) {
+            return timeNanos;
+        }
+        long offset = (timeNanos - referVsyncTimeNanos) % frameIntervalNanos;
+        long threshold = (frameIntervalNanos >> 1) + (frameIntervalNanos >> 2);
+        long ret;
+        if (offset < 0) {
+            long absOffset = -offset;
+            ret = absOffset > threshold
+                    ? timeNanos - (frameIntervalNanos - absOffset)
+                    : timeNanos + absOffset;
+        } else if (offset > threshold) {
+            ret = timeNanos + (frameIntervalNanos - offset);
+        } else {
+            ret = timeNanos - offset;
+            if (ret + threshold < timeNanos) {
+                ret = timeNanos;
+            }
+        }
+        return ret;
+    }
+
+    public static void setLastFrameAnimOptTimeNanos(long timeNanos) {
+        sLastFrameAnimOptTimeNs = timeNanos;
+    }
+
+    public static long getLastFrameAnimOptTimeNanos() {
+        return sLastFrameAnimOptTimeNs;
+    }
+
+    public static boolean isTimeBackward() {
+        return sIsTimeBackward;
+    }
+
+    public static void updateFrameTimeNanos(long frameTimeNanos, long lastFrameTimeNanos,
+            long startNanos) {
+        if (!sFeatureEnabled || Process.myTid() != sPid) {
+            sAdjustedFrameTimeNs = frameTimeNanos;
+            return;
+        }
+        sOriginalFrameTimeNs = frameTimeNanos;
+        long adjusted = frameTimeNanos;
+        if (sAnimAheadActive) {
+            adjusted = syncWithVsync(sLastFrameAnimOptTimeNs, frameTimeNanos);
+        } else if (mLastFlingFlg == FLING_START) {
+            long frameInterval = sFrameIntervalNs;
+            if (frameInterval > 0) {
+                long intendedNext = sLastFrameTimeNs + frameInterval;
+                long gap = intendedNext - startNanos;
+                long candidate;
+                if (gap < 0) {
+                    long skipped = (-gap) / frameInterval;
+                    candidate = (skipped * frameInterval) + intendedNext;
+                } else {
+                    candidate = intendedNext;
+                }
+                adjusted = syncWithVsync(candidate, frameTimeNanos);
+            }
+        }
+        sAdjustedFrameTimeNs = adjusted;
+        if (sAnimAheadActive) {
+            sIsTimeBackward = false;
+        } else {
+            sIsTimeBackward = (adjusted - sLastFrameTimeNs) < TIME_BACKWARD_THRESHOLD_NS;
+        }
+        if (!sIsTimeBackward) {
+            sLastFrameTimeNs = adjusted;
+        }
+    }
+
+    public static long getAdjustedFrameTimeNanos(long fallback) {
+        if (!sFeatureEnabled || Process.myTid() != sPid) {
+            return fallback;
+        }
+        return sAdjustedFrameTimeNs != 0L ? sAdjustedFrameTimeNs : fallback;
+    }
+
+    public static long getLastFrameTimeNanos() {
+        return sLastFrameTimeNs;
+    }
+
+    public static long getOriginalFrameTimeNanos() {
+        return sOriginalFrameTimeNs;
+    }
+
+    public static void setVsyncIndexFull(boolean state) {
+        sVsyncIndexFull = state;
+    }
+
+    public static boolean isVsyncIndexFull() {
+        return sVsyncIndexFull;
+    }
+
+    public static void setInsertNum(int num) {
+        sInsertNum = num < 0 ? 0 : num;
+    }
+
+    public static int getInsertNum() {
+        return sInsertNum;
+    }
+
+    private static boolean hasAvailableBuffer() {
+        int undequeued = getUndequeuedBufferCount();
+        return (sInsertNum + 4) + undequeued > 0;
+    }
+
+    public static void setFlingVague(boolean isFling, int pageType) {
+        sIsFlingVague = isFling;
+        if (pageType > 100) {
+            sWebViewFlutterFling = isFling;
+        }
+        if (!isFling && sIgnoreFling) {
+            sIgnoreFling = false;
+        }
+    }
+
+    public static void setFlingAccurate(boolean isFling, int pageType) {
+        sIsFlingAccurate = isFling;
+        if (pageType > 100) {
+            sWebViewFlutterFling = isFling;
+        }
+        if (!isFling && sIgnoreFling) {
+            sIgnoreFling = false;
+        }
+    }
+
+    public static void setScrollChangedEnable(boolean enable) {
+        sScrollChangedEnable = enable;
+    }
+
+    public static boolean isScrollChangedEnable() {
+        return sScrollChangedEnable;
+    }
+
+    public static boolean isFling() {
+        if (!sFeatureEnabled) return false;
+        return sScrollChangedEnable ? sIsFlingVague : sIsFlingAccurate;
+    }
+
+    public static void updateOnVsyncInfo(long timestampNanos,
+            DisplayEventReceiver.VsyncEventData vsyncEventData) {
+        sVsyncTimestampNs = timestampNanos;
+        if (vsyncEventData != null) {
+            sVsyncPreferTimelineIndex = vsyncEventData.preferredFrameTimelineIndex;
+        }
+    }
+
+    public static long getVsyncTimestampNanos() {
+        return sVsyncTimestampNs;
+    }
+
+    public static int getVsyncPreferTimelineIndex() {
+        return sVsyncPreferTimelineIndex;
+    }
+
+    public static boolean reachInsertCountThreshold(long nowNanos, long nextFrameTimeNanos) {
+        long frameInterval = sFrameIntervalNs;
+        if (frameInterval <= 0) {
+            return true;
+        }
+        long originalFrame = sOriginalFrameTimeNs;
+        long gapFromOriginal = nowNanos - originalFrame;
+        long anchor;
+        if (gapFromOriginal < frameInterval) {
+            anchor = originalFrame;
+        } else {
+            anchor = nowNanos - (gapFromOriginal % frameInterval);
+        }
+        long diff = nextFrameTimeNanos - anchor + 500_000L;
+        long count = diff / frameInterval;
+        return count > sInsertNum;
+    }
+
     public static boolean shouldScheduleAnimAhead(long frameIntervalNanos) {
         if (!sFeatureEnabled || !sAnimAheadEnabled || Process.myTid() != sPid) {
             return false;
         }
-        if (mLastFlingFlg != FLING_START && sMotionType != MOTION_SCROLL) {
+        if (mLastFlingFlg != FLING_START) {
+            return false;
+        }
+        if (!isEnabledFlingScene()) {
             return false;
         }
         if (sAnimAheadActive) {
@@ -506,8 +735,14 @@ public class ScrollOptimizer {
                     + (timeToNextVsync / 1_000_000f) + "ms");
             return false;
         }
+        long intendedNext = sLastFrameTimeNs + frameIntervalNanos;
+        if (intendedNext <= nowNs) {
+            intendedNext = nowNs + frameIntervalNanos;
+        }
+        sLastFrameAnimOptTimeNs = intendedNext;
         logger("animAhead: scheduling, timeToNext="
-                + (timeToNextVsync / 1_000_000f) + "ms");
+                + (timeToNextVsync / 1_000_000f) + "ms target="
+                + (intendedNext / 1_000_000L) + "ms");
         return true;
     }
     public static void setAnimAheadState(boolean active) {
@@ -531,6 +766,21 @@ public class ScrollOptimizer {
         }
         if (mLastFlingFlg != FLING_START) {
             return false;
+        }
+        if (!isEnabledFlingScene()) {
+            return false;
+        }
+        if (sVsyncIndexFull) {
+            return false;
+        }
+        long frameInterval = sFrameIntervalNs;
+        if (frameInterval > 0) {
+            long nowNs = System.nanoTime();
+            long intendedNext = sLastFrameTimeNs + frameInterval;
+            if (reachInsertCountThreshold(nowNs, intendedNext)) {
+                logger("frameInsert: insert count threshold reached");
+                return false;
+            }
         }
         int buffers = getUndequeuedBufferCount();
         if (buffers < 1) {

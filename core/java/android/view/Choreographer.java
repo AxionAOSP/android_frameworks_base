@@ -1171,6 +1171,10 @@ public final class Choreographer {
                 ScrollOptimizer.setFrameInterval(mFrameIntervalNanos);
             }
             ScrollOptimizer.setUITaskStatus(true);
+            ScrollOptimizer.updateOnVsyncInfo(frameTimeNanos, vsyncEventData);
+            ScrollOptimizer.updateFrameTimeNanos(frameTimeNanos, mLastFrameTimeNanos, startNanos);
+            frameTimeNanos = ScrollOptimizer.getAdjustedFrameTimeNanos(frameTimeNanos);
+            updatePreferredFrameTimelineIndex(frameTimeNanos, vsyncEventData);
 
             if (resynced && Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
                 String message = String.format("Choreographer#doFrame - resynced to %d in %.1fms",
@@ -1318,6 +1322,35 @@ public final class Choreographer {
         }
     }
 
+    private void updatePreferredFrameTimelineIndex(long expectFrameTimeNanos,
+            DisplayEventReceiver.VsyncEventData vsyncEventData) {
+        if (!ScrollOptimizer.isActiveFling() || vsyncEventData == null
+                || vsyncEventData.frameTimelines == null) {
+            return;
+        }
+        long vsyncTimestampNanos = ScrollOptimizer.getVsyncTimestampNanos();
+        int vsyncPreferTimeLineIndex = ScrollOptimizer.getVsyncPreferTimelineIndex();
+        if (vsyncPreferTimeLineIndex < 0
+                || vsyncPreferTimeLineIndex >= vsyncEventData.frameTimelinesLength) {
+            return;
+        }
+        long offset = vsyncEventData.frameTimelines[vsyncPreferTimeLineIndex]
+                .expectedPresentationTime - vsyncTimestampNanos;
+        int idx = vsyncEventData.preferredFrameTimelineIndex;
+        while (idx < vsyncEventData.frameTimelinesLength) {
+            long delta = vsyncEventData.frameTimelines[idx].expectedPresentationTime
+                    - expectFrameTimeNanos - offset;
+            if (Math.abs(delta) < 2_000_000L) {
+                vsyncEventData.preferredFrameTimelineIndex = idx;
+                break;
+            }
+            idx++;
+        }
+        if (idx >= vsyncEventData.frameTimelinesLength - 1) {
+            ScrollOptimizer.setVsyncIndexFull(true);
+        }
+    }
+
     private void postAnimAheadMsg() {
         Message msg = mHandler.obtainMessage(MSG_DO_ANIM_AHEAD);
         msg.setAsynchronous(true);
@@ -1325,23 +1358,25 @@ public final class Choreographer {
     }
     private void doAnimAheadCallback() {
         final long frameIntervalNanos;
-        final long nextFrameTimeNanos;
         synchronized (mLock) {
             frameIntervalNanos = mLastFrameIntervalNanos;
-            nextFrameTimeNanos = mLastFrameTimeNanos + frameIntervalNanos;
         }
         if (frameIntervalNanos <= 0) {
             return;
         }
-        if (!ScrollOptimizer.shouldScheduleAnimAhead(frameIntervalNanos)) {
-            return;
+        long target = ScrollOptimizer.getLastFrameAnimOptTimeNanos();
+        if (target <= 0L) {
+            synchronized (mLock) {
+                target = mLastFrameTimeNanos + frameIntervalNanos;
+            }
         }
         try {
             if (Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
-                Trace.traceBegin(Trace.TRACE_TAG_VIEW, "Choreographer#doAnimAhead");
+                Trace.traceBegin(Trace.TRACE_TAG_VIEW, "Choreographer#doAnimAhead target="
+                        + (target / TimeUtils.NANOS_PER_MS));
             }
             ScrollOptimizer.setAnimAheadState(true);
-            AnimationUtils.lockAnimationClock(nextFrameTimeNanos / TimeUtils.NANOS_PER_MS);
+            AnimationUtils.lockAnimationClock(target / TimeUtils.NANOS_PER_MS);
             doCallbacks(Choreographer.CALLBACK_ANIMATION, frameIntervalNanos);
         } finally {
             AnimationUtils.unlockAnimationClock();
@@ -1369,7 +1404,11 @@ public final class Choreographer {
         }
         insertData.preferredFrameTimelineIndex++;
         if (insertData.preferredFrameTimelineIndex >= insertData.frameTimelinesLength) {
+            ScrollOptimizer.setVsyncIndexFull(true);
             return;
+        }
+        if (insertData.preferredFrameTimelineIndex == insertData.frameTimelinesLength - 1) {
+            ScrollOptimizer.setVsyncIndexFull(true);
         }
         mFrameInsertCount++;
         mFrameScheduled = true;
