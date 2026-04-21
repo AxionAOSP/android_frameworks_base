@@ -646,7 +646,17 @@ public class DozeTriggers implements DozeMachine.Part {
             } else if (!canPulse(dozeState, performedProxCheck)) {
                 mDozeLog.tracePulseDropped("requestPulse - dozeState cannot pulse", dozeState);
             }
-            runIfNotNull(onPulseSuppressedListener);
+            // Fallback to gentleWakeUp for double tap and tap gestures when pulse is suppressed
+            // This prevents the device from getting stuck in an intermediate state where
+            // the dream stops but the device doesn't fully wake up
+            boolean isWakeGesture = reason == DozeLog.REASON_SENSOR_DOUBLE_TAP
+                    || reason == DozeLog.REASON_SENSOR_TAP;
+            if (isWakeGesture) {
+                mDozeLog.traceFallbackToGentleWake(reason);
+                gentleWakeUp(reason);
+            } else {
+                runIfNotNull(onPulseSuppressedListener);
+            }
             return;
         }
 

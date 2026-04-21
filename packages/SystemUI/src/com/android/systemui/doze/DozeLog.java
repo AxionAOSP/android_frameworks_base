@@ -360,6 +360,14 @@ public class DozeLog implements Dumpable {
     }
 
     /**
+     * Appends fallback to gentle wake event to logs
+     * @param reason the original pulse reason that fell back to gentle wake
+     */
+    public void traceFallbackToGentleWake(@Reason int reason) {
+        mLogger.logPulseDropped("fallbackToGentleWake reason=" + reasonToString(reason));
+    }
+
+    /**
      * Appends pulse touch displayed by prox sensor event to logs
      * @param disabled
      */
