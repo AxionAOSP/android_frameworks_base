@@ -30,6 +30,8 @@ import java.util.function.Consumer;
  * @param <TYPE> The basic type, either Task or ActivityRecord
  */
 abstract class SnapshotCache<TYPE extends WindowContainer> {
+    private static final int MAX_CACHE_ENTRIES = 20;
+
     protected final Object mLock = new Object();
 
     protected final String mName;
@@ -105,6 +107,28 @@ abstract class SnapshotCache<TYPE extends WindowContainer> {
         }
     }
 
+    @GuardedBy("mLock")
+    protected void ensureCapacityLocked() {
+        while (mRunningCache.size() >= MAX_CACHE_ENTRIES) {
+            Integer oldestId = null;
+            long oldestTime = Long.MAX_VALUE;
+            for (int i = 0; i < mRunningCache.size(); i++) {
+                final CacheEntry e = mRunningCache.valueAt(i);
+                if (e.insertTimeNanos < oldestTime) {
+                    oldestTime = e.insertTimeNanos;
+                    oldestId = mRunningCache.keyAt(i);
+                }
+            }
+            if (oldestId == null) break;
+            final CacheEntry evicted = mRunningCache.get(oldestId);
+            if (evicted != null) {
+                mAppIdMap.remove(evicted.topApp);
+                mRunningCache.remove(oldestId);
+                evicted.snapshot.removeReference(TaskSnapshot.REFERENCE_CACHE);
+            }
+        }
+    }
+
     void dump(PrintWriter pw, String prefix) {
         final String doublePrefix = prefix + "  ";
         final String triplePrefix = doublePrefix + "  ";
@@ -125,9 +149,11 @@ abstract class SnapshotCache<TYPE extends WindowContainer> {
         final TaskSnapshot snapshot;
         /** The app token that was on top of the task when the snapshot was taken */
         final ActivityRecord topApp;
+        final long insertTimeNanos;
         CacheEntry(TaskSnapshot snapshot, ActivityRecord topApp) {
             this.snapshot = snapshot;
             this.topApp = topApp;
+            this.insertTimeNanos = System.nanoTime();
         }
     }
 }

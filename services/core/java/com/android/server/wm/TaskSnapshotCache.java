@@ -43,6 +43,8 @@ class TaskSnapshotCache extends SnapshotCache<Task> {
             if (entry != null) {
                 mAppIdMap.remove(entry.topApp);
                 entry.snapshot.removeReference(TaskSnapshot.REFERENCE_CACHE);
+            } else {
+                ensureCapacityLocked();
             }
             final ActivityRecord top = task.getTopMostActivity();
             mAppIdMap.put(top, task.mTaskId);
