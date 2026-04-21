@@ -37,6 +37,8 @@ class ActivitySnapshotCache extends SnapshotCache<ActivityRecord> {
             if (entry != null) {
                 mAppIdMap.remove(entry.topApp);
                 entry.snapshot.removeReference(TaskSnapshot.REFERENCE_CACHE);
+            } else {
+                ensureCapacityLocked();
             }
             mAppIdMap.put(ar, hasCode);
             mRunningCache.put(hasCode, new CacheEntry(snapshot, ar));
