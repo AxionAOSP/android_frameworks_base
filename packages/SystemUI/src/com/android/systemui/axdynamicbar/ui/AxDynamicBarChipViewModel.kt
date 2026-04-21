@@ -12,20 +12,14 @@ import com.android.systemui.statusbar.pipeline.battery.domain.interactor.Battery
 import com.android.systemui.statusbar.policy.BatteryController
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 data class AxDynamicBarChipState(
     val event: IslandEvent,
@@ -52,6 +46,8 @@ constructor(
     private val batteryController: BatteryController,
     authController: AuthController,
     udfpsOverlayInteractor: UdfpsOverlayInteractor,
+    val keyguardExpansion: AxDynamicBarKeyguardExpansion,
+    val statusBarExpansion: AxDynamicBarStatusBarExpansion,
 ) {
 
     val isLowUdfps: StateFlow<Boolean> =
@@ -123,56 +119,9 @@ constructor(
         _chipCenterXFraction.value = fraction
     }
 
-    private val _isExpanded = MutableStateFlow(false)
-    val isExpanded: StateFlow<Boolean> = _isExpanded.asStateFlow()
-    @Volatile private var collapseOnNullJob: Job? = null
+    val isExpanded: StateFlow<Boolean> = statusBarExpansion.isExpanded
 
-    val isKeyguardExpanded: StateFlow<Boolean> =
-        combine(isExpanded, isOnKeyguard) { exp, kg -> exp && kg }
-            .stateIn(applicationScope, SharingStarted.Lazily, false)
-
-    init {
-        
-        chipState.onEach { state ->
-            if (state == null) {
-                collapseOnNullJob?.cancel()
-                collapseOnNullJob = applicationScope.launch {
-                    delay(200)
-                    _isExpanded.value = false
-                }
-            } else {
-                collapseOnNullJob?.cancel()
-                collapseOnNullJob = null
-            }
-        }.launchIn(applicationScope)
-        
-        interactor.isPanelExpanded.onEach { if (it) _isExpanded.value = false }.launchIn(applicationScope)
-        interactor.qsExpansion.map { it > 0f }.distinctUntilChanged().onEach { if (it) _isExpanded.value = false }.launchIn(applicationScope)
-        
-        isBouncerShowing.onEach { if (it) _isExpanded.value = false }.launchIn(applicationScope)
-        
-        isOnKeyguard.onEach { if (!it) _isExpanded.value = false }.launchIn(applicationScope)
-        
-        combine(interactor.legacyShadeExpansion, isOnKeyguard) { expansion, onKg ->
-            onKg && expansion < 0.95f
-        }.onEach { dismissing -> if (dismissing) _isExpanded.value = false }.launchIn(applicationScope)
-        
-        interactor.isDozing.drop(1).onEach { _isExpanded.value = false }.launchIn(applicationScope)
-        
-        interactor.dozeAmount.map { it > 0f }.distinctUntilChanged().onEach { if (it) _isExpanded.value = false }.launchIn(applicationScope)
-    }
-
-    fun expandPanel() {
-        if (chipState.value != null) _isExpanded.value = true
-    }
-
-    fun collapsePanel() {
-        _isExpanded.value = false
-    }
-
-    fun togglePanel() {
-        if (_isExpanded.value) collapsePanel() else expandPanel()
-    }
+    val isKeyguardExpanded: StateFlow<Boolean> = keyguardExpansion.isExpanded
 
     fun cycleNext() = interactor.cycleNext()
 

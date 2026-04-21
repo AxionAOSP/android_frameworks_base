@@ -100,7 +100,4 @@ class AxDynamicBarSettings @Inject constructor(
         val typeId = EVENT_TYPE_IDS[event::class.java] ?: return true
         return typeId !in _disabledEventTypes.value
     }
-
-    fun isNotificationEventsActive(): Boolean =
-        _isEnabled.value && "notification" !in _disabledEventTypes.value
 }

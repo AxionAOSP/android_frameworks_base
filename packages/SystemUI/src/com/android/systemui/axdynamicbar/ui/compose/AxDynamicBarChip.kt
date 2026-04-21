@@ -137,10 +137,10 @@ fun AxDynamicBarChip(
                                 val current = state?.event
                                 if (current is IslandEvent.AospChip) {
                                     if (!viewModel.handleAospChipTap(current, expandableController.expandable)) {
-                                        viewModel.togglePanel()
+                                        viewModel.statusBarExpansion.toggle()
                                     }
                                 } else {
-                                    viewModel.togglePanel()
+                                    viewModel.statusBarExpansion.toggle()
                                 }
                             }
                             

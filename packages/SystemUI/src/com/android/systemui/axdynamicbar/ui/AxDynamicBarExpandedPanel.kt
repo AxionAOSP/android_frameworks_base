@@ -79,7 +79,7 @@ constructor(
     private var hideOverlayJob: Job? = null
 
     fun init() {
-        viewModel.interactor.onCollapseRequested = { viewModel.collapsePanel() }
+        viewModel.interactor.onCollapseRequested = { viewModel.statusBarExpansion.collapse() }
         viewModel.interactor.onFocusableRequested = { focusable -> setOverlayFocusable(focusable) }
 
         val needsOverlay =
@@ -294,7 +294,7 @@ private fun OverlayContent(viewModel: AxDynamicBarChipViewModel, statusBarHeight
                                     val dx = change.position.x - downPos.x
                                     val dy = change.position.y - downPos.y
                                     if (dx * dx + dy * dy <= slop * slop) {
-                                        viewModel.collapsePanel()
+                                        viewModel.statusBarExpansion.collapse()
                                     }
                                 }
                                 break
@@ -311,7 +311,7 @@ private fun OverlayContent(viewModel: AxDynamicBarChipViewModel, statusBarHeight
                 ExpandedIslandContent(
                     events = filtered,
                     interactor = viewModel.interactor,
-                    onCollapse = { viewModel.collapsePanel() },
+                    onCollapse = { viewModel.statusBarExpansion.collapse() },
                     pinnedEventId = state.event.id,
                     hapticsViewModelFactory = viewModel.interactor.sliderHapticsViewModelFactory,
                 )

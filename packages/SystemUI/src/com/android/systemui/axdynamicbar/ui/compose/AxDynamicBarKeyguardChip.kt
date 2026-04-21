@@ -8,6 +8,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import kotlin.math.abs
@@ -19,14 +20,10 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -117,45 +114,39 @@ fun AxDynamicBarKeyguardChip(
 
     Box(modifier = modifier) {
 
+        val expandedVisibleState = remember { MutableTransitionState(false) }
+        expandedVisibleState.targetState = isKeyguardExpanded && state != null
+        LaunchedEffect(expandedVisibleState.isIdle, expandedVisibleState.currentState) {
+            if (expandedVisibleState.isIdle && !expandedVisibleState.currentState) {
+                viewModel.keyguardExpansion.notifyCollapseSettled()
+            }
+        }
         AnimatedVisibility(
-            visible = isKeyguardExpanded && state != null,
-            enter = fadeIn(motionScheme.defaultEffectsSpec()) +
-                slideInVertically(
-                    animationSpec = motionScheme.defaultSpatialSpec(),
-                    initialOffsetY = { it / 3 },
-                ) +
-                expandVertically(
-                    animationSpec = motionScheme.defaultSpatialSpec(),
-                    expandFrom = Alignment.Bottom,
-                ),
-            exit = fadeOut(motionScheme.fastEffectsSpec()) +
-                slideOutVertically(
-                    animationSpec = motionScheme.fastSpatialSpec(),
-                    targetOffsetY = { it / 4 },
-                ) +
-                shrinkVertically(
-                    animationSpec = motionScheme.fastSpatialSpec(),
-                    shrinkTowards = Alignment.Bottom,
-                ),
+            visibleState = expandedVisibleState,
+            enter = fadeIn(motionScheme.defaultEffectsSpec()),
+            exit = fadeOut(tween(durationMillis = 250)),
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.TopStart)
-                .padding(bottom = ChipHeight + SpaceLg),
+                .align(Alignment.Center),
         ) {
             state?.let {
                 KeyguardExpandedContent(
                     event = it.event,
                     allEvents = it.allEvents,
                     interactor = viewModel.interactor,
-                    onCollapse = { viewModel.collapsePanel() },
+                    onCollapse = { viewModel.keyguardExpansion.collapse() },
                     hapticsViewModelFactory = viewModel.interactor.sliderHapticsViewModelFactory,
                 )
             }
         }
 
         AnimatedVisibility(
-            visible = isOnKeyguard && isEnabled && isKeyguardEnabled,
-            enter = fadeIn(motionScheme.defaultEffectsSpec()) + scaleIn(initialScale = 0.9f, animationSpec = motionScheme.defaultSpatialSpec()),
+            visible = isOnKeyguard && isEnabled && isKeyguardEnabled && !isKeyguardExpanded,
+            enter = fadeIn(tween(durationMillis = 200, delayMillis = 300)) +
+                scaleIn(
+                    initialScale = 0.9f,
+                    animationSpec = tween(durationMillis = 200, delayMillis = 300),
+                ),
             exit = fadeOut(motionScheme.fastEffectsSpec()) + scaleOut(targetScale = 0.9f, animationSpec = motionScheme.fastSpatialSpec()),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -262,7 +253,7 @@ private fun KeyguardChipBody(
         Row(
             modifier = Modifier
                 .height(ChipHeight)
-                .widthIn(max = 260.dp)
+                .widthIn(max = 178.dp)
                 .clip(ChipShape)
                 .background(accent)
                 .animateContentSize(motionScheme.defaultSpatialSpec())
@@ -286,7 +277,7 @@ private fun KeyguardChipBody(
 
                         is IslandEvent.KeyguardIndication,
                         is IslandEvent.AppSwitch -> { }
-                        else -> viewModel.togglePanel()
+                        else -> viewModel.keyguardExpansion.toggle()
                     }
                 }
                 .padding(start = SpaceSm, end = SpaceMd),
