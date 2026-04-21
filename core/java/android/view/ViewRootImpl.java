@@ -340,6 +340,8 @@ public final class ViewRootImpl implements ViewParent,
     private static final String TAG = "ViewRootImpl";
     private static final boolean DBG = false;
     private static final boolean LOCAL_LOGV = false;
+    private static final boolean FIRST_FRAME_OPT =
+            SystemProperties.getBoolean("persist.sys.ax.first_frame_opt", true);
     /** @noinspection PointlessBooleanExpression*/
     private static final boolean DEBUG_DRAW = false || LOCAL_LOGV;
     private static final boolean DEBUG_LAYOUT = false || LOCAL_LOGV;
@@ -726,6 +728,8 @@ public final class ViewRootImpl implements ViewParent,
 
     public boolean mTraversalScheduled;
     int mTraversalBarrier;
+    private boolean mFirstFrameScheduled;
+    private int mDoFrameIndex;
     boolean mWillDrawSoon;
     private boolean mIsNeedDrawLast = false;
     private boolean mResident = false;
@@ -3111,6 +3115,9 @@ public final class ViewRootImpl implements ViewParent,
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     void scheduleTraversals() {
         if (!mTraversalScheduled) {
+            if (tryScheduleTraversalsImmediately()) {
+                return;
+            }
             mTraversalScheduled = true;
             // The following behavior is load-bearing for public API correctness.
             // For example, the following code is defined to be correct and the
@@ -3141,6 +3148,29 @@ public final class ViewRootImpl implements ViewParent,
             notifyRendererOfFramePending();
             pokeDrawLockIfNeeded();
         }
+    }
+
+    private boolean tryScheduleTraversalsImmediately() {
+        if (!FIRST_FRAME_OPT || mFirstFrameScheduled || mDoFrameIndex >= 2 || !mAdded) {
+            return false;
+        }
+        mFirstFrameScheduled = true;
+        mDoFrameIndex++;
+        mTraversalScheduled = true;
+        try {
+            mQueue.removeSyncBarrier(mTraversalBarrier);
+        } catch (IllegalStateException ignored) {
+        }
+        mTraversalBarrier = mQueue.postSyncBarrier();
+        mChoreographer.postCallbackImmediately(
+                Choreographer.CALLBACK_TRAVERSAL, mTraversalRunnable, null);
+        mChoreographer.doFrameImmediately();
+        if (!mUnbufferedInputDispatch) {
+            scheduleConsumeBatchedInput();
+        }
+        notifyRendererOfFramePending();
+        pokeDrawLockIfNeeded();
+        return true;
     }
 
     void unscheduleTraversals() {
