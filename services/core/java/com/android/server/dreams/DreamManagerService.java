@@ -27,7 +27,6 @@ import static android.service.dreams.Flags.cleanupDreamSettingsOnUninstall;
 import static android.service.dreams.Flags.disallowDreamOnAutoProjection;
 import static android.service.dreams.Flags.dreamHandlesBeingObscured;
 import static android.service.dreams.Flags.dreamsV2;
-import static android.service.dreams.Flags.wakeOnStoppingDoze;
 
 import static com.android.server.wm.ActivityInterceptorCallback.DREAM_MANAGER_ORDERED_ID;
 
@@ -1012,12 +1011,15 @@ public final class DreamManagerService extends SystemService {
                     mCurrentDream.name.flattenToString());
         }
         if (mCurrentDream.isDozing) {
-            if (wakeOnStoppingDoze()) {
-                mPowerManager.wakeUp(
-                        SystemClock.uptimeMillis(),
-                        PowerManager.WAKE_REASON_DOZE_STOPPED,
-                        "android.server.dreams:requestAwaken");
-            }
+            // Always wakeUp when stopping a dozing dream to prevent the device from
+            // getting stuck in an intermediate state where the dream has stopped but
+            // the display hasn't fully transitioned to the awake state.
+            // This can happen when gesture wake-ups are suppressed or fail, leaving
+            // the device showing only a blurry wallpaper without keyguard UI.
+            mPowerManager.wakeUp(
+                    SystemClock.uptimeMillis(),
+                    PowerManager.WAKE_REASON_DOZE_STOPPED,
+                    "android.server.dreams:requestAwaken");
             mDozeWakeLock.release();
         }
         mCurrentDream = null;
