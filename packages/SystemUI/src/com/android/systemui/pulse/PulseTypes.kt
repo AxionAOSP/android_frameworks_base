@@ -19,7 +19,9 @@ import androidx.compose.ui.unit.dp
 
 enum class PulseStyle(val id: Int) {
     BARS(0),
-    FADING_BLOCKS(1);
+    FADING_BLOCKS(1),
+    SOLID_LINE(2),
+    CENTER_MIRROR(3);
     companion object {
         fun fromId(id: Int): PulseStyle = entries.find { it.id == id } ?: BARS
     }
@@ -39,9 +41,5 @@ object PulseConstants {
     val MAX_HEIGHT = 300.dp
     const val CORNER_RADIUS = 32f
     const val BAR_ALPHA = 0.88f
-    const val SMOOTHING_SPEED = 13f
-    const val FFT_FUDGE_FACTOR = 20
-    const val FFT_WINDOW_LENGTH = 2
-    const val FADE_IN_DURATION_MS = 300L
-    const val FADE_OUT_DURATION_MS = 100L
+    const val SMOOTHING_SPEED = 30f
 }

@@ -30,7 +30,9 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.exp
 import kotlinx.coroutines.isActive
@@ -55,16 +57,16 @@ private class BarHeightsState(barCount: Int) {
     var targetHeights = FloatArray(barCount) { 2f }
     var lastFrameNanos = 0L
 
-    fun updateTargets(newTargets: FloatArray) {
-        val mirrored = mirrorCenterOut(newTargets)
-        if (targetHeights.size != mirrored.size) {
-            currentHeights = FloatArray(mirrored.size) { i ->
+    fun updateTargets(newTargets: FloatArray, mirror: Boolean) {
+        val incoming = if (mirror) mirrorCenterOut(newTargets) else newTargets
+        if (targetHeights.size != incoming.size) {
+            currentHeights = FloatArray(incoming.size) { i ->
                 if (i < currentHeights.size) currentHeights[i] else 2f
             }
-            targetHeights = FloatArray(mirrored.size)
+            targetHeights = FloatArray(incoming.size)
         }
-        for (i in mirrored.indices) {
-            targetHeights[i] = mirrored[i]
+        for (i in incoming.indices) {
+            targetHeights[i] = incoming[i]
         }
     }
 
@@ -97,7 +99,7 @@ fun PulseVisualizer(
 
     val barHeights = remember { BarHeightsState(state.barCount) }
 
-    barHeights.updateTargets(state.barHeights)
+    barHeights.updateTargets(state.barHeights, mirror = state.style == PulseStyle.CENTER_MIRROR)
 
     var frameCount by remember { mutableLongStateOf(0L) }
 
@@ -128,6 +130,7 @@ fun PulseVisualizer(
 
         when (state.style) {
             PulseStyle.FADING_BLOCKS -> drawFadingBlocks(state, barHeights.currentHeights, barColor, gapPx, maxHeightPx, currentTime)
+            PulseStyle.SOLID_LINE -> drawSolidLine(state, barHeights.currentHeights, barColor, maxHeightPx)
             else -> drawBars(state, barHeights.currentHeights, barColor, gapPx, maxHeightPx)
         }
     }
@@ -168,6 +171,47 @@ private fun DrawScope.drawBars(
             )
         }
     }
+}
+
+private fun DrawScope.drawSolidLine(
+    state: PulseUiState,
+    heights: FloatArray,
+    barColor: Color,
+    maxHeightPx: Float
+) {
+    val barCount = state.barCount
+    if (barCount < 2) return
+    val stepX = size.width / (barCount - 1).toFloat()
+    val baseY = size.height
+    val strokeWidthPx = 6f
+
+    val topPath = Path()
+    val botPath = Path()
+    for (i in 0 until barCount) {
+        val rawHeight = if (i < heights.size) heights[i] else 2f
+        val height = rawHeight.coerceIn(2f, maxHeightPx)
+        val x = i * stepX
+        val yTop = baseY - height
+        val yBot = baseY - (height * 0.35f)
+        if (i == 0) {
+            topPath.moveTo(x, yTop)
+            botPath.moveTo(x, yBot)
+        } else {
+            topPath.lineTo(x, yTop)
+            botPath.lineTo(x, yBot)
+        }
+    }
+
+    drawPath(
+        path = topPath,
+        color = barColor,
+        style = Stroke(width = strokeWidthPx)
+    )
+    drawPath(
+        path = botPath,
+        color = barColor.copy(alpha = barColor.alpha * 0.5f),
+        style = Stroke(width = strokeWidthPx * 0.6f)
+    )
 }
 
 private fun DrawScope.drawFadingBlocks(
