@@ -24,6 +24,7 @@ import androidx.compose.runtime.*
 import com.android.axion.compose.host.AxComposeView
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.res.R
+import com.android.systemui.statusbar.policy.ConfigurationController
 import javax.inject.Inject
 
 @SysUISingleton
@@ -31,12 +32,24 @@ class UdfpsAnimationHost @Inject constructor(
     private val context: Context,
     private val windowManager: WindowManager,
     private val interactor: UdfpsAnimationInteractor,
+    private val configurationController: ConfigurationController,
 ) {
     private var composeView: AxComposeView? = null
     private val animParams: WindowManager.LayoutParams
     private var currentOffsetY: Int = 0
 
+    private val themeListener =
+        object : ConfigurationController.ConfigurationListener {
+            override fun onThemeChanged() {
+                if (composeView != null) {
+                    detach()
+                    attach()
+                }
+            }
+        }
+
     init {
+        configurationController.addCallback(themeListener)
         val animationSize = context.resources.getDimensionPixelSize(R.dimen.udfps_animation_size)
 
         animParams = WindowManager.LayoutParams().apply {
