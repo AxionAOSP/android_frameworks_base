@@ -49,10 +49,10 @@ class UdfpsAnimationInteractor @Inject constructor(
 ) {
     private val _uiState = MutableStateFlow(UdfpsAnimationUiState())
     val uiState: StateFlow<UdfpsAnimationUiState> = _uiState.asStateFlow()
+    private var lastOverlayParams = UdfpsOverlayParams()
 
     init {
-        val animationSize = context.resources.getDimensionPixelSize(R.dimen.udfps_animation_size)
-        _uiState.update { it.copy(animationSize = animationSize) }
+        _uiState.update { it.copy(animationSize = currentAnimationSize()) }
 
         combine(
             udfpsOverlayInteractor.isFingerDown,
@@ -67,14 +67,32 @@ class UdfpsAnimationInteractor @Inject constructor(
             .launchIn(scope)
     }
 
+    fun onThemeChanged() {
+        updatePosition(lastOverlayParams)
+    }
+
     private fun updateVisibility(visible: Boolean) {
         if (_uiState.value.isVisible != visible) {
             _uiState.update { it.copy(isVisible = visible) }
         }
     }
 
+    private fun currentAnimationSize(): Int {
+        val sizeRes =
+            if (context.resources.getString(R.string.config_udfps_animation_type) == MODE_DRAWABLE) {
+                R.dimen.udfps_animation_drawable_size
+            } else {
+                R.dimen.udfps_animation_size
+            }
+        return context.resources.getDimensionPixelSize(sizeRes)
+    }
+
     private fun updatePosition(params: UdfpsOverlayParams) {
+        lastOverlayParams = params
+        val animationSize = currentAnimationSize()
+
         if (params.sensorBounds.isEmpty) {
+            _uiState.update { it.copy(animationSize = animationSize) }
             return
         }
 
@@ -82,14 +100,18 @@ class UdfpsAnimationInteractor @Inject constructor(
             R.dimen.udfps_animation_offset
         ) * params.scaleFactor
 
-        val animationSize = _uiState.value.animationSize
         val offsetY = params.sensorBounds.top - (animationSize / 2) + animationOffset.toInt()
 
         _uiState.update {
             it.copy(
                 animationOffsetY = offsetY,
+                animationSize = animationSize,
                 sensorType = params.sensorType,
             )
         }
+    }
+
+    companion object {
+        private const val MODE_DRAWABLE = "drawable"
     }
 }

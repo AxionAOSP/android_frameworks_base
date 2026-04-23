@@ -17,13 +17,14 @@ package com.android.systemui.biometrics
 
 import android.content.Context
 import android.graphics.PixelFormat
-import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
-import androidx.compose.runtime.*
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.android.axion.compose.host.AxComposeView
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.res.R
+import com.android.systemui.statusbar.policy.ConfigurationController
 import javax.inject.Inject
 
 @SysUISingleton
@@ -31,13 +32,28 @@ class UdfpsAnimationHost @Inject constructor(
     private val context: Context,
     private val windowManager: WindowManager,
     private val interactor: UdfpsAnimationInteractor,
+    private val configurationController: ConfigurationController,
 ) {
     private var composeView: AxComposeView? = null
     private val animParams: WindowManager.LayoutParams
     private var currentOffsetY: Int = 0
+    private var currentAnimationSize: Int = 0
+
+    private val themeListener =
+        object : ConfigurationController.ConfigurationListener {
+            override fun onThemeChanged() {
+                interactor.onThemeChanged()
+                if (composeView != null) {
+                    detach()
+                    attach()
+                }
+            }
+        }
 
     init {
-        val animationSize = context.resources.getDimensionPixelSize(R.dimen.udfps_animation_size)
+        configurationController.addCallback(themeListener)
+        val animationSize = interactor.uiState.value.animationSize
+        currentAnimationSize = animationSize
 
         animParams = WindowManager.LayoutParams().apply {
             height = animationSize
@@ -53,10 +69,13 @@ class UdfpsAnimationHost @Inject constructor(
         }
     }
 
-    private fun updateWindowPosition(offsetY: Int) {
-        if (currentOffsetY != offsetY) {
-            currentOffsetY = offsetY
-            animParams.y = offsetY
+    private fun updateWindowLayout(state: UdfpsAnimationUiState) {
+        if (currentOffsetY != state.animationOffsetY || currentAnimationSize != state.animationSize) {
+            currentOffsetY = state.animationOffsetY
+            currentAnimationSize = state.animationSize
+            animParams.y = state.animationOffsetY
+            animParams.width = state.animationSize
+            animParams.height = state.animationSize
             composeView?.let { view ->
                 try {
                     windowManager.updateViewLayout(view, animParams)
@@ -71,14 +90,17 @@ class UdfpsAnimationHost @Inject constructor(
         
         val initialState = interactor.uiState.value
         animParams.y = initialState.animationOffsetY
+        animParams.width = initialState.animationSize
+        animParams.height = initialState.animationSize
         currentOffsetY = initialState.animationOffsetY
+        currentAnimationSize = initialState.animationSize
 
         val view = AxComposeView(context).apply {
             setContent {
                 val state by interactor.uiState.collectAsState()
                 
-                LaunchedEffect(state.animationOffsetY) {
-                    updateWindowPosition(state.animationOffsetY)
+                LaunchedEffect(state.animationOffsetY, state.animationSize) {
+                    updateWindowLayout(state)
                 }
                 
                 UdfpsAnimation(state = state)
@@ -104,7 +126,4 @@ class UdfpsAnimationHost @Inject constructor(
         }
     }
 
-    companion object {
-        private const val TAG = "UdfpsAnimationHost"
-    }
 }

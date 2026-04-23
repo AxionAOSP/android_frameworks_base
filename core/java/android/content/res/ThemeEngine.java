@@ -61,6 +61,7 @@ public class ThemeEngine {
     public static final String CATEGORY_BACK_GESTURE = "back_gesture";
     public static final String CATEGORY_CHARGING_ANIMATION = "charging_animation";
     public static final String CATEGORY_BATTERY_STYLE = "battery_style";
+    public static final String CATEGORY_UDFPS_ANIMATION = "android.theme.customization.udfps_animation";
 
     private static volatile ThemeEngine sInstance;
 
