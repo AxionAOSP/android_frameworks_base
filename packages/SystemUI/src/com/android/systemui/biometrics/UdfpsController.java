@@ -199,6 +199,9 @@ public class UdfpsController implements DozeReceiver, Dumpable {
     @NonNull private final MSDLPlayer mMsdlPlayer;
     private final boolean mIgnoreRefreshRate;
     private final KeyguardTransitionInteractor mKeyguardTransitionInteractor;
+    @NonNull private final AuthController mAuthController;
+    @NonNull private final UdfpsAnimationInteractor mUdfpsAnimInteractor;
+    @NonNull private final UdfpsAnimationHost mUdfpsAnimHost;
 
     // Currently the UdfpsController supports a single UDFPS sensor. If devices have multiple
     // sensors, this, in addition to a lot of the code here, will be updated.
@@ -734,7 +737,10 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             @Application CoroutineScope scope,
             UserActivityNotifier userActivityNotifier,
             Lazy<WakefulnessLifecycle> wakefulnessLifecycle,
-            MSDLPlayer msdlPlayer) {
+            MSDLPlayer msdlPlayer,
+            @NonNull AuthController authController,
+            @NonNull UdfpsAnimationInteractor udfpsAnimationInteractor,
+            @NonNull UdfpsAnimationHost udfpsAnimationHost) {
         mContext = context;
         mExecution = execution;
         mVibrator = vibrator;
@@ -763,7 +769,11 @@ public class UdfpsController implements DozeReceiver, Dumpable {
         mUnlockedScreenOffAnimationController = unlockedScreenOffAnimationController;
         mLatencyTracker = latencyTracker;
         mActivityTransitionAnimator = activityTransitionAnimator;
-        mSensorProps = new FingerprintSensorPropertiesInternal(
+        
+        mAuthController = authController;
+
+        FingerprintSensorPropertiesInternal udfpsProps = findUdfpsProps();
+        mSensorProps = udfpsProps != null ? udfpsProps : new FingerprintSensorPropertiesInternal(
                 -1 /* sensorId */,
                 SensorProperties.STRENGTH_CONVENIENCE,
                 0 /* maxEnrollmentsPerUser */,
@@ -823,6 +833,20 @@ public class UdfpsController implements DozeReceiver, Dumpable {
 
         mUseMtkGhbmDimming = mContext.getResources().getBoolean(
             com.android.systemui.res.R.bool.config_udfpsMtkGhbmDimming);
+
+        mUdfpsAnimInteractor = udfpsAnimationInteractor;
+        mUdfpsAnimHost = udfpsAnimationHost;
+
+        mUdfpsAnimInteractor.setSensorProps(mSensorProps);
+    }
+
+    @Nullable
+    private FingerprintSensorPropertiesInternal findUdfpsProps() {
+        if (mAuthController != null && mAuthController.getUdfpsProps() != null 
+                && !mAuthController.getUdfpsProps().isEmpty()) {
+            return mAuthController.getUdfpsProps().get(0);
+        }
+        return null;
     }
 
     /**
@@ -879,6 +903,12 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             mOnFingerDown = false;
             mAttemptedToDismissKeyguard = false;
             mOrientationListener.enable();
+            
+            if (requestReason == REASON_AUTH_KEYGUARD) {
+                addCallback(mUdfpsAnimInteractor);
+                mUdfpsAnimHost.attach();
+            }
+            
             if (mFingerprintManager != null) {
                 mFingerprintManager.onUdfpsUiEvent(FingerprintManager.UDFPS_UI_OVERLAY_SHOWN,
                         overlay.getRequestId(), mSensorProps.sensorId);
@@ -904,6 +934,11 @@ public class UdfpsController implements DozeReceiver, Dumpable {
                 if (hbmView != null) {
                     hbmView.setVisibility(View.GONE);
                 }
+            }
+
+            if (mOverlay.getRequestReason() == REASON_AUTH_KEYGUARD) {
+                removeCallback(mUdfpsAnimInteractor);
+                mUdfpsAnimHost.detach();
             }
 
             final boolean removed = mOverlay.hide();

@@ -38,4 +38,8 @@
     <dimen name="network_speed_unit_text_size">6dp</dimen>
     <dimen name="network_speed_view_padding_end">2dp</dimen>
     <dimen name="network_speed_view_width">22dp</dimen>
+
+    <!-- Udfps fingerprint animation -->
+    <dimen name="udfps_animation_size">180dp</dimen>
+    <dimen name="udfps_animation_offset">0dp</dimen>
 </resources>
