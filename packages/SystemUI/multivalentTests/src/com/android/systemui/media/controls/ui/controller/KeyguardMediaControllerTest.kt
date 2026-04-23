@@ -32,6 +32,7 @@ import com.android.systemui.flags.DisableSceneContainer
 import com.android.systemui.keyguard.data.repository.fakeKeyguardTransitionRepository
 import com.android.systemui.keyguard.shared.model.KeyguardState
 import com.android.systemui.kosmos.applicationCoroutineScope
+import com.android.systemui.kosmos.testDispatcher
 import com.android.systemui.kosmos.testScope
 import com.android.systemui.media.controls.domain.pipeline.interactor.mediaCarouselInteractor
 import com.android.systemui.media.controls.ui.view.MediaHost
@@ -58,6 +59,8 @@ import com.android.systemui.util.mockito.whenever
 import com.android.systemui.util.settings.fakeSettings
 import com.google.common.truth.Truth.assertThat
 import junit.framework.Assert.assertTrue
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Rule
@@ -69,6 +72,7 @@ import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.verify
 import org.mockito.junit.MockitoJUnit
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @SmallTest
 @RunWith(AndroidJUnit4::class)
 @TestableLooper.RunWithLooper(setAsMainLooper = true)
@@ -89,6 +93,7 @@ class KeyguardMediaControllerTest : SysuiTestCase() {
     private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
     private val transitionRepository = kosmos.fakeKeyguardTransitionRepository
+    private val secureSettings = kosmos.fakeSettings
     private val mediaContainerView: MediaContainerView = MediaContainerView(context, null)
     private val hostView = UniqueObjectHostView(context)
     private lateinit var keyguardMediaController: KeyguardMediaController
@@ -120,6 +125,7 @@ class KeyguardMediaControllerTest : SysuiTestCase() {
             KeyguardMediaController(
                 mediaHost,
                 kosmos.applicationCoroutineScope,
+                kosmos.testDispatcher,
                 bypassController,
                 statusBarStateController,
                 context,
@@ -131,6 +137,7 @@ class KeyguardMediaControllerTest : SysuiTestCase() {
                 axMediaContent,
                 keyguardClockRepository,
                 axDynamicBarSettings,
+                kosmos.fakeSettings,
             )
         keyguardMediaController.attachSinglePaneContainer(mediaContainerView)
         keyguardMediaController.useSplitShade = false
@@ -288,6 +295,38 @@ class KeyguardMediaControllerTest : SysuiTestCase() {
         keyguardMediaController.refreshMediaPosition(TEST_REASON)
 
         assertThat(keyguardMediaController.visible).isTrue()
+    }
+
+    @Test
+    fun keyguardShowing_notAllowedOnLockscreen_viewIsHidden() {
+        kosmos.testScope.runTest {
+            val settingsJob =
+                keyguardMediaController.listenForLockscreenSettingChanges(
+                    kosmos.applicationCoroutineScope
+                )
+            secureSettings.putBool(Settings.Secure.MEDIA_CONTROLS_LOCK_SCREEN, false)
+            runCurrent()
+
+            assertThat(mediaContainerView.visibility).isEqualTo(GONE)
+
+            settingsJob.cancel()
+        }
+    }
+
+    @Test
+    fun keyguardShowing_allowedOnLockscreen_viewIsVisible() {
+        kosmos.testScope.runTest {
+            val settingsJob =
+                keyguardMediaController.listenForLockscreenSettingChanges(
+                    kosmos.applicationCoroutineScope
+                )
+            secureSettings.putBool(Settings.Secure.MEDIA_CONTROLS_LOCK_SCREEN, true)
+            runCurrent()
+
+            assertThat(mediaContainerView.visibility).isEqualTo(VISIBLE)
+
+            settingsJob.cancel()
+        }
     }
 
     private fun setDozing() {
