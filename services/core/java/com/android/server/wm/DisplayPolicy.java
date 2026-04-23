@@ -1583,12 +1583,8 @@ public class DisplayPolicy {
         // We invoke this to get the proper DisplayFrames.
         displayFrames = win.getDisplayFrames(displayFrames);
         
-        if (win.mActivityRecord != null) {
-            final int cutoutMode = mService.mAtmService.getCutoutMode(
-                    win.mAttrs.layoutInDisplayCutoutMode,
-                    win.mActivityRecord.packageName,
-                    displayFrames.mWidth,
-                    displayFrames.mHeight);
+        if (win.mActivityRecord != null && win.mActivityRecord.shouldForceLongScreen()) {
+            final int cutoutMode = displayFrames.mWidth > displayFrames.mHeight ? 3 : 1;
             if (cutoutMode != win.mAttrs.layoutInDisplayCutoutMode) {
                 win.mAttrs.layoutInDisplayCutoutMode = cutoutMode;
             }

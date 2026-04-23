@@ -686,6 +686,7 @@ final class ActivityRecord extends WindowToken {
      * over the lockscreen.
      */
     private final boolean mIsUserAlwaysVisible;
+    private Boolean mForceLongScreen;
 
     /** Allow activity launches which would otherwise be blocked by
      * {@link BackgroundActivityStartController#checkActivityAllowedToStart}
@@ -8271,6 +8272,7 @@ final class ActivityRecord extends WindowToken {
 
     @Override
     public void onConfigurationChanged(Configuration newParentConfig) {
+        mForceLongScreen = null;
         // We want to collect the ActivityRecord if the windowing mode is changed, so that it will
         // dispatch app transition finished event correctly at the end.
         // Check #isVisible() because we don't want to animate for activity that stays invisible.
@@ -9807,6 +9809,9 @@ final class ActivityRecord extends WindowToken {
     }
 
     public boolean shouldForceLongScreen() {
-        return mAtmService.shouldForceLongScreen(packageName);
+        if (mForceLongScreen == null) {
+            mForceLongScreen = mAtmService.shouldForceLongScreen(packageName);
+        }
+        return mForceLongScreen;
     }
 }
