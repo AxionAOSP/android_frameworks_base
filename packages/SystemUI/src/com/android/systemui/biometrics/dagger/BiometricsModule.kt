@@ -27,6 +27,7 @@ import com.android.systemui.biometrics.AuthController
 import com.android.systemui.biometrics.EllipseOverlapDetectorParams
 import com.android.systemui.biometrics.FingerprintInteractiveToAuthProvider
 import com.android.systemui.biometrics.FingerprintInteractiveToAuthProviderImpl
+import com.android.systemui.biometrics.UdfpsAnimationStartable
 import com.android.systemui.biometrics.UdfpsUtils
 import com.android.systemui.biometrics.data.repository.BiometricStatusRepository
 import com.android.systemui.biometrics.data.repository.BiometricStatusRepositoryImpl
@@ -88,6 +89,11 @@ interface BiometricsModule {
     @IntoMap
     @ClassKey(AlternateBouncerViewBinder::class)
     fun bindAlternateBouncerViewBinder(viewBinder: AlternateBouncerViewBinder): CoreStartable
+
+    @Binds
+    @IntoMap
+    @ClassKey(UdfpsAnimationStartable::class)
+    fun bindUdfpsAnimationStartable(startable: UdfpsAnimationStartable): CoreStartable
 
     @Binds
     @SysUISingleton

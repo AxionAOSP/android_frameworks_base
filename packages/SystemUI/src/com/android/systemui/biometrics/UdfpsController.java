@@ -199,6 +199,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
     @NonNull private final MSDLPlayer mMsdlPlayer;
     private final boolean mIgnoreRefreshRate;
     private final KeyguardTransitionInteractor mKeyguardTransitionInteractor;
+    @NonNull private final AuthController mAuthController;
 
     // Currently the UdfpsController supports a single UDFPS sensor. If devices have multiple
     // sensors, this, in addition to a lot of the code here, will be updated.
@@ -358,12 +359,14 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             if (isUltrasonic()) {
                 if (acquiredInfo == FINGERPRINT_ACQUIRED_START) {
                     mFgExecutor.execute(() -> {
+                        mUdfpsOverlayInteractor.setFingerDown(true);
                         for (Callback cb : mCallbacks) {
                             cb.onFingerDown();
                         }
                     });
                 } else {
                     mFgExecutor.execute(() -> {
+                        mUdfpsOverlayInteractor.setFingerDown(false);
                         for (Callback cb : mCallbacks) {
                             cb.onFingerUp();
                         }
@@ -734,7 +737,8 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             @Application CoroutineScope scope,
             UserActivityNotifier userActivityNotifier,
             Lazy<WakefulnessLifecycle> wakefulnessLifecycle,
-            MSDLPlayer msdlPlayer) {
+            MSDLPlayer msdlPlayer,
+            @NonNull AuthController authController) {
         mContext = context;
         mExecution = execution;
         mVibrator = vibrator;
@@ -763,7 +767,11 @@ public class UdfpsController implements DozeReceiver, Dumpable {
         mUnlockedScreenOffAnimationController = unlockedScreenOffAnimationController;
         mLatencyTracker = latencyTracker;
         mActivityTransitionAnimator = activityTransitionAnimator;
-        mSensorProps = new FingerprintSensorPropertiesInternal(
+        
+        mAuthController = authController;
+
+        FingerprintSensorPropertiesInternal udfpsProps = findUdfpsProps();
+        mSensorProps = udfpsProps != null ? udfpsProps : new FingerprintSensorPropertiesInternal(
                 -1 /* sensorId */,
                 SensorProperties.STRENGTH_CONVENIENCE,
                 0 /* maxEnrollmentsPerUser */,
@@ -825,6 +833,15 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             com.android.systemui.res.R.bool.config_udfpsMtkGhbmDimming);
     }
 
+    @Nullable
+    private FingerprintSensorPropertiesInternal findUdfpsProps() {
+        if (mAuthController != null && mAuthController.getUdfpsProps() != null 
+                && !mAuthController.getUdfpsProps().isEmpty()) {
+            return mAuthController.getUdfpsProps().get(0);
+        }
+        return null;
+    }
+
     /**
      * If a11y touchExplorationEnabled, play haptic to signal UDFPS scanning started.
      */
@@ -879,6 +896,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             mOnFingerDown = false;
             mAttemptedToDismissKeyguard = false;
             mOrientationListener.enable();
+            
             if (mFingerprintManager != null) {
                 mFingerprintManager.onUdfpsUiEvent(FingerprintManager.UDFPS_UI_OVERLAY_SHOWN,
                         overlay.getRequestId(), mSensorProps.sensorId);
@@ -907,6 +925,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             }
 
             final boolean removed = mOverlay.hide();
+            mUdfpsOverlayInteractor.setFingerDown(false);
             mKeyguardViewManager.hideAlternateBouncer(true);
             Log.v(TAG, "hideUdfpsOverlay | removing window: " + removed);
         } else {
@@ -1124,6 +1143,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             mDeviceEntryFaceAuthInteractor.onUdfpsSensorTouched();
         }
         mOnFingerDown = true;
+        mUdfpsOverlayInteractor.setFingerDown(true);
         mFingerprintManager.onPointerDown(requestId, mSensorProps.sensorId, pointerId, x, y,
                 minor, major, orientation, time, gestureStart, isAod);
 
@@ -1208,6 +1228,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             }
         }
         mOnFingerDown = false;
+        mUdfpsOverlayInteractor.setFingerDown(false);
 
         if (mUseMtkGhbmDimming && mOverlay != null) {
             View hbmView = mOverlay.getHbmView();
