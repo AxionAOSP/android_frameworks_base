@@ -54,6 +54,7 @@ import com.android.systemui.plugins.keyguard.ui.composable.elements.LockscreenSc
 import com.android.systemui.res.R
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.statusbar.VibratorHelper
+import com.android.systemui.statusbar.policy.ConfigurationController
 import com.google.android.msdl.domain.MSDLPlayer
 import dagger.Lazy
 import javax.inject.Inject
@@ -76,6 +77,7 @@ constructor(
     private val falsingManager: Lazy<FalsingManager>,
     private val vibratorHelper: Lazy<VibratorHelper>,
     private val msdlPlayer: Lazy<MSDLPlayer>,
+    private val configurationController: ConfigurationController,
     @LongPressTouchLog private val logBuffer: LogBuffer,
 ) : LockscreenElementProvider {
     override val elements: List<LockscreenElement> by lazy { listOf(LockIconElement()) }
@@ -114,6 +116,7 @@ constructor(
                             vibratorHelper.get(),
                             msdlPlayer.get(),
                             overrideColor,
+                            configurationController,
                         )
                     }
             },

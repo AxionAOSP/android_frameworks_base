@@ -126,6 +126,9 @@ public class ThemeOverlayApplier implements Dumpable {
     static final String OVERLAY_CATEGORY_UDFPS_ANIMATION =
             "android.theme.customization.udfps_animation";
 
+    static final String OVERLAY_CATEGORY_UDFPS_ICON =
+            "android.theme.customization.udfps_icon";
+
     /*
      * All theme customization categories used by the system, in order that they should be applied,
      * starts with launcher and grouped by target package.
@@ -144,7 +147,8 @@ public class ThemeOverlayApplier implements Dumpable {
             OVERLAY_CATEGORY_BACK_GESTURE,
             OVERLAY_CATEGORY_CHARGING_ANIMATION,
             OVERLAY_CATEGORY_BATTERY_STYLE,
-            OVERLAY_CATEGORY_UDFPS_ANIMATION);
+            OVERLAY_CATEGORY_UDFPS_ANIMATION,
+            OVERLAY_CATEGORY_UDFPS_ICON);
 
     /* Categories that need to be applied to the current user as well as the system user. */
     @VisibleForTesting
@@ -159,7 +163,8 @@ public class ThemeOverlayApplier implements Dumpable {
             OVERLAY_CATEGORY_BACK_GESTURE,
             OVERLAY_CATEGORY_CHARGING_ANIMATION,
             OVERLAY_CATEGORY_BATTERY_STYLE,
-            OVERLAY_CATEGORY_UDFPS_ANIMATION);
+            OVERLAY_CATEGORY_UDFPS_ANIMATION,
+            OVERLAY_CATEGORY_UDFPS_ICON);
 
     /* Allowed overlay categories for each target package. */
     private final Map<String, Set<String>> mTargetPackageToCategories = new ArrayMap<>();
@@ -191,7 +196,7 @@ public class ThemeOverlayApplier implements Dumpable {
         mTargetPackageToCategories.put(SYSUI_PACKAGE,
                 Sets.newHashSet(OVERLAY_CATEGORY_ICON_SYSUI, OVERLAY_CATEGORY_BACK_GESTURE,
                         OVERLAY_CATEGORY_CHARGING_ANIMATION, OVERLAY_CATEGORY_BATTERY_STYLE,
-                        OVERLAY_CATEGORY_UDFPS_ANIMATION));
+                        OVERLAY_CATEGORY_UDFPS_ANIMATION, OVERLAY_CATEGORY_UDFPS_ICON));
         mTargetPackageToCategories.put(SETTINGS_PACKAGE,
                 Sets.newHashSet(OVERLAY_CATEGORY_ICON_SETTINGS));
         mTargetPackageToCategories.put(mLauncherPackage,
@@ -208,6 +213,7 @@ public class ThemeOverlayApplier implements Dumpable {
         mCategoryToTargetPackage.put(OVERLAY_CATEGORY_CHARGING_ANIMATION, SYSUI_PACKAGE);
         mCategoryToTargetPackage.put(OVERLAY_CATEGORY_BATTERY_STYLE, SYSUI_PACKAGE);
         mCategoryToTargetPackage.put(OVERLAY_CATEGORY_UDFPS_ANIMATION, SYSUI_PACKAGE);
+        mCategoryToTargetPackage.put(OVERLAY_CATEGORY_UDFPS_ICON, SYSUI_PACKAGE);
         mCategoryToTargetPackage.put(OVERLAY_CATEGORY_ICON_SETTINGS, SETTINGS_PACKAGE);
         mCategoryToTargetPackage.put(OVERLAY_CATEGORY_ICON_LAUNCHER, mLauncherPackage);
         mCategoryToTargetPackage.put(OVERLAY_CATEGORY_ICON_THEME_PICKER, mThemePickerPackage);

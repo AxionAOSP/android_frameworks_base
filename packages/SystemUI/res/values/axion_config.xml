@@ -16,4 +16,5 @@
 -->
 <resources>
     <string name="config_udfps_animation_type" translatable="false">lottie</string>
+    <string name="config_udfps_icon_type" translatable="false">none</string>
 </resources>

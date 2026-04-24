@@ -17,11 +17,11 @@
 
 package com.android.systemui.keyguard.ui.binder
 
-import android.content.res.ColorStateList
 import android.view.View
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.app.tracing.coroutines.launchTraced as launch
+import com.android.systemui.biometrics.UdfpsIconThemer
 import com.android.systemui.keyguard.ui.view.DeviceEntryIconView
 import com.android.systemui.keyguard.ui.viewmodel.AlternateBouncerUdfpsIconViewModel
 import com.android.systemui.lifecycle.repeatWhenAttached
@@ -65,7 +65,11 @@ object AlternateBouncerUdfpsViewBinder {
                         view.getIconState(fgViewModel.type, fgViewModel.useAodVariant),
                         /* merge */ false,
                     )
-                    fgIconView.imageTintList = ColorStateList.valueOf(fgViewModel.tint)
+                    fgIconView.imageTintList = UdfpsIconThemer.resolveFgTint(
+                        view.context,
+                        fgViewModel.type,
+                        fgViewModel.tint,
+                    )
                     fgIconView.setPadding(
                         fgViewModel.padding,
                         fgViewModel.padding,
