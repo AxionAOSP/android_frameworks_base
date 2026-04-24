@@ -18,7 +18,6 @@
 package com.android.systemui.keyguard.ui.binder
 
 import android.annotation.SuppressLint
-import android.content.res.ColorStateList
 import android.util.Log
 import android.util.StateSet
 import android.view.HapticFeedbackConstants
@@ -30,6 +29,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.Flags
+import com.android.systemui.biometrics.UdfpsIconThemer
 import com.android.systemui.common.ui.view.TouchHandlingView
 import com.android.systemui.keyguard.ui.view.DeviceEntryIconView
 import com.android.systemui.keyguard.ui.viewmodel.DeviceEntryBackgroundViewModel
@@ -39,6 +39,7 @@ import com.android.systemui.lifecycle.repeatWhenAttached
 import com.android.systemui.plugins.FalsingManager
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.VibratorHelper
+import com.android.systemui.statusbar.policy.ConfigurationController
 import com.android.systemui.util.kotlin.DisposableHandles
 import com.google.android.msdl.data.model.MSDLToken
 import com.google.android.msdl.domain.MSDLPlayer
@@ -69,11 +70,20 @@ object DeviceEntryIconViewBinder {
         vibratorHelper: VibratorHelper,
         msdlPlayer: MSDLPlayer,
         overrideColor: Color? = null,
+        configurationController: ConfigurationController,
     ): DisposableHandle {
         val disposables = DisposableHandles()
         val touchHandlingView = view.touchHandlingView
         val fgIconView = view.iconView
         val bgView = view.bgView
+        val themeListener =
+            object : ConfigurationController.ConfigurationListener {
+                override fun onThemeChanged() {
+                    view.rebuildIconStates()
+                }
+            }
+        configurationController.addCallback(themeListener)
+        disposables += DisposableHandle { configurationController.removeCallback(themeListener) }
         touchHandlingView.listener =
             object : TouchHandlingView.Listener {
                 override fun onLongPressDetected(
@@ -224,7 +234,11 @@ object DeviceEntryIconViewBinder {
                                     )
                             }
                             fgIconView.imageTintList =
-                                ColorStateList.valueOf(viewModel.tint)
+                                UdfpsIconThemer.resolveFgTint(
+                                    view.context,
+                                    viewModel.type,
+                                    viewModel.tint,
+                                )
                             fgIconView.setPadding(
                                 viewModel.padding,
                                 viewModel.padding,

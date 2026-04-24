@@ -30,8 +30,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
-import com.airbnb.lottie.LottieCompositionFactory
 import com.airbnb.lottie.LottieDrawable
+import com.android.systemui.biometrics.UdfpsIconThemer
 import com.android.systemui.common.ui.view.TouchHandlingView
 import com.android.systemui.log.TouchHandlingViewLogger
 import com.android.systemui.res.R
@@ -74,6 +74,13 @@ constructor(
         addBgImageView()
         addIconImageView()
         addTouchHandlingView()
+    }
+
+    fun rebuildIconStates() {
+        animatedIconDrawable = AnimatedStateListDrawable()
+        setupIconStates()
+        setupIconTransitions()
+        iconView.setImageDrawable(animatedIconDrawable)
     }
 
     private fun setupAccessibilityDelegate() {
@@ -125,12 +132,10 @@ constructor(
             R.id.unlocked,
         )
         // FINGERPRINT
-        LottieCompositionFactory.fromRawRes(mContext, R.raw.udfps_lockscreen_fp).addListener { result ->
-            aodFpDrawable.setComposition(result)
-        }
+        UdfpsIconThemer.loadStockFpComposition(context, aodFpDrawable)
         animatedIconDrawable.addState(
             getIconState(IconType.FINGERPRINT, false),
-            aodFpDrawable,
+            UdfpsIconThemer.fpStateDrawable(context, aodFpDrawable),
             R.id.locked_fp,
         )
 
@@ -150,7 +155,7 @@ constructor(
         // FINGERPRINT
         animatedIconDrawable.addState(
             getIconState(IconType.FINGERPRINT, true),
-            aodFpDrawable,
+            UdfpsIconThemer.fpStateDrawable(context, aodFpDrawable),
             R.id.udfps_aod_fp,
         )
 
