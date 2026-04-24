@@ -655,27 +655,6 @@ public final class Choreographer {
         }
     }
 
-    void doFrameImmediately() {
-        synchronized (mLock) {
-            Message msg = mHandler.obtainMessage(MSG_DO_FRAME);
-            msg.setAsynchronous(true);
-            mHandler.sendMessageAtFrontOfQueue(msg);
-        }
-    }
-
-    void postCallbackImmediately(int callbackType, Object action, Object token) {
-        if (action == null) {
-            throw new IllegalArgumentException("action must not be null");
-        }
-        if (callbackType < 0 || callbackType > CALLBACK_LAST) {
-            throw new IllegalArgumentException("callbackType is invalid");
-        }
-        synchronized (mLock) {
-            mCallbackQueues[callbackType].addCallbackLocked(
-                    SystemClock.uptimeMillis(), action, token);
-        }
-    }
-
     /**
      * Posts a vsync callback to run on the next frame.
      * <p>
