@@ -3,6 +3,9 @@
 package com.android.systemui.axdynamicbar.ui.compose
 
 import com.android.systemui.statusbar.chips.ui.model.OngoingActivityChipModel
+import com.android.compose.animation.Expandable
+import com.android.compose.animation.rememberExpandableController
+import com.android.systemui.animation.Expandable as SystemUiExpandable
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
@@ -37,6 +40,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -67,6 +71,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -76,17 +81,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.android.systemui.axdynamicbar.model.IslandEvent
 import com.android.systemui.axdynamicbar.model.RecordingState
 import com.android.systemui.axdynamicbar.shared.*
 import com.android.systemui.axdynamicbar.ui.AxDynamicBarChipViewModel
 import com.android.systemui.axdynamicbar.ui.KeyguardBatteryInfo
 import com.android.systemui.res.R
-import kotlin.math.abs
+import com.android.systemui.statusbar.chips.StatusBarChipsReturnAnimations
 import kotlinx.coroutines.delay
 import android.content.Context
 import android.graphics.drawable.Drawable
@@ -112,6 +115,16 @@ fun AxDynamicBarKeyguardChip(
     viewModel: AxDynamicBarChipViewModel,
     modifier: Modifier = Modifier,
 ) {
+    AxDynamicBarTheme {
+        AxDynamicBarKeyguardChipContent(viewModel, modifier)
+    }
+}
+
+@Composable
+private fun AxDynamicBarKeyguardChipContent(
+    viewModel: AxDynamicBarChipViewModel,
+    modifier: Modifier,
+) {
     val state by viewModel.chipState.collectAsStateWithLifecycle()
     val isOnKeyguard by viewModel.isOnKeyguard.collectAsStateWithLifecycle()
     val isEnabled by viewModel.isEnabled.collectAsStateWithLifecycle()
@@ -123,11 +136,23 @@ fun AxDynamicBarKeyguardChip(
     val batteryString by viewModel.batteryString.collectAsStateWithLifecycle()
 
     val motionScheme = MaterialTheme.motionScheme
+    val expandedVisibleState = remember { MutableTransitionState(false) }
+    val targetExpanded = isKeyguardExpanded && state != null
+    LaunchedEffect(targetExpanded) {
+        expandedVisibleState.targetState = targetExpanded
+    }
+    val isExpandedContentVisible =
+        expandedVisibleState.currentState || targetExpanded
+    val transitionControllerFactory =
+        (state?.event as? IslandEvent.AospChip)?.active?.transitionManager?.controllerFactory
+    val expandableController =
+        rememberExpandableController(
+            color = Color.Transparent,
+            shape = ChipShape,
+            transitionControllerFactory = transitionControllerFactory,
+        )
 
-    Box(modifier = modifier) {
-
-        val expandedVisibleState = remember { MutableTransitionState(false) }
-        expandedVisibleState.targetState = isKeyguardExpanded && state != null
+    Box(modifier = if (isExpandedContentVisible) modifier.fillMaxSize() else modifier) {
         LaunchedEffect(expandedVisibleState.isIdle, expandedVisibleState.currentState) {
             if (expandedVisibleState.isIdle && !expandedVisibleState.currentState) {
                 viewModel.keyguardExpansion.notifyCollapseSettled()
@@ -138,7 +163,7 @@ fun AxDynamicBarKeyguardChip(
             enter = fadeIn(motionScheme.defaultEffectsSpec()),
             exit = fadeOut(tween(durationMillis = 250)),
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .align(Alignment.Center),
         ) {
             state?.let {
@@ -232,15 +257,37 @@ fun AxDynamicBarKeyguardChip(
                     }
                     val progress = if (rawProgress != null) progressAnim.value else null
 
-                    KeyguardChipBody(
-                        event = event,
-                        accent = accent,
-                        contentColor = contentColor,
-                        progress = progress,
-                        eventCount = chipState.eventCount,
-                        viewModel = viewModel,
-                        batteryString = batteryString,
-                    )
+                    Expandable(
+                        controller = expandableController,
+                        modifier =
+                            Modifier.graphicsLayer(
+                                alpha =
+                                    if (
+                                        (event as? IslandEvent.AospChip)
+                                            ?.active
+                                            ?.transitionManager
+                                            ?.hideChipForTransition == true
+                                    ) {
+                                        0f
+                                    } else {
+                                        1f
+                                    }
+                        ),
+                        onClick = null,
+                        useModifierBasedImplementation = StatusBarChipsReturnAnimations.isEnabled,
+                        defaultMinSize = false,
+                    ) { expandable ->
+                        KeyguardChipBody(
+                            event = event,
+                            accent = accent,
+                            contentColor = contentColor,
+                            progress = progress,
+                            eventCount = chipState.eventCount,
+                            viewModel = viewModel,
+                            batteryString = batteryString,
+                            aospChipExpandable = expandable,
+                        )
+                    }
                 }
             } else {
                 KeyguardBatteryChip(
@@ -263,6 +310,7 @@ private fun KeyguardChipBody(
     eventCount: Int,
     viewModel: AxDynamicBarChipViewModel,
     batteryString: String = "",
+    aospChipExpandable: SystemUiExpandable,
 ) {
     val context = LocalContext.current
     val motionScheme = MaterialTheme.motionScheme
@@ -297,6 +345,10 @@ private fun KeyguardChipBody(
                         is IslandEvent.Notification ->
                             viewModel.launchNotificationFromKeyguard(event)
 
+                        is IslandEvent.AospChip -> {
+                            viewModel.handleAospChipTap(event, aospChipExpandable)
+                        }
+
                         is IslandEvent.KeyguardIndication,
                         is IslandEvent.AppSwitch -> { }
                         else -> viewModel.keyguardExpansion.toggle()
@@ -307,7 +359,7 @@ private fun KeyguardChipBody(
         ) {
             if (event is IslandEvent.Media) {
                 AnimatedContent(
-                    targetState = event.albumArt,
+                    targetState = event,
                     transitionSpec = {
                         (fadeIn(motionScheme.defaultEffectsSpec()) +
                             scaleIn(initialScale = 0.85f, animationSpec = motionScheme.defaultSpatialSpec())) togetherWith
@@ -315,9 +367,10 @@ private fun KeyguardChipBody(
                                 scaleOut(targetScale = 0.85f, animationSpec = motionScheme.fastSpatialSpec())) using
                             SizeTransform(clip = false)
                     },
-                    contentKey = { it?.hashCode() ?: 0 },
+                    contentKey = { iconKeyFor(it) },
                     label = "kg_media_icon",
-                ) { art ->
+                ) { media ->
+                    val art = media.albumArt
                     if (art != null) {
                         Image(
                             bitmap = art.toScaledBitmap(ChipIconSize),
@@ -328,7 +381,7 @@ private fun KeyguardChipBody(
                             contentScale = ContentScale.Crop,
                         )
                     } else {
-                        PillEventIcon(event, tint = contentColor)
+                        PillEventIcon(media, tint = contentColor, animated = false)
                     }
                 }
                 Spacer(Modifier.width(SpaceXs))
@@ -352,6 +405,7 @@ private fun KeyguardChipBody(
                                 style = PillPrimary,
                                 color = contentColor,
                                 maxLines = 1,
+                                softWrap = false,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.widthIn(max = 90.dp).basicMarquee(iterations = 1),
                             )
@@ -365,6 +419,7 @@ private fun KeyguardChipBody(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = contentColor.copy(alpha = AlphaSecondary),
                                 maxLines = 1,
+                                softWrap = false,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.widthIn(max = 60.dp),
                             )
@@ -419,6 +474,7 @@ private fun KeyguardChipBody(
                     style = PillPrimary,
                     color = contentColor,
                     maxLines = 1,
+                    softWrap = false,
                 )
                 Spacer(Modifier.width(SpaceXs))
                 SportsChipTeamBadge(event.team2Name, event.team2Icon, contentColor)
@@ -435,7 +491,7 @@ private fun KeyguardChipBody(
                     contentKey = { iconKeyFor(it) },
                     label = "kg_chip_icon",
                 ) { ev ->
-                    PillEventIcon(ev, tint = contentColor)
+                    PillEventIcon(ev, tint = contentColor, animated = false)
                 }
                 Spacer(Modifier.width(SpaceXs))
                 AnimatedContent(
@@ -465,6 +521,7 @@ private fun KeyguardChipBody(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = contentColor.copy(alpha = AlphaSecondary),
                                 maxLines = 1,
+                                softWrap = false,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.widthIn(max = 80.dp),
                             )
@@ -507,6 +564,7 @@ private fun KeyguardChipBody(
                         style = TsBadge,
                         color = contentColor,
                         maxLines = 1,
+                        softWrap = false,
                     )
                 }
             }
@@ -565,13 +623,15 @@ private fun KeyguardBatteryChip(
                             style = PillPrimary,
                             color = contentColor,
                             maxLines = 1,
+                            softWrap = false,
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
                             parts[1],
-                            style = PillPrimary.copy(fontSize = 10.sp),
+                            style = MaterialTheme.typography.labelSmall,
                             color = contentColor.copy(alpha = AlphaSecondary),
                             maxLines = 1,
+                            softWrap = false,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
@@ -581,6 +641,7 @@ private fun KeyguardBatteryChip(
                         style = PillPrimary,
                         color = contentColor.copy(alpha = AlphaSecondary),
                         maxLines = 1,
+                        softWrap = false,
                         overflow = TextOverflow.Clip,
                         modifier = Modifier.basicMarquee(),
                     )
@@ -592,6 +653,7 @@ private fun KeyguardBatteryChip(
                 style = PillPrimary,
                 color = contentColor,
                 maxLines = 1,
+                softWrap = false,
             )
 
             val secondaryLabel = when {
@@ -611,6 +673,7 @@ private fun KeyguardBatteryChip(
                     style = MaterialTheme.typography.labelSmall,
                     color = contentColor.copy(alpha = AlphaSecondary),
                     maxLines = 1,
+                    softWrap = false,
                 )
             }
 
@@ -626,6 +689,7 @@ private fun KeyguardBatteryChip(
                     style = MaterialTheme.typography.labelSmall,
                     color = contentColor.copy(alpha = AlphaSecondary),
                     maxLines = 1,
+                    softWrap = false,
                 )
             }
         }
@@ -724,13 +788,15 @@ private fun KeyguardPrimaryText(event: IslandEvent, color: Color, modifier: Modi
                         style = PillPrimary,
                         color = color,
                         maxLines = 1,
+                        softWrap = false,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         parts[1],
-                        style = PillPrimary.copy(fontSize = 10.sp),
+                        style = MaterialTheme.typography.labelSmall,
                         color = color.copy(alpha = AlphaSecondary),
                         maxLines = 1,
+                        softWrap = false,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -769,10 +835,81 @@ private fun KeyguardPrimaryText(event: IslandEvent, color: Color, modifier: Modi
             "${event.songTitle} · ${event.artist}".trimEnd(' ', '·', ' '), color, modifier,
         )
         is IslandEvent.KeyguardIndication -> MarqueeText(event.text, color, modifier)
-        is IslandEvent.AospChip -> {
-            val text = (event.active.content as? OngoingActivityChipModel.Content.Text)?.text
-            if (!text.isNullOrEmpty()) MarqueeText(text, color, modifier)
+        is IslandEvent.AospChip -> AospKeyguardChipText(event, color, modifier)
+    }
+}
+
+@Composable
+private fun AospKeyguardChipText(
+    event: IslandEvent.AospChip,
+    color: Color,
+    modifier: Modifier,
+) {
+    when (val content = event.active.content) {
+        is OngoingActivityChipModel.Content.Text -> {
+            if (content.text.isNotBlank()) MarqueeText(content.text, color, modifier)
         }
+        is OngoingActivityChipModel.Content.Timer -> AospKeyguardTimerText(content, color, modifier)
+        is OngoingActivityChipModel.Content.ShortTimeDelta -> AospKeyguardDeltaText(content, color, modifier)
+        is OngoingActivityChipModel.Content.Countdown ->
+            PillMonoLabel(formatCountdownLong(content.secondsUntilStarted * 1000L), color, modifier)
+        is OngoingActivityChipModel.Content.IconOnly -> Unit
+    }
+}
+
+@Composable
+private fun AospKeyguardTimerText(
+    content: OngoingActivityChipModel.Content.Timer,
+    color: Color,
+    modifier: Modifier,
+) {
+    var elapsedMs by remember(content.startTimeMs, content.isEventInFuture, content.timeSource) {
+        mutableLongStateOf(aospTimerElapsedMs(content))
+    }
+    LaunchedEffect(content.startTimeMs, content.isEventInFuture, content.timeSource) {
+        while (true) {
+            elapsedMs = aospTimerElapsedMs(content)
+            delay(1000L - abs(content.startTimeMs - content.timeSource.getCurrentTime()) % 1000L)
+        }
+    }
+    PillMonoLabel(formatCountdownLong(elapsedMs), color, modifier)
+}
+
+private fun aospTimerElapsedMs(content: OngoingActivityChipModel.Content.Timer): Long {
+    val now = content.timeSource.getCurrentTime()
+    return if (content.isEventInFuture) {
+        (content.startTimeMs - now).coerceAtLeast(0L)
+    } else {
+        (now - content.startTimeMs).coerceAtLeast(0L)
+    }
+}
+
+@Composable
+private fun AospKeyguardDeltaText(
+    content: OngoingActivityChipModel.Content.ShortTimeDelta,
+    color: Color,
+    modifier: Modifier,
+) {
+    var deltaMs by remember(content.time) {
+        mutableLongStateOf(System.currentTimeMillis() - content.time)
+    }
+    LaunchedEffect(content.time) {
+        while (true) {
+            deltaMs = System.currentTimeMillis() - content.time
+            delay(30_000)
+        }
+    }
+    MarqueeText(aospShortDeltaText(deltaMs), color, modifier)
+}
+
+@Composable
+private fun aospShortDeltaText(deltaMs: Long): String {
+    val mins = abs(deltaMs) / 60_000L
+    return when {
+        mins < 1L -> stringResource(R.string.ax_dynamic_bar_just_now)
+        mins < 60L -> stringResource(R.string.ax_dynamic_bar_mins_ago, mins.toInt())
+        mins < 1440L -> stringResource(R.string.ax_dynamic_bar_hours_ago, (mins / 60L).toInt())
+        else -> stringResource(R.string.ax_dynamic_bar_days_ago, (mins / 1440L).toInt())
     }
 }
 
@@ -780,22 +917,31 @@ private fun KeyguardPrimaryText(event: IslandEvent, color: Color, modifier: Modi
 private fun secondaryTextFor(event: IslandEvent): String? = when (event) {
     is IslandEvent.Media -> event.artist.takeIf { it.isNotBlank() }
     is IslandEvent.AudioRecording -> event.appName.takeIf { it.isNotBlank() }
-    is IslandEvent.Timer -> event.label.takeIf { it.isNotBlank() }
-    is IslandEvent.Stopwatch -> event.label.takeIf { it.isNotBlank() }
+    is IslandEvent.Timer,
+    is IslandEvent.Stopwatch,
+    is IslandEvent.Hotspot,
+    is IslandEvent.Vpn,
+    is IslandEvent.AppSwitch -> null
     is IslandEvent.Charging -> event.timeRemaining
     is IslandEvent.Bluetooth -> if (event.batteryLevel >= 0) "${event.batteryLevel}%" else null
-    is IslandEvent.Hotspot -> if (event.numDevices > 0) stringResource(R.string.ax_dynamic_bar_hotspot_devices, event.numDevices) else null
     is IslandEvent.Alarm -> {
         if (event.triggerTimeMs > 0) {
             val cal = Calendar.getInstance().apply { timeInMillis = event.triggerTimeMs }
-            "%d:%02d".format(cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
+            val triggerTime = "%d:%02d".format(cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
+            triggerTime.takeIfDistinctFrom(event.label)
         } else null
     }
-    is IslandEvent.Vpn -> stringResource(R.string.ax_dynamic_bar_active)
     is IslandEvent.BiometricUnlock -> event.sourceName
-    is IslandEvent.AppSwitch -> null
-    is IslandEvent.Notification -> event.text?.take(30)
-    is IslandEvent.PromotedOngoing -> event.text.takeIf { it.isNotBlank() }?.take(20)
+    is IslandEvent.Notification ->
+        event.text
+            ?.takeIf { it.isNotBlank() }
+            ?.takeIfDistinctFrom(event.title, event.appName)
+            ?.take(30)
+    is IslandEvent.PromotedOngoing ->
+        event.text
+            .takeIf { it.isNotBlank() }
+            ?.takeIfDistinctFrom(event.shortText, event.title, event.appName)
+            ?.take(20)
     is IslandEvent.Sports -> "${event.team1Name} ${stringResource(R.string.ax_dynamic_bar_sports_vs)} ${event.team2Name}"
     is IslandEvent.KeyguardIndication -> when (event.indicationType) {
         IslandEvent.KeyguardIndication.IndicationType.BIOMETRIC -> stringResource(R.string.ax_dynamic_bar_biometric)
@@ -804,6 +950,14 @@ private fun secondaryTextFor(event: IslandEvent): String? = when (event) {
         else -> null
     }
     else -> null
+}
+
+private fun String.takeIfDistinctFrom(vararg others: String?): String? {
+    val value = trim()
+    if (value.isEmpty()) return null
+    return value.takeIf { candidate ->
+        others.none { other -> candidate.equals(other?.trim(), ignoreCase = true) }
+    }
 }
 
 @Composable
@@ -928,6 +1082,7 @@ private fun MarqueeText(text: String, color: Color, modifier: Modifier) {
         color = color,
         style = PillPrimary,
         maxLines = 1,
+        softWrap = false,
         overflow = TextOverflow.Clip,
         modifier = modifier.widthIn(max = 120.dp).basicMarquee(iterations = 1),
     )
@@ -952,13 +1107,13 @@ private fun ElapsedTimeText(
                 .coerceAtLeast(0L)
         }
     }
-    Text(formatElapsedTime(elapsedMs), color = color, style = PillMono, modifier = modifier)
+    PillMonoLabel(formatCountdownLong(elapsedMs), color, modifier)
 }
 
 @Composable
 private fun CountdownText(event: IslandEvent.Timer, color: Color, modifier: Modifier) {
     if (event.isPaused) {
-        Text(stringResource(R.string.ax_dynamic_bar_paused), color = color, style = PillMono, modifier = modifier)
+        PillMonoLabel(stringResource(R.string.ax_dynamic_bar_paused), color, modifier)
     } else {
         var remainingMs by remember(event.endTimeMs) {
             mutableLongStateOf((event.endTimeMs - System.currentTimeMillis()).coerceAtLeast(0L))
@@ -969,14 +1124,14 @@ private fun CountdownText(event: IslandEvent.Timer, color: Color, modifier: Modi
                 remainingMs = (event.endTimeMs - System.currentTimeMillis()).coerceAtLeast(0L)
             }
         }
-        Text(formatCountdownLong(remainingMs), color = color, style = PillMono, modifier = modifier)
+        PillMonoLabel(formatCountdownLong(remainingMs), color, modifier)
     }
 }
 
 @Composable
 private fun StopwatchTimeText(event: IslandEvent.Stopwatch, color: Color, modifier: Modifier) {
     if (!event.isRunning) {
-        Text(stringResource(R.string.ax_dynamic_bar_paused), color = color, style = PillMono, modifier = modifier)
+        PillMonoLabel(stringResource(R.string.ax_dynamic_bar_paused), color, modifier)
     } else {
         var elapsedMs by remember(event.startTimeMs) {
             mutableLongStateOf((System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L))
@@ -987,6 +1142,6 @@ private fun StopwatchTimeText(event: IslandEvent.Stopwatch, color: Color, modifi
                 elapsedMs = (System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L)
             }
         }
-        Text(formatStopwatch(elapsedMs), color = color, style = PillMono, modifier = modifier)
+        PillMonoLabel(formatStopwatch(elapsedMs), color, modifier)
     }
 }

@@ -2,6 +2,7 @@
 
 package com.android.systemui.axdynamicbar.ui.compose
 
+import android.view.MotionEvent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.RepeatMode
@@ -19,6 +20,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -67,9 +69,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -99,18 +106,56 @@ internal fun KeyguardExpandedContent(
     onCollapse: () -> Unit,
     hapticsViewModelFactory: SliderHapticsViewModel.Factory,
 ) {
-    if (event is IslandEvent.KeyguardIndication || event is IslandEvent.AppSwitch) {
+    if (event is IslandEvent.KeyguardIndication ||
+        event is IslandEvent.AppSwitch ||
+        event is IslandEvent.AospChip
+    ) {
         LaunchedEffect(Unit) { onCollapse() }
         return
     }
 
+    val view = LocalView.current
+    val touchSlop = LocalViewConfiguration.current.touchSlop
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-            ) { onCollapse() },
+            .pointerInteropFilter {
+                when (it.actionMasked) {
+                    MotionEvent.ACTION_DOWN,
+                    MotionEvent.ACTION_MOVE -> view.parent?.requestDisallowInterceptTouchEvent(true)
+                    MotionEvent.ACTION_UP,
+                    MotionEvent.ACTION_CANCEL -> view.parent?.requestDisallowInterceptTouchEvent(false)
+                }
+                false
+            }
+            .pointerInput(onCollapse, touchSlop) {
+                awaitEachGesture {
+                    var downEvent = awaitPointerEvent(PointerEventPass.Final)
+                    while (downEvent.changes.none { it.changedToDownIgnoreConsumed() }) {
+                        downEvent = awaitPointerEvent(PointerEventPass.Final)
+                    }
+                    val down = downEvent.changes.first { it.changedToDownIgnoreConsumed() }
+                    val downPosition = down.position
+                    val downConsumed = down.isConsumed
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Final)
+                        val change = event.changes.firstOrNull { it.id == down.id }
+                            ?: event.changes.firstOrNull()
+                            ?: break
+                        if (!change.pressed) {
+                            if (!downConsumed && !change.isConsumed) {
+                                val dx = change.position.x - downPosition.x
+                                val dy = change.position.y - downPosition.y
+                                if (dx * dx + dy * dy <= touchSlop * touchSlop) {
+                                    change.consume()
+                                    onCollapse()
+                                }
+                            }
+                            break
+                        }
+                    }
+                }
+            },
         contentAlignment = Alignment.Center,
     ) {
         when (event) {
@@ -223,15 +268,16 @@ private fun KeyguardMediaPanel(event: IslandEvent.Media, interactor: IslandActio
             contentAlignment = Alignment.Center,
         ) {
             AnimatedContent(
-                targetState = event.albumArt,
+                targetState = event,
                 transitionSpec = {
                     fadeIn(motionScheme.defaultEffectsSpec()) togetherWith
                         fadeOut(motionScheme.fastEffectsSpec()) using
                         SizeTransform(clip = false)
                 },
-                contentKey = { it?.hashCode() ?: 0 },
+                contentKey = { iconKeyFor(it) },
                 label = "kg_media_album_art",
-            ) { art ->
+            ) { media ->
+                val art = media.albumArt
                 if (art != null) {
                     Image(
                         bitmap = art.toScaledBitmap(SizeAlbumLg),
@@ -565,7 +611,7 @@ private fun KeyguardTimerPanel(event: IslandEvent.Timer, interactor: IslandActio
                 eventStyleFor(event).icon?.let { Icon(it, null, tint = colors.accent, modifier = Modifier.size(18.dp)) }
             }
             Text(
-                event.label.ifEmpty { stringResource(R.string.ax_dynamic_bar_timer) }.uppercase(),
+                event.label.ifEmpty { stringResource(R.string.ax_dynamic_bar_timer) },
                 color = colors.accent,
                 style = MaterialTheme.typography.labelMedium,
             )
@@ -652,7 +698,7 @@ private fun KeyguardStopwatchPanel(event: IslandEvent.Stopwatch, interactor: Isl
                 Icon(Icons.Filled.AvTimer, null, tint = colors.accent, modifier = Modifier.size(18.dp))
             }
             Text(
-                event.label.ifEmpty { stringResource(R.string.ax_dynamic_bar_stopwatch) }.uppercase(),
+                event.label.ifEmpty { stringResource(R.string.ax_dynamic_bar_stopwatch) },
                 color = colors.accent,
                 style = MaterialTheme.typography.labelMedium,
             )
@@ -734,7 +780,7 @@ private fun KeyguardAudioRecordingPanel(event: IslandEvent.AudioRecording, inter
                     RecordingState.RECORDING -> stringResource(R.string.ax_dynamic_bar_recording)
                     RecordingState.PAUSED -> stringResource(R.string.ax_dynamic_bar_paused)
                     RecordingState.SAVED -> stringResource(R.string.ax_dynamic_bar_saved)
-                }.uppercase(),
+                },
                 color = colors.accent,
                 style = MaterialTheme.typography.labelMedium,
             )
@@ -765,7 +811,18 @@ private fun KeyguardAudioRecordingPanel(event: IslandEvent.AudioRecording, inter
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(SpaceLg),
         ) {
-            val pauseResume = event.actions.firstOrNull()
+            val classifiedActions = remember(event.actions, context) {
+                event.actions.map { action ->
+                    val pkg = action.action.actionIntent?.creatorPackage ?: context.packageName
+                    action to action.action.classify(context, pkg)
+                }
+            }
+            val pauseResume = classifiedActions.firstOrNull { (_, kind) ->
+                kind == NotificationActionType.PAUSE || kind == NotificationActionType.RESUME
+            }?.first
+            val stop = classifiedActions.firstOrNull { (_, kind) ->
+                kind == NotificationActionType.STOP || kind == NotificationActionType.DELETE
+            }?.first
             if (pauseResume != null) {
                 ExpressivePillButton(
                     label = if (isRecording) stringResource(R.string.ax_dynamic_bar_pause) else stringResource(R.string.ax_dynamic_bar_resume),
@@ -782,7 +839,14 @@ private fun KeyguardAudioRecordingPanel(event: IslandEvent.AudioRecording, inter
                 contentColor = colors.accent,
                 backgroundColor = colors.tonal,
                 modifier = Modifier.weight(1f),
-                onClick = { interactor.dismissEvent(event) },
+                onClick = {
+                    if (stop != null) {
+                        stop.action.actionIntent?.sendWithBal(context)
+                        interactor.collapseIsland()
+                    } else {
+                        interactor.dismissEvent(event)
+                    }
+                },
             )
         }
     }

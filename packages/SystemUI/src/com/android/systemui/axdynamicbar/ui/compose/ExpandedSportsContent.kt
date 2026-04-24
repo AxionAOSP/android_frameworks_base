@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.android.systemui.axdynamicbar.ui.compose
 
 import android.graphics.drawable.Drawable
@@ -30,6 +32,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -40,7 +43,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -86,7 +88,6 @@ internal fun SportsExpanded(event: IslandEvent.Sports, interactor: IslandActions
                         stringResource(R.string.ax_dynamic_bar_sports_vs),
                         color = SubtleGray,
                         style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Light,
                     )
                 }
                 TeamColumn(event.team2Name, event.team2Icon?.toScaledBitmap(48.dp))
@@ -216,8 +217,7 @@ private fun TeamColumn(
                 Text(
                     name.take(3).uppercase(),
                     color = OnCardText,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelSmallEmphasized,
                 )
             }
         }
@@ -241,21 +241,18 @@ private fun ScoreDisplay(score1: String, score2: String, accent: Color) {
         Text(
             score1,
             color = OnCardText,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.headlineMediumEmphasized,
             maxLines = 1,
         )
         Text(
             "-",
             color = SubtleGray,
             style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Light,
         )
         Text(
             score2,
             color = OnCardText,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.headlineMediumEmphasized,
             maxLines = 1,
         )
     }
@@ -281,8 +278,7 @@ private fun StatusBadge(status: IslandEvent.GameStatus, accent: Color) {
             if (status == IslandEvent.GameStatus.LIVE) {
                 PulsingDot(color = accent, size = 6.dp)
             }
-            Text(label, color = accent, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+            Text(label, color = accent, style = MaterialTheme.typography.labelSmallEmphasized)
         }
     }
 }
-

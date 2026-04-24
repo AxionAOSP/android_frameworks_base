@@ -49,7 +49,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.android.systemui.axdynamicbar.model.IslandEvent
 import com.android.systemui.axdynamicbar.shared.IslandActions
 import com.android.systemui.axdynamicbar.shared.*
@@ -263,7 +262,7 @@ internal fun RowScope.CompactTimerRow(event: IslandEvent.Timer) {
             Text(
                 if (event.isPaused) stringResource(R.string.ax_dynamic_bar_paused) else formatCountdownLong(remainingMs),
                 color = if (event.isPaused) SubtleGray else style.accent,
-                style = TsMono.copy(fontSize = 13.sp),
+                style = TsMono,
             )
         } else {
             Text(stringResource(if (event.isPaused) R.string.ax_dynamic_bar_paused else R.string.ax_dynamic_bar_running), color = style.accent, style = MaterialTheme.typography.labelSmall)
@@ -306,7 +305,7 @@ internal fun RowScope.CompactStopwatchRow(event: IslandEvent.Stopwatch) {
         Text(
             if (event.isRunning) formatStopwatch(elapsedMs) else stringResource(R.string.ax_dynamic_bar_paused),
             color = if (event.isRunning) style.accent else SubtleGray,
-            style = TsMono.copy(fontSize = 13.sp),
+            style = TsMono,
         )
     }
 }

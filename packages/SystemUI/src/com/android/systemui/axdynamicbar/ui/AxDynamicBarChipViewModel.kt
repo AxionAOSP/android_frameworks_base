@@ -14,18 +14,15 @@ import com.android.systemui.statusbar.policy.BatteryController
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlin.math.roundToInt
 
 data class AxDynamicBarChipState(
     val event: IslandEvent,
@@ -41,6 +38,22 @@ data class KeyguardBatteryInfo(
     val isWireless: Boolean,
     val timeRemaining: String?,
 )
+
+data class AxDynamicBarChipBounds(
+    val left: Int,
+    val top: Int,
+    val right: Int,
+    val bottom: Int,
+    val screenWidth: Int,
+) {
+    val centerXFraction: Float
+        get() =
+            if (screenWidth > 0) {
+                (((left + right) / 2f) / screenWidth).coerceIn(0f, 1f)
+            } else {
+                0.5f
+            }
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
@@ -81,6 +94,7 @@ constructor(
                     allEvents = uiState.events,
                 )
             }
+            .distinctUntilChanged()
             .stateIn(applicationScope, SharingStarted.Lazily, null)
 
     val isEnabled: StateFlow<Boolean> = interactor.settings.isEnabled
@@ -107,25 +121,19 @@ constructor(
             KeyguardBatteryInfo(0, false, false, false, null),
         )
 
-    // Re-compute charging string whenever battery info changes
+    // Re-compute charging string only when battery state changes. Polling this while idle is costly
+    // because KeyguardIndicationController formats through Resources on the main thread.
     val batteryString: StateFlow<String> =
         keyguardBatteryInfo
-            .map { it.isCharging }
-            .distinctUntilChanged()
-            .flatMapLatest { charging ->
-                if (charging) {
-                    flow {
-                        while (true) {
-                            emit(formatChargingString(keyguardIndicationController.powerChargingString))
-                            delay(BATTERY_STRING_REFRESH_MS)
-                        }
-                    }
+            .map {
+                if (it.isCharging) {
+                    formatChargingString(keyguardIndicationController.powerChargingString)
                 } else {
-                    flowOf(formatChargingString(keyguardIndicationController.powerChargingString))
+                    ""
                 }
             }
             .distinctUntilChanged()
-            .stateIn(applicationScope, SharingStarted.Eagerly, "")
+            .stateIn(applicationScope, SharingStarted.Lazily, "")
 
     val isOnKeyguard: StateFlow<Boolean> = interactor.isOnKeyguard
 
@@ -143,8 +151,26 @@ constructor(
     private val _chipCenterXFraction = MutableStateFlow(0.5f)
     val chipCenterXFraction: StateFlow<Float> = _chipCenterXFraction.asStateFlow()
 
+    private val _chipBounds = MutableStateFlow<AxDynamicBarChipBounds?>(null)
+    val chipBounds: StateFlow<AxDynamicBarChipBounds?> = _chipBounds.asStateFlow()
+
     fun updateChipCenterX(fraction: Float) {
         _chipCenterXFraction.value = fraction
+    }
+
+    fun updateChipBounds(left: Float, top: Float, right: Float, bottom: Float, screenWidth: Float) {
+        val bounds =
+            AxDynamicBarChipBounds(
+                left = left.roundToInt(),
+                top = top.roundToInt(),
+                right = right.roundToInt(),
+                bottom = bottom.roundToInt(),
+                screenWidth = screenWidth.roundToInt(),
+            )
+        if (_chipBounds.value != bounds) {
+            _chipBounds.value = bounds
+            _chipCenterXFraction.value = bounds.centerXFraction
+        }
     }
 
     val isExpanded: StateFlow<Boolean> = statusBarExpansion.isExpanded
@@ -190,7 +216,6 @@ constructor(
 
     companion object {
         private const val LOW_UDFPS_THRESHOLD = 0.93f
-        private const val BATTERY_STRING_REFRESH_MS = 2_000L
     }
 
     private fun formatChargingString(text: String?): String {
