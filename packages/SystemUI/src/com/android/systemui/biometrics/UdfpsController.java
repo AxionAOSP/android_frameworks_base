@@ -37,6 +37,7 @@ import android.content.IntentFilter;
 import android.graphics.Rect;
 import android.hardware.biometrics.BiometricFingerprintConstants;
 import android.hardware.biometrics.BiometricPrompt;
+import android.hardware.biometrics.BiometricSourceType;
 import android.hardware.biometrics.SensorProperties;
 import android.hardware.display.DisplayManager;
 import android.hardware.fingerprint.FingerprintManager;
@@ -70,6 +71,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.logging.InstanceId;
 import com.android.internal.util.LatencyTracker;
 import com.android.keyguard.KeyguardUpdateMonitor;
+import com.android.keyguard.KeyguardUpdateMonitorCallback;
 import com.android.keyguard.UserActivityNotifier;
 import com.android.systemui.Dumpable;
 import com.android.systemui.Flags;
@@ -275,6 +277,19 @@ public class UdfpsController implements DozeReceiver, Dumpable {
         }
     };
 
+    private final KeyguardUpdateMonitorCallback mKeyguardUpdateMonitorCallback =
+            new KeyguardUpdateMonitorCallback() {
+                @Override
+                public void onBiometricAuthFailed(BiometricSourceType biometricSourceType) {
+                    if (biometricSourceType == BiometricSourceType.FINGERPRINT
+                            && mOverlay != null
+                            && mOverlay.getRequestReason() == REASON_AUTH_KEYGUARD) {
+                        mUdfpsAnimInteractor.stopAnimation();
+                    }
+                }
+            };
+
+
     private final WakefulnessLifecycle mWakefulnessLifecycle;
     private final WakefulnessLifecycle.Observer mWakefulnessLifecycleObserver =
             new WakefulnessLifecycle.Observer() {
@@ -385,6 +400,11 @@ public class UdfpsController implements DozeReceiver, Dumpable {
                     mAcquiredReceived = true;
                     final View view = mOverlay.getTouchOverlay();
                     unconfigureDisplay(view);
+
+                    if (mOverlay.getRequestReason() == REASON_AUTH_KEYGUARD) {
+                        mUdfpsAnimInteractor.stopAnimation();
+                    }
+
                     tryAodSendFingerUp();
                 });
             }
@@ -837,6 +857,8 @@ public class UdfpsController implements DozeReceiver, Dumpable {
         mUdfpsAnimInteractor = udfpsAnimationInteractor;
         mUdfpsAnimHost = udfpsAnimationHost;
 
+        mKeyguardUpdateMonitor.registerCallback(mKeyguardUpdateMonitorCallback);
+
         mUdfpsAnimInteractor.setSensorProps(mSensorProps);
     }
 
@@ -937,6 +959,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             }
 
             if (mOverlay.getRequestReason() == REASON_AUTH_KEYGUARD) {
+                mUdfpsAnimInteractor.stopAnimation();
                 removeCallback(mUdfpsAnimInteractor);
                 mUdfpsAnimHost.detach();
             }

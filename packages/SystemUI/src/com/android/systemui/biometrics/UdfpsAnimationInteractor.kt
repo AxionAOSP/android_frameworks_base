@@ -87,14 +87,18 @@ class UdfpsAnimationInteractor @Inject constructor(
         updatePosition()
     }
 
+    fun stopAnimation() {
+        fingerDown = false
+        updateVisibility()
+    }
+
     override fun onFingerDown() {
         fingerDown = true
         updateVisibility()
     }
 
     override fun onFingerUp() {
-        fingerDown = false
-        updateVisibility()
+        stopAnimation()
     }
 
     private fun updateVisibility() {
