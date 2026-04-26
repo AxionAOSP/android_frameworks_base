@@ -1236,10 +1236,13 @@ public class UdfpsController implements DozeReceiver, Dumpable {
         if (mOnFingerDown) {
             mFingerprintManager.onPointerUp(requestId, mSensorProps.sensorId, pointerId, x,
                     y, minor, major, orientation, time, gestureStart, isAod);
-            if (isOptical()) {
-                for (Callback cb : mCallbacks) {
-                    cb.onFingerUp();
-                }
+        }
+        if (mOverlay != null && mOverlay.getRequestReason() == REASON_AUTH_KEYGUARD) {
+            mUdfpsAnimInteractor.onFingerUp();
+        }
+        if (isOptical()) {
+            for (Callback cb : mCallbacks) {
+                cb.onFingerUp();
             }
         }
         mOnFingerDown = false;
