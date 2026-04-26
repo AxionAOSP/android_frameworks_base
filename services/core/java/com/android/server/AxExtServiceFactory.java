@@ -21,6 +21,10 @@ import com.android.server.am.*;
 import com.android.server.pm.*;
 import com.android.server.spoof.AxSpoofManager;
 import com.android.server.spoof.IAxSpoofManager;
+import com.android.server.thermal.AxAdvancedThermalMitigationService;
+import com.android.server.thermal.IAxAdvancedThermalMitigationService;
+import com.android.server.uifirst.AxUiFirstManager;
+import com.android.server.uifirst.IAxUiFirstManager;
 import com.android.server.wm.AxSandboxService;
 import com.android.server.wm.GameSpaceService;
 import com.android.server.wm.WindowManagerService;
@@ -29,12 +33,14 @@ public class AxExtServiceFactory {
     private static AxExtServiceFactory sInstance = null;
 
     private static final Object sLock = new Object();
-    
+
     private static volatile IAxBurstEngine sAxBurstEngine;
     private static volatile IAxMemoryManager sAxMemoryManager;
     private static volatile IUxPerformance sUxPerformance;
     private static volatile IAxPcModeService sPcModeManager;
     private static volatile IAxSpoofManager sAxSpoofManager;
+    private static volatile IAxUiFirstManager sAxUiFirstManager;
+    private static volatile IAxAdvancedThermalMitigationService sAxAdvancedThermalMitigationService;
 
     private AxExtServiceFactory(Context context) {
         NtServiceInjector.get().setCtx(context);
@@ -61,7 +67,7 @@ public class AxExtServiceFactory {
     public static void injectWindowManagerService(WindowManagerService wms) {
         NtServiceInjector.get().setWindowManagerService(wms);
     }
-    
+
     public static void injectPackageManagerservice(PackageManagerService pm) {
         NtServiceInjector.get().setPackageManagerService(pm);
     }
@@ -125,6 +131,29 @@ public class AxExtServiceFactory {
                 instance = sAxSpoofManager;
                 break;
 
+            case AX_UI_FIRST_MANAGER:
+                if (sAxUiFirstManager == null) {
+                    synchronized (sLock) {
+                        if (sAxUiFirstManager == null) {
+                            sAxUiFirstManager = new AxUiFirstManager();
+                        }
+                    }
+                }
+                instance = sAxUiFirstManager;
+                break;
+
+            case AX_ADVANCED_THERMAL_MITIGATION:
+                if (sAxAdvancedThermalMitigationService == null) {
+                    synchronized (sLock) {
+                        if (sAxAdvancedThermalMitigationService == null) {
+                            sAxAdvancedThermalMitigationService =
+                                    new AxAdvancedThermalMitigationService();
+                        }
+                    }
+                }
+                instance = sAxAdvancedThermalMitigationService;
+                break;
+
             default:
                 throw new IllegalArgumentException("Unknown ExtType: " + type);
         }
@@ -137,23 +166,24 @@ public class AxExtServiceFactory {
         AxSandboxService.systemReady();
         getAxPcModeService().systemReady();
     }
-    
+
     public static void onLateSystemReady() {
         OnlineConfigObserver.systemReady();
         getAxBurstEngine().systemReady();
         getMemoryManager().systemReady();
         getUxPerformance().systemReady();
         getSpoofManager().systemReady();
+        getAdvancedThermalMitigationService().systemReady();
     }
-    
+
     public static IAxBurstEngine getAxBurstEngine() {
         return getOrCreate(IAxExtServiceFactory.ExtType.AX_BURST_ENGINE);
     }
-    
+
     public static IAxMemoryManager getMemoryManager() {
         return getOrCreate(IAxExtServiceFactory.ExtType.AX_MEMORY_MANAGER);
     }
-    
+
     public static IUxPerformance getUxPerformance() {
         return getOrCreate(IAxExtServiceFactory.ExtType.UX_PERFORMANCE);
     }
@@ -164,5 +194,13 @@ public class AxExtServiceFactory {
 
     public static IAxSpoofManager getSpoofManager() {
         return getOrCreate(IAxExtServiceFactory.ExtType.AX_SPOOF_MANAGER);
+    }
+
+    public static IAxUiFirstManager getUiFirstManager() {
+        return getOrCreate(IAxExtServiceFactory.ExtType.AX_UI_FIRST_MANAGER);
+    }
+
+    public static IAxAdvancedThermalMitigationService getAdvancedThermalMitigationService() {
+        return getOrCreate(IAxExtServiceFactory.ExtType.AX_ADVANCED_THERMAL_MITIGATION);
     }
 }

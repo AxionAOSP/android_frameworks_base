@@ -1492,6 +1492,9 @@ public class ActivityManagerService extends IActivityManager.Stub
      */
     volatile long mBootCompletedTimestamp;
 
+    private final ConcurrentHashMap<Integer, Long> mProcessPssBoostCache = new ConcurrentHashMap<>();
+    private volatile long mProcessPssBoostCacheExpiry;
+
     @GuardedBy("this")
     boolean mDeterministicUidIdle = false;
 
@@ -3528,6 +3531,8 @@ public class ActivityManagerService extends IActivityManager.Stub
             return;
         }
 
+        AxExtServiceFactory.getAxBurstEngine().onProcessKill(pid, app.processName);
+
         mBatteryStatsService.noteProcessDied(app.info.uid, pid);
 
         if (!app.isKilled()) {
@@ -4182,6 +4187,23 @@ public class ActivityManagerService extends IActivityManager.Stub
                 "getProcessPss", callingPid, callingUid);
 
         final long[] pss = new long[pids.length];
+        final boolean shouldCache =
+                AxExtServiceFactory.getAxBurstEngine().isCompositionBoosting()
+                        || mAppProfiler.isActivityStarting();
+        final long nowMs = SystemClock.uptimeMillis();
+        boolean cacheValid;
+        if (shouldCache) {
+            if (nowMs >= mProcessPssBoostCacheExpiry) {
+                mProcessPssBoostCache.clear();
+                mProcessPssBoostCacheExpiry = nowMs + 500;
+            }
+            cacheValid = true;
+        } else {
+            if (!mProcessPssBoostCache.isEmpty()) {
+                mProcessPssBoostCache.clear();
+            }
+            cacheValid = false;
+        }
         for (int i=pids.length-1; i>=0; i--) {
             ProcessRecord proc;
             int oomAdj;
@@ -4196,10 +4218,20 @@ public class ActivityManagerService extends IActivityManager.Stub
                 // just leave it empty.
                 continue;
             }
+            if (cacheValid) {
+                Long cached = mProcessPssBoostCache.get(pids[i]);
+                if (cached != null) {
+                    pss[i] = cached;
+                    continue;
+                }
+            }
             final long[] tmpUss = new long[3];
             final long startTime = SystemClock.currentThreadTimeMillis();
             final long pi = pss[i] = Debug.getPss(pids[i], tmpUss, null);
             final long duration = SystemClock.currentThreadTimeMillis() - startTime;
+            if (cacheValid) {
+                mProcessPssBoostCache.put(pids[i], pi);
+            }
             if (proc != null) {
                 final ProcessProfileRecord profile = proc.mProfile;
                 synchronized (mAppProfiler.mProfilerLock) {
@@ -19930,6 +19962,61 @@ public class ActivityManagerService extends IActivityManager.Stub
     @Override
     public void onAnimation(int action) {
         AxExtServiceFactory.getAxBurstEngine().onAnimation(action);
+    }
+
+    @Override
+    public void onEarlyWakeup(boolean start, long maxDurMs) {
+        AxExtServiceFactory.getAxBurstEngine().onEarlyWakeup(start, maxDurMs);
+    }
+
+    @Override
+    public void onActivityTransition(String fromPkg, String toPkg, int phase) {
+        AxExtServiceFactory.getAxBurstEngine().onActivityTransition(fromPkg, toPkg, phase);
+    }
+
+    @Override
+    public void onActivityExit(String pkg) {
+        AxExtServiceFactory.getAxBurstEngine().onActivityExit(pkg);
+    }
+
+    @Override
+    public void onProcessKill(int pid, String pkg) {
+        AxExtServiceFactory.getAxBurstEngine().onProcessKill(pid, pkg);
+    }
+
+    @Override
+    public void setTopAppRenderThread(int pid, int tid) {
+        AxExtServiceFactory.getAxBurstEngine().setTopAppRenderThread(pid, tid);
+    }
+
+    @Override
+    public void setTopAppPid(int pid) {
+        AxExtServiceFactory.getAxBurstEngine().setTopAppPid(pid);
+    }
+
+    @Override
+    public long acquireResources(long durMs, String[] resNames, long[] values) {
+        return AxExtServiceFactory.getAxBurstEngine().acquireResources(durMs, resNames, values);
+    }
+
+    @Override
+    public void releaseResources(long handle) {
+        AxExtServiceFactory.getAxBurstEngine().releaseResources(handle);
+    }
+
+    @Override
+    public long swapResources(long prevHandle, long durMs, String[] resNames, long[] values) {
+        return AxExtServiceFactory.getAxBurstEngine().swapResources(prevHandle, durMs, resNames, values);
+    }
+
+    @Override
+    public long acquireHint(String hintName, long durOverrideMs) {
+        return AxExtServiceFactory.getAxBurstEngine().acquireHint(hintName, durOverrideMs);
+    }
+
+    @Override
+    public long swapHint(long prevHandle, String hintName, long durOverrideMs) {
+        return AxExtServiceFactory.getAxBurstEngine().swapHint(prevHandle, hintName, durOverrideMs);
     }
 
     @Override

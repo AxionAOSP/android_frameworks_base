@@ -1528,6 +1528,7 @@ public final class ViewRootImpl implements ViewParent,
         synchronized (this) {
             if (mView == null) {
                 mView = view;
+                BoostHelper.onFrameStage(BoostHelper.Frame.RENDER_INFO, 0L);
 
                 mViewLayoutDirectionInitial = mView.getRawLayoutDirection();
                 mFallbackEventHandler.setView(view);
@@ -3108,6 +3109,7 @@ public final class ViewRootImpl implements ViewParent,
         if (mAttachInfo.mThreadedRenderer != null) {
             mAttachInfo.mThreadedRenderer.notifyRendererForGpuLoadUp(reason);
         }
+        BoostHelper.gpuBoost(true);
     }
 
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
@@ -4639,6 +4641,7 @@ public final class ViewRootImpl implements ViewParent,
                         mPendingTransaction, mLastPerformDrawSkippedReason);
                 mHasPendingTransactions = false;
             }
+            BoostHelper.onFrameStage(BoostHelper.Frame.REAL_DRAW, 0L);
         }
         mWasLastDrawCanceled = cancelAndRedraw;
         mLastTraversalWasVisible = isViewVisible;
@@ -8445,6 +8448,9 @@ public final class ViewRootImpl implements ViewParent,
             mAttachInfo.mHandlingPointerEvent = true;
             if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
                 BoostHelper.onScrollEvent(BoostHelper.Scroll.INPUT_EVENT);
+            } else if (event.getActionMasked() == MotionEvent.ACTION_UP
+                    || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                BoostHelper.onScrollEvent(BoostHelper.Scroll.PREFILING);
             }
             // If the event was fully handled by the handwriting initiator, then don't dispatch it
             // to the view tree.

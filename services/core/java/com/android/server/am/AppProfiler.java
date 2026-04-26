@@ -200,6 +200,10 @@ public class AppProfiler {
      */
     private final AtomicInteger mActivityStartingNesting = new AtomicInteger(0);
 
+    boolean isActivityStarting() {
+        return mActivityStartingNesting.get() > 0;
+    }
+
     /**
      * Last time we requested PSS data of all processes.
      */

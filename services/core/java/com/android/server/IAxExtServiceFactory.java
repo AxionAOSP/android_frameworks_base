@@ -17,6 +17,8 @@ package com.android.server;
 
 import com.android.server.am.*;
 import com.android.server.spoof.IAxSpoofManager;
+import com.android.server.thermal.IAxAdvancedThermalMitigationService;
+import com.android.server.uifirst.IAxUiFirstManager;
 
 public interface IAxExtServiceFactory {
     enum ExtType {
@@ -24,7 +26,9 @@ public interface IAxExtServiceFactory {
         AX_MEMORY_MANAGER(IAxMemoryManager.class),
         UX_PERFORMANCE(IUxPerformance.class),
         PC_MODE_SERVICE(IAxPcModeService.class),
-        AX_SPOOF_MANAGER(IAxSpoofManager.class);
+        AX_SPOOF_MANAGER(IAxSpoofManager.class),
+        AX_UI_FIRST_MANAGER(IAxUiFirstManager.class),
+        AX_ADVANCED_THERMAL_MITIGATION(IAxAdvancedThermalMitigationService.class);
         private final Class<?> clazz;
 
         ExtType(Class<?> clazz) {

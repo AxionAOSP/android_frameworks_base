@@ -34,6 +34,7 @@ import android.view.SurfaceControl
 import android.view.SyncRtSurfaceTransactionApplier
 import android.view.ViewRootImpl
 import androidx.annotation.VisibleForTesting
+import com.android.internal.util.BoostHelper
 import com.android.systemui.Dumpable
 import com.android.systemui.Flags
 import com.android.systemui.dagger.SysUISingleton
@@ -190,6 +191,7 @@ constructor(
         // make this switch happen on the first non-zero blur frame.
         createTransaction().setEarlyWakeupStart(earlyWakeupInfo).apply()
         earlyWakeupEnabled = true
+        BoostHelper.onEarlyWakeup(true, 0)
     }
 
     @SuppressLint("MissingPermission")
@@ -199,6 +201,7 @@ constructor(
         Trace.instantForTrack(TRACE_TAG_APP, TRACK_NAME, "immediateEarlyWakeupEnd")
         createTransaction().setEarlyWakeupEnd(earlyWakeupInfo).apply()
         earlyWakeupEnabled = false
+        BoostHelper.onEarlyWakeup(false, 0)
     }
 
     @SuppressLint("MissingPermission")
@@ -212,6 +215,7 @@ constructor(
         Trace.instantForTrack(TRACE_TAG_APP, TRACK_NAME, "earlyWakeupStartNextFrame")
         builder.withEarlyWakeupStart(earlyWakeupInfo)
         earlyWakeupEnabled = true
+        BoostHelper.onEarlyWakeup(true, 0)
     }
 
     @SuppressLint("MissingPermission")
@@ -225,6 +229,7 @@ constructor(
         Trace.instantForTrack(TRACE_TAG_APP, TRACK_NAME, "earlyWakeupEndNextFrame")
         builder.withEarlyWakeupEnd(earlyWakeupInfo)
         earlyWakeupEnabled = false
+        BoostHelper.onEarlyWakeup(false, 0)
     }
 
     private fun shouldBlur(radius: Int): Boolean {

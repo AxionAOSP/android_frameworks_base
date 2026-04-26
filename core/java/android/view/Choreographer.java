@@ -1042,9 +1042,7 @@ public final class Choreographer {
 
     void doFrame(long frameTimeNanos, int frame,
             DisplayEventReceiver.VsyncEventData vsyncEventData) {
-        if ((frame & 63) == 0) {
-            BoostHelper.onFrameStage(BoostHelper.Frame.REAL_DRAW, frameTimeNanos);
-        }
+        BoostHelper.onFrameStage(BoostHelper.Frame.PREFETCHER, frameTimeNanos);
         final long startNanos;
         final long frameIntervalNanos = vsyncEventData.frameInterval;
         // Original intended vsync time that is not adjusted by jitter
@@ -1144,6 +1142,7 @@ public final class Choreographer {
                         mBufferStuffingState.numberWaitsForNextVsync++;
                     }
                     scheduleVsyncLocked();
+                    BoostHelper.onFrameStage(BoostHelper.Frame.RENDER_INFO, frameTimeNanos);
                     return;
                 }
 
@@ -1194,6 +1193,7 @@ public final class Choreographer {
 
             mFrameInfo.markAnimationsStart();
             if (ScrollOptimizer.isAnimAheadActive()) {
+                BoostHelper.onFrameStage(BoostHelper.Frame.PRE_ANIM, frameTimeNanos);
                 ScrollOptimizer.setAnimAheadState(false);
                 synchronized (mLock) {
                     scheduleFrameLocked(SystemClock.uptimeMillis());
@@ -1205,11 +1205,13 @@ public final class Choreographer {
 
             mFrameInfo.markPerformTraversalsStart();
             doCallbacks(Choreographer.CALLBACK_TRAVERSAL, frameIntervalNanos);
+            BoostHelper.onFrameStage(BoostHelper.Frame.OBTAIN_VIEW, frameTimeNanos);
 
             if (mEnableTraversalLast) {
                 doCallbacks(Choreographer.CALLBACK_TRAVERSAL_LAST, frameIntervalNanos);
             }
             doCallbacks(Choreographer.CALLBACK_COMMIT, frameIntervalNanos);
+            BoostHelper.onFrameStage(BoostHelper.Frame.REAL_DRAW, frameTimeNanos);
             ScrollOptimizer.setUITaskStatus(false);
             if (ScrollOptimizer.shouldScheduleAnimAhead(frameIntervalNanos)) {
                 postAnimAheadMsg();
@@ -1239,6 +1241,7 @@ public final class Choreographer {
     }
 
     void doCallbacks(int callbackType, long frameIntervalNanos) {
+        BoostHelper.onFrameStage(BoostHelper.Frame.FRAME_DRAW_STEP, callbackType);
         CallbackRecord callbacks;
         synchronized (mLock) {
             if (mCallbackQueues[callbackType].mHead == null) {
@@ -1432,6 +1435,7 @@ public final class Choreographer {
         try {
             Trace.traceBegin(Trace.TRACE_TAG_VIEW, "Choreographer#scheduleVsyncLocked");
             mDisplayEventReceiver.scheduleVsync();
+            BoostHelper.onFrameStage(BoostHelper.Frame.REQUEST_VSYNC, 0L);
         } finally {
             Trace.traceEnd(Trace.TRACE_TAG_VIEW);
         }
@@ -1734,6 +1738,7 @@ public final class Choreographer {
         public void onVsync(long timestampNanos, long physicalDisplayId, int frame,
                 VsyncEventData vsyncEventData) {
             try {
+                BoostHelper.onFrameStage(BoostHelper.Frame.PREFETCHER, timestampNanos);
                 if (Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
                     Trace.traceBegin(Trace.TRACE_TAG_VIEW,
                             "Choreographer#onVsync "

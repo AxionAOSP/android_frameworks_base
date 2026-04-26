@@ -1043,9 +1043,11 @@ public class OverScroller {
             // Unused
             mDeceleration = 0.0f;
             mVelocity = 0;
+            BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.SCROLLER_INIT);
         }
 
         void finish() {
+            BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.FLING_FINISH);
             mCurrentPosition = mFinal;
             // Not reset since WebView relies on this value for fast fling.
             // TODO: restore when WebView uses the fast fling implemented in this class.
@@ -1102,6 +1104,7 @@ public class OverScroller {
         }
 
         void fling(int start, int velocity, int min, int max, int over) {
+            BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.FLING_START);
             mOver = over;
             mFinished = false;
             mCurrVelocity = mVelocity = velocity;
@@ -1292,6 +1295,7 @@ public class OverScroller {
             if (currentTime > mDuration) {
                 return false;
             }
+            BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.FLING_UPDATE);
 
             double distance = 0.0;
             switch (mState) {

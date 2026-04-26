@@ -16,19 +16,25 @@
 package com.android.server.am;
 
 import android.os.*;
-import android.os.Process;
+import android.system.ErrnoException;
+import android.system.Os;
+import android.system.OsConstants;
 import android.util.Slog;
 
 import com.android.server.am.psc.ProcessRecordInternal;
 
-import java.io.File;
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.stream.Collectors; 
+import java.util.stream.Collectors;
 
 public class AxUtils {
 
@@ -38,9 +44,9 @@ public class AxUtils {
     public static final long MEM_8GB = 8388608;
     public static final long MEM_6GB = 6291456;
 
-    public final static String SCALING_GOV = "persist.sys.scaling_governor";
-    public final static String PERF_GOV = "performance";
-    public final static String DEFAULT_GOV = AxUtils.prop("default_scaling_gov", "schedutil");
+    public static final String SCALING_GOV = "persist.sys.scaling_governor";
+    public static final String PERF_GOV = "performance";
+    public static final String DEFAULT_GOV = AxUtils.prop("default_scaling_gov", "schedutil");
 
     public static final ArrayList<String> sAppWhiteList = new ArrayList<>();
     public static final ArrayList<String> sAppPerfList = new ArrayList<>();
@@ -73,19 +79,23 @@ public class AxUtils {
         sVipHBgSet.add("com.android.inputmethod.latin");
     }
 
-    AxUtils() {
-    }
+    AxUtils() {}
 
     public static String scalingGov() {
         return prop(SCALING_GOV, "schedutil");
     }
 
-    private static boolean needsControl(ProcessRecordInternal app, boolean verifyGroup, int oldScheduleGroup) {
-        if (verifyGroup && oldScheduleGroup == ProcessList.SCHED_GROUP_TOP_APP && app.hasActivities()) {
+    private static boolean needsControl(
+            ProcessRecordInternal app, boolean verifyGroup, int oldScheduleGroup) {
+        if (verifyGroup
+                && oldScheduleGroup == ProcessList.SCHED_GROUP_TOP_APP
+                && app.hasActivities()) {
             logger("previous schedule group is top, not need limit!");
             return false;
         }
-        if (app.uid % 100000 < 10000 || isInPerfList(app.processName) || isInWhiteList(app.processName)) {
+        if (app.uid % 100000 < 10000
+                || isInPerfList(app.processName)
+                || isInWhiteList(app.processName)) {
             logger("system app not need limit!");
             return false;
         }
@@ -93,7 +103,8 @@ public class AxUtils {
         return true;
     }
 
-    public static boolean isForegroundNeedSelfControll(int oldScheduleGroup, ProcessRecordInternal app) {
+    public static boolean isForegroundNeedSelfControll(
+            int oldScheduleGroup, ProcessRecordInternal app) {
         return needsControl(app, true, oldScheduleGroup);
     }
 
@@ -114,15 +125,19 @@ public class AxUtils {
     }
 
     public static boolean isInPerfBlackList(String processName) {
-        return processName != null && sPerfBlackList.contains(processName) || isInLowPrioList(processName);
+        return processName != null && sPerfBlackList.contains(processName)
+                || isInLowPrioList(processName);
     }
 
     public static boolean isSystemUi(String processName) {
         return "com.android.systemui".equals(processName);
     }
+
     public static boolean isVipHBackground(String processName) {
-        return processName != null && (sVipHBgSet.contains(processName) || processName.contains("axion"));
+        return processName != null
+                && (sVipHBgSet.contains(processName) || processName.contains("axion"));
     }
+
     public static boolean isInLowPrioList(String processName) {
         if (processName == null) return false;
         return processName.contains("google");
@@ -261,8 +276,8 @@ public class AxUtils {
 
     public static String joinString(String... parts) {
         return Arrays.stream(parts)
-                     .filter(s -> s != null && !s.isEmpty())
-                     .collect(Collectors.joining(","));
+                .filter(s -> s != null && !s.isEmpty())
+                .collect(Collectors.joining(","));
     }
 
     public static void write(String path, String value) {
@@ -304,7 +319,7 @@ public class AxUtils {
             while ((line = reader.readLine()) != null) {
                 if (line.startsWith("MemTotal:")) {
                     return Long.parseLong(
-                        line.substring(line.indexOf(":") + 1, line.indexOf("kB")).trim());
+                            line.substring(line.indexOf(":") + 1, line.indexOf("kB")).trim());
                 }
             }
         } catch (Exception e) {
@@ -346,10 +361,10 @@ public class AxUtils {
 
         float usableGb = memTotalKb / 1024f / 1024f;
 
-        // common factor - here, we assume that memtotal reprorts 
-        // at least 93.5 % of the total memory size due to reserved memory 
+        // common factor - here, we assume that memtotal reprorts
+        // at least 93.5 % of the total memory size due to reserved memory
         // for gpu and other stuffs
-        float factor = 0.935f;  
+        float factor = 0.935f;
 
         float estimatedGb = usableGb / factor;
 
@@ -357,8 +372,16 @@ public class AxUtils {
         int memGb = (int) Math.ceil(estimatedGb);
         if (memGb % 2 != 0) memGb++;
 
-        logger("getMemTotal: MemTotal=" + memTotalKb + "KB, usable=" + usableGb
-               + "GB → estimated=" + estimatedGb + "GB → reported=" + memGb + "GB (even)");
+        logger(
+                "getMemTotal: MemTotal="
+                        + memTotalKb
+                        + "KB, usable="
+                        + usableGb
+                        + "GB → estimated="
+                        + estimatedGb
+                        + "GB → reported="
+                        + memGb
+                        + "GB (even)");
 
         return memGb;
     }
@@ -371,8 +394,42 @@ public class AxUtils {
         if (!SystemProperties.getBoolean("persist.sys.ax_sys_debug", false)) return;
         Slog.d("AxUtils", msg);
     }
-    
+
     public static boolean checkTid(int tid) {
         return tid > 0 && new File("/proc/" + tid).exists();
+    }
+
+    private static final String PMQOS_PATH = "/dev/cpu_dma_latency";
+    private static FileDescriptor sPmqosFd = null;
+    private static int sPmqosLatencyUs = -1;
+
+    public static synchronized void pmqosHoldFd(int latencyUs) {
+        if (sPmqosFd != null && sPmqosLatencyUs == latencyUs) return;
+        if (sPmqosFd != null) pmqosReleaseFdLocked();
+        try {
+            FileDescriptor fd = Os.open(PMQOS_PATH, OsConstants.O_WRONLY, 0);
+            ByteBuffer buf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
+            buf.putInt(latencyUs).flip();
+            Os.write(fd, buf);
+            sPmqosFd = fd;
+            sPmqosLatencyUs = latencyUs;
+            logger("pmqosHoldFd latencyUs=" + latencyUs);
+        } catch (ErrnoException | InterruptedIOException e) {
+            logger("pmqosHoldFd failed: " + e);
+        }
+    }
+
+    public static synchronized void pmqosReleaseFd() {
+        pmqosReleaseFdLocked();
+    }
+
+    private static void pmqosReleaseFdLocked() {
+        if (sPmqosFd == null) return;
+        try {
+            Os.close(sPmqosFd);
+        } catch (ErrnoException ignored) {
+        }
+        sPmqosFd = null;
+        sPmqosLatencyUs = -1;
     }
 }

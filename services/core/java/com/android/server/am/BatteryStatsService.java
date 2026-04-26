@@ -117,6 +117,7 @@ import com.android.internal.util.FrameworkStatsLog;
 import com.android.internal.util.ParseUtils;
 import com.android.modules.utils.build.SdkLevel;
 import com.android.net.module.util.NetworkCapabilitiesUtils;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.LocalServices;
 import com.android.server.Watchdog;
 import com.android.server.net.BaseNetworkObserver;
@@ -211,6 +212,10 @@ public final class BatteryStatsService extends IBatteryStats.Stub
     private final Handler mHandler;
     private final Clock mClock = Clock.SYSTEM_CLOCK;
     private final ConditionVariable mSystemReady = new ConditionVariable(false);
+
+    private volatile List<BatteryUsageStats> mCachedBatteryUsageStats;
+    private volatile long mCachedBatteryUsageStatsExpiry;
+    private volatile int mCachedBatteryUsageStatsQueryHash;
 
     private final Object mPowerStatsLock = new Object();
     @GuardedBy("mPowerStatsLock")
@@ -928,6 +933,16 @@ public final class BatteryStatsService extends IBatteryStats.Stub
     public List<BatteryUsageStats> getBatteryUsageStats(List<BatteryUsageStatsQuery> queries) {
         super.getBatteryUsageStats_enforcePermission();
 
+        final boolean shouldCache =
+                AxExtServiceFactory.getAxBurstEngine().isCompositionBoosting();
+        final long nowMs = SystemClock.uptimeMillis();
+        final int queryHash = queries == null ? 0 : queries.hashCode();
+        if (shouldCache && nowMs < mCachedBatteryUsageStatsExpiry
+                && queryHash == mCachedBatteryUsageStatsQueryHash
+                && mCachedBatteryUsageStats != null) {
+            return mCachedBatteryUsageStats;
+        }
+
         awaitCompletion();
 
         if (BatteryUsageStatsProvider.shouldUpdateStats(queries,
@@ -937,7 +952,16 @@ public final class BatteryStatsService extends IBatteryStats.Stub
             mStats.collectPowerStatsSamples();
         }
 
-        return mBatteryUsageStatsProvider.getBatteryUsageStats(mStats, queries);
+        List<BatteryUsageStats> result =
+                mBatteryUsageStatsProvider.getBatteryUsageStats(mStats, queries);
+        if (shouldCache) {
+            mCachedBatteryUsageStats = result;
+            mCachedBatteryUsageStatsQueryHash = queryHash;
+            mCachedBatteryUsageStatsExpiry = nowMs + 500;
+        } else {
+            mCachedBatteryUsageStats = null;
+        }
+        return result;
     }
 
     /** Register callbacks for statsd pulled atoms. */

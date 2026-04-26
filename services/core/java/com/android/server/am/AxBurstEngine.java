@@ -15,21 +15,19 @@
  */
 package com.android.server.am;
 
-import static com.android.server.am.DeviceData.*;
-import static com.android.server.am.BoostFlagsManager.*;
-import static com.android.server.am.AxUtils.*;
 import static android.os.Process.*;
+
+import static com.android.server.am.AxUtils.*;
+import static com.android.server.am.BoostFlagsManager.*;
+import static com.android.server.am.DeviceData.*;
 
 import android.content.Context;
 import android.os.*;
-import android.os.Process;
 import android.os.Handler;
-import android.provider.Settings;
-import android.util.Slog;
+
 import com.android.server.NtServiceInjector;
 import com.android.server.UiThread;
-import com.android.internal.util.ScrollOptimizer;
-import java.util.ArrayList;
+
 import java.util.HashMap;
 
 public class AxBurstEngine implements IAxBurstEngine {
@@ -37,8 +35,8 @@ public class AxBurstEngine implements IAxBurstEngine {
     private static final String TAG = "AxBurstEngine";
 
     private static final int MSG_GAME_BOOST = 108;
-    private static final long INPUT_BOOST_DURATION = SystemProperties.getLong(
-            "persist.sys.ax.idle_timeout_ms", 1500);
+    private static final long INPUT_BOOST_DURATION =
+            SystemProperties.getLong("persist.sys.ax.idle_timeout_ms", 1500);
 
     private static final HashMap<String, String> sConfig = new HashMap<>();
     private static final HashMap<String, String> sDefaultsCpu = new HashMap<>();
@@ -68,12 +66,13 @@ public class AxBurstEngine implements IAxBurstEngine {
     private boolean mSfBindPersistent = false;
     private final Runnable inputReset = new InputBoostResetRunnable();
     private final Runnable sfBindReset = new SfBindControlRunnable();
+    private final Runnable mRtInputReset = new RtInputResetRunnable();
 
     private boolean mSystemReady = false;
     private boolean mInstallBoostActive = false;
+    private int mRtBoostedTid = 0;
 
     private final AxThreadBoost mThreadBoost;
-    
 
     public AxBurstEngine() {
         mBoostHandlerThread = new HandlerThread("AxBurstEngineThread", -2);
@@ -173,8 +172,25 @@ public class AxBurstEngine implements IAxBurstEngine {
             adjustBackground(true);
             UiThread.getHandler().postDelayed(inputReset, INPUT_BOOST_DURATION);
         }
+        final int rtTid = mBoostMgr.getTopAppRenderTid();
+        if (rtTid > 0 && rtTid != mRtBoostedTid) {
+            final int oldTid = mRtBoostedTid;
+            mRtBoostedTid = rtTid;
+            mHandler.post(
+                    () -> {
+                        if (oldTid > 0) {
+                            ActivityManagerService.scheduleAsRegularPriority(oldTid, true);
+                        }
+                        ActivityManagerService.scheduleAsRoundRobinPriority(rtTid, true);
+                    });
+        }
+        if (mRtBoostedTid > 0) {
+            UiThread.getHandler().removeCallbacks(mRtInputReset);
+            UiThread.getHandler().postDelayed(mRtInputReset, INPUT_BOOST_DURATION);
+        }
+        mBoostMgr.setMediaDampenedForInput(INPUT_BOOST_DURATION);
     }
-    
+
     public void adjustBackground(boolean limit) {
         if (mData == null) return;
         final long duration = limit ? 0L : -1L;
@@ -184,9 +200,9 @@ public class AxBurstEngine implements IAxBurstEngine {
         adjustCpusetCpus(CPU_AX_FG, axFgLimit, duration);
         adjustCpusetCpus(CPU_DEX2OAT, bgLimit, duration);
         if (!mInstallBoostActive) {
-            SystemProperties.set("dalvik.vm.dex2oat-threads", limit
-                ? "1"
-                : String.valueOf(Runtime.getRuntime().availableProcessors()));
+            SystemProperties.set(
+                    "dalvik.vm.dex2oat-threads",
+                    limit ? "1" : String.valueOf(Runtime.getRuntime().availableProcessors()));
         }
         mBackgroundLimited = limit;
     }
@@ -197,11 +213,22 @@ public class AxBurstEngine implements IAxBurstEngine {
             adjustBackground(false);
         }
     }
-    
+
     private class SfBindControlRunnable implements Runnable {
         @Override
         public void run() {
             sfBindCoreControll(false);
+        }
+    }
+
+    private class RtInputResetRunnable implements Runnable {
+        @Override
+        public void run() {
+            if (mRtBoostedTid > 0) {
+                final int tid = mRtBoostedTid;
+                mRtBoostedTid = 0;
+                mHandler.post(() -> ActivityManagerService.scheduleAsRegularPriority(tid, true));
+            }
         }
     }
 
@@ -260,6 +287,54 @@ public class AxBurstEngine implements IAxBurstEngine {
 
     public void onAnimation(int action) {
         mBoostMgr.onAnimation(action);
+    }
+
+    public void onEarlyWakeup(boolean start, long maxDurMs) {
+        mBoostMgr.onEarlyWakeup(start, maxDurMs);
+    }
+
+    public void onActivityTransition(String fromPkg, String toPkg, int phase) {
+        mBoostMgr.onActivityTransition(fromPkg, toPkg, phase);
+    }
+
+    public void onActivityExit(String pkg) {
+        mBoostMgr.onActivityExit(pkg);
+    }
+
+    public void onProcessKill(int pid, String pkg) {
+        mBoostMgr.onProcessKill(pid, pkg);
+    }
+
+    public void setTopAppRenderThread(int pid, int tid) {
+        mBoostMgr.setTopAppRenderThread(pid, tid);
+    }
+
+    public void setTopAppPid(int pid) {
+        mBoostMgr.setTopAppPid(pid);
+    }
+
+    public void setThermalState(int level, int cpuCap, int gpuCap) {
+        mBoostMgr.setThermalState(level, cpuCap, gpuCap);
+    }
+
+    public long acquireResources(long durMs, String[] resNames, long[] values) {
+        return mBoostMgr.acquireResources(durMs, resNames, values);
+    }
+
+    public void releaseResources(long handle) {
+        mBoostMgr.releaseResources(handle);
+    }
+
+    public long swapResources(long prevHandle, long durMs, String[] resNames, long[] values) {
+        return mBoostMgr.swapResources(prevHandle, durMs, resNames, values);
+    }
+
+    public long acquireHint(String hintName, long durOverrideMs) {
+        return mBoostMgr.acquireHint(hintName, durOverrideMs);
+    }
+
+    public long swapHint(long prevHandle, String hintName, long durOverrideMs) {
+        return mBoostMgr.swapHint(prevHandle, hintName, durOverrideMs);
     }
 
     class AxBurstEngineHandler extends Handler {
@@ -322,7 +397,7 @@ public class AxBurstEngine implements IAxBurstEngine {
         }
         adjustBackground(boost /* limit */);
     }
-    
+
     public void boostGame(boolean enabled) {
         if (!mFlags.isNewState(BOOST_GM, enabled)) return;
         final boolean boost = enabled;
@@ -368,23 +443,25 @@ public class AxBurstEngine implements IAxBurstEngine {
     }
 
     public void write(HashMap<String, String> values) {
-        mHandler.post(() -> values.forEach((k, v) -> {
-            if (k != null && v != null) AxUtils.write(k, v);
-        }));
+        mHandler.post(
+                () ->
+                        values.forEach(
+                                (k, v) -> {
+                                    if (k != null && v != null) AxUtils.write(k, v);
+                                }));
     }
-    
+
     boolean gameActive() {
         return mFlags.isActive(BOOST_GM);
     }
-    
+
     public void getProcessesAndFrozen(String packageName) {
         mFreezeManager.freeze(packageName);
     }
 
-
     public void boostInstall(boolean boost) {
         if (mData == null) return;
-        
+
         mInstallBoostActive = boost;
 
         String allCores = joinRanges(mData.sCores, mData.bCores);
@@ -394,14 +471,13 @@ public class AxBurstEngine implements IAxBurstEngine {
 
         allCores = allCores.replace("-", ",");
 
-        int threadCount = boost ?
-                Runtime.getRuntime().availableProcessors() : 1;
+        int threadCount = boost ? Runtime.getRuntime().availableProcessors() : 1;
 
         String cpuSet = boost ? allCores : mData.bgCpus.replace("-", ",");
-        
+
         final long duration = boost ? 0L : -1L;
         final String dexBoost = boost ? mData.allCores : mData.bgCpus;
-        
+
         adjustCpusetCpus(CPU_DEX2OAT, dexBoost, duration);
 
         SystemProperties.set("dalvik.vm.dex2oat-threads", String.valueOf(threadCount));
@@ -409,10 +485,9 @@ public class AxBurstEngine implements IAxBurstEngine {
         SystemProperties.set("dalvik.vm.dex2oat-cpu-set", cpuSet);
         SystemProperties.set("dalvik.vm.restore-dex2oat-cpu-set", cpuSet);
 
-        logger("boostInstall boost=" + boost +
-                " threads=" + threadCount + " cpuset=" + cpuSet);
+        logger("boostInstall boost=" + boost + " threads=" + threadCount + " cpuset=" + cpuSet);
     }
-    
+
     public void boostThread(int tid) {
         mThreadBoost.boost(tid);
     }

@@ -579,6 +579,47 @@ void android_os_Process_setThreadScheduler(JNIEnv* env, jclass clazz,
 #endif
 }
 
+#if defined(__linux__)
+struct ax_sched_attr {
+    uint32_t size;
+    uint32_t sched_policy;
+    uint64_t sched_flags;
+    int32_t  sched_nice;
+    uint32_t sched_priority;
+    uint64_t sched_runtime;
+    uint64_t sched_deadline;
+    uint64_t sched_period;
+    uint32_t sched_util_min;
+    uint32_t sched_util_max;
+};
+#ifndef SCHED_FLAG_KEEP_ALL
+#define SCHED_FLAG_KEEP_ALL 0x18
+#endif
+#ifndef SCHED_FLAG_UTIL_CLAMP_MIN
+#define SCHED_FLAG_UTIL_CLAMP_MIN 0x20
+#endif
+#ifndef SCHED_FLAG_UTIL_CLAMP_MAX
+#define SCHED_FLAG_UTIL_CLAMP_MAX 0x40
+#endif
+#endif
+
+jint android_os_Process_setThreadUtilClamp(JNIEnv* env, jclass clazz,
+                                              jint tid, jint min, jint max)
+{
+#if defined(__linux__) && defined(__NR_sched_setattr)
+    struct ax_sched_attr attr;
+    memset(&attr, 0, sizeof(attr));
+    attr.size = sizeof(attr);
+    attr.sched_flags = SCHED_FLAG_KEEP_ALL | SCHED_FLAG_UTIL_CLAMP_MIN | SCHED_FLAG_UTIL_CLAMP_MAX;
+    attr.sched_util_min = (min < 0) ? 0 : (min > 1024 ? 1024 : (uint32_t) min);
+    attr.sched_util_max = (max < 0) ? 1024 : (max > 1024 ? 1024 : (uint32_t) max);
+    long r = syscall(__NR_sched_setattr, tid, &attr, 0);
+    return (jint)(r == 0 ? 0 : -errno);
+#else
+    return -ENOSYS;
+#endif
+}
+
 void android_os_Process_setThreadPriorityNative(JNIEnv* env, jobject clazz, jint pid, jint pri) {
     int rc = androidSetThreadPriority(pid, pri);
     if (rc != 0) {
@@ -1379,6 +1420,7 @@ static const JNINativeMethod methods[] = {
         {"getUidForName", "(Ljava/lang/String;)I", (void*)android_os_Process_getUidForName},
         {"getGidForName", "(Ljava/lang/String;)I", (void*)android_os_Process_getGidForName},
         {"setThreadScheduler", "(III)V", (void*)android_os_Process_setThreadScheduler},
+        {"setThreadUtilClamp", "(III)I", (void*)android_os_Process_setThreadUtilClamp},
         // @FastNative
         {"setThreadPriorityNative", "(II)V", (void*)android_os_Process_setThreadPriorityNative},
         // @FastNative

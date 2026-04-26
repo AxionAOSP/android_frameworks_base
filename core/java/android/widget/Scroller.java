@@ -431,6 +431,7 @@ public class Scroller  {
      */
     public void fling(int startX, int startY, int velocityX, int velocityY,
             int minX, int maxX, int minY, int maxY) {
+        BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.FLING_START);
         // Continue a scroll or fling in progress
         if (mFlywheel && !mFinished) {
             float oldVel = getCurrVelocity();

@@ -81,6 +81,7 @@ import android.util.proto.ProtoOutputStream;
 import android.view.Surface.OutOfResourcesException;
 
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.util.BoostHelper;
 import com.android.internal.util.Preconditions;
 import com.android.window.flags.Flags;
 
@@ -4248,6 +4249,7 @@ public final class SurfaceControl implements Parcelable {
             nativeSetEarlyWakeupStart(mNativeObject, infoParcel);
             Trace.instantForTrack(Trace.TRACE_TAG_APP, "EarlyWakeup",
                     "setEarlyWakeupStart: called by " + info.trace + " with " + info.token);
+            BoostHelper.onEarlyWakeup(true, 1000L);
             return this;
         }
 
@@ -4264,6 +4266,7 @@ public final class SurfaceControl implements Parcelable {
             nativeSetEarlyWakeupEnd(mNativeObject, infoParcel);
             Trace.instantForTrack(Trace.TRACE_TAG_APP, "EarlyWakeup",
                     "setEarlyWakeupEnd: called by " + info.trace + " with " + info.token);
+            BoostHelper.onEarlyWakeup(false, 0L);
             return this;
         }
 

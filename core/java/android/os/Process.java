@@ -1424,6 +1424,11 @@ public class Process {
             throws IllegalArgumentException;
 
     /**
+     * @hide
+     */
+    public static final native int setThreadUtilClamp(int tid, int min, int max);
+
+    /**
      * Determine whether the current environment supports multiple processes.
      *
      * @return Returns true if the system can run in multiple processes, else

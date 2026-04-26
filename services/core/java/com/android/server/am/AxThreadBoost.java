@@ -19,11 +19,15 @@ import static android.os.Process.SCHED_OTHER;
 import static android.os.Process.SCHED_RESET_ON_FORK;
 import static android.os.Process.SCHED_RR;
 
+import android.os.Binder;
+import android.os.FileUtils;
 import android.os.Handler;
 import android.os.Process;
 
 import com.android.server.NtServiceInjector;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.HashMap;
 
 public final class AxThreadBoost {
@@ -47,14 +51,35 @@ public final class AxThreadBoost {
         if (tid <= 0) return;
         mEngine.boostSfDelegated(duration);
         applyBoost(tid, duration);
-        int myPid = Process.myPid();
-        if (myPid > 0) {
-            ProcessRecord pr = NtServiceInjector.getAm().getProcessRecordByPid(myPid);
-            if (pr != null) {
-                int renderTid = pr.getRenderThreadTid();
-                if (renderTid > 0) applyBoost(renderTid, duration);
+        int callerPid = Binder.getCallingPid();
+        if (callerPid <= 0 || callerPid == Process.myPid()) return;
+        int renderTid = -1;
+        ProcessRecord pr = NtServiceInjector.getAm().getProcessRecordByPid(callerPid);
+        if (pr != null) {
+            renderTid = pr.getRenderThreadTid();
+        }
+        if (renderTid <= 0) {
+            renderTid = scanRenderThreadTid(callerPid);
+        }
+        if (renderTid > 0) applyBoost(renderTid, duration);
+    }
+
+    private int scanRenderThreadTid(int pid) {
+        int[] tids = Process.getPids("/proc/" + pid + "/task", new int[1024]);
+        if (tids == null) return -1;
+        for (int tid : tids) {
+            if (tid <= 0) break;
+            File commFile = new File("/proc/" + pid + "/task/" + tid + "/comm");
+            if (!commFile.exists()) continue;
+            try {
+                String name = FileUtils.readTextFile(commFile, 1024, null);
+                if (name != null && "RenderThread".equals(name.trim())) {
+                    return tid;
+                }
+            } catch (IOException ignored) {
             }
         }
+        return -1;
     }
 
     private void applyBoost(int tid, long duration) {
@@ -96,7 +121,8 @@ public final class AxThreadBoost {
                     Process.setThreadScheduler(tid, SCHED_OTHER, 0);
                     Process.setThreadPriority(tid, orig);
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
             mBoostCount.remove(tid);
             mOrigPrio.remove(tid);
         }
@@ -115,7 +141,8 @@ public final class AxThreadBoost {
             } else {
                 restoreLauncher();
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
     private void restoreLauncher() {
@@ -123,6 +150,7 @@ public final class AxThreadBoost {
             int pid = Process.myPid();
             Process.setThreadScheduler(pid, SCHED_OTHER, 0);
             Process.setThreadPriority(pid, Process.THREAD_PRIORITY_FOREGROUND);
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 }

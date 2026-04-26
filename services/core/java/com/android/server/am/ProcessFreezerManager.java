@@ -1,4 +1,3 @@
-
 /* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
@@ -7,24 +6,21 @@ package com.android.server.am;
 
 import static android.os.Process.THREAD_PRIORITY_TOP_APP_BOOST;
 
-import com.android.server.am.ProcessRecord;
-import com.android.server.am.ProcessList;
-import com.android.server.am.psc.ProcessRecordInternal;
-import com.android.server.ServiceThread;
-import com.android.server.LocalServices;
-
-import android.os.Trace;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.Process;
-import android.os.Handler;
-import android.util.Slog;
+import android.os.Trace;
 import android.util.ArrayMap;
+import android.util.Slog;
 import android.util.SparseArray;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.List;
+import com.android.server.ServiceThread;
+import com.android.server.am.psc.ProcessRecordInternal;
+
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class ProcessFreezerManager {
     private static ProcessFreezerManager mInstance;
@@ -32,7 +28,7 @@ public class ProcessFreezerManager {
     private static final long DEFAULT_LAUNCH_TIMEOUT = 2000;
     private static final long DEFAULT_DELAY_UNFREEZER_TIMEOUT = 1000;
     private static final int DEFAULT_CPU_USAGE_THRESHOLD = 60;
-    private static final int DEFAULT_FREEZE_ADJ_THRESHOLD = ProcessList.PERCEPTIBLE_APP_ADJ + 1;
+    private static final int DEFAULT_FREEZE_ADJ_THRESHOLD = ProcessList.CACHED_APP_MIN_ADJ;
     private static final int REPORT_UNFREEZE_SERVICE_MSG = 0;
     private static final int FROZEN_AND_UPDATE_PROCESS_MSG = 1;
     private static final int REPORT_UNFREEZE_PROCESS_MSG = 2;
@@ -111,127 +107,190 @@ public class ProcessFreezerManager {
     }
 
     private static ServiceThread createAndStartFreezeThread() {
-        final ServiceThread freezerManagerThread = new ServiceThread(
-                "FreezerManagerThread", THREAD_PRIORITY_TOP_APP_BOOST, true /* allowIo */);
+        final ServiceThread freezerManagerThread =
+                new ServiceThread(
+                        "FreezerManagerThread", THREAD_PRIORITY_TOP_APP_BOOST, true /* allowIo */);
         freezerManagerThread.start();
         return freezerManagerThread;
     }
 
     private ProcessFreezerManager() {
-        mFreezerManagerHandler = new Handler(createAndStartFreezeThread().getLooper(), msg -> {
-            switch (msg.what) {
-                case REPORT_UNFREEZE_SERVICE_MSG: {
-                    final int unfreezeReason = msg.arg1;
-                    final ProcessRecord app = (ProcessRecord)msg.obj;
-                    if (!checkInFreezeProcessLocked(app)) {
-                        Slog.d(TAG, "skip unfreeze service: skip reason: " + app.processName +
-                                " has been removed from freeze list");
-                        break;
-                    }
-                    if (mUseDebug) {
-                        String unfreezeReasonStr = getUnfreezeReason(unfreezeReason);
-                        Slog.d(TAG, "= start unfreeze service: " + app.processName +
-                                ", reason: " + unfreezeReasonStr);
-                        Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER,
-                                "start unfreeze service: " + app.processName +
-                                ", reason: " + unfreezeReasonStr);
-                    }
+        mFreezerManagerHandler =
+                new Handler(
+                        createAndStartFreezeThread().getLooper(),
+                        msg -> {
+                            switch (msg.what) {
+                                case REPORT_UNFREEZE_SERVICE_MSG:
+                                    {
+                                        final int unfreezeReason = msg.arg1;
+                                        final ProcessRecord app = (ProcessRecord) msg.obj;
+                                        if (!checkInFreezeProcessLocked(app)) {
+                                            Slog.d(
+                                                    TAG,
+                                                    "skip unfreeze service: skip reason: "
+                                                            + app.processName
+                                                            + " has been removed from freeze list");
+                                            break;
+                                        }
+                                        if (mUseDebug) {
+                                            String unfreezeReasonStr =
+                                                    getUnfreezeReason(unfreezeReason);
+                                            Slog.d(
+                                                    TAG,
+                                                    "= start unfreeze service: "
+                                                            + app.processName
+                                                            + ", reason: "
+                                                            + unfreezeReasonStr);
+                                            Trace.traceBegin(
+                                                    Trace.TRACE_TAG_ACTIVITY_MANAGER,
+                                                    "start unfreeze service: "
+                                                            + app.processName
+                                                            + ", reason: "
+                                                            + unfreezeReasonStr);
+                                        }
 
-                    unFreezeProcess(app);
-                    removeProcessFromListLocked(app);
+                                        unFreezeProcess(app);
+                                        removeProcessFromListLocked(app);
 
-                    if (mUseDebug) {
-                        Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
-                    }
-                } break;
-                case FROZEN_AND_UPDATE_PROCESS_MSG: {
-                    final int freezeReason = msg.arg1;
-                    final String packageName = (String)msg.obj;
-                    if (mUseDebug) {
-                        String freezeReasonStr = getFreezeReason(freezeReason);
-                        Slog.d(TAG,
-                                "# start freeze processes which adj >= " + mFreezeAdjThreshold +
-                                " for " + packageName + ", reason: " + freezeReasonStr);
-                        Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER,
-                                "start freeze processes which adj >= " + mFreezeAdjThreshold +
-                                " for " + packageName + ", reason: " + freezeReasonStr);
-                    }
+                                        if (mUseDebug) {
+                                            Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
+                                        }
+                                    }
+                                    break;
+                                case FROZEN_AND_UPDATE_PROCESS_MSG:
+                                    {
+                                        final int freezeReason = msg.arg1;
+                                        final String packageName = (String) msg.obj;
+                                        if (mUseDebug) {
+                                            String freezeReasonStr = getFreezeReason(freezeReason);
+                                            Slog.d(
+                                                    TAG,
+                                                    "# start freeze processes which adj >= "
+                                                            + mFreezeAdjThreshold
+                                                            + " for "
+                                                            + packageName
+                                                            + ", reason: "
+                                                            + freezeReasonStr);
+                                            Trace.traceBegin(
+                                                    Trace.TRACE_TAG_ACTIVITY_MANAGER,
+                                                    "start freeze processes which adj >= "
+                                                            + mFreezeAdjThreshold
+                                                            + " for "
+                                                            + packageName
+                                                            + ", reason: "
+                                                            + freezeReasonStr);
+                                        }
 
-                    synchronized (mFreezeFlagLock) {
-                        final SparseArray<ProcessRecord> needFreezeProcesses =
-                                getFreezeProcessesLocked(packageName);
-                        if (needFreezeProcesses != null) {
-                            List<ProcessRecord> pidsToRemove = new ArrayList<>();
-                            for (int i = 0; i < needFreezeProcesses.size(); i++) {
-                                int pid = needFreezeProcesses.keyAt(i);
-                                ProcessRecord app = needFreezeProcesses.valueAt(i);
-                                if (!freezeProcess(app)) {
-                                    pidsToRemove.add(app);
-                                }
+                                        synchronized (mFreezeFlagLock) {
+                                            final SparseArray<ProcessRecord> needFreezeProcesses =
+                                                    getFreezeProcessesLocked(packageName);
+                                            if (needFreezeProcesses != null) {
+                                                List<ProcessRecord> pidsToRemove =
+                                                        new ArrayList<>();
+                                                for (int i = 0;
+                                                        i < needFreezeProcesses.size();
+                                                        i++) {
+                                                    int pid = needFreezeProcesses.keyAt(i);
+                                                    ProcessRecord app =
+                                                            needFreezeProcesses.valueAt(i);
+                                                    if (!freezeProcess(app)) {
+                                                        pidsToRemove.add(app);
+                                                    }
+                                                }
+                                                removeProcessFromListLocked(
+                                                        packageName, pidsToRemove);
+                                                if (mUseDebug) {
+                                                    Slog.d(
+                                                            TAG,
+                                                            "# number of processes to freeze is "
+                                                                    + needFreezeProcesses.size()
+                                                                    + " for "
+                                                                    + packageName);
+                                                }
+                                            } else {
+                                                Slog.d(
+                                                        TAG,
+                                                        "freeze object is null for " + packageName);
+                                            }
+                                        } // end of synchronized (mFreezeFlagLock)
+
+                                        if (mUseDebug) {
+                                            Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
+                                        }
+                                    }
+                                    break;
+                                case REPORT_UNFREEZE_PROCESS_MSG:
+                                    {
+                                        final int unfreezeReason = msg.arg1;
+                                        final String packageName = (String) msg.obj;
+                                        if (!packageContainKey(packageName)) {
+                                            Slog.e(
+                                                    TAG,
+                                                    "Alread triggered unfreeze for " + packageName);
+                                            break;
+                                        }
+
+                                        if (mUseDebug) {
+                                            String unfreezeReasonStr =
+                                                    getUnfreezeReason(unfreezeReason);
+                                            Slog.d(
+                                                    TAG,
+                                                    "= start unfreeze processes for "
+                                                            + packageName
+                                                            + ", reason: "
+                                                            + unfreezeReasonStr);
+                                            Trace.traceBegin(
+                                                    Trace.TRACE_TAG_ACTIVITY_MANAGER,
+                                                    "start unfreeze processes for "
+                                                            + packageName
+                                                            + ", reason: "
+                                                            + unfreezeReasonStr);
+                                        }
+
+                                        synchronized (mFreezeFlagLock) {
+                                            final SparseArray<ProcessRecord> needUnfreezeProcesses =
+                                                    getUnfreezeProcessesLocked(packageName);
+                                            if (needUnfreezeProcesses != null) {
+                                                for (int i = 0;
+                                                        i < needUnfreezeProcesses.size();
+                                                        i++) {
+                                                    int pid = needUnfreezeProcesses.keyAt(i);
+                                                    ProcessRecord app =
+                                                            needUnfreezeProcesses.valueAt(i);
+                                                    unFreezeProcess(app);
+                                                }
+                                                if (mUseDebug) {
+                                                    Slog.d(
+                                                            TAG,
+                                                            "= number of processes to unfreeze is "
+                                                                    + needUnfreezeProcesses.size()
+                                                                    + " for "
+                                                                    + packageName);
+                                                }
+                                                removePackageLocked(packageName);
+                                                removeFreezeRecordLocked(packageName);
+                                            } else {
+                                                Slog.d(
+                                                        TAG,
+                                                        "unfreeze object is null for "
+                                                                + packageName);
+                                            }
+                                        } // end of synchronized (mFreezeFlagLock)
+
+                                        if (mUseDebug) {
+                                            Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
+                                        }
+                                    }
+                                    break;
+                                default:
+                                    return true;
                             }
-                            removeProcessFromListLocked(packageName, pidsToRemove);
-                            if (mUseDebug) {
-                                Slog.d(TAG, "# number of processes to freeze is " +
-                                        needFreezeProcesses.size() + " for " + packageName);
-                            }
-                        } else {
-                            Slog.d(TAG, "freeze object is null for " + packageName);
-                        }
-                    } // end of synchronized (mFreezeFlagLock)
-
-                    if (mUseDebug) {
-                        Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
-                    }
-                } break;
-                case REPORT_UNFREEZE_PROCESS_MSG: {
-                    final int unfreezeReason = msg.arg1;
-                    final String packageName = (String)msg.obj;
-                    if (!packageContainKey(packageName)) {
-                        Slog.e(TAG, "Alread triggered unfreeze for " + packageName);
-                        break;
-                    }
-
-                    if (mUseDebug) {
-                        String unfreezeReasonStr = getUnfreezeReason(unfreezeReason);
-                        Slog.d(TAG, "= start unfreeze processes for " + packageName +
-                                ", reason: " + unfreezeReasonStr);
-                        Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER,
-                                "start unfreeze processes for " + packageName +
-                                ", reason: " + unfreezeReasonStr);
-                    }
-
-                    synchronized (mFreezeFlagLock) {
-                        final SparseArray<ProcessRecord> needUnfreezeProcesses =
-                                getUnfreezeProcessesLocked(packageName);
-                        if (needUnfreezeProcesses != null) {
-                            for (int i = 0; i < needUnfreezeProcesses.size(); i++) {
-                                int pid = needUnfreezeProcesses.keyAt(i);
-                                ProcessRecord app = needUnfreezeProcesses.valueAt(i);
-                                unFreezeProcess(app);
-                            }
-                            if (mUseDebug) {
-                                Slog.d(TAG, "= number of processes to unfreeze is " +
-                                        needUnfreezeProcesses.size() + " for " + packageName);
-                            }
-                            removePackageLocked(packageName);
-                            removeFreezeRecordLocked(packageName);
-                        } else {
-                            Slog.d(TAG, "unfreeze object is null for " + packageName);
-                        }
-                    } // end of synchronized (mFreezeFlagLock)
-
-                    if (mUseDebug) {
-                        Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
-                    }
-                } break;
-                default:
-                    return true;
-            }
-            return true;
-        });
+                            return true;
+                        });
     }
 
     final PidMap mPidsSelfLocked = new PidMap();
+
     static final class PidMap {
         private final SparseArray<ProcessRecord> mPidMap = new SparseArray<>();
 
@@ -283,7 +342,7 @@ public class ProcessFreezerManager {
 
     ProcessRecord findProcessByNameLocked(String processName) {
         synchronized (mPidsSelfLocked) {
-            for ( int i = 0; i < mPidsSelfLocked.size(); i++) {
+            for (int i = 0; i < mPidsSelfLocked.size(); i++) {
                 ProcessRecord foundProcess = mPidsSelfLocked.valueAt(i);
                 if (foundProcess.processName.equals(processName)) {
                     return foundProcess;
@@ -298,7 +357,7 @@ public class ProcessFreezerManager {
         synchronized (mPidsSelfLocked) {
             for (int i = 0; i < mPidsSelfLocked.size(); i++) {
                 final ProcessRecord app = mPidsSelfLocked.valueAt(i);
-                if (app.getCurAdj() >= ProcessList.FOREGROUND_APP_ADJ) {
+                if (app.getCurAdj() >= mFreezeAdjThreshold) {
                     String appPackageName = app.info.packageName;
                     if (processName.equals(appPackageName)) {
                         continue;
@@ -311,10 +370,11 @@ public class ProcessFreezerManager {
     }
 
     final PackageMap mPackagesSelfLocked = new PackageMap();
+
     static final class PackageMap {
         // key  : application package name
         // value: list of processes to freeze
-        private final Map<String, SparseArray<ProcessRecord>>  mPackageMap = new HashMap<>();
+        private final Map<String, SparseArray<ProcessRecord>> mPackageMap = new HashMap<>();
 
         SparseArray<ProcessRecord> get(String processName) {
             return mPackageMap.get(processName);
@@ -384,19 +444,27 @@ public class ProcessFreezerManager {
                         if (cr.clientPackageName.equals(processName)) {
                             isBound = true;
                             if (mUseDebug) {
-                                Slog.d(TAG,
-                                        "Immediately unfreeze service " + processName +
-                                        ". Reason: depend on service(" + sr.processName +
-                                        ") when launch " + processName);
+                                Slog.d(
+                                        TAG,
+                                        "Immediately unfreeze service "
+                                                + processName
+                                                + ". Reason: depend on service("
+                                                + sr.processName
+                                                + ") when launch "
+                                                + processName);
                             }
                             return isBound;
                         }
                     } else {
                         isBound = true;
                         if (mUseDebug) {
-                            Slog.d(TAG,
-                                    "  " + processName + " has been bound client (" +
-                                    cr.clientPackageName + ").");
+                            Slog.d(
+                                    TAG,
+                                    "  "
+                                            + processName
+                                            + " has been bound client ("
+                                            + cr.clientPackageName
+                                            + ").");
                             continue;
                         }
                         return isBound;
@@ -502,10 +570,11 @@ public class ProcessFreezerManager {
         }
     }
 
-    private final Map<String, Integer>  mProcessFreezeRecordLocked = new HashMap<>();
+    private final Map<String, Integer> mProcessFreezeRecordLocked = new HashMap<>();
+
     private int getFreezeRecordLocked(String processName) {
         synchronized (mProcessFreezeRecordLocked) {
-            if (mProcessFreezeRecordLocked.containsKey(processName)){
+            if (mProcessFreezeRecordLocked.containsKey(processName)) {
                 return mProcessFreezeRecordLocked.get(processName);
             }
             return -1;
@@ -520,7 +589,7 @@ public class ProcessFreezerManager {
 
     private void removeFreezeRecordLocked(String processName) {
         synchronized (mProcessFreezeRecordLocked) {
-            if (mProcessFreezeRecordLocked.containsKey(processName)){
+            if (mProcessFreezeRecordLocked.containsKey(processName)) {
                 mProcessFreezeRecordLocked.remove(processName);
             }
         }
@@ -532,20 +601,23 @@ public class ProcessFreezerManager {
         int pid = app.getPid();
         int uid = app.uid;
         String processName = app.processName;
-        String logInfo = String.format("app info: uid=%d, pid=%d, adj=%d, frozen=%b, proc name=%s",
-                uid, pid, app.getCurAdj(), opt.isFrozen(), processName);
+        String logInfo =
+                String.format(
+                        "app info: uid=%d, pid=%d, adj=%d, frozen=%b, proc name=%s",
+                        uid, pid, app.getCurAdj(), opt.isFrozen(), processName);
         // skip default frozen process and killed process (pid==0)
-        if (opt.isFrozen() || pid == 0){
+        if (opt.isFrozen() || pid == 0) {
             if (mUseDebug) {
                 Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "skip unfreeze: " + logInfo);
                 Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
                 if (opt.isFrozen()) {
-                    Slog.d(TAG,
+                    Slog.d(
+                            TAG,
                             " *skip unfreeze: skip reason: process is frozen by default freezer. "
-                            + logInfo);
+                                    + logInfo);
                 }
                 if (pid == 0) {
-                    Slog.d(TAG," *skip unfreeze: skip reason: process is dead. " + logInfo);
+                    Slog.d(TAG, " *skip unfreeze: skip reason: process is dead. " + logInfo);
                 }
             }
             return;
@@ -559,16 +631,16 @@ public class ProcessFreezerManager {
         try {
             int rc = mFreezer.freezeBinder(pid, false, 2 /* timeout_ms */);
             if (rc != 0) {
-                Slog.w(TAG, " *unable to unfreeze binder: " +  logInfo + " " + rc );
+                Slog.w(TAG, " *unable to unfreeze binder: " + logInfo + " " + rc);
             } else {
                 if (mUseDebug) {
-                    Slog.d(TAG,"  unfreeze binder:  " + logInfo);
+                    Slog.d(TAG, "  unfreeze binder:  " + logInfo);
                 }
             }
         } catch (RuntimeException e) {
             Slog.w(TAG, " *unable to unfreeze binder for " + pid + ": " + e);
-            Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER,
-                    "unable to unfreeze binder: " + logInfo);
+            Trace.traceBegin(
+                    Trace.TRACE_TAG_ACTIVITY_MANAGER, "unable to unfreeze binder: " + logInfo);
             Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
         }
 
@@ -577,15 +649,15 @@ public class ProcessFreezerManager {
             Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "unfreeze process: " + logInfo);
         }
 
-        try{
+        try {
             Process.setProcessFrozen(pid, uid, false);
             if (mUseDebug) {
-                Slog.d(TAG, "  unfreeze process: " +  logInfo);
+                Slog.d(TAG, "  unfreeze process: " + logInfo);
             }
         } catch (Exception e) {
             Slog.w(TAG, " *unable to unfreeze process: " + logInfo + " " + e);
-            Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER,
-                    "unable to unfreeze process: " + logInfo);
+            Trace.traceBegin(
+                    Trace.TRACE_TAG_ACTIVITY_MANAGER, "unable to unfreeze process: " + logInfo);
             Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
         }
 
@@ -603,24 +675,26 @@ public class ProcessFreezerManager {
         int uid = app.uid;
         int sevicesNum = psr.numberOfRunningServices();
         String processName = app.processName;
-        String logInfo = String.format(
-                "app info: uid=%d, pid=%d, adj=%d, frozen=%b, services=%d, proc name=%s",
-                uid, pid, app.getCurAdj(), opt.isFrozen(), sevicesNum, processName);
+        String logInfo =
+                String.format(
+                        "app info: uid=%d, pid=%d, adj=%d, frozen=%b, services=%d, proc name=%s",
+                        uid, pid, app.getCurAdj(), opt.isFrozen(), sevicesNum, processName);
         boolean freezeBinderSuccess = false;
         boolean freezeProcessSuccess = false;
         // skip freeze process that is frozen by system freezer
         if (opt.isFrozen() || pid == 0) {
             if (mUseDebug) {
-                Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER,
-                        "skip frozen process: "+ logInfo);
+                Trace.traceBegin(
+                        Trace.TRACE_TAG_ACTIVITY_MANAGER, "skip frozen process: " + logInfo);
                 Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
                 if (opt.isFrozen()) {
-                    Slog.d(TAG,
-                            " *skip freeze: skip reason: process is frozen by default freezer. " +
-                            logInfo);
+                    Slog.d(
+                            TAG,
+                            " *skip freeze: skip reason: process is frozen by default freezer. "
+                                    + logInfo);
                 }
                 if (pid == 0) {
-                    Slog.d(TAG," *skip freeze: skip reason: process is dead. " + logInfo);
+                    Slog.d(TAG, " *skip freeze: skip reason: process is dead. " + logInfo);
                 }
             }
             return false;
@@ -628,8 +702,12 @@ public class ProcessFreezerManager {
 
         if (app.getCurAdj() < mFreezeAdjThreshold) {
             if (mUseDebug) {
-                Slog.d(TAG," *skip freeze: skip reason: process's adj < " +
-                        mFreezeAdjThreshold + ". " + logInfo);
+                Slog.d(
+                        TAG,
+                        " *skip freeze: skip reason: process's adj < "
+                                + mFreezeAdjThreshold
+                                + ". "
+                                + logInfo);
             }
             return false;
         }
@@ -638,11 +716,14 @@ public class ProcessFreezerManager {
             boolean hasBoundClient = isBoundClient(app.mServices, app.processName, false);
             if (hasBoundClient) {
                 if (mUseDebug) {
-                    Slog.d(TAG," *skip freeze: skip reason: process's service has bound client. " +
-                            logInfo);
-                    Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER,
-                            "skip freeze: skip reason: process's service has bound client. " +
-                            logInfo);
+                    Slog.d(
+                            TAG,
+                            " *skip freeze: skip reason: process's service has bound client. "
+                                    + logInfo);
+                    Trace.traceBegin(
+                            Trace.TRACE_TAG_ACTIVITY_MANAGER,
+                            "skip freeze: skip reason: process's service has bound client. "
+                                    + logInfo);
                     Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
                 }
                 return false;
@@ -656,17 +737,17 @@ public class ProcessFreezerManager {
 
         try {
             int rc = mFreezer.freezeBinder(pid, true, 2 /* timeout_ms */);
-            if (rc != 0){
+            if (rc != 0) {
                 Slog.w(TAG, " *unable to freeze binder for " + pid + ": " + rc);
             } else {
                 freezeBinderSuccess = true;
                 if (mUseDebug) {
-                    Slog.d(TAG,"  freeze binder : " + logInfo);
+                    Slog.d(TAG, "  freeze binder : " + logInfo);
                 }
             }
         } catch (RuntimeException e) {
-            Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER,
-                    "unable to freeze binder: " + logInfo);
+            Trace.traceBegin(
+                    Trace.TRACE_TAG_ACTIVITY_MANAGER, "unable to freeze binder: " + logInfo);
             Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
             Slog.w(TAG, "  unbale to freeze binder: " + logInfo);
         }
@@ -684,13 +765,14 @@ public class ProcessFreezerManager {
                 }
                 freezeProcessSuccess = true;
             } else {
-                Slog.d(TAG,
-                        " *skip freeze process: skip reason: unable to freeze process's binder. " +
-                        logInfo);
+                Slog.d(
+                        TAG,
+                        " *skip freeze process: skip reason: unable to freeze process's binder. "
+                                + logInfo);
             }
         } catch (RuntimeException e) {
-            Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER,
-                    "unable to freeze process: " + logInfo);
+            Trace.traceBegin(
+                    Trace.TRACE_TAG_ACTIVITY_MANAGER, "unable to freeze process: " + logInfo);
             Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
             Slog.w(TAG, "  unbale to freeze process: " + logInfo);
         }
@@ -726,27 +808,33 @@ public class ProcessFreezerManager {
         SparseArray<ProcessRecord> needFreezeProcesses = findNeedFreezeProcessesLocked(packageName);
         if (needFreezeProcesses.size() == 0) {
             if (mUseDebug) {
-                Slog.d(TAG,
-                        "skip freeze: skip reason: No proper processes to freeze for " +
-                        packageName);
+                Slog.d(
+                        TAG,
+                        "skip freeze: skip reason: No proper processes to freeze for "
+                                + packageName);
             }
             return;
         }
         addFreezeRecordLocked(packageName, freezeReason);
         addPackageLocked(packageName, needFreezeProcesses);
-        mFreezerManagerHandler.sendMessage(mFreezerManagerHandler.obtainMessage(
-                FROZEN_AND_UPDATE_PROCESS_MSG, freezeReason, 0 /* unused */, packageName));
+        mFreezerManagerHandler.sendMessage(
+                mFreezerManagerHandler.obtainMessage(
+                        FROZEN_AND_UPDATE_PROCESS_MSG, freezeReason, 0 /* unused */, packageName));
         startTimeoutUnfreeze(packageName);
     }
 
-    private void startTimeoutUnfreeze(String packageName){
+    private void startTimeoutUnfreeze(String packageName) {
         // add a timeout unfreeze mechanism
-        mFreezerManagerHandler.sendMessageDelayed(mFreezerManagerHandler.obtainMessage(
-                REPORT_UNFREEZE_PROCESS_MSG, TIMEOUT_LAUNCH_UNFREEZE, 0 /* unused */, packageName),
+        mFreezerManagerHandler.sendMessageDelayed(
+                mFreezerManagerHandler.obtainMessage(
+                        REPORT_UNFREEZE_PROCESS_MSG,
+                        TIMEOUT_LAUNCH_UNFREEZE,
+                        0 /* unused */,
+                        packageName),
                 mLaunchTimeout);
     }
 
-    private void removeTimeoutUnfreeze(String packageName){
+    private void removeTimeoutUnfreeze(String packageName) {
         // remove timeout unfreeze mechanism
         mFreezerManagerHandler.removeMessages(REPORT_UNFREEZE_PROCESS_MSG, packageName);
     }
@@ -760,8 +848,9 @@ public class ProcessFreezerManager {
 
     // unfreeze process that the application depends on when it launchs.
     public void startUnfreezeService(ProcessRecordInternal app, int unfreezeReason) {
-        mFreezerManagerHandler.sendMessage(mFreezerManagerHandler.obtainMessage(
-                REPORT_UNFREEZE_SERVICE_MSG, unfreezeReason, 0 /* unused */, app));
+        mFreezerManagerHandler.sendMessage(
+                mFreezerManagerHandler.obtainMessage(
+                        REPORT_UNFREEZE_SERVICE_MSG, unfreezeReason, 0 /* unused */, app));
     }
 
     public void startUnfreeze(String packageName, int unfreezeReason) {
@@ -777,21 +866,33 @@ public class ProcessFreezerManager {
         if (unfreezeReason == COMPLETE_LAUNCH_UNFREEZE) {
             int freezeReason = getFreezeRecordLocked(packageName);
             if (freezeReason == WARM_LAUNCH_FREEZE) {
-                mFreezerManagerHandler.sendMessage(mFreezerManagerHandler.obtainMessage(
-                        REPORT_UNFREEZE_PROCESS_MSG, unfreezeReason, 0 /* unused */, packageName));
+                mFreezerManagerHandler.sendMessage(
+                        mFreezerManagerHandler.obtainMessage(
+                                REPORT_UNFREEZE_PROCESS_MSG,
+                                unfreezeReason,
+                                0 /* unused */,
+                                packageName));
             } else {
-                mFreezerManagerHandler.sendMessageDelayed(mFreezerManagerHandler.obtainMessage(
-                        REPORT_UNFREEZE_PROCESS_MSG, unfreezeReason, 0 /* unused */, packageName),
+                mFreezerManagerHandler.sendMessageDelayed(
+                        mFreezerManagerHandler.obtainMessage(
+                                REPORT_UNFREEZE_PROCESS_MSG,
+                                unfreezeReason,
+                                0 /* unused */,
+                                packageName),
                         mDelayUnfreezeTimeout);
             }
         } else {
-            mFreezerManagerHandler.sendMessage(mFreezerManagerHandler.obtainMessage(
-                    REPORT_UNFREEZE_PROCESS_MSG, unfreezeReason, 0 /* unused */, packageName));
+            mFreezerManagerHandler.sendMessage(
+                    mFreezerManagerHandler.obtainMessage(
+                            REPORT_UNFREEZE_PROCESS_MSG,
+                            unfreezeReason,
+                            0 /* unused */,
+                            packageName));
         }
     }
 
     public boolean useFreezerManager() {
-        synchronized(mPhenotypeFlagLock) {
+        synchronized (mPhenotypeFlagLock) {
             return mUseFreezerManager;
         }
     }

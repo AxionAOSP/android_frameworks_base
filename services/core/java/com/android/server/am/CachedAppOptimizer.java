@@ -86,6 +86,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.BinderfsStatsReader;
 import com.android.internal.os.ProcLocksReader;
 import com.android.internal.util.FrameworkStatsLog;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.ServiceThread;
 import com.android.server.am.compaction.CompactionStatsManager;
 import com.android.server.am.compaction.SingleCompactionStats;
@@ -1838,6 +1839,13 @@ public class CachedAppOptimizer {
                             Slog.d(TAG_AM, "Resolved no compaction for "+ name +
                                     " requested profile="+requestedProfile);
                         }
+                        return;
+                    }
+
+                    if (AxExtServiceFactory.getAxBurstEngine().isCompositionBoosting()) {
+                        mCompactStatsManager.logCompactionThrottled(
+                                CompactionStatsManager.COMPACT_THROTTLE_REASON_PROC_STATE,
+                                compactSource, name);
                         return;
                     }
 

@@ -788,6 +788,7 @@ class Transition implements BLASTSyncEngine.TransactionReadyListener {
             return;
         }
         AxExtServiceFactory.getAxBurstEngine().systemThreadBoost(AnimationThread.get().getThreadId(), 500L);
+        AxExtServiceFactory.getAxBurstEngine().compositionBoost(800L);
         mState = STATE_STARTED;
         ProtoLog.v(WmProtoLogGroups.WM_DEBUG_WINDOW_TRANSITIONS, "Starting Transition %d",
                 mSyncId);

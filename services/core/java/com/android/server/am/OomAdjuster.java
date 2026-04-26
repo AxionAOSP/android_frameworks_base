@@ -146,6 +146,7 @@ import android.util.proto.ProtoOutputStream;
 import com.android.internal.annotations.CompositeRWLock;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.ServiceThread;
 import com.android.server.am.psc.ActiveUidsInternal;
 import com.android.server.am.psc.ConnectionRecordInternal;
@@ -157,6 +158,7 @@ import com.android.server.am.psc.ProcessRecordInternal;
 import com.android.server.am.psc.ProcessServiceRecordInternal;
 import com.android.server.am.psc.ServiceRecordInternal;
 import com.android.server.am.psc.UidRecordInternal;
+import com.android.server.thermal.IAxAdvancedThermalMitigationService;
 import com.android.server.wm.WindowProcessController;
 
 import java.io.PrintWriter;
@@ -2201,6 +2203,20 @@ public abstract class OomAdjuster {
             try {
                 final int renderThreadTid = state.getRenderThreadTid();
                 if (curSchedGroup == SCHED_GROUP_TOP_APP) {
+                    AxExtServiceFactory.getAxBurstEngine().setTopAppPid(state.getPid());
+                    IAxAdvancedThermalMitigationService thermalSvc =
+                            AxExtServiceFactory.getAdvancedThermalMitigationService();
+                    if (thermalSvc.getProducer() != null) {
+                        thermalSvc.getProducer().onTopAppChanged(state.getPid(), state.processName);
+                    }
+                    if (renderThreadTid > 0) {
+                        AxExtServiceFactory.getAxBurstEngine().setTopAppRenderThread(
+                                state.getPid(), renderThreadTid);
+                    }
+                    try {
+                        AxExtServiceFactory.getUiFirstManager().applyTopAppRoles(
+                                state.uid, state.getPid(), renderThreadTid);
+                    } catch (Exception ignored) {}
                     // do nothing if we already switched to RT
                     if (oldSchedGroup != SCHED_GROUP_TOP_APP) {
                         state.notifyTopProcChanged();
@@ -2245,6 +2261,10 @@ public abstract class OomAdjuster {
                     if (renderThreadTid != 0) {
                         mInjector.setThreadPriority(renderThreadTid, THREAD_PRIORITY_DISPLAY);
                     }
+                    try {
+                        AxExtServiceFactory.getUiFirstManager().clearTopAppRoles(
+                                state.uid, state.getPid());
+                    } catch (Exception ignored) {}
                 }
             } catch (Exception e) {
                 if (DEBUG_ALL) {

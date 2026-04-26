@@ -257,6 +257,7 @@ import com.android.internal.os.logging.MetricsLoggerWrapper;
 import com.android.internal.policy.DecorView;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.ArrayUtils;
+import com.android.internal.util.BoostHelper;
 import com.android.internal.util.FastPrintWriter;
 import com.android.internal.util.Preconditions;
 import com.android.internal.util.StringCache;
@@ -5911,6 +5912,7 @@ public final class ActivityThread extends ClientTransactionHandler
         // we are back active so skip it.
         unscheduleGcIdler();
         mSomeActivitiesChanged = true;
+        BoostHelper.onLaunch(BoostHelper.Launch.ACTIVITY_SWITCH);
 
         // TODO Push resumeArgs into the activity for consideration
         // skip below steps for double-resume and r.mFinish = true case.

@@ -1064,29 +1064,40 @@ interface IActivityManager {
 
     void getProcessesAndFrozen(String resumePackageName);
 
-    void inputBoost();
-    
-    void boostThread(int tid);
-    
-    void launcherItemsLoadingBoost(long duration);
-    
-    void systemThreadBoost(int tid, long duration);
+    oneway void inputBoost();
 
-    void flingBoost(boolean active);
+    oneway void boostThread(int tid);
 
-    void compositionBoost(long durationMs);
+    oneway void launcherItemsLoadingBoost(long duration);
 
-    void gpuBoost(boolean active);
+    oneway void systemThreadBoost(int tid, long duration);
 
-    void shadeBoost(boolean active);
+    oneway void flingBoost(boolean active);
 
-    void onScrollEvent(int action);
-    void onLaunch(int type);
-    void onFrameStage(int stage, long frameId);
-    void onRefreshRateEvent(int event);
-    void onImeTransition(int action);
-    void onConsistency(int mode);
-    void onAnimation(int action);
+    oneway void compositionBoost(long durationMs);
+
+    oneway void gpuBoost(boolean active);
+
+    oneway void shadeBoost(boolean active);
+
+    oneway void onScrollEvent(int action);
+    oneway void onLaunch(int type);
+    oneway void onFrameStage(int stage, long frameId);
+    oneway void onRefreshRateEvent(int event);
+    oneway void onImeTransition(int action);
+    oneway void onConsistency(int mode);
+    oneway void onAnimation(int action);
+    oneway void onEarlyWakeup(boolean start, long maxDurMs);
+    void onActivityTransition(String fromPkg, String toPkg, int phase);
+    void onActivityExit(String pkg);
+    void onProcessKill(int pid, String pkg);
+    void setTopAppRenderThread(int pid, int tid);
+    void setTopAppPid(int pid);
+    long acquireResources(long durMs, in String[] resNames, in long[] values);
+    void releaseResources(long handle);
+    long swapResources(long prevHandle, long durMs, in String[] resNames, in long[] values);
+    long acquireHint(String hintName, long durOverrideMs);
+    long swapHint(long prevHandle, String hintName, long durOverrideMs);
 
     void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera);
 
