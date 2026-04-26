@@ -45,9 +45,18 @@ sealed interface Action {
     ) : Action
 
     data class SendBroadcast(
-        val action: String,
-        val extras: Map<String, String> = emptyMap(),
-    ) : Action
+        val action: String? = null,
+        val mode: Mode = Mode.BROADCAST,
+        val componentPackage: String? = null,
+        val componentClass: String? = null,
+        val extras: Map<String, IntentExtra> = emptyMap(),
+    ) : Action {
+        enum class Mode { BROADCAST, START_SERVICE, START_FOREGROUND_SERVICE }
+
+        data class IntentExtra(val type: ExtraType, val value: String) {
+            enum class ExtraType { STRING, INT, LONG, BOOLEAN, FLOAT, DOUBLE }
+        }
+    }
 
     data class ShowNotification(
         val title: String,

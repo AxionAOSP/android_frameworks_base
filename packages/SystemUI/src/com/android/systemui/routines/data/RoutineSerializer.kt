@@ -347,8 +347,18 @@ class RoutineSerializer @Inject constructor() {
             }
             is Action.SendBroadcast -> {
                 put(KEY_TYPE, Action.TYPE_SEND_BROADCAST)
-                put(KEY_ACTION, action.action)
-                put(KEY_EXTRAS, JSONObject(action.extras))
+                action.action?.let { put(KEY_ACTION, it) }
+                put(KEY_INTENT_MODE, action.mode.name)
+                action.componentPackage?.let { put(KEY_COMPONENT_PACKAGE, it) }
+                action.componentClass?.let { put(KEY_COMPONENT_CLASS, it) }
+                put(KEY_EXTRAS, JSONObject().apply {
+                    action.extras.forEach { (key, extra) ->
+                        put(key, JSONObject().apply {
+                            put(KEY_EXTRA_TYPE, extra.type.name)
+                            put(KEY_EXTRA_VALUE, extra.value)
+                        })
+                    }
+                })
             }
             is Action.ShowNotification -> {
                 put(KEY_TYPE, Action.TYPE_SHOW_NOTIFICATION)
@@ -413,8 +423,15 @@ class RoutineSerializer @Inject constructor() {
                 packageName = json.getString(KEY_PACKAGE_NAME),
             )
             Action.TYPE_SEND_BROADCAST -> Action.SendBroadcast(
-                action = json.getString(KEY_ACTION),
-                extras = deserializeStringMap(json.optJSONObject(KEY_EXTRAS)),
+                action = json.optString(KEY_ACTION, null),
+                mode = runCatching {
+                    Action.SendBroadcast.Mode.valueOf(
+                        json.optString(KEY_INTENT_MODE, Action.SendBroadcast.Mode.BROADCAST.name)
+                    )
+                }.getOrDefault(Action.SendBroadcast.Mode.BROADCAST),
+                componentPackage = json.optString(KEY_COMPONENT_PACKAGE, null),
+                componentClass = json.optString(KEY_COMPONENT_CLASS, null),
+                extras = deserializeIntentExtras(json.optJSONObject(KEY_EXTRAS)),
             )
             Action.TYPE_SHOW_NOTIFICATION -> Action.ShowNotification(
                 title = json.getString(KEY_TITLE),
@@ -463,6 +480,31 @@ class RoutineSerializer @Inject constructor() {
     private fun deserializeStringMap(json: JSONObject?): Map<String, String> {
         if (json == null) return emptyMap()
         return json.keys().asSequence().associateWith { json.getString(it) }
+    }
+
+    private fun deserializeIntentExtras(
+        json: JSONObject?,
+    ): Map<String, Action.SendBroadcast.IntentExtra> {
+        if (json == null) return emptyMap()
+        return json.keys().asSequence().associateWith { key ->
+            val obj = json.optJSONObject(key)
+            if (obj != null) {
+                val type = runCatching {
+                    Action.SendBroadcast.IntentExtra.ExtraType.valueOf(
+                        obj.optString(
+                            KEY_EXTRA_TYPE,
+                            Action.SendBroadcast.IntentExtra.ExtraType.STRING.name,
+                        )
+                    )
+                }.getOrDefault(Action.SendBroadcast.IntentExtra.ExtraType.STRING)
+                Action.SendBroadcast.IntentExtra(type, obj.optString(KEY_EXTRA_VALUE, ""))
+            } else {
+                Action.SendBroadcast.IntentExtra(
+                    Action.SendBroadcast.IntentExtra.ExtraType.STRING,
+                    json.getString(key),
+                )
+            }
+        }
     }
 
     private fun resolveFeature(name: String): String =
@@ -535,5 +577,10 @@ class RoutineSerializer @Inject constructor() {
         private const val KEY_IS_REGEX = "is_regex"
         private const val KEY_IGNORE_SSL_ERRORS = "ignore_ssl_errors"
         private const val KEY_REQUIRE_VALIDATED_INTERNET = "require_validated_internet"
+        private const val KEY_INTENT_MODE = "intent_mode"
+        private const val KEY_COMPONENT_PACKAGE = "component_package"
+        private const val KEY_COMPONENT_CLASS = "component_class"
+        private const val KEY_EXTRA_TYPE = "extra_type"
+        private const val KEY_EXTRA_VALUE = "extra_value"
     }
 }

@@ -31,6 +31,15 @@
     <!-- Routines -->
     <string name="ax_routines_notification_channel_name">Routines</string>
     <string name="ax_routines_toast_executing">Running routine: <xliff:g id="name">%1$s</xliff:g></string>
+    <string name="quick_settings_routines_label">Routines</string>
+    <string name="quick_settings_routines_dialog_title">Run a routine</string>
+    <string name="quick_settings_routines_empty">No routines available. Create one in Axion settings.</string>
+    <string name="quick_settings_routines_action_count">%1$d actions</string>
+    <plurals name="quick_settings_routines_count">
+        <item quantity="zero">No routines</item>
+        <item quantity="one"><xliff:g id="count" example="1">%d</xliff:g> routine</item>
+        <item quantity="other"><xliff:g id="count" example="3">%d</xliff:g> routines</item>
+    </plurals>
 
     <!-- Essential Notifications -->
     <string name="essential_notifications_title">Essentials</string>

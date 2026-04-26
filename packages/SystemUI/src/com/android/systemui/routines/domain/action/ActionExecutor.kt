@@ -19,10 +19,12 @@ package com.android.systemui.routines.domain.action
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.ComponentName
 import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.hardware.SensorPrivacyManager
+import android.hardware.display.DisplayManager
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.Ringtone
@@ -37,6 +39,8 @@ import android.net.Uri
 import android.os.Handler
 import android.os.UserHandle
 import android.provider.Settings
+import android.view.Display
+import com.android.settingslib.display.BrightnessUtils
 import android.os.Binder
 import android.util.Log
 import com.android.systemui.ax.AxPlatformFeatureController
@@ -75,6 +79,7 @@ class ActionExecutor @Inject constructor(
     @Main private val mainHandler: Handler,
     @Background private val bgDispatcher: CoroutineDispatcher,
     private val connectivityManager: ConnectivityManager,
+    private val displayManager: DisplayManager,
 ) {
 
     private val audioManager by lazy {
@@ -136,13 +141,20 @@ class ActionExecutor @Inject constructor(
             Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL,
             UserHandle.USER_CURRENT,
         )
-        val brightnessInt = (action.level.coerceIn(0, 100) * 255 / 100)
-        Settings.System.putIntForUser(
-            resolver,
-            Settings.System.SCREEN_BRIGHTNESS,
-            brightnessInt,
-            UserHandle.USER_CURRENT,
-        )
+        val percent = action.level.coerceIn(0, 100)
+        val display = context.display ?: context.getSystemService(DisplayManager::class.java)
+            ?.getDisplay(Display.DEFAULT_DISPLAY)
+        val info = display?.brightnessInfo
+        val min = info?.brightnessMinimum ?: 0f
+        val max = info?.brightnessMaximum ?: 1f
+        val gammaVal = (percent * BrightnessUtils.GAMMA_SPACE_MAX) / 100
+        val valFloat = BrightnessUtils.convertGammaToLinearFloat(gammaVal, min, max)
+            .coerceIn(min, max)
+        runCatching {
+            displayManager.setBrightness(Display.DEFAULT_DISPLAY, valFloat)
+        }.onFailure { e ->
+            Log.e(TAG, "Failed to set display brightness via DisplayManager", e)
+        }
     }
 
     private fun setRingerMode(action: Action.SetRingerMode) {
@@ -157,9 +169,51 @@ class ActionExecutor @Inject constructor(
     }
 
     private fun sendBroadcast(action: Action.SendBroadcast) {
-        val intent = Intent(action.action)
-        action.extras.forEach { (key, value) -> intent.putExtra(key, value) }
-        context.sendBroadcastAsUser(intent, UserHandle.CURRENT)
+        if (action.action.isNullOrBlank() &&
+            (action.componentPackage.isNullOrBlank() || action.componentClass.isNullOrBlank())) {
+            Log.w(TAG, "SendBroadcast missing both action and component; skipping")
+            return
+        }
+        val intent = Intent().apply {
+            action.action?.takeIf { it.isNotBlank() }?.let { setAction(it) }
+            if (!action.componentPackage.isNullOrBlank() &&
+                !action.componentClass.isNullOrBlank()) {
+                component = ComponentName(action.componentPackage, action.componentClass)
+            } else if (!action.componentPackage.isNullOrBlank()) {
+                setPackage(action.componentPackage)
+            }
+            action.extras.forEach { (key, extra) -> putTypedExtra(this, key, extra) }
+        }
+        runCatching {
+            when (action.mode) {
+                Action.SendBroadcast.Mode.BROADCAST ->
+                    context.sendBroadcastAsUser(intent, UserHandle.CURRENT)
+                Action.SendBroadcast.Mode.START_SERVICE ->
+                    context.startServiceAsUser(intent, UserHandle.CURRENT)
+                Action.SendBroadcast.Mode.START_FOREGROUND_SERVICE ->
+                    context.startForegroundServiceAsUser(intent, UserHandle.CURRENT)
+            }
+        }.onFailure { e ->
+            Log.e(TAG, "Failed to dispatch ${action.mode} for $intent", e)
+        }
+    }
+
+    private fun putTypedExtra(intent: Intent, key: String, extra: Action.SendBroadcast.IntentExtra) {
+        val raw = extra.value
+        runCatching {
+            when (extra.type) {
+                Action.SendBroadcast.IntentExtra.ExtraType.STRING -> intent.putExtra(key, raw)
+                Action.SendBroadcast.IntentExtra.ExtraType.INT -> intent.putExtra(key, raw.toInt())
+                Action.SendBroadcast.IntentExtra.ExtraType.LONG -> intent.putExtra(key, raw.toLong())
+                Action.SendBroadcast.IntentExtra.ExtraType.BOOLEAN ->
+                    intent.putExtra(key, raw.equals("true", ignoreCase = true) || raw == "1")
+                Action.SendBroadcast.IntentExtra.ExtraType.FLOAT -> intent.putExtra(key, raw.toFloat())
+                Action.SendBroadcast.IntentExtra.ExtraType.DOUBLE -> intent.putExtra(key, raw.toDouble())
+            }
+        }.onFailure { e ->
+            Log.w(TAG, "Failed to coerce extra '$key' (${extra.type}) value '$raw'; sending as String", e)
+            intent.putExtra(key, raw)
+        }
     }
 
     private fun showNotification(action: Action.ShowNotification, routineName: String) {

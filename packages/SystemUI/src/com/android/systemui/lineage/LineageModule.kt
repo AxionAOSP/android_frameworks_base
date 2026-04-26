@@ -33,6 +33,7 @@ import com.android.systemui.qs.tiles.UsbTetherTile
 import com.android.systemui.qs.tiles.VolumeSliderTileImpl
 import com.android.systemui.qs.tiles.ScreenshotTile
 import com.android.systemui.qs.tiles.VpnTile
+import com.android.systemui.routines.ui.qs.RoutinesTile
 import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
 import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
 import com.android.systemui.res.R
@@ -119,6 +120,11 @@ interface LineageModule {
     @IntoMap
     @StringKey(ScreenshotTile.TILE_SPEC)
     fun bindScreenshotTile(tile: ScreenshotTile): QSTileImpl<*>
+
+    @Binds
+    @IntoMap
+    @StringKey(RoutinesTile.TILE_SPEC)
+    fun bindRoutinesTile(tile: RoutinesTile): QSTileImpl<*>
 
     companion object {
         const val AMBIENT_DISPLAY_TILE_SPEC = "ambient_display"
@@ -323,6 +329,21 @@ interface LineageModule {
                     QSTileUIConfig.Resource(
                         iconRes = R.drawable.qs_screenshot_icon,
                         labelRes = R.string.quick_settings_screenshot_label
+                    ),
+                instanceId = uiEventLogger.getNewInstanceId(),
+                category = TileCategory.UTILITIES,
+            )
+
+        @Provides
+        @IntoMap
+        @StringKey(RoutinesTile.TILE_SPEC)
+        fun provideRoutinesTileConfig(uiEventLogger: QsEventLogger): QSTileConfig =
+            QSTileConfig(
+                tileSpec = TileSpec.create(RoutinesTile.TILE_SPEC),
+                uiConfig =
+                    QSTileUIConfig.Resource(
+                        iconRes = R.drawable.qs_routines_icon,
+                        labelRes = R.string.quick_settings_routines_label
                     ),
                 instanceId = uiEventLogger.getNewInstanceId(),
                 category = TileCategory.UTILITIES,

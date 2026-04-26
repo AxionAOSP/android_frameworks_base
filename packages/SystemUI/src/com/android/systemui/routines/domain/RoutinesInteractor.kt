@@ -88,6 +88,17 @@ class RoutinesInteractor @Inject constructor(
         }
     }
 
+    fun runRoutineNow(routineId: String) {
+        scope.launch {
+            val routine = repository.getRoutine(routineId)
+            if (routine == null) {
+                Log.w(TAG, "runRoutineNow: routine $routineId not found")
+                return@launch
+            }
+            executeRoutine(routine)
+        }
+    }
+
     fun destroy() {
         monitorJob?.cancel()
         monitorJob = null
