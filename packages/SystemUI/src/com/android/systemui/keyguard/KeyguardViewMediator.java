@@ -124,7 +124,6 @@ import com.android.internal.policy.IKeyguardService;
 import com.android.internal.policy.IKeyguardStateCallback;
 import com.android.internal.policy.ScreenDecorationsUtils;
 import com.android.internal.statusbar.IStatusBarService;
-import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.LatencyTracker;
 import com.android.internal.widget.LockPatternUtils;
 import com.android.keyguard.KeyguardConstants;
@@ -1910,16 +1909,12 @@ public class KeyguardViewMediator implements CoreStartable,
 
         mUpdateMonitor.dispatchStartedGoingToSleep(offReason);
 
-        // Prevent keyguard going away conflicts during lock operations
-        boolean isLockingOperation = mShowing || mKeyguardStateController.isKeyguardGoingAway() || mPendingLock;
-
-        // Only dispatch keyguard going away if:
-        // 1. UDFPS is not enrolled (original logic)
-        // 2. Not currently in a locking operation
-        if (!mUpdateMonitor.isUdfpsEnrolled() && !isLockingOperation) {
-            mKeyguardStateController.notifyKeyguardGoingAway(false);
-            mUpdateMonitor.dispatchKeyguardGoingAway(false);
-        }
+        // Reset keyguard going away state, so we can start listening for fingerprint. We
+        // explicitly DO NOT want to call
+        // mKeyguardViewControllerLazy.get().setKeyguardGoingAwayState(false)
+        // here, since that will mess with the device lock state.
+        mKeyguardStateController.notifyKeyguardGoingAway(false);
+        mUpdateMonitor.dispatchKeyguardGoingAway(false);
 
         notifyStartedGoingToSleep();
     }

@@ -8840,6 +8840,18 @@ public final class Settings {
         public static final String LOCK_SCREEN_LOCK_AFTER_TIMEOUT = "lock_screen_lock_after_timeout";
 
         /**
+         * Whether to show the charging info on the lockscreen while charging
+         * @hide
+         */
+        public static final String LOCKSCREEN_CHARGING_INFO = "lockscreen_charging_info";
+
+        /**
+         * Whether to show the detailed charging info on the lockscreen while charging
+         * @hide
+         */
+        public static final String LOCKSCREEN_CHARGING_INFO_DETAILS = "lockscreen_charging_info_details";
+
+        /**
          * This preference contains the string that shows for owner info on LockScreen.
          * @hide
          * @deprecated
