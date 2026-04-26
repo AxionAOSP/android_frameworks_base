@@ -6740,12 +6740,6 @@ public final class Settings {
         public static final String SHOW_APP_VOLUME = "show_app_volume";
 
         /**
-         * Whether to show the charging info on the lockscreen while charging
-         * @hide
-         */
-        public static final String LOCKSCREEN_CHARGING_INFO = "lockscreen_charging_info";
-
-        /**
          * Keys we no longer back up under the current schema, but want to continue to
          * process when restoring historical backup datasets.
          *
@@ -8844,6 +8838,18 @@ public final class Settings {
         @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
         @Readable
         public static final String LOCK_SCREEN_LOCK_AFTER_TIMEOUT = "lock_screen_lock_after_timeout";
+
+        /**
+         * Whether to show the charging info on the lockscreen while charging
+         * @hide
+         */
+        public static final String LOCKSCREEN_CHARGING_INFO = "lockscreen_charging_info";
+
+        /**
+         * Whether to show the detailed charging info on the lockscreen while charging
+         * @hide
+         */
+        public static final String LOCKSCREEN_CHARGING_INFO_DETAILS = "lockscreen_charging_info_details";
 
         /**
          * This preference contains the string that shows for owner info on LockScreen.

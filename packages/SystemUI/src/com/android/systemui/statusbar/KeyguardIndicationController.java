@@ -1312,28 +1312,34 @@ public class KeyguardIndicationController {
         }
 
         String batteryInfo = "";
-        boolean showbatteryInfo = Settings.System.getIntForUser(mContext.getContentResolver(),
-            Settings.System.LOCKSCREEN_CHARGING_INFO, 1, UserHandle.USER_CURRENT) == 1;
+        boolean showbatteryInfo = Settings.Secure.getIntForUser(mContext.getContentResolver(),
+            Settings.Secure.LOCKSCREEN_CHARGING_INFO, 1, UserHandle.USER_CURRENT) == 1;
+
          if (showbatteryInfo) {
+            boolean showDetails = Settings.Secure.getIntForUser(mContext.getContentResolver(),
+                Settings.Secure.LOCKSCREEN_CHARGING_INFO_DETAILS, 1, UserHandle.USER_CURRENT) == 1;
+
             List<String> chargingDetails = new ArrayList<>();
-            if (mChargingCurrent >= mCurrentDivider * 1000) {
-                chargingDetails.add(String.format(Locale.US, "%.1f",
-                        (mChargingCurrent / (float) mCurrentDivider / 1000f)) + "A");
-            } else if (mChargingCurrent > 0) {
-                chargingDetails.add(String.format(Locale.US, "%.0f",
-                        (mChargingCurrent / (float) mCurrentDivider)) + "mA");
-            }
-            if (mChargingWattage > 0) {
-                chargingDetails.add(String.format(Locale.US, "%.1f",
-                        (mChargingWattage / (float) mCurrentDivider / 1000f)) + "W");
-            }
-            if (mChargingVoltage > 0) {
-                chargingDetails.add(String.format(Locale.US, "%.1f",
-                        (mChargingVoltage / 1000000f)) + "V");
-            }
-            if (mTemperature > 0) {
-                chargingDetails.add(String.format(Locale.US, "%.1f",
-                        (mTemperature / 10f)) + "°C");
+            if (showDetails) {
+                if (mChargingCurrent >= mCurrentDivider * 1000) {
+                    chargingDetails.add(String.format(Locale.US, "%.1f",
+                            (mChargingCurrent / (float) mCurrentDivider / 1000f)) + "A");
+                } else if (mChargingCurrent > 0) {
+                    chargingDetails.add(String.format(Locale.US, "%.0f",
+                            (mChargingCurrent / (float) mCurrentDivider)) + "mA");
+                }
+                if (mChargingWattage > 0) {
+                    chargingDetails.add(String.format(Locale.US, "%.1f",
+                            (mChargingWattage / (float) mCurrentDivider / 1000f)) + "W");
+                }
+                if (mChargingVoltage > 0) {
+                    chargingDetails.add(String.format(Locale.US, "%.1f",
+                            (mChargingVoltage / 1000000f)) + "V");
+                }
+                if (mTemperature > 0) {
+                    chargingDetails.add(String.format(Locale.US, "%.1f",
+                            (mTemperature / 10f)) + "°C");
+                }
             }
             if (!chargingDetails.isEmpty()) {
                 batteryInfo = "\n" + TextUtils.join(" · ", chargingDetails);
