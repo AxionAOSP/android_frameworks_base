@@ -20,7 +20,9 @@ import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
+import android.animation.PropertyValuesHolder
 import android.animation.ValueAnimator
+import android.view.animation.OvershootInterpolator
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -183,21 +185,23 @@ class AXChargingCircleView @JvmOverloads constructor(
             boltIcon.visibility = GONE
         }
 
-        val hasTurboLine = turboLineResIds.isNotEmpty() && !isLow
+        turboLineView.alpha = 1f
+        turboLineView.visibility = GONE
 
-        if (hasTurboLine) {
-            animateTurboCharge(onAnimationEnd, isLow)
-        } else {
-            startCirclePhase(onAnimationEnd, isLow)
+        startCirclePhase(onAnimationEnd, isLow)
+
+        if (turboLineResIds.isNotEmpty() && !isLow) {
+            animateTurboLine()
         }
     }
 
-    private fun animateTurboCharge(onAnimationEnd: Runnable?, isLow: Boolean) {
+    private fun animateTurboLine() {
         val frameCount = turboLineResIds.size
         val lineDuration = frameCount * TURBO_LINE_FRAME_DURATION_MS
         var lastIndex = -1
-        val lineAnimator = ValueAnimator.ofInt(0, frameCount - 1).apply {
+        ValueAnimator.ofInt(0, frameCount - 1).apply {
             duration = lineDuration
+            startDelay = TURBO_LINE_START_DELAY_MS
             interpolator = null
             addUpdateListener {
                 val idx = it.animatedValue as Int
@@ -211,30 +215,48 @@ class AXChargingCircleView @JvmOverloads constructor(
             }
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
-                    val fadeOut = ObjectAnimator.ofFloat(turboLineView, "alpha", 1f, 0f).apply {
+                    ObjectAnimator.ofFloat(turboLineView, "alpha", 1f, 0f).apply {
                         duration = (batteryLevel * TURBO_LINE_FADE_MS_PER_LEVEL).toLong()
-                    }
-                    fadeOut.addListener(object : AnimatorListenerAdapter() {
-                        override fun onAnimationEnd(animation: Animator) {
-                            turboLineView.visibility = GONE
-                            releaseTurboLineRes()
-                        }
-                    })
-                    fadeOut.start()
-                    startCirclePhase(onAnimationEnd, isLow)
+                        addListener(object : AnimatorListenerAdapter() {
+                            override fun onAnimationEnd(animation: Animator) {
+                                turboLineView.visibility = GONE
+                                releaseTurboLineRes()
+                            }
+                        })
+                    }.start()
                 }
             })
-        }
-        lineAnimator.start()
+        }.start()
     }
 
     private fun startCirclePhase(onAnimationEnd: Runnable?, isLow: Boolean) {
         circleView.show(batteryLevel, isLow)
 
+        circleView.scaleX = SCALE_IN_FROM
+        circleView.scaleY = SCALE_IN_FROM
+        circleView.alpha = 0f
+        ObjectAnimator.ofPropertyValuesHolder(
+            circleView,
+            PropertyValuesHolder.ofFloat("scaleX", SCALE_IN_FROM, 1f),
+            PropertyValuesHolder.ofFloat("scaleY", SCALE_IN_FROM, 1f),
+            PropertyValuesHolder.ofFloat("alpha", 0f, 1f),
+        ).apply {
+            duration = SCALE_IN_DURATION_MS
+            interpolator = OvershootInterpolator(1.2f)
+        }.start()
+
         textRow.alpha = 0f
-        ObjectAnimator.ofFloat(textRow, "alpha", 0f, 1f).apply {
-            duration = 300L
-            startDelay = 200L
+        textRow.scaleX = SCALE_IN_FROM
+        textRow.scaleY = SCALE_IN_FROM
+        ObjectAnimator.ofPropertyValuesHolder(
+            textRow,
+            PropertyValuesHolder.ofFloat("scaleX", SCALE_IN_FROM, 1f),
+            PropertyValuesHolder.ofFloat("scaleY", SCALE_IN_FROM, 1f),
+            PropertyValuesHolder.ofFloat("alpha", 0f, 1f),
+        ).apply {
+            duration = SCALE_IN_DURATION_MS
+            startDelay = TEXT_SCALE_IN_DELAY_MS
+            interpolator = OvershootInterpolator(1.2f)
         }.start()
 
         if (boltIcon.visibility == VISIBLE) {
@@ -487,5 +509,9 @@ class AXChargingCircleView @JvmOverloads constructor(
         private const val HOLD_BEFORE_DISMISS_MS = 2000L
         private const val TURBO_LINE_FRAME_DURATION_MS = 40L
         private const val TURBO_LINE_FADE_MS_PER_LEVEL = 10f
+        private const val TURBO_LINE_START_DELAY_MS = 350L
+        private const val SCALE_IN_FROM = 0.7f
+        private const val SCALE_IN_DURATION_MS = 400L
+        private const val TEXT_SCALE_IN_DELAY_MS = 150L
     }
 }
