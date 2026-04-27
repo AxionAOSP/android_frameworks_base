@@ -17,13 +17,11 @@ package com.android.systemui.biometrics
 
 import android.content.Context
 import android.hardware.fingerprint.FingerprintSensorProperties
-import android.util.Log
-import com.android.systemui.biometrics.domain.interactor.FingerprintPropertyInteractor
 import com.android.systemui.biometrics.domain.interactor.UdfpsOverlayInteractor
+import com.android.systemui.biometrics.shared.model.UdfpsOverlayParams
+import com.android.systemui.deviceentry.domain.interactor.DeviceEntryUdfpsInteractor
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
-import com.android.systemui.keyguard.data.repository.DeviceEntryFingerprintAuthRepository
-import com.android.systemui.keyguard.ui.viewmodel.DeviceEntryIconViewModel
 import com.android.systemui.res.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,10 +44,7 @@ data class UdfpsAnimationUiState(
 class UdfpsAnimationInteractor @Inject constructor(
     @Application private val scope: CoroutineScope,
     private val context: Context,
-    private val authController: AuthController,
-    private val deviceEntryIconViewModel: DeviceEntryIconViewModel,
-    private val fingerprintAuthRepository: DeviceEntryFingerprintAuthRepository,
-    private val fingerprintPropertyInteractor: FingerprintPropertyInteractor,
+    private val deviceEntryUdfpsInteractor: DeviceEntryUdfpsInteractor,
     private val udfpsOverlayInteractor: UdfpsOverlayInteractor,
 ) {
     private val _uiState = MutableStateFlow(UdfpsAnimationUiState())
@@ -60,58 +55,41 @@ class UdfpsAnimationInteractor @Inject constructor(
         _uiState.update { it.copy(animationSize = animationSize) }
 
         combine(
-            fingerprintAuthRepository.isEngaged,
-            deviceEntryIconViewModel.isVisible,
-            fingerprintPropertyInteractor.isUdfps
-        ) { isEngaged, isIconVisible, isUdfps ->
-            isEngaged && isIconVisible && isUdfps
-        }.onEach { shouldShow ->
-            if (_uiState.value.isVisible != shouldShow) {
-                _uiState.update { it.copy(isVisible = shouldShow) }
-            }
-        }.launchIn(scope)
-
-        fingerprintPropertyInteractor.isUdfps
-            .onEach { updatePosition() }
-            .launchIn(scope)
-
-        fingerprintPropertyInteractor.sensorLocation
-            .onEach { updatePosition() }
+            udfpsOverlayInteractor.isFingerDown,
+            deviceEntryUdfpsInteractor.isListeningForUdfps,
+        ) { isFingerDown, isListening ->
+            isFingerDown && isListening
+        }.onEach { updateVisibility(it) }
             .launchIn(scope)
 
         udfpsOverlayInteractor.udfpsOverlayParams
-            .onEach { updatePosition() }
+            .onEach { updatePosition(it) }
             .launchIn(scope)
     }
 
-    fun updatePosition() {
-        val udfpsLocation = authController.udfpsLocation
-        val scaleFactor = authController.scaleFactor
+    private fun updateVisibility(visible: Boolean) {
+        if (_uiState.value.isVisible != visible) {
+            _uiState.update { it.copy(isVisible = visible) }
+        }
+    }
 
-        // AuthController has the most accurate current location info
-        // as it handles rotation and scale factor in a way that's proven to work
-        // with the existing UdfpsController logic.
-        val (scaledLocationY, scaledRadius) = if (udfpsLocation != null) {
-            Pair(udfpsLocation.y.toFloat(), authController.udfpsRadius)
-        } else {
-            Log.w(TAG, "updatePosition | udfpsLocation is null")
+    private fun updatePosition(params: UdfpsOverlayParams) {
+        if (params.sensorBounds.isEmpty) {
             return
         }
 
         val animationOffset = context.resources.getDimensionPixelSize(
             R.dimen.udfps_animation_offset
-        ) * scaleFactor
+        ) * params.scaleFactor
 
         val animationSize = _uiState.value.animationSize
-        val offsetY = scaledLocationY -
-                scaledRadius -
-                (animationSize / 2) +
-                animationOffset.toInt()
+        val offsetY = params.sensorBounds.top - (animationSize / 2) + animationOffset.toInt()
 
-        _uiState.update { it.copy(animationOffsetY = offsetY.toInt()) }
-    }
-
-    companion object {
-        private const val TAG = "UdfpsAnimationInteractor"
+        _uiState.update {
+            it.copy(
+                animationOffsetY = offsetY,
+                sensorType = params.sensorType,
+            )
+        }
     }
 }

@@ -102,6 +102,15 @@ constructor(
     /** Whether Udfps overlay should handle touches */
     val shouldHandleTouches: StateFlow<Boolean> = _shouldHandleTouches.asStateFlow()
 
+    private val _isFingerDown = MutableStateFlow(false)
+
+    /** Whether the active UDFPS overlay has an in-progress sensor touch. */
+    val isFingerDown: StateFlow<Boolean> = _isFingerDown.asStateFlow()
+
+    fun setFingerDown(fingerDown: Boolean) {
+        _isFingerDown.value = fingerDown
+    }
+
     /** Returns the current udfpsOverlayParams */
     val udfpsOverlayParams: StateFlow<UdfpsOverlayParams> =
         ConflatedCallbackFlow.conflatedCallbackFlow {

@@ -359,12 +359,14 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             if (isUltrasonic()) {
                 if (acquiredInfo == FINGERPRINT_ACQUIRED_START) {
                     mFgExecutor.execute(() -> {
+                        mUdfpsOverlayInteractor.setFingerDown(true);
                         for (Callback cb : mCallbacks) {
                             cb.onFingerDown();
                         }
                     });
                 } else {
                     mFgExecutor.execute(() -> {
+                        mUdfpsOverlayInteractor.setFingerDown(false);
                         for (Callback cb : mCallbacks) {
                             cb.onFingerUp();
                         }
@@ -923,6 +925,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             }
 
             final boolean removed = mOverlay.hide();
+            mUdfpsOverlayInteractor.setFingerDown(false);
             mKeyguardViewManager.hideAlternateBouncer(true);
             Log.v(TAG, "hideUdfpsOverlay | removing window: " + removed);
         } else {
@@ -1140,6 +1143,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             mDeviceEntryFaceAuthInteractor.onUdfpsSensorTouched();
         }
         mOnFingerDown = true;
+        mUdfpsOverlayInteractor.setFingerDown(true);
         mFingerprintManager.onPointerDown(requestId, mSensorProps.sensorId, pointerId, x, y,
                 minor, major, orientation, time, gestureStart, isAod);
 
@@ -1224,6 +1228,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             }
         }
         mOnFingerDown = false;
+        mUdfpsOverlayInteractor.setFingerDown(false);
 
         if (mUseMtkGhbmDimming && mOverlay != null) {
             View hbmView = mOverlay.getHbmView();
