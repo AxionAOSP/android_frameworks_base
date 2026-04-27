@@ -122,7 +122,7 @@ class MistouchPreventionWindowController @Inject constructor(
         }
 
         override fun onUserSwitchComplete(userId: Int) {
-            if (mistouchPreventionEnabled && keyguardShowing) {
+            if (mistouchPreventionEnabled && keyguardShowing && !keyguardStateController.isOccluded) {
                 enable()
             }
         }
@@ -225,20 +225,16 @@ class MistouchPreventionWindowController @Inject constructor(
     }
 
     override fun onKeyguardShowingChanged(showing: Boolean) {
-        val occluded = keyguardStateController.isOccluded == true
-
-        if (showing) {
+        if (showing && !keyguardStateController.isOccluded) {
             enable()
-        } else if (!showing && !occluded) {
-            disable()
-        } else if (occluded && System.currentTimeMillis() - disableEventInMillis < DISABLE_DURATION) {
+        } else {
             disable()
         }
     }
 
     override fun onStartedWakingUp() {
-        val isWakeAndUnlock = biometricUnlockController.isWakeAndUnlock() == true
-        if (keyguardShowing && !isWakeAndUnlock) {
+        val isWakeAndUnlock = biometricUnlockController.isWakeAndUnlock()
+        if (keyguardShowing && !isWakeAndUnlock && !keyguardStateController.isOccluded) {
             enable()
         }
         sensorNearWhenSleep = false
