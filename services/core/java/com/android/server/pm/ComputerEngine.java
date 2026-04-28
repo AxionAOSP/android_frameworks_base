@@ -501,9 +501,27 @@ public class ComputerEngine implements Computer {
             "com.google.android.webview",
             "com.google.android.providers.media.module"
     );
+    
+    private ActivityManagerInternal sActivityManagerInternal = null;
+    
+    private ActivityManagerInternal getAmInternal() {
+        if (sActivityManagerInternal == null) {
+            sActivityManagerInternal = LocalServices.getService(ActivityManagerInternal.class);
+        }
+        return sActivityManagerInternal;
+    }
+    
+    private boolean isSystemReady() {
+        final ActivityManagerInternal ami = getAmInternal();
+        if (ami == null || !ami.isBooted()) {
+            return false;
+        }
+        return true;
+    }
 
     private boolean shouldHideFromCaller(int callingUid, String targetPackage) {
-        if (!android.os.SystemProperties.getBoolean("sys.boot_completed", false)) return false;
+        if (!isSystemReady()) return false;
+
         if (targetPackage == null) return false;
 
         if (!AxSandboxService.get().isPackageHidden(targetPackage)) return false;
@@ -520,7 +538,8 @@ public class ComputerEngine implements Computer {
 
         String callingPkg = null;
         int callingPid = Binder.getCallingPid();
-        ActivityManagerInternal ami = LocalServices.getService(ActivityManagerInternal.class);
+        
+        final ActivityManagerInternal ami = getAmInternal();
         if (ami != null) {
             callingPkg = ami.getPackageNameByPid(callingPid);
         }
@@ -544,8 +563,7 @@ public class ComputerEngine implements Computer {
     private static final String VENDING_PACKAGE = "com.android.vending";
 
     private int shouldSpoofInstallSource(int callingUid, String targetPackage) {
-        if (!android.os.SystemProperties.getBoolean("sys.boot_completed", false))
-            return SPOOF_INSTALL_DISABLED;
+        if (!isSystemReady()) return SPOOF_INSTALL_DISABLED;
         if (targetPackage == null) return SPOOF_INSTALL_DISABLED;
         if (!AxSandboxService.get().isPackageHidden(targetPackage)) return SPOOF_INSTALL_DISABLED;
         if (callingUid == Process.SYSTEM_UID || callingUid == Process.ROOT_UID)
@@ -554,7 +572,7 @@ public class ComputerEngine implements Computer {
             return SPOOF_INSTALL_DISABLED;
 
         String callingPkg = null;
-        ActivityManagerInternal ami = LocalServices.getService(ActivityManagerInternal.class);
+        final ActivityManagerInternal ami = getAmInternal();
         if (ami != null) {
             callingPkg = ami.getPackageNameByPid(Binder.getCallingPid());
         }
@@ -570,10 +588,7 @@ public class ComputerEngine implements Computer {
     }
 
     private final boolean isAppDetached(String packageName) {
-        if (!android.os.SystemProperties.getBoolean(
-            "sys.boot_completed", false)) {
-            return false;
-        }
+        if (!isSystemReady()) return false;
 
         if (packageName == null || TextUtils.isEmpty(packageName)) {
             return false;
@@ -587,7 +602,7 @@ public class ComputerEngine implements Computer {
 
         String callingPackage = null;
         int callingPid = Binder.getCallingPid();
-        ActivityManagerInternal ami = LocalServices.getService(ActivityManagerInternal.class);
+        final ActivityManagerInternal ami = getAmInternal();
         if (ami != null) {
             callingPackage = ami.getPackageNameByPid(callingPid);
         }
