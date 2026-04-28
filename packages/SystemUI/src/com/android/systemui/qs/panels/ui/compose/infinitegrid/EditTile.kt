@@ -290,12 +290,19 @@ private fun SingleTopBarAction(
     modifier: Modifier = Modifier,
 ) {
     if (editTopBarActionViewModel.showAsText) {
+        val surfaceEffect1 = LocalAndroidColorScheme.current.surfaceEffect1
         TextButton(
             onClick = { editTopBarActionViewModel.onClick() },
             colors = ButtonDefaults.textButtonColors(
+                containerColor = surfaceEffect1,
                 contentColor = MaterialTheme.colorScheme.primary,
             ),
-            modifier = modifier,
+            shape = RoundedCornerShape(20.dp),
+            modifier = modifier
+                .borderOnFocus(
+                    color = MaterialTheme.colorScheme.secondary,
+                    cornerSize = CornerSize(20.dp),
+                ),
         ) {
             Text(
                 text = stringResource(id = editTopBarActionViewModel.labelId),
