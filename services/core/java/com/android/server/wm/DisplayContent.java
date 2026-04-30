@@ -5233,34 +5233,30 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
         }
 
         mLastHasContent = mTmpApplySurfaceChangesTransactionState.displayHasContent;
-        final boolean transitioning = inTransition();
+
         if (isDefaultDisplay) {
-            AxRefreshRateController.getInstance().setAnimating(transitioning);
-        }
-        if (!transitioning) {
-            if (isDefaultDisplay) {
-                final AxRefreshRateController axRrc = AxRefreshRateController.getInstance();
-                axRrc.updateVoteResult();
-                if (axRrc.hasActiveVote()) {
-                    float axMin = axRrc.getMinPreferredRate();
-                    float axMax = axRrc.getMaxPreferredRate();
-                    mTmpApplySurfaceChangesTransactionState.preferredModeId =
-                            axRrc.getPreferredModeId();
-                    mTmpApplySurfaceChangesTransactionState.preferredMinRefreshRate = axMin;
-                    mTmpApplySurfaceChangesTransactionState.preferredMaxRefreshRate = axMax;
-                    mTmpApplySurfaceChangesTransactionState.preferredRefreshRate = axMax;
-                }
+            final AxRefreshRateController axRrc = AxRefreshRateController.getInstance();
+            axRrc.updateVoteResult();
+            if (axRrc.hasActiveVote()) {
+                float axMin = axRrc.getMinPreferredRate();
+                float axMax = axRrc.getMaxPreferredRate();
+                mTmpApplySurfaceChangesTransactionState.preferredModeId =
+                        axRrc.getPreferredModeId();
+                mTmpApplySurfaceChangesTransactionState.preferredMinRefreshRate = axMin;
+                mTmpApplySurfaceChangesTransactionState.preferredMaxRefreshRate = axMax;
+                mTmpApplySurfaceChangesTransactionState.preferredRefreshRate = axMax;
+                Slog.d("AxRefreshRateController", "updateVote: axMin: " + axMin + " axMax: " + axMax);
             }
-            mWmService.mDisplayManagerInternal.setDisplayProperties(mDisplayId,
-                    mLastHasContent,
-                    mTmpApplySurfaceChangesTransactionState.preferredRefreshRate,
-                    mTmpApplySurfaceChangesTransactionState.preferredModeId,
-                    mTmpApplySurfaceChangesTransactionState.preferredMinRefreshRate,
-                    mTmpApplySurfaceChangesTransactionState.preferredMaxRefreshRate,
-                    mTmpApplySurfaceChangesTransactionState.preferMinimalPostProcessing,
-                    mTmpApplySurfaceChangesTransactionState.disableHdrConversion,
-                    true /* inTraversal, must call performTraversalInTrans... below */);
         }
+        mWmService.mDisplayManagerInternal.setDisplayProperties(mDisplayId,
+                mLastHasContent,
+                mTmpApplySurfaceChangesTransactionState.preferredRefreshRate,
+                mTmpApplySurfaceChangesTransactionState.preferredModeId,
+                mTmpApplySurfaceChangesTransactionState.preferredMinRefreshRate,
+                mTmpApplySurfaceChangesTransactionState.preferredMaxRefreshRate,
+                mTmpApplySurfaceChangesTransactionState.preferMinimalPostProcessing,
+                mTmpApplySurfaceChangesTransactionState.disableHdrConversion,
+                true /* inTraversal, must call performTraversalInTrans... below */);
         // If the display now has content, or no longer has content, update recording.
         updateRecording();
 

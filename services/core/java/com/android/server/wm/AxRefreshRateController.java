@@ -15,10 +15,7 @@
  */
 package com.android.server.wm;
 
-import static android.os.Process.SYSTEM_UID;
-import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
 import static android.view.WindowManager.LayoutParams.TYPE_NAVIGATION_BAR;
-import static android.view.WindowManager.LayoutParams.TYPE_NOTIFICATION_SHADE;
 import static android.view.WindowManager.LayoutParams.TYPE_STATUS_BAR;
 import static android.view.WindowManager.LayoutParams.TYPE_WALLPAPER;
 import static com.android.server.wm.AxAppRefreshRateProvider.DEFAULT_APP_CONFIGS;
@@ -68,10 +65,8 @@ public class AxRefreshRateController {
     private static final String GAMING_MODE_ACTIVE = "ax_gaming_mode_active";
 
     private static final int BOOST_TOUCH = 1;
-    private static final int BOOST_ANIM = 1 << 1;
     private static final int BOOST_FOCUS = 1 << 2;
-    private static final int BOOST_OVERLAY = 1 << 3;
-    private static final int BOOST_FLING = 1 << 4;
+    private static final int BOOST_FLING = 1 << 3;
 
     private static final long DISPLAY_CHANGE_REQUERY_DELAY_MS = 500;
 
@@ -129,12 +124,13 @@ public class AxRefreshRateController {
 
     private final AppVoteInfo mBestVote = new AppVoteInfo();
     private final AppVoteInfo mCurrentVote = new AppVoteInfo();
-    private boolean mCtsTest = false;
-    private boolean mOverrideWinPrefer = false;
     private boolean mDisableIdle = false;
     private int mMaxWindowSize = 0;
     private float mCachedResolvedMax = 60f;
     private volatile boolean mHasUserAppRates = false;
+
+    private WindowState mLastWindowState = null;
+    private boolean mLastVoteDisplayOn = false;
 
     @GuardedBy("mUserAppRefreshRates")
     private final ArrayMap<String, Float> mUserAppRefreshRates = new ArrayMap<>();
@@ -145,30 +141,22 @@ public class AxRefreshRateController {
 
     private volatile float mLastSyncedPeak = -1f;
     private volatile float mLastSyncedMin = -1f;
+    private volatile String mLastSrc = "";
 
     // ──────────────────────────────────────────────────────────────────────
     // Runnables
     // ──────────────────────────────────────────────────────────────────────
 
-    private final Runnable mIdleRunnable = () -> {
-        long elapsed = SystemClock.uptimeMillis() - mLastActivityTime;
-        if (elapsed >= mIdleTimeoutMs && !hasBoost(BOOST_ANIM | BOOST_OVERLAY | BOOST_FLING)) {
-            clearBoost(BOOST_TOUCH);
-            syncDisplaySettings();
-        }
-    };
-
-    private final Runnable mFocusBoostExpireRunnable = () -> {
-        clearBoost(BOOST_FOCUS);
-        scheduleIdleCheck();
-    };
-
     private final Runnable mSyncRunnable = this::syncDisplaySettings;
 
     private final Runnable mDisplayChangeRequeryRunnable = () -> {
         queryAndApplyDisplayModes();
-        mLastSyncedPeak = -1f;
-        mLastSyncedMin = -1f;
+        syncDisplaySettings();
+    };
+
+    private final Runnable mFlingBoostTimeoutRunnable = () -> {
+        if (!hasBoost(BOOST_FLING)) return;
+        clearBoost(BOOST_FLING);
         syncDisplaySettings();
     };
 
@@ -191,7 +179,7 @@ public class AxRefreshRateController {
         mBgHandler = new Handler(thread.getLooper());
 
         mIdleTimeoutMs = SystemProperties.getLong(
-                "persist.sys.ax.idle_timeout_ms", 1500);
+                "persist.sys.ax.idle_timeout_ms", 5000);
         mFocusBoostTimeoutMs = SystemProperties.getLong(
                 "persist.sys.ax.focus_boost_timeout_ms", 5000);
 
@@ -215,8 +203,7 @@ public class AxRefreshRateController {
 
     public void setRefreshRateUpdateCallback(RefreshRateUpdateCallback callback) {
         mRateCallback = callback;
-        mLastSyncedPeak = -1f;
-        mLastSyncedMin = -1f;
+        invalidateLastSync();
         mBgHandler.post(this::syncDisplaySettings);
     }
 
@@ -228,58 +215,36 @@ public class AxRefreshRateController {
         if (!mInitialized || !mVrrEnabled) return;
         if (mAppOverrideActive || mGamingActive) return;
         if (mLockscreenLimitEnabled && !mKeyguardDone) return;
-
         boolean wasIdle = !hasBoost(BOOST_TOUCH);
         setBoost(BOOST_TOUCH);
-        mLastActivityTime = SystemClock.uptimeMillis();
-
         if (wasIdle) {
-            mLastSyncedPeak = -1f;
-            mLastSyncedMin = -1f;
             mBgHandler.post(this::syncDisplaySettings);
         }
-        scheduleIdleCheck();
     }
 
-    public void setFlingBoost(boolean active) {
+    public void setFlingBoost(long durationMillis) {
         if (!mInitialized || !mVrrEnabled) return;
-        if (mAppOverrideActive || mGamingActive) return;
-        if (mLockscreenLimitEnabled && !mKeyguardDone) return;
-        boolean was = hasBoost(BOOST_FLING);
-        if (was == active) return;
-        if (active) {
-            setBoost(BOOST_FLING);
-        } else {
-            clearBoost(BOOST_FLING);
-        }
-        mLastActivityTime = SystemClock.uptimeMillis();
-        if (active) {
-            mBgHandler.post(this::syncDisplaySettings);
-        } else {
-            scheduleIdleCheck();
-        }
+        mBgHandler.post(() -> setFlingBoostInternal(durationMillis));
     }
 
-    public void setAnimating(boolean animating) {
-        if (!mInitialized) return;
-        boolean wasAnimating = hasBoost(BOOST_ANIM);
-        if (wasAnimating == animating) return;
-
-        if (animating) {
-            setBoost(BOOST_ANIM);
-        } else {
-            clearBoost(BOOST_ANIM);
+    private void setFlingBoostInternal(long durationMillis) {
+        mBgHandler.removeCallbacks(mFlingBoostTimeoutRunnable);
+        if (mAppOverrideActive || mGamingActive
+                || (mLockscreenLimitEnabled && !mKeyguardDone)
+                || durationMillis <= 0) {
+            if (hasBoost(BOOST_FLING)) {
+                clearBoost(BOOST_FLING);
+                syncDisplaySettings();
+            }
+            return;
         }
-        mLastActivityTime = SystemClock.uptimeMillis();
 
-        if (!mVrrEnabled || mAppOverrideActive
-                || (mLockscreenLimitEnabled && !mKeyguardDone)) return;
-
-        if (animating) {
-            mBgHandler.post(this::syncDisplaySettings);
-        } else {
-            scheduleIdleCheck();
+        final boolean wasBoosted = hasBoost(BOOST_FLING);
+        setBoost(BOOST_FLING);
+        if (!wasBoosted) {
+            syncDisplaySettings();
         }
+        mBgHandler.postDelayed(mFlingBoostTimeoutRunnable, durationMillis);
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -291,9 +256,6 @@ public class AxRefreshRateController {
         if (mInitialized) {
             if (done && mVrrEnabled) {
                 setBoost(BOOST_FOCUS);
-                mLastActivityTime = SystemClock.uptimeMillis();
-                mBgHandler.removeCallbacks(mFocusBoostExpireRunnable);
-                mBgHandler.postDelayed(mFocusBoostExpireRunnable, mFocusBoostTimeoutMs);
             }
             mBgHandler.post(this::syncDisplaySettings);
             mWmService.requestTraversal();
@@ -316,23 +278,15 @@ public class AxRefreshRateController {
         }
         mFocusedPackage = pkg;
         setBoost(BOOST_FOCUS);
-        mLastActivityTime = SystemClock.uptimeMillis();
-        mLastSyncedPeak = -1f;
-        mLastSyncedMin = -1f;
         mBgHandler.post(() -> {
             syncDisplaySettings();
             mWmService.requestTraversal();
         });
-        mBgHandler.removeCallbacks(mFocusBoostExpireRunnable);
-        mBgHandler.postDelayed(mFocusBoostExpireRunnable, mFocusBoostTimeoutMs);
     }
 
     public void onDisplayChanged() {
         if (!mInitialized) return;
         refreshDisplayModes();
-        mLastSyncedPeak = -1f;
-        mLastSyncedMin = -1f;
-
         mBgHandler.removeCallbacks(mDisplayChangeRequeryRunnable);
         mBgHandler.post(this::syncDisplaySettings);
         mBgHandler.postDelayed(mDisplayChangeRequeryRunnable, DISPLAY_CHANGE_REQUERY_DELAY_MS);
@@ -340,8 +294,6 @@ public class AxRefreshRateController {
 
     public void forceResync() {
         if (!mInitialized) return;
-        mLastSyncedPeak = -1f;
-        mLastSyncedMin = -1f;
         mBgHandler.post(this::syncDisplaySettings);
     }
 
@@ -351,50 +303,35 @@ public class AxRefreshRateController {
 
     public void resetVoteResult() {
         if (!mInitialized) return;
+        clearBoosts();
         mBestVote.reset();
-        mCtsTest = false;
-        mOverrideWinPrefer = false;
-        boolean hadOverlay = hasBoost(BOOST_OVERLAY);
-        clearBoost(BOOST_OVERLAY);
-        if (hadOverlay && hasBoost(BOOST_TOUCH) && !hasBoost(BOOST_ANIM)) {
-            mBgHandler.post(this::scheduleIdleCheck);
-        }
         mMaxWindowSize = 0;
         mDisableIdle = false;
         mCachedResolvedMax = resolveMaxRate();
+        mLastWindowState = null;
+        mLastVoteDisplayOn = false;
     }
 
     public void votePreferredRate(WindowState ws, boolean displayOn) {
+        if (mLastWindowState == ws && mLastVoteDisplayOn == displayOn) {
+            return;
+        }
+
+        mLastWindowState = ws;
+        mLastVoteDisplayOn = displayOn;
+        votePreferredRateInternal(ws);
+    }
+
+    private void votePreferredRateInternal(WindowState ws) {
         if (!mInitialized) return;
-        if (mCtsTest) return;
 
         int type = ws.mAttrs.type;
+
         if (isSystemWindowType(type)) {
             return;
         }
 
-        if (type == TYPE_NOTIFICATION_SHADE) {
-            setBoost(BOOST_OVERLAY);
-        }
-
-        if (shouldOverrideForWindow(ws, type, displayOn)) {
-            mOverrideWinPrefer = true;
-            float resolvedMax = mCachedResolvedMax;
-            int windowSize = ws.mRequestedWidth * ws.mRequestedHeight;
-            if (resolvedMax > mBestVote.maxRefreshRate ||
-                (Math.abs(resolvedMax - mBestVote.maxRefreshRate) < 1.0f && windowSize > mMaxWindowSize)) {
-                mBestVote.updateVote(ws.mAttrs.packageName, 0f, resolvedMax);
-                mMaxWindowSize = windowSize;
-            }
-            return;
-        }
-
         String pkg = ws.mAttrs.packageName;
-
-        if (pkg.contains("android.graphics.cts") || pkg.contains("com.android.cts")) {
-            mCtsTest = true;
-            return;
-        }
 
         float targetRate = 0f;
         float minRate = 0f;
@@ -441,6 +378,10 @@ public class AxRefreshRateController {
 
         int windowSize = ws.mRequestedWidth * ws.mRequestedHeight;
 
+        if (isBoosted() && !mGamingActive) {
+            targetRate = mCachedResolvedMax;
+        }
+
         if (targetRate > mBestVote.maxRefreshRate ||
             (Math.abs(targetRate - mBestVote.maxRefreshRate) < 1.0f && windowSize > mMaxWindowSize)) {
             mBestVote.updateVote(pkg, minRate, targetRate);
@@ -453,14 +394,8 @@ public class AxRefreshRateController {
         mCurrentVote.reset();
         float resolvedMax = resolveMaxRate();
 
-        if (mCtsTest) {
-            return;
-        }
-
         if (mAppOverrideActive && mPerAppOverrideRate > 0) {
             mCurrentVote.updateVote("PerAppOverride", mPerAppOverrideRate, mPerAppOverrideRate);
-        } else if (!mVrrEnabled && mOverrideWinPrefer) {
-            mCurrentVote.updateVote("OverrideWinPrefer", (float) mFixedRefreshRate, resolvedMax);
         } else if (!mVrrEnabled && mBestVote.hasVote) {
             mCurrentVote.copyFrom(mBestVote);
         }
@@ -481,12 +416,6 @@ public class AxRefreshRateController {
 
         if (!mCurrentVote.hasVote && !mVrrEnabled && mFixedRefreshRate > 0) {
             mCurrentVote.updateVote("GlobalMode", (float) mFixedRefreshRate, mFixedRefreshRate);
-        }
-
-        if (mVrrEnabled && (mActiveBoosts.get() & BOOST_OVERLAY) != 0) {
-            if (!mBgHandler.hasCallbacks(mSyncRunnable)) {
-                mBgHandler.post(mSyncRunnable);
-            }
         }
     }
 
@@ -510,16 +439,25 @@ public class AxRefreshRateController {
         return 0;
     }
 
+    private long getVrrTimeOut() {
+        return hasBoost(BOOST_FOCUS) ? mFocusBoostTimeoutMs : mIdleTimeoutMs;
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     // Private — boost helpers
     // ──────────────────────────────────────────────────────────────────────
 
     private void setBoost(int flag) {
-        mActiveBoosts.updateAndGet(v -> v | flag);
+        mLastActivityTime = SystemClock.uptimeMillis();
+        if (!hasBoost(flag)) mActiveBoosts.updateAndGet(v -> v | flag);
     }
 
     private void clearBoost(int flag) {
-        mActiveBoosts.updateAndGet(v -> v & ~flag);
+        if (hasBoost(flag)) mActiveBoosts.updateAndGet(v -> v & ~flag);
+    }
+
+    private void clearBoosts() {
+        if (isBoosted()) mActiveBoosts.set(0);
     }
 
     private boolean hasBoost(int flag) {
@@ -530,9 +468,15 @@ public class AxRefreshRateController {
         return mActiveBoosts.get() != 0;
     }
 
-    private void scheduleIdleCheck() {
-        mBgHandler.removeCallbacks(mIdleRunnable);
-        mBgHandler.postDelayed(mIdleRunnable, mIdleTimeoutMs);
+    private void scheduleSyncDisplaySettings(long delayMillis) {
+        mBgHandler.removeCallbacks(mSyncRunnable);
+        mBgHandler.postDelayed(mSyncRunnable, delayMillis);
+    }
+
+    private void invalidateLastSync() {
+        mLastSyncedPeak = -1f;
+        mLastSyncedMin = -1f;
+        mLastSrc = "";
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -591,28 +535,8 @@ public class AxRefreshRateController {
 
         if (newMax <= 0 || newMax < newMin) return;
 
-        float oldMin = mDefaultMinHz;
         mDefaultMinHz = newMin;
-
-        if (newMax < mMaxSupportedHz) {
-            if (oldMin != newMin) {
-                Slog.i(TAG, "queryDisplayModes: minHz updated " + oldMin + " -> " + newMin
-                        + " (maxHz=" + mMaxSupportedHz + " kept, queried=" + newMax + ")");
-                mLastSyncedPeak = -1f;
-                mLastSyncedMin = -1f;
-            }
-            return;
-        }
-
-        float oldMax = mMaxSupportedHz;
         mMaxSupportedHz = newMax;
-
-        if (oldMax != mMaxSupportedHz || oldMin != newMin) {
-            Slog.i(TAG, "queryDisplayModes: maxHz=" + mMaxSupportedHz
-                    + " minHz=" + mDefaultMinHz);
-            mLastSyncedPeak = -1f;
-            mLastSyncedMin = -1f;
-        }
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -620,9 +544,22 @@ public class AxRefreshRateController {
     // ──────────────────────────────────────────────────────────────────────
 
     private void syncDisplaySettings() {
-        final int boosts = mActiveBoosts.get();
-        final boolean boosted = boosts != 0;
         final boolean vrr = mVrrEnabled;
+        boolean boosted = isBoosted();
+        final long vrrTimeout = getVrrTimeOut();
+        long nextVrrIdleCheckDelay = -1;
+
+        if (vrr && boosted) {
+            final long elapsed = SystemClock.uptimeMillis() - mLastActivityTime;
+            if (elapsed >= vrrTimeout && !hasBoost(BOOST_FLING)) {
+                clearBoosts();
+                boosted = false;
+            } else if (!hasBoost(BOOST_FLING)) {
+                nextVrrIdleCheckDelay = Math.max(1, vrrTimeout - elapsed);
+            }
+        }
+
+        final int boosts = mActiveBoosts.get();
         final boolean lsLimit = mLockscreenLimitEnabled;
         final boolean kgDone = mKeyguardDone;
         final float maxHz = mMaxSupportedHz;
@@ -658,17 +595,26 @@ public class AxRefreshRateController {
             min = rate;
             src = "FIXED";
         }
-        if (peak == mLastSyncedPeak && min == mLastSyncedMin) return;
+        final RefreshRateUpdateCallback callback = mRateCallback;
+        if (callback == null) {
+            if (nextVrrIdleCheckDelay > 0) {
+                scheduleSyncDisplaySettings(nextVrrIdleCheckDelay);
+            }
+            return;
+        }
+
+        if (peak == mLastSyncedPeak && min == mLastSyncedMin && src.equals(mLastSrc)) {
+            if (nextVrrIdleCheckDelay > 0) {
+                scheduleSyncDisplaySettings(nextVrrIdleCheckDelay);
+            }
+            return;
+        }
         mLastSyncedPeak = peak;
         mLastSyncedMin = min;
-        Slog.d(TAG, "syncDisplaySettings: peak=" + peak + " min=" + min
-                + " src=" + src + " boosts=" + boostString(boosts)
-                + " vrr=" + vrr + " fixedRate=" + mFixedRefreshRate
-                + " maxHz=" + maxHz
-                + " lsLimit=" + lsLimit + " kgDone=" + kgDone
-                + " perApp=" + mAppOverrideActive + "(" + mPerAppOverrideRate + ")");
-        if (mRateCallback != null) {
-            mRateCallback.onRefreshRateChanged(min, peak, Display.DEFAULT_DISPLAY);
+        mLastSrc = src;
+        callback.onRefreshRateChanged(min, peak, Display.DEFAULT_DISPLAY);
+        if (nextVrrIdleCheckDelay > 0) {
+            scheduleSyncDisplaySettings(nextVrrIdleCheckDelay);
         }
     }
 
@@ -676,9 +622,7 @@ public class AxRefreshRateController {
         if (boosts == 0) return "NONE";
         StringBuilder sb = new StringBuilder();
         if ((boosts & BOOST_TOUCH) != 0) sb.append("TOUCH|");
-        if ((boosts & BOOST_ANIM) != 0) sb.append("ANIM|");
         if ((boosts & BOOST_FOCUS) != 0) sb.append("FOCUS|");
-        if ((boosts & BOOST_OVERLAY) != 0) sb.append("OVERLAY|");
         if ((boosts & BOOST_FLING) != 0) sb.append("FLING|");
         sb.setLength(sb.length() - 1);
         return sb.toString();
@@ -734,8 +678,6 @@ public class AxRefreshRateController {
             mAppOverrideActive = false;
             mPerAppOverrideRate = 0f;
         }
-        mLastSyncedPeak = -1f;
-        mLastSyncedMin = -1f;
         syncDisplaySettings();
         mWmService.requestTraversal();
     }
@@ -748,27 +690,6 @@ public class AxRefreshRateController {
         return type == TYPE_STATUS_BAR
                 || type == TYPE_NAVIGATION_BAR
                 || type == TYPE_WALLPAPER;
-    }
-
-    private boolean shouldOverrideForWindow(WindowState ws, int type, boolean displayOn) {
-        if (!displayOn) {
-            return true;
-        }
-
-        if (type == TYPE_NOTIFICATION_SHADE ||
-            (type == TYPE_APPLICATION_OVERLAY && ws.mOwnerUid != SYSTEM_UID)) {
-            return true;
-        }
-
-        if (ws.inMultiWindowMode()) {
-            return true;
-        }
-
-        if (ws.isAnimationRunningSelfOrParent()) {
-            return true;
-        }
-
-        return false;
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -803,15 +724,11 @@ public class AxRefreshRateController {
                 mGamingActive = Settings.Secure.getIntForUser(
                         mContext.getContentResolver(), GAMING_MODE_ACTIVE,
                         0, UserHandle.USER_CURRENT) == 1;
-                mLastSyncedPeak = -1f;
-                mLastSyncedMin = -1f;
                 syncDisplaySettings();
                 mWmService.requestTraversal();
                 return;
             }
             loadRefreshRateSetting();
-            mLastSyncedPeak = -1f;
-            mLastSyncedMin = -1f;
             syncDisplaySettings();
             if (mPerAppRefreshRateUri.equals(uri)) {
                 loadPerAppRefreshRates();
