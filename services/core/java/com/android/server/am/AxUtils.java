@@ -16,9 +16,11 @@
 package com.android.server.am;
 
 import android.os.*;
+import android.os.Process;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.system.OsConstants;
+import android.util.IntArray;
 import android.util.Slog;
 
 import com.android.server.am.psc.ProcessRecordInternal;
@@ -32,8 +34,10 @@ import java.io.InterruptedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class AxUtils {
@@ -53,6 +57,9 @@ public class AxUtils {
     public static final ArrayList<String> sCameraList = new ArrayList<>();
     public static final ArrayList<String> sPerfBlackList = new ArrayList<>();
     public static final HashSet<String> sVipHBgSet = new HashSet<>();
+    private static final HashMap<String, String> sLastWrites = new HashMap<>();
+    private static final boolean DEBUG_LOG_ENABLED =
+            SystemProperties.getBoolean("persist.sys.ax_sys_debug", false);
 
     static {
         sAppWhiteList.add("com.google.android.providers.media.module");
@@ -281,12 +288,33 @@ public class AxUtils {
     }
 
     public static void write(String path, String value) {
-        String current = readFile(path);
-        if (current != null && current.equals(value)) {
-            return;
+        synchronized (sLastWrites) {
+            String last = sLastWrites.get(path);
+            if (Objects.equals(value, last)) {
+                return;
+            }
+            if (last != null) {
+                writeLocked(path, value);
+                return;
+            }
         }
+        String current = readFile(path);
+        synchronized (sLastWrites) {
+            if (Objects.equals(value, sLastWrites.get(path))) {
+                return;
+            }
+            if (current != null && current.equals(value)) {
+                sLastWrites.put(path, value);
+                return;
+            }
+            writeLocked(path, value);
+        }
+    }
+
+    private static void writeLocked(String path, String value) {
         try {
             FileUtils.stringToFile(path, value);
+            sLastWrites.put(path, value);
             logger("writeInternal write: " + path + " value: " + value);
         } catch (Exception e) {
             logger("writeInternal failed: " + path + " : " + e.getMessage());
@@ -311,6 +339,151 @@ public class AxUtils {
             logger("readFile path: " + path + " error=" + e);
             return null;
         }
+    }
+
+    public static boolean isTaskExist(int pid, int tid) {
+        return pid > 0 && tid > 0
+                && Files.exists(Paths.get("/proc/" + pid + "/task/" + tid), new LinkOption[0]);
+    }
+
+    public static boolean writeProcNode(String path, String value) {
+        if (path == null || value == null || !new File(path).exists()) {
+            return false;
+        }
+        try {
+            FileUtils.stringToFile(path, value);
+            return true;
+        } catch (IOException e) {
+            logger("writeProcNode failed: " + path + " error=" + e);
+            return false;
+        }
+    }
+
+    public static String readProcNode(String path, int lines) {
+        if (path == null || lines <= 0 || !new File(path).exists()) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder();
+        try (BufferedReader br = new BufferedReader(new FileReader(path), 128)) {
+            for (int i = 0; i < lines; i++) {
+                String line = br.readLine();
+                if (line == null) {
+                    break;
+                }
+                if (sb.length() > 0) {
+                    sb.append('\n');
+                }
+                sb.append(line);
+            }
+        } catch (IOException e) {
+            logger("readProcNode failed: " + path + " error=" + e);
+        }
+        return sb.toString();
+    }
+
+    public static String readProcComm(int pid) {
+        return readProcCommPath("/proc/" + pid + "/comm");
+    }
+
+    public static String readProcComm(int pid, int tid) {
+        return readProcCommPath("/proc/" + pid + "/task/" + tid + "/comm");
+    }
+
+    private static String readProcCommPath(String path) {
+        String comm = readFile(path);
+        return comm != null && !comm.isEmpty() ? comm : null;
+    }
+
+    public static String readProcCmdline(int pid) {
+        String cmdline = readFile("/proc/" + pid + "/cmdline");
+        return cmdline != null && !cmdline.isEmpty() ? cmdline.replace('\0', ' ').trim() : null;
+    }
+
+    public static boolean isMatchedTid(int tid, String pattern) {
+        String comm = readProcComm(tid);
+        return comm != null && Pattern.matches(pattern, comm);
+    }
+
+    public static boolean isMatchedTask(int pid, int tid, String pattern) {
+        String comm = readProcComm(pid, tid);
+        return comm != null && Pattern.matches(pattern, comm);
+    }
+
+    public static IntArray findMatchedPids(String pattern, int... uids) {
+        IntArray result = new IntArray();
+        if (pattern == null) {
+            return result;
+        }
+        try {
+            Pattern compiled = Pattern.compile(pattern);
+            int[] pids = Process.getPids("/proc", new int[1024]);
+            for (int pid : pids) {
+                if (pid == -1) {
+                    break;
+                }
+                String comm = readProcComm(pid);
+                if (comm == null || !compiled.matcher(comm).find()) {
+                    continue;
+                }
+                if (uids == null || uids.length == 0 || containsUid(uids, Process.getUidForPid(pid))) {
+                    result.add(pid);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return result;
+    }
+
+    public static IntArray findMatchedTids(int pid, String pattern) {
+        IntArray result = new IntArray();
+        if (pid <= 0 || pattern == null) {
+            return result;
+        }
+        try {
+            Pattern compiled = Pattern.compile(pattern);
+            int[] tids = Process.getPids("/proc/" + pid + "/task", new int[256]);
+            for (int tid : tids) {
+                if (tid == -1) {
+                    break;
+                }
+                String comm = readProcComm(pid, tid);
+                if (comm != null && compiled.matcher(comm).find()) {
+                    result.add(tid);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return result;
+    }
+
+    public static IntArray findTidsByPrefix(int pid, String prefix) {
+        IntArray result = new IntArray();
+        if (pid <= 0 || prefix == null) {
+            return result;
+        }
+        try {
+            int[] tids = Process.getPids("/proc/" + pid + "/task", new int[256]);
+            for (int tid : tids) {
+                if (tid == -1) {
+                    break;
+                }
+                String comm = readProcComm(pid, tid);
+                if (comm != null && comm.startsWith(prefix)) {
+                    result.add(tid);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return result;
+    }
+
+    private static boolean containsUid(int[] uids, int uid) {
+        for (int candidate : uids) {
+            if (candidate == uid) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static long parseMemTotalKb() {
@@ -390,8 +563,12 @@ public class AxUtils {
         return getPhysicalMemory() > MEM_8GB && boolProp("pr_apps", true);
     }
 
+    public static boolean isDebugLogEnabled() {
+        return DEBUG_LOG_ENABLED;
+    }
+
     public static void logger(String msg) {
-        if (!SystemProperties.getBoolean("persist.sys.ax_sys_debug", false)) return;
+        if (!isDebugLogEnabled()) return;
         Slog.d("AxUtils", msg);
     }
 
@@ -402,8 +579,10 @@ public class AxUtils {
     private static final String PMQOS_PATH = "/dev/cpu_dma_latency";
     private static FileDescriptor sPmqosFd = null;
     private static int sPmqosLatencyUs = -1;
+    private static boolean sPmqosSupported = true;
 
     public static synchronized void pmqosHoldFd(int latencyUs) {
+        if (!sPmqosSupported) return;
         if (sPmqosFd != null && sPmqosLatencyUs == latencyUs) return;
         if (sPmqosFd != null) pmqosReleaseFdLocked();
         try {
@@ -415,6 +594,7 @@ public class AxUtils {
             sPmqosLatencyUs = latencyUs;
             logger("pmqosHoldFd latencyUs=" + latencyUs);
         } catch (ErrnoException | InterruptedIOException e) {
+            sPmqosSupported = false;
             logger("pmqosHoldFd failed: " + e);
         }
     }
