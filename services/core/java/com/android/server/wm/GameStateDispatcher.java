@@ -22,6 +22,8 @@ import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Slog;
 
+import com.android.server.AxExtServiceFactory;
+
 import lineageos.health.HealthInterface;
 
 import com.android.internal.app.IGameSpaceCallback;
@@ -86,6 +88,7 @@ class GameStateDispatcher {
                 "persist.sys.power_mode_perf", enable ? 1 : 0,
                 UserHandle.USER_CURRENT);
         SystemProperties.set("persist.sys.power_mode_perf", enable ? "1" : "0");
+        AxExtServiceFactory.getAxBurstEngine().boostGame(enable);
     }
 
     void setBypassCharge(boolean enable) {
