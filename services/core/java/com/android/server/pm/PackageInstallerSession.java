@@ -197,6 +197,8 @@ import android.util.Slog;
 import android.util.SparseArray;
 import android.util.apk.ApkSignatureVerifier;
 
+import android.app.AxBoostFwk;
+
 import com.android.internal.R;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -2315,6 +2317,11 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
     @Override
     public void commit(@NonNull IntentSender statusReceiver, boolean forTransfer) {
         AxExtServiceFactory.getAxBurstEngine().boostInstall(false);
+        synchronized (mLock) {
+            if (mPackageName != null) {
+                AxBoostFwk.acquireHint(AxBoostFwk.OP_PACKAGE_INSTALL_BOOST, -2L);
+            }
+        }
         assertNotChild("commit");
         boolean throwsExceptionCommitImmutableCheck = CompatChanges.isChangeEnabled(
                 THROW_EXCEPTION_COMMIT_WITH_IMMUTABLE_PENDING_INTENT, Binder.getCallingUid());

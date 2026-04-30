@@ -34,8 +34,10 @@ import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.util.DisplayMetrics;
 import android.os.Environment;
 import android.os.Parcel;
+import android.os.SystemProperties;
 import android.os.Parcelable;
 import android.os.SystemClock;
 import android.os.UserHandle;
@@ -920,6 +922,16 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
      * @hide
      */
     public static final String METADATA_PRELOADED_FONTS = "preloaded_fonts";
+
+    /**
+     * @hide
+     */
+    public int overrideRes = 0;
+    
+    /**
+     * @hide
+     */
+    public int overrideDensity = 0;
 
     /**
      * The required smallest screen width the application can run on.  If 0,
@@ -2074,6 +2086,8 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
         flags = orig.flags;
         privateFlags = orig.privateFlags;
         privateFlagsExt = orig.privateFlagsExt;
+        overrideRes = orig.overrideRes;
+        overrideDensity = orig.overrideDensity;
         requiresSmallestWidthDp = orig.requiresSmallestWidthDp;
         compatibleWidthLimitDp = orig.compatibleWidthLimitDp;
         largestWidthLimitDp = orig.largestWidthLimitDp;
@@ -2165,6 +2179,8 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
         dest.writeInt(flags);
         dest.writeInt(privateFlags);
         dest.writeInt(privateFlagsExt);
+        dest.writeInt(overrideRes);
+        dest.writeInt(overrideDensity);
         dest.writeInt(requiresSmallestWidthDp);
         dest.writeInt(compatibleWidthLimitDp);
         dest.writeInt(largestWidthLimitDp);
@@ -2273,6 +2289,8 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
         flags = source.readInt();
         privateFlags = source.readInt();
         privateFlagsExt = source.readInt();
+        overrideRes = source.readInt();
+        overrideDensity = source.readInt();
         requiresSmallestWidthDp = source.readInt();
         compatibleWidthLimitDp = source.readInt();
         largestWidthLimitDp = source.readInt();
@@ -2889,6 +2907,9 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
         return output.toArray(new String[output.size()]);
     }
 
+    /** @hide */ public int getOverrideDensity() { return overrideDensity; }
+    /** @hide */ public void setOverrideRes(int overrideResolution) { overrideRes = overrideResolution; }
+    /** @hide */ public int canOverrideRes() { return overrideRes; }
     /** @hide */ public void setCodePath(String codePath) { scanSourceDir = codePath; }
     /** @hide */ public void setBaseCodePath(String baseCodePath) { sourceDir = baseCodePath; }
     /** @hide */ public void setSplitCodePaths(String[] splitCodePaths) { splitSourceDirs = splitCodePaths; }

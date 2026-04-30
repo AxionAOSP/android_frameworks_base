@@ -120,6 +120,7 @@ import com.android.internal.statusbar.StatusBarIcon;
 import com.android.internal.util.DumpUtils;
 import com.android.internal.util.GcUtils;
 import com.android.internal.view.AppearanceRegion;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.LocalServices;
 import com.android.server.UiThread;
 import com.android.server.inputmethod.InputMethodManagerInternal;
@@ -1899,6 +1900,10 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
         final long identity = Binder.clearCallingIdentity();
         try {
             mNotificationDelegate.onPanelRevealed(clearNotificationEffects, numItems);
+            try {
+                AxExtServiceFactory.getUiFirstManager().onPanelRevealed(numItems);
+            } catch (Exception ignored) {
+            }
         } finally {
             Binder.restoreCallingIdentity(identity);
         }
@@ -1925,6 +1930,10 @@ public class StatusBarManagerService extends IStatusBarService.Stub implements D
         final long identity = Binder.clearCallingIdentity();
         try {
             mNotificationDelegate.onPanelHidden();
+            try {
+                AxExtServiceFactory.getUiFirstManager().onPanelHidden();
+            } catch (Exception ignored) {
+            }
         } finally {
             Binder.restoreCallingIdentity(identity);
         }

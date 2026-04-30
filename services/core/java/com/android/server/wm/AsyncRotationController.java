@@ -31,6 +31,10 @@ import android.view.WindowManager;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 
+import android.app.AxBoostFwk;
+
+import com.android.server.AxExtServiceFactory;
+
 import java.io.PrintWriter;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -366,6 +370,7 @@ class AsyncRotationController extends FadeAnimationController implements Consume
      * be seamlessly rotated later.
      */
     void start() {
+        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_ROTATION_LATENCY_BOOST, -2L);
         for (int i = mTargetWindowTokens.size() - 1; i >= 0; i--) {
             final WindowToken windowToken = mTargetWindowTokens.keyAt(i);
             final Operation op = mTargetWindowTokens.valueAt(i);

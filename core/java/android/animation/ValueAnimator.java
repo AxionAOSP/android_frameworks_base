@@ -30,12 +30,13 @@ import android.os.SystemProperties;
 import android.os.Trace;
 import android.util.AndroidRuntimeException;
 import android.util.Log;
+import android.view.Choreographer;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.view.animation.LinearInterpolator;
+import android.app.AxBoostFwk;
 
-import com.android.internal.util.BoostHelper;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -1120,8 +1121,9 @@ public class ValueAnimator extends Animator implements AnimationHandler.Animatio
         if (Looper.myLooper() == null) {
             throw new AndroidRuntimeException("Animators may only be run on Looper threads");
         }
-        if (mDuration >= 500L) {
-            BoostHelper.onAnimation(BoostHelper.Animation.START);
+        AxBoostFwk.acquireHint(AxBoostFwk.OP_RENDER_ANIMATION, mDuration);
+        if (mDuration > 50L && mRepeatCount != INFINITE && mDuration > 0L) {
+            mDuration = Math.max(16L, (long) (mDuration * 0.8f));
         }
         mReversing = playBackwards;
         mSelfPulse = !mSuppressSelfPulseRequested;
@@ -1307,9 +1309,6 @@ public class ValueAnimator extends Animator implements AnimationHandler.Animatio
     private void endAnimation(boolean fromLastFrame) {
         if (mAnimationEndRequested) {
             return;
-        }
-        if (mDuration >= 500L) {
-            BoostHelper.onAnimation(BoostHelper.Animation.END);
         }
         final boolean postNotifyEndListener = sPostNotifyEndListenerEnabled && mListeners != null
                 && fromLastFrame && getScaledDuration() > 0;

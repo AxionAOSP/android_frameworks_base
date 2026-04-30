@@ -102,9 +102,13 @@ import android.window.TaskFragmentAnimationParams;
 import android.window.TaskFragmentInfo;
 import android.window.TaskFragmentOrganizerToken;
 
+import android.app.AxBoostFwk;
+
 import com.android.internal.annotations.VisibleForTesting;
+import android.content.ComponentName;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.ToBooleanFunction;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.am.HostingRecord;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.window.flags.Flags;
@@ -1726,13 +1730,27 @@ class TaskFragment extends WindowContainer<WindowContainer> {
             if (prev.finishing) {
                 if (mTaskSupervisor.mNoAnimActivities.contains(prev)) {
                     anim = false;
+                    if(prev.getTask() != next.getTask()) {
+                       AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_ANIM_BOOST, -2L);
+                    }
                 }
                 prev.setVisibility(false);
-            } else if (mTaskSupervisor.mNoAnimActivities.contains(next)) {
+            } else {
+                if (mTaskSupervisor.mNoAnimActivities.contains(next)) {
+                    anim = false;
+                } else {
+                    if(prev.getTask() != next.getTask()) {
+                       AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_ANIM_BOOST, -2L);
+                    }
+                }
+            }
+        } else {
+            if (mTaskSupervisor.mNoAnimActivities.contains(next)) {
                 anim = false;
             }
-        } else if (mTaskSupervisor.mNoAnimActivities.contains(next)) {
-            anim = false;
+            if (next != null && next.isActivityTypeHome()) {
+                AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_EXIT_ANIM_BOOST, -2L);
+            }
         }
 
         if (anim) {
@@ -2350,6 +2368,7 @@ class TaskFragment extends WindowContainer<WindowContainer> {
     }
 
     void executeAppTransition(ActivityOptions options) {
+        ActivityRecord top = getTopNonFinishingActivity();
         mDisplayContent.executeAppTransition();
         ActivityOptions.abort(options);
     }
@@ -2863,8 +2882,6 @@ class TaskFragment extends WindowContainer<WindowContainer> {
     @Override
     public void onAnimationLeashCreated(SurfaceControl.Transaction t, SurfaceControl leash) {
         super.onAnimationLeashCreated(t, leash);
-        // Reset surface bounds for animation. It will be taken care by the animation leash, and
-        // reset again onAnimationLeashLost.
         if (mTaskFragmentOrganizer != null
                 && (mLastSurfaceSize.x != 0 || mLastSurfaceSize.y != 0)) {
             t.setWindowCrop(mSurfaceControl, 0, 0);
@@ -2880,7 +2897,6 @@ class TaskFragment extends WindowContainer<WindowContainer> {
     @Override
     public void onAnimationLeashLost(SurfaceControl.Transaction t) {
         super.onAnimationLeashLost(t);
-        // Update the surface bounds after animation.
         if (mTaskFragmentOrganizer != null) {
             updateOrganizedTaskFragmentSurfaceSize(t, true /* forceUpdate */);
         }

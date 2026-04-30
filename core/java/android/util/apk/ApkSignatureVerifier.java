@@ -25,6 +25,7 @@ import static android.os.Trace.TRACE_TAG_PACKAGE_MANAGER;
 import static android.util.apk.ApkSignatureSchemeV4Verifier.APK_SIGNATURE_SCHEME_DEFAULT;
 
 import android.annotation.NonNull;
+import android.app.AxBoostFwk;
 import android.content.pm.Signature;
 import android.content.pm.SigningDetails;
 import android.content.pm.SigningDetails.SignatureSchemeVersion;
@@ -100,6 +101,9 @@ public class ApkSignatureVerifier {
      */
     private static ParseResult<SigningDetails> verifySignatures(ParseInput input, String apkPath,
             @SignatureSchemeVersion int minSignatureSchemeVersion, boolean verifyFull) {
+        if (verifyFull) {
+            AxBoostFwk.acquireHint(AxBoostFwk.OP_PACKAGE_INSTALL_BOOST, -2L);
+        }
         final ParseResult<SigningDetailsWithDigests> result =
                 verifySignaturesInternal(input, apkPath, minSignatureSchemeVersion, verifyFull);
         if (result.isError()) {

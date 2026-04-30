@@ -112,6 +112,7 @@ import com.android.server.am.psc.ProcessServiceRecordInternal;
 import com.android.server.am.psc.ServiceRecordInternal;
 import com.android.server.am.psc.UidRecordInternal;
 import com.android.server.wm.ActivityServiceConnectionsHolder;
+import com.android.server.AxExtServiceFactory;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -617,6 +618,10 @@ public class OomAdjusterImpl extends OomAdjuster {
     private final ProcessRecordNodes mProcessRecordAdjNodes = new ProcessRecordNodes(
             ProcessRecordNode.NODE_TYPE_ADJ, ADJ_SLOT_VALUES.length);
     private final OomAdjusterArgs mTmpOomAdjusterArgs = new OomAdjusterArgs();
+
+    private int mCurAppPid = -1;
+    private int mCurRenderThreadTid = -1;
+    private long mPerfHandle = -1;
 
     void unlinkProcessRecordFromList(@NonNull ProcessRecordInternal app) {
         mProcessRecordProcStateNodes.unlink(app);
@@ -1231,6 +1236,27 @@ public class OomAdjusterImpl extends OomAdjuster {
             }
             hasVisibleActivities = true;
             procState = PROCESS_STATE_TOP;
+
+            boolean topAppChanged = false;
+            if (mCurRenderThreadTid != app.getRenderThreadTid()
+                    && app.getRenderThreadTid() > 0) {
+                mCurRenderThreadTid = app.getRenderThreadTid();
+                topAppChanged = true;
+            }
+            if (mCurAppPid != app.getPid() && app.getPid() > 0) {
+                mCurAppPid = app.getPid();
+                topAppChanged = true;
+            }
+            if (topAppChanged) {
+                if (mPerfHandle >= 0) {
+                    ((AxBurstEngine) AxExtServiceFactory.getAxBurstEngine())
+                            .perfHintRelease(mPerfHandle);
+                    mPerfHandle = -1;
+                }
+                mPerfHandle = ((AxBurstEngine) AxExtServiceFactory.getAxBurstEngine())
+                        .updateTopApp(app.processName, app.getPid(), app.getRenderThreadTid());
+            }
+
             if (reportDebugMsgs) {
                 reportOomAdjMessageLocked(TAG_OOM_ADJ, "Making top: " + app);
             }

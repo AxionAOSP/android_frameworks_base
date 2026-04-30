@@ -1430,4 +1430,7 @@ public abstract class ActivityManagerInternal {
      * @hide
      */
     public abstract void addCreatorToken(Intent intent, String creatorPackage);
+
+    /** @hide */
+    public abstract int startActivityAsUserEmpty(Bundle options);
 }

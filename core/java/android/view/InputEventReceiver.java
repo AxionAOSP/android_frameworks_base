@@ -45,6 +45,7 @@ public abstract class InputEventReceiver {
     // they are not GC'd while the native peer of the receiver is using them.
     private InputChannel mInputChannel;
     private Looper mLooper;
+    private Choreographer mChoreographer;
 
     // Map from InputEvent sequence numbers to dispatcher sequence numbers.
     private final SparseIntArray mSeqMap = new SparseIntArray();
@@ -275,6 +276,15 @@ public abstract class InputEventReceiver {
     private void dispatchInputEvent(int seq, InputEvent event) {
         mSeqMap.put(event.getSequenceNumber(), seq);
         onInputEvent(event);
+        if (event instanceof MotionEvent) {
+            if (mChoreographer == null) {
+                mChoreographer = Choreographer.getInstance();
+            }
+            if (mChoreographer != null) {
+                mChoreographer.setMotionEventInfo(
+                        ((MotionEvent) event).getActionMasked(), 0);
+            }
+        }
     }
 
     /**

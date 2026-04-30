@@ -19,4 +19,7 @@ public interface IUxPerformance {
     default void systemReady() {}
     default void setScreenState(boolean off) {}
     default void perfIOPrefetchStart(int pid, String packageName, String codePath) {}
+    default void perfIOPrefetchStop() {}
+    default void uxEngineEvent(int opcode, int pid, String packageName, int lat) {}
+    default String uxEngineTrigger() { return null; }
 }

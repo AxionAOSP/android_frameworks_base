@@ -30,7 +30,7 @@ import android.view.Display.DEFAULT_DISPLAY
 import android.view.View
 import android.view.ViewRootImpl
 import androidx.annotation.VisibleForTesting
-import com.android.internal.util.BoostHelper
+import android.app.AxBoostFwk
 import androidx.dynamicanimation.animation.FloatPropertyCompat
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
@@ -379,9 +379,9 @@ constructor(
 
     private fun onBlurApplied(appliedBlurRadius: Int, zoomOutFromShadeRadius: Float) {
         if (lastAppliedBlur == 0 && appliedBlurRadius > 0) {
-            BoostHelper.shadeBoost(true)
+            AxBoostFwk.acquireHint(AxBoostFwk.OP_SHADE, -1L)
         } else if (lastAppliedBlur > 0 && appliedBlurRadius == 0) {
-            BoostHelper.shadeBoost(false)
+            AxBoostFwk.acquireHint(AxBoostFwk.OP_SHADE, 0L)
         }
         lastAppliedBlur = appliedBlurRadius
         onZoomOutChanged(zoomOutFromShadeRadius)

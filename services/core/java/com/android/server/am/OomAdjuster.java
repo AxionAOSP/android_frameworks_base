@@ -71,8 +71,8 @@ import static android.os.Process.THREAD_GROUP_FOREGROUND_WINDOW;
 import static android.os.Process.THREAD_GROUP_H_BACKGROUND;
 import static android.os.Process.THREAD_GROUP_L_BACKGROUND;
 import static android.os.Process.THREAD_GROUP_RESTRICTED;
-import static android.os.Process.THREAD_GROUP_SYSTEMUI;
 import static android.os.Process.THREAD_GROUP_SVP;
+import static android.os.Process.THREAD_GROUP_SYSTEMUI;
 import static android.os.Process.THREAD_GROUP_TOP_APP;
 import static android.os.Process.THREAD_PRIORITY_DISPLAY;
 import static android.os.Process.THREAD_PRIORITY_TOP_APP_BOOST;
@@ -128,6 +128,7 @@ import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.app.ActivityManagerInternal.OomAdjReason;
 import android.app.ApplicationExitInfo;
+import android.app.AxBoostFwk;
 import android.app.usage.UsageEvents;
 import android.content.ComponentName;
 import android.content.Context;
@@ -158,6 +159,8 @@ import com.android.server.am.psc.ProcessRecordInternal;
 import com.android.server.am.psc.ProcessServiceRecordInternal;
 import com.android.server.am.psc.ServiceRecordInternal;
 import com.android.server.am.psc.UidRecordInternal;
+import com.android.server.uifirst.IAxUiFirstManager;
+import com.android.server.uifirst.AxUiFirstManager;
 import com.android.server.thermal.IAxAdvancedThermalMitigationService;
 import com.android.server.wm.WindowProcessController;
 
@@ -333,6 +336,12 @@ public abstract class OomAdjuster {
     final ActivityManagerGlobalLock mProcLock;
 
     private final int mNumSlots;
+
+    private final int mMinBServiceAgingTime = 300000;
+    private final int mBServiceAppThreshold = 15;
+    private final boolean mEnableBServicePropagation = true;
+    private final boolean mEnableBgt = true;
+
     protected final ArrayList<ProcessRecordInternal> mTmpProcessList = new ArrayList<>();
     protected final ArrayList<UidRecordInternal> mTmpBecameIdle = new ArrayList<>();
     protected final ActiveUids mTmpUidRecords;
@@ -540,7 +549,7 @@ public abstract class OomAdjuster {
                     + processName + " to " + group);
         }
         try {
-            android.os.Process.setProcessGroup(pid, group);
+            android.os.Process.setThreadGroupAndCpuset(pid, group);
         } catch (Exception e) {
             if (DEBUG_ALL) {
                 Slog.w(TAG, "Failed setting process group of " + pid + " to " + group, e);
@@ -1133,6 +1142,10 @@ public abstract class OomAdjuster {
         final double freeSwapPercent = proactiveKillsEnabled ? getFreeSwapPercent() : 1.00;
         ProcessRecordInternal lruCachedApp = null;
 
+        int numBServices = 0;
+        long serviceLastActivity = 0;
+        ProcessRecordInternal selectedAppRecord = null;
+
         for (int i = numLru - 1; i >= 0; i--) {
             final ProcessRecordInternal app = lruList.get(i);
             if (!app.isKilledByAm() && app.isProcessRunning()) {
@@ -1210,6 +1223,25 @@ public abstract class OomAdjuster {
                         break;
                 }
 
+                if (mEnableBServicePropagation && app.isServiceB()
+                        && app.getCurAdj() == ProcessList.SERVICE_B_ADJ) {
+                    numBServices++;
+                    for (int s = psr.numberOfRunningServices() - 1; s >= 0; s--) {
+                        ServiceRecordInternal sr = psr.getRunningServiceAt(s);
+                        if (SystemClock.uptimeMillis() - sr.getLastActivity()
+                                < mMinBServiceAgingTime) {
+                            continue;
+                        }
+                        if (serviceLastActivity == 0) {
+                            serviceLastActivity = sr.getLastActivity();
+                            selectedAppRecord = app;
+                        } else if (sr.getLastActivity() < serviceLastActivity) {
+                            serviceLastActivity = sr.getLastActivity();
+                            selectedAppRecord = app;
+                        }
+                    }
+                }
+
                 // TODO: b/319163103 - limit isolated/sandbox trimming to just the processes
                 //  evaluated in the current update.
                 if (app.isolated && psr.numberOfRunningServices() <= 0
@@ -1239,6 +1271,21 @@ public abstract class OomAdjuster {
                         && !app.isKilledByAm()) {
                     numTrimming++;
                 }
+            }
+        }
+
+        if (mEnableBServicePropagation && numBServices > mBServiceAppThreshold
+                && selectedAppRecord != null
+                && mService.mAppProfiler.getAllowLowerMemLevelLocked()) {
+            selectedAppRecord.setCurAdj(ProcessList.CACHED_APP_MAX_ADJ);
+            selectedAppRecord.setAdjType("bservice");
+            if (AxExtServiceFactory.getAxBackgroundManager().useAppKeepaliveManager()) {
+                AxExtServiceFactory.getAxBackgroundManager().isProcessKeepAlive(selectedAppRecord);
+            }
+            if (DEBUG_OOM_ADJ) {
+                Slog.d(TAG_OOM_ADJ, "app.processName = " + selectedAppRecord.getProcessName()
+                        + " app.pid = " + selectedAppRecord.getPid()
+                        + " is moved to higher adj");
             }
         }
 
@@ -2092,21 +2139,21 @@ public abstract class OomAdjuster {
             state.setSetRawAdj(state.getCurRawAdj());
         }
 
-        ProcessFreezerManager freezer = ProcessFreezerManager.getInstance();
+        AxBackgroundManager freezer = AxExtServiceFactory.getAxBackgroundManager();
         if (freezer != null && freezer.useFreezerManager()) {
             // unfreeze process if user press home key before the first frame appeared
             if ((state.getSetAdj() >= ProcessList.FOREGROUND_APP_ADJ &&
                         state.getSetAdj() <= ProcessList.VISIBLE_APP_ADJ) &&
                         state.getCurAdj() > ProcessList.VISIBLE_APP_ADJ) {
                 freezer.startUnfreeze(state.processName,
-                        ProcessFreezerManager.INTERRUPT_LAUNCH_UNFREEZE);
+                        AxFreezeManager.INTERRUPT_LAUNCH_UNFREEZE);
             }
             // check whether process/service that launching app depend on is in the freeze list
             if (state.getSetAdj() >= state.getCurAdj() &&
                         state.getCurAdj() <= ProcessList.VISIBLE_APP_ADJ) {
                 if (freezer.checkNeedFreezeProcessLocked(state)) {
                     freezer.startUnfreezeService(state,
-                            ProcessFreezerManager.DEPEND_LAUNCH_UNFREEZE);
+                            AxFreezeManager.DEPEND_LAUNCH_UNFREEZE);
                 }
             }
         }
@@ -2135,6 +2182,24 @@ public abstract class OomAdjuster {
                 uidRec.setProcAdjChanged(true);
             }
             state.setVerifiedAdj(INVALID_ADJ);
+
+            if (mEnableBgt) {
+                if (oldOomAdj >= ProcessList.CACHED_APP_MIN_ADJ
+                        && oldOomAdj <= ProcessList.CACHED_APP_MAX_ADJ
+                        && state.getCurAdj() == ProcessList.FOREGROUND_APP_ADJ) {
+                    Slog.d(TAG_OOM_ADJ, "App adj change from cached state to fg state : "
+                            + state.getPid() + " " + state.processName);
+                    AxExtServiceFactory.getAxBurstEngine().perfLockAcquire(10, new int[]{AxBoostFwk.OP_GPU_APP_FG, state.getPid()});
+                }
+                if (oldOomAdj == ProcessList.PREVIOUS_APP_ADJ
+                        && state.getCurAdj() >= ProcessList.CACHED_APP_MIN_ADJ
+                        && state.getCurAdj() <= ProcessList.CACHED_APP_MAX_ADJ
+                        && state.hasActivities()) {
+                    Slog.d(TAG_OOM_ADJ, "App adj change from previous state to cached state : "
+                            + state.getPid() + " " + state.processName);
+                    AxExtServiceFactory.getAxBurstEngine().perfLockAcquire(10, new int[]{AxBoostFwk.OP_GPU_APP_BG, state.getPid()});
+                }
+            }
         }
 
         final int curSchedGroup = state.getCurrentSchedulingGroup();
@@ -2155,8 +2220,7 @@ public abstract class OomAdjuster {
             int processGroup;
             switch (curSchedGroup) {
                 case SCHED_GROUP_BACKGROUND:
-                    if (state.getCurAdj() >= ProcessList.CACHED_APP_MIN_ADJ
-                            && !AxUtils.isVipHBackground(state.processName)) {
+                    if (state.getCurAdj() >= ProcessList.CACHED_APP_MIN_ADJ) {
                         processGroup = THREAD_GROUP_L_BACKGROUND;
                     } else {
                         processGroup = THREAD_GROUP_H_BACKGROUND;
@@ -2194,37 +2258,57 @@ public abstract class OomAdjuster {
                     }
                     break;
             }
-            if (processGroup != THREAD_GROUP_TOP_APP
-                    && processGroup != THREAD_GROUP_SVP
-                    && AxUtils.isSystemUi(state.processName)) {
+            if (processGroup != THREAD_GROUP_SVP
+                    && AxUtils.isInPerfList(state.processName)) {
                 processGroup = THREAD_GROUP_SYSTEMUI;
             }
             setAppAndChildProcessGroup(state, processGroup);
             try {
                 final int renderThreadTid = state.getRenderThreadTid();
+                final int uiFirstStatus;
                 if (curSchedGroup == SCHED_GROUP_TOP_APP) {
-                    AxExtServiceFactory.getAxBurstEngine().setTopAppPid(state.getPid());
+                    uiFirstStatus = IAxUiFirstManager.STATUS_TOP;
+                } else if (ActivityManager.isProcStateBackground(state.getCurProcState())) {
+                    uiFirstStatus = IAxUiFirstManager.STATUS_BACKGROUND;
+                } else {
+                    uiFirstStatus = IAxUiFirstManager.STATUS_FOREGROUND;
+                }
+                try {
+                    AxExtServiceFactory.getUiFirstManager().adjustUxProcess(
+                            ((ProcessRecord) state).info,
+                            state.processName, uiFirstStatus, state.uid, state.getPid(),
+                            renderThreadTid, state.getHwuiTaskTids(),
+                            state.isRunningRemoteAnimation());
+                } catch (Exception ignored) {
+                }
+                if (curSchedGroup == SCHED_GROUP_TOP_APP) {
                     IAxAdvancedThermalMitigationService thermalSvc =
                             AxExtServiceFactory.getAdvancedThermalMitigationService();
                     if (thermalSvc.getProducer() != null) {
                         thermalSvc.getProducer().onTopAppChanged(state.getPid(), state.processName);
                     }
-                    if (renderThreadTid > 0) {
-                        AxExtServiceFactory.getAxBurstEngine().setTopAppRenderThread(
-                                state.getPid(), renderThreadTid);
-                    }
                     try {
-                        AxExtServiceFactory.getUiFirstManager().applyTopAppRoles(
-                                state.uid, state.getPid(), renderThreadTid);
+                        AxExtServiceFactory.getUiFirstManager().adjustTopApp(
+                                state.processName, state.uid, state.getPid(), renderThreadTid,
+                                state.getHwuiTaskTids());
                     } catch (Exception ignored) {}
                     // do nothing if we already switched to RT
                     if (oldSchedGroup != SCHED_GROUP_TOP_APP) {
                         state.notifyTopProcChanged();
-                        if (state.useRoundRobinUiScheduling()) {
+                        if (state.useRoundRobinUiScheduling()
+                                || (AxExtServiceFactory.getAxBackgroundManager().getUiRtLevel()
+                                        == AxUiFirstManager.UiRtLevel.RR
+                                    && !((ProcessRecord) state).info.isSystemApp()
+                                    && !((ProcessRecord) state).info.isUpdatedSystemApp()
+                                    && state.processName.equals(((ProcessRecord) state).info.packageName))) {
                             // Switch UI pipeline for app to SCHED_RR
                             state.setSavedPriority(Process.getThreadPriority(state.getPid()));
                             ActivityManagerService.setRoundRobinPriority(state, true /* enable */);
-                        } else if (state.useFifoUiScheduling()) {
+                        } else if (state.useFifoUiScheduling()
+                                || (AxExtServiceFactory.getAxBackgroundManager().useUiBoost()
+                                    && !((ProcessRecord) state).info.isSystemApp()
+                                    && !((ProcessRecord) state).info.isUpdatedSystemApp()
+                                    && state.processName.equals(((ProcessRecord) state).info.packageName))) {
                             // Switch UI pipeline for app to SCHED_FIFO
                             state.setSavedPriority(Process.getThreadPriority(state.getPid()));
                             ActivityManagerService.setFifoPriority(state, true /* enable */);
@@ -2242,14 +2326,34 @@ public abstract class OomAdjuster {
                             }
                         }
                     }
+                    if (AxExtServiceFactory.getAxBackgroundManager().useUiBoost()) {
+                        if (!((ProcessRecord) state).info.isSystemApp() && !((ProcessRecord) state).info.isUpdatedSystemApp()
+                                && state.processName.equals(((ProcessRecord) state).info.packageName)) {
+                            try {
+                                Process.setThreadAffinity(renderThreadTid,
+                                        Process.AFFINITY_BIG);
+                            } catch (Exception e) {
+                                Slog.e("UI_Affinity", "Failed to set thread affinity", e);
+                            }
+                        }
+                    }
                 } else if (oldSchedGroup == SCHED_GROUP_TOP_APP
                         && curSchedGroup != SCHED_GROUP_TOP_APP) {
                     state.notifyTopProcChanged();
-                    if (state.useRoundRobinUiScheduling()) {
+                    if (state.useRoundRobinUiScheduling()
+                                || (AxExtServiceFactory.getAxBackgroundManager().getUiRtLevel()
+                                        == AxUiFirstManager.UiRtLevel.RR
+                                    && !((ProcessRecord) state).info.isSystemApp()
+                                    && !((ProcessRecord) state).info.isUpdatedSystemApp()
+                                    && state.processName.equals(((ProcessRecord) state).info.packageName))) {
                         // Reset UI pipeline to SCHED_OTHER
                         ActivityManagerService.setRoundRobinPriority(state, false /* enable */);
                         mInjector.setThreadPriority(state.getPid(), state.getSavedPriority());
-                    } else if (state.useFifoUiScheduling()) {
+                    } else if (state.useFifoUiScheduling()
+                                || (AxExtServiceFactory.getAxBackgroundManager().useUiBoost()
+                                    && !((ProcessRecord) state).info.isSystemApp()
+                                    && !((ProcessRecord) state).info.isUpdatedSystemApp()
+                                    && state.processName.equals(((ProcessRecord) state).info.packageName))) {
                         // Reset UI pipeline to SCHED_OTHER
                         ActivityManagerService.setFifoPriority(state, false /* enable */);
                         mInjector.setThreadPriority(state.getPid(), state.getSavedPriority());
@@ -2261,6 +2365,18 @@ public abstract class OomAdjuster {
                     if (renderThreadTid != 0) {
                         mInjector.setThreadPriority(renderThreadTid, THREAD_PRIORITY_DISPLAY);
                     }
+
+                    if (AxExtServiceFactory.getAxBackgroundManager().useUiBoost()) {
+                        if (!((ProcessRecord) state).info.isSystemApp() && !((ProcessRecord) state).info.isUpdatedSystemApp()
+                                && state.processName.equals(((ProcessRecord) state).info.packageName)) {
+                            try {
+                                Process.setThreadAffinity(renderThreadTid,
+                                        Process.AFFINITY_LITTLE);
+                            } catch (Exception e) {
+                                Slog.e("UI_Affinity", "Failed to reset thread affinity", e);
+                            }
+                        }
+                    }
                     try {
                         AxExtServiceFactory.getUiFirstManager().clearTopAppRoles(
                                 state.uid, state.getPid());
@@ -2271,10 +2387,6 @@ public abstract class OomAdjuster {
                     Slog.w(TAG, "Failed setting thread priority of " + state.getPid(), e);
                 }
             }
-        }
-        if (curSchedGroup != SCHED_GROUP_TOP_APP
-                && AxUtils.isSystemUi(state.processName)) {
-            setAppAndChildProcessGroup(state, THREAD_GROUP_SYSTEMUI);
         }
         if (curSchedGroup == SCHED_GROUP_DEFAULT
                 && state.getCurProcState() >= PROCESS_STATE_FOREGROUND_SERVICE
@@ -2439,9 +2551,16 @@ public abstract class OomAdjuster {
                 // {@link SCHED_GROUP_TOP_APP}. We don't check render thread because it
                 // is not ready when attaching.
                 app.notifyTopProcChanged();
-                if (app.useRoundRobinUiScheduling()) {
+                if (app.useRoundRobinUiScheduling()
+                        || (AxExtServiceFactory.getAxBackgroundManager().getUiRtLevel()
+                                == AxUiFirstManager.UiRtLevel.RR
+                            && !((ProcessRecord) app).info.isSystemApp() && !((ProcessRecord) app).info.isUpdatedSystemApp()
+                            && app.processName.equals(((ProcessRecord) app).info.packageName))) {
                     mService.scheduleAsRoundRobinPriority(app.getPid(), true);
-                } else if (app.useFifoUiScheduling()) {
+                } else if (app.useFifoUiScheduling()
+                        || (AxExtServiceFactory.getAxBackgroundManager().useUiBoost()
+                            && !((ProcessRecord) app).info.isSystemApp() && !((ProcessRecord) app).info.isUpdatedSystemApp()
+                            && app.processName.equals(((ProcessRecord) app).info.packageName))) {
                     mService.scheduleAsFifoPriority(app.getPid(), true);
                 } else {
                     mInjector.setThreadPriority(app.getPid(), THREAD_PRIORITY_TOP_APP_BOOST);

@@ -124,6 +124,8 @@ import android.window.TransitionInfo;
 import android.window.TransitionRequestInfo;
 import android.window.WindowContainerTransaction;
 
+import android.app.AxBoostFwk;
+
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.graphics.ColorUtils;
 import com.android.internal.policy.TransitionAnimation;
@@ -132,6 +134,7 @@ import com.android.internal.protolog.WmProtoLogGroups;
 import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.server.AnimationThread;
 import com.android.server.AxExtServiceFactory;
+import com.android.server.am.IAxBurstEngine;
 import com.android.server.inputmethod.InputMethodManagerInternal;
 import com.android.server.statusbar.StatusBarManagerInternal;
 
@@ -788,7 +791,7 @@ class Transition implements BLASTSyncEngine.TransactionReadyListener {
             return;
         }
         AxExtServiceFactory.getAxBurstEngine().systemThreadBoost(AnimationThread.get().getThreadId(), 500L);
-        AxExtServiceFactory.getAxBurstEngine().compositionBoost(800L);
+        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_RENDER_TRANSITION, -2L);
         mState = STATE_STARTED;
         ProtoLog.v(WmProtoLogGroups.WM_DEBUG_WINDOW_TRANSITIONS, "Starting Transition %d",
                 mSyncId);
@@ -1667,6 +1670,7 @@ class Transition implements BLASTSyncEngine.TransactionReadyListener {
                 final ChangeInfo changeInfo = mChanges.get(dc);
                 if (changeInfo != null
                         && changeInfo.mRotation != dc.getWindowConfiguration().getRotation()) {
+                    AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_ROTATION_ANIM_BOOST, -2L);
                     dc.mAppCompatCameraPolicy.onScreenRotationAnimationFinished();
                 }
             }

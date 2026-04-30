@@ -31,6 +31,7 @@ import android.os.Temperature;
 import android.util.Log;
 
 import com.android.internal.os.ProcessCpuTracker;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.am.AxPerfConfig;
 
 import java.util.ArrayList;
@@ -74,6 +75,7 @@ public final class AxAdvancedThermalMitigationProducer {
     private int mTopAppPid = -1;
     private ProcessCpuTracker mCpuTracker;
     private static final long HEATING_SCAN_INTERVAL_MS = 5000L;
+    private static final long HEATING_SCAN_DEFER_MS = 1000L;
     private static final int HEATING_CPU_THRESHOLD_PCT = 30;
     private static final int FIRST_APPLICATION_UID = 10000;
 
@@ -115,6 +117,10 @@ public final class AxAdvancedThermalMitigationProducer {
     }
 
     private void scanHeatingFgs() {
+        if (AxExtServiceFactory.getAxBurstEngine().shouldDeferProcessPss()) {
+            mHandler.postDelayed(this::scanHeatingFgs, HEATING_SCAN_DEFER_MS);
+            return;
+        }
         try {
             mCpuTracker.update();
             int n = mCpuTracker.countWorkingStats();

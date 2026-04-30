@@ -17,6 +17,8 @@ package com.android.internal.util;
 
 import android.graphics.BLASTBufferQueue;
 import android.os.Process;
+import android.view.Choreographer;
+import android.view.Surface;
 import android.view.DisplayEventReceiver;
 import android.os.StrictMode;
 import android.os.SystemClock;
@@ -26,6 +28,7 @@ import android.util.Log;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.util.Locale;
 
@@ -41,16 +44,19 @@ public class ScrollOptimizer {
     private static final String PROP_SCROLL_OPT = "persist.sys.perf.scroll_opt";
     private static final String PROP_SCROLL_OPT_HEAVY_APP = "persist.sys.perf.scroll_opt.heavy_app";
     private static final String PROP_DEBUG = "persist.sys.perf.scroll_opt_debug";
-    private static final String PROP_ANIM_AHEAD = "persist.sys.perf.anim_ahead";
     private static final String PROP_FRAME_INSERT = "persist.sys.perf.frame_insert";
+    private static final String PROP_PRE_ANIM = "persist.sys.perf.pre_anim";
 
     private static final String TIMER_SLACK_CONTENT = "50000";
+    private static final float VELOCITY_EXTRA1 = 1000f;
+    private static final float VELOCITY_EXTRA2 = 3000f;
+    private static final float VELOCITY_USE_VSYNC = 300f;
+    private static final float VELOCITY_BUFF_CAP = 2500f;
 
     private static final long FRAME_INTERVAL_THRESHOLD_NS = 10_000_000L;
     private static final long DEFAULT_FRAME_DELAY_MS = 10L;
     private static final long OPTIMIZED_FRAME_DELAY_MS = 3L;
     private static final long FLING_END_TIMEOUT_MS = 3000L;
-    private static final long ANIM_AHEAD_MARGIN_NS = 2_000_000L;
     private static final long TIME_BACKWARD_THRESHOLD_NS = 500_000L;
 
     private static int sInitialUndequeued = 4;
@@ -66,6 +72,9 @@ public class ScrollOptimizer {
     private static boolean sPrevUseVsync = true;
     private static boolean sAdjustCalled = false;
     private static boolean sTimerSlackUpdated = false;
+    private static boolean sPreAnimationEnable = true;
+    private static boolean mIsPreAnim = false;
+    private static long mLastAnimFrameTimeNano = 0;
     private static boolean sPreRenderDone = false;
     private static boolean sNeedUpdateBuffer = false;
 
@@ -78,11 +87,16 @@ public class ScrollOptimizer {
     private static long sLastFlingStartMs = -1;
     private static long sLastUIStartNs = -1;
     private static long sLastUIEndNs = -1;
-    private static long sLastFrameAnimOptTimeNs = 0L;
+    private static long sLastUiDuration = 0;
+    private static long sLastDoframeBeginNs = -1;
+    private static long sLastDoframeEndNs = -1;
     private static long sLastFrameTimeNs = 0L;
     private static long sOriginalFrameTimeNs = 0L;
     private static long sAdjustedFrameTimeNs = 0L;
+    private static long sDriftAccumulator;
+    private static float sVelocity;
     private static boolean sIsTimeBackward = false;
+    private static boolean sInsertFrameActive;
     private static boolean sIgnoreFling = false;
     private static boolean sWebViewFlutterFling = false;
     private static volatile boolean sVsyncIndexFull = false;
@@ -92,10 +106,16 @@ public class ScrollOptimizer {
     private static boolean sIsFlingVague = false;
     private static boolean sIsFlingAccurate = false;
     private static boolean sScrollChangedEnable = false;
+    private static boolean sIsFirstFrame = false;
+    private static long sNonVsyncStartNs = 0;
 
     private static int sPid = -1;
+    private static Choreographer sChoreographer;
     private static int sHeavyAppProp = -1;
     private static int sHeavyApp = 0;
+    private static int sLastFrameRate;
+    private static int mLastFrameRate;
+    private static boolean mFrameRateChanging;
     private static int sHeavyFrameCount = 0;
     private static int sAppType = APP_TYPE_NORMAL;
     private static int sMotionType = PROP_UNSET;
@@ -115,9 +135,6 @@ public class ScrollOptimizer {
     private static boolean sFeatureEnabled = false;
     private static boolean sTemporarilyDisabled = false;
     private static boolean sLastUseVsync = true;
-    private static boolean sAnimAheadEnabled = false;
-    private static boolean sAnimAheadActive = false;
-
     private static boolean sFrameInsertEnabled = false;
     private static void logger(String msg) {
         if (sDebugEnabled) {
@@ -149,8 +166,8 @@ public class ScrollOptimizer {
             sHeavyAppProp = prop;
             sHeavyApp = prop;
             sDebugEnabled = SystemProperties.getBoolean(PROP_DEBUG, false);
-            sAnimAheadEnabled = SystemProperties.getBoolean(PROP_ANIM_AHEAD, true);
             sFrameInsertEnabled = SystemProperties.getBoolean(PROP_FRAME_INSERT, true);
+            sPreAnimationEnable = SystemProperties.getBoolean(PROP_PRE_ANIM, true);
 
             Class<?> clazz = Class.forName("android.graphics.BLASTBufferQueue");
             sSetUndequeuedMethod = clazz.getMethod("setUndequeuedBufferCount", Integer.TYPE);
@@ -201,9 +218,13 @@ public class ScrollOptimizer {
         sHeavyFrameCount = 0;
         sMotionType = PROP_UNSET;
         mLastFlingFlg = 0;
-        sAnimAheadActive = false;
         sTimerSlackUpdated = false;
         sVsyncIndexFull = false;
+        sDriftAccumulator = 0;
+        sLastAdjustedTimeNs = 0;
+        mFrameRateChanging = false;
+        sIsFirstFrame = true;
+        sNonVsyncStartNs = 0;
     }
 
     private static void updateExpectedFromPreRender() {
@@ -220,49 +241,39 @@ public class ScrollOptimizer {
         }
     }
 
-    public static long getAdjustedAnimationClock(long originalTimeNs) {
+    public static long getAdjustedAnimationClock(long frameTimeNanos) {
         if (!sFeatureEnabled || Process.myTid() != sPid) {
-            return originalTimeNs;
+            return frameTimeNanos;
         }
-        if (sAdjustCalled) {
-            logger("unnecessary adjustClock is called!");
-            if (originalTimeNs > sLastAdjustedTimeNs) {
-                sLastAdjustedTimeNs = originalTimeNs;
-            }
-            return sLastAdjustedTimeNs;
+        sOriginalFrameTimeNs = frameTimeNanos;
+        if (sPreAnimationEnable && mIsPreAnim && mLastAnimFrameTimeNano > 0) {
+            sLastAdjustedTimeNs = mLastAnimFrameTimeNano;
+            return mLastAnimFrameTimeNano;
         }
-        sAdjustCalled = true;
-        long candidate = sLastAdjustedTimeNs + sFrameIntervalMs;
         if (mLastFlingFlg != 1) {
-            if (originalTimeNs >= candidate ||
-                SystemClock.uptimeMillis() >= sLastFlingStartMs + FLING_END_TIMEOUT_MS) {
-                sLastAdjustedTimeNs = originalTimeNs;
-                return originalTimeNs;
-            }
-            logger("extended adjustedTime: " + candidate + ", originTime: " + originalTimeNs);
-            logger("extend clock adjustion");
-            sLastAdjustedTimeNs = candidate;
-            return candidate;
+            sLastAdjustedTimeNs = frameTimeNanos;
+            return frameTimeNanos;
         }
-        if (candidate < originalTimeNs) {
-            candidate = originalTimeNs;
-        } else if (sPrevUseVsync) {
-            long offset = candidate - originalTimeNs;
-            if (offset > 0 && sFrameIntervalMs > 0) {
-                long rounds = Math.round((double) offset / (double) sFrameIntervalMs);
-                candidate = (sFrameIntervalMs * rounds) + originalTimeNs;
-            }
+        long adjustedClock = sLastAdjustedTimeNs + sFrameIntervalNs;
+        if (adjustedClock < frameTimeNanos) {
+            adjustedClock = frameTimeNanos;
         }
-        logger("adjustedTime: " + candidate + ", originTime: " + originalTimeNs);
-        sLastAdjustedTimeNs = candidate;
-        return candidate;
+        sLastAdjustedTimeNs = adjustedClock;
+        return adjustedClock;
     }
 
     public static long getFrameDelay() {
         if (!sFeatureEnabled) {
             return DEFAULT_FRAME_DELAY_MS;
         }
-        return OPTIMIZED_FRAME_DELAY_MS;
+        if (sLastUiDuration > sFrameIntervalNs - 1_000_000) {
+            return 0L;
+        }
+        if (sPreAnimationEnable && mIsPreAnim) {
+            return 1L;
+        }
+        long delayed = Math.max(sFrameIntervalMs / OPTIMIZED_FRAME_DELAY_MS, OPTIMIZED_FRAME_DELAY_MS);
+        return delayed;
     }
 
     private static void setUndequeuedBufferCount(int count) {
@@ -308,6 +319,37 @@ public class ScrollOptimizer {
         }
     }
 
+    public static void setSurface(Surface surface) {
+    }
+
+    public static void setInsertFrameActive(boolean active) {
+        sInsertFrameActive = active;
+    }
+
+    public static void postFrameCallbackDelay(Choreographer choreographer,
+            Runnable action, int frameCount) {
+        if (choreographer == null || action == null || frameCount < 0) return;
+        if (frameCount == 0) {
+            action.run();
+            return;
+        }
+        choreographer.postFrameCallback(new Choreographer.FrameCallback() {
+            int remaining = frameCount;
+            @Override
+            public void doFrame(long frameTimeNanos) {
+                if (--remaining > 0) {
+                    choreographer.postFrameCallback(this);
+                } else {
+                    action.run();
+                }
+            }
+        });
+    }
+
+    public static void setVelocity(float velocity) {
+        sVelocity = Math.abs(velocity);
+    }
+
     public static void setFlingFlag(int flingFlg) {
         if (sFeatureEnabled && Process.myTid() == sPid) {
             logger("setFlingFlag: " + flingFlg);
@@ -332,6 +374,7 @@ public class ScrollOptimizer {
             }
             if (sMotionType == MOTION_FLING) {
                 mLastFlingFlg = flingFlg;
+                sIsFirstFrame = true;
                 sIsFlingVague = true;
                 sIsFlingAccurate = true;
                 if (!sTimerSlackUpdated) {
@@ -339,12 +382,24 @@ public class ScrollOptimizer {
                 }
                 sNeedUpdateBuffer = false;
                 sLastFlingStartMs = SystemClock.uptimeMillis();
+                int extra = 0;
+                if (sVelocity >= VELOCITY_EXTRA2 && sVelocity >= VELOCITY_BUFF_CAP) extra = 2;
+                else if (sVelocity >= VELOCITY_EXTRA1 && sVelocity >= VELOCITY_BUFF_CAP) extra = 1;
+                if (sLastFrameRate > 0 && sLastFrameRate < 60) {
+                    extra = Math.min(extra, 1);
+                }
+                if (extra > 0) setUndequeuedBufferCount(sInitialUndequeued + extra);
                 logger("Fling start.");
             } else {
                 logger("Fling without touch");
             }
             sMotionType = PROP_UNSET;
         }
+    }
+
+    private static int toFps(long frameIntervalNs) {
+        if (frameIntervalNs <= 0) return 0;
+        return (int) ((1.0E9f / frameIntervalNs) + 0.5f);
     }
 
     public static void setFrameInterval(long nanos) {
@@ -354,6 +409,16 @@ public class ScrollOptimizer {
         logger("frameIntervalNanos: " + nanos);
         sFrameIntervalNs = nanos;
         sFrameIntervalMs = nanos / 1_000_000;
+        sLastFrameRate = toFps(nanos);
+        if (mLastFrameRate > 0) {
+            int diff = Math.abs(sLastFrameRate - mLastFrameRate);
+            if (diff >= 5) {
+                mFrameRateChanging = true;
+            } else if (diff < 3) {
+                mFrameRateChanging = false;
+            }
+        }
+        mLastFrameRate = sLastFrameRate;
         long half = nanos / 2;
         sHalfFrameIntervalNs = half;
         sHeavyFrameThresholdNs = half * OPTIMIZED_FRAME_DELAY_MS;
@@ -391,6 +456,12 @@ public class ScrollOptimizer {
                 } else {
                     sExpectedUndequeued = 1;
                 }
+            } else if (motion == 1) {
+                if (mLastFlingFlg == 1) {
+                    logger("touch up during fling");
+                    setUndequeuedBufferCount(sFallbackUndequeued);
+                    resetFlingState();
+                }
             } else if (motion == MOTION_SCROLL) {
                 sNeedUpdateBuffer = true;
                 int cur = getUndequeuedBufferCount();
@@ -404,11 +475,53 @@ public class ScrollOptimizer {
         }
     }
 
+    public static void setDoframeBegin(Choreographer choreographer) {
+        if (!sFeatureEnabled || Process.myTid() != sPid || mLastFlingFlg != 1) {
+            return;
+        }
+        sChoreographer = choreographer;
+    }
+
+    public static void setDoframeEnd(long frameTimeNanos) {
+        if (!sPreAnimationEnable || Process.myTid() != sPid || sChoreographer == null) {
+            return;
+        }
+        if (sVelocity < VELOCITY_USE_VSYNC || mFrameRateChanging || mLastFlingFlg != 1
+                || sLastUiDuration > sFrameIntervalNs - 1_000_000) {
+            if (mIsPreAnim) {
+                mIsPreAnim = false;
+                mLastAnimFrameTimeNano = 0;
+                sChoreographer.forceScheduleNexFrame();
+            }
+            return;
+        }
+        long newFrameTime = sOriginalFrameTimeNs + sFrameIntervalNs;
+        long adjust = sLastAdjustedTimeNs + sFrameIntervalNs;
+        long target = adjust < newFrameTime ? newFrameTime : adjust;
+        mIsPreAnim = false;
+        doPreAnimation(target);
+        mIsPreAnim = true;
+        mLastAnimFrameTimeNano = target;
+    }
+
+    public static boolean isPreAnim() {
+        return sPreAnimationEnable && mLastFlingFlg == 1 && mIsPreAnim;
+    }
+
+    public static void setPreAnimConsumed() {
+        mIsPreAnim = false;
+    }
+
+    private static void doPreAnimation(long frameTimeNano) {
+        sChoreographer.doPreAnimation(frameTimeNano, sFrameIntervalNs);
+    }
+
     public static void setUITaskStatus(boolean running) {
         if (sFeatureEnabled && Process.myTid() == sPid) {
             long nowNs = System.nanoTime();
             long uiDurationNs;
             if (running) {
+                sLastDoframeBeginNs = nowNs;
                 sAdjustCalled = false;
                 if (mLastFlingFlg == 1) {
                     long durSinceUIStart = nowNs - sLastUIStartNs;
@@ -425,6 +538,8 @@ public class ScrollOptimizer {
                 uiDurationNs = 0;
             } else {
                 sLastUIEndNs = nowNs;
+                sLastDoframeEndNs = nowNs;
+                sLastUiDuration = sLastDoframeEndNs - sLastDoframeBeginNs;
                 sPrevUseVsync = sLastUseVsync;
                 uiDurationNs = nowNs - sLastUIStartNs;
                 if (mLastFlingFlg == 1 && uiDurationNs > sFrameIntervalNs * 2) {
@@ -466,7 +581,22 @@ public class ScrollOptimizer {
                 sLastUseVsync = true;
                 return true;
             }
+            if (sIsFirstFrame) {
+                sIsFirstFrame = false;
+                sLastUseVsync = true;
+                return true;
+            }
+            if (sVelocity < VELOCITY_USE_VSYNC) {
+                sLastUseVsync = true;
+                return true;
+            }
             if (sVsyncIndexFull) {
+                sLastUseVsync = true;
+                return true;
+            }
+            if (sNonVsyncStartNs > 0
+                    && Math.abs(System.nanoTime() - sNonVsyncStartNs) > sFrameIntervalNs * 6) {
+                sNonVsyncStartNs = 0;
                 sLastUseVsync = true;
                 return true;
             }
@@ -474,11 +604,13 @@ public class ScrollOptimizer {
                 long now = System.nanoTime();
                 long intendedNext = sLastFrameTimeNs + sFrameIntervalNs;
                 if (!reachInsertCountThreshold(now, intendedNext) && hasAvailableBuffer()) {
+                    sNonVsyncStartNs = now;
                     sLastUseVsync = false;
                     return false;
                 }
             }
             if (sAppType == APP_TYPE_HEAVY) {
+                sNonVsyncStartNs = System.nanoTime();
                 sLastUseVsync = false;
                 return false;
             }
@@ -491,6 +623,7 @@ public class ScrollOptimizer {
             long timeToNext = interval - ((sLastUIStartNs - sLastVsyncTimeNs) % interval);
             if (timeToNext < 3_000_000L) {
                 logger("too close to next vsync");
+                sNonVsyncStartNs = System.nanoTime();
                 sLastUseVsync = false;
                 if (sExpectedUndequeued > 0) {
                     sExpectedUndequeued = sExpectedUndequeued - 1;
@@ -513,6 +646,7 @@ public class ScrollOptimizer {
             }
             if (sActualUndequeued > 0) {
                 sExpectedUndequeued = sExpectedUndequeued - 1;
+                if (sNonVsyncStartNs == 0) sNonVsyncStartNs = System.nanoTime();
                 result = false;
             } else {
                 sPreRenderDone = true;
@@ -523,6 +657,7 @@ public class ScrollOptimizer {
         }
         return result;
     }
+
     public static boolean isEnabledFlingScene() {
         return !sIgnoreFling && !sWebViewFlutterFling;
     }
@@ -563,14 +698,6 @@ public class ScrollOptimizer {
         return ret;
     }
 
-    public static void setLastFrameAnimOptTimeNanos(long timeNanos) {
-        sLastFrameAnimOptTimeNs = timeNanos;
-    }
-
-    public static long getLastFrameAnimOptTimeNanos() {
-        return sLastFrameAnimOptTimeNs;
-    }
-
     public static boolean isTimeBackward() {
         return sIsTimeBackward;
     }
@@ -581,11 +708,11 @@ public class ScrollOptimizer {
             sAdjustedFrameTimeNs = frameTimeNanos;
             return;
         }
-        sOriginalFrameTimeNs = frameTimeNanos;
+        if (!sInsertFrameActive) {
+            sOriginalFrameTimeNs = frameTimeNanos;
+        }
         long adjusted = frameTimeNanos;
-        if (sAnimAheadActive) {
-            adjusted = syncWithVsync(sLastFrameAnimOptTimeNs, frameTimeNanos);
-        } else if (mLastFlingFlg == FLING_START) {
+        if (mLastFlingFlg == FLING_START) {
             long frameInterval = sFrameIntervalNs;
             if (frameInterval > 0) {
                 long intendedNext = sLastFrameTimeNs + frameInterval;
@@ -600,12 +727,17 @@ public class ScrollOptimizer {
                 adjusted = syncWithVsync(candidate, frameTimeNanos);
             }
         }
-        sAdjustedFrameTimeNs = adjusted;
-        if (sAnimAheadActive) {
-            sIsTimeBackward = false;
-        } else {
-            sIsTimeBackward = (adjusted - sLastFrameTimeNs) < TIME_BACKWARD_THRESHOLD_NS;
+        if (mLastFlingFlg == FLING_START && sFrameIntervalNs > 0 && sLastFrameTimeNs > 0) {
+            long drift = adjusted - sLastFrameTimeNs - sFrameIntervalNs;
+            sDriftAccumulator += drift;
+            if (Math.abs(sDriftAccumulator) > sFrameIntervalNs / 4) {
+                adjusted = sLastFrameTimeNs + sFrameIntervalNs
+                        + (sDriftAccumulator > 0 ? -sFrameIntervalNs / 8 : sFrameIntervalNs / 8);
+                sDriftAccumulator = 0;
+            }
         }
+        sAdjustedFrameTimeNs = adjusted;
+        sIsTimeBackward = (adjusted - sLastFrameTimeNs) < TIME_BACKWARD_THRESHOLD_NS;
         if (!sIsTimeBackward) {
             sLastFrameTimeNs = adjusted;
         }
@@ -714,44 +846,6 @@ public class ScrollOptimizer {
         return count > sInsertNum;
     }
 
-    public static boolean shouldScheduleAnimAhead(long frameIntervalNanos) {
-        if (!sFeatureEnabled || !sAnimAheadEnabled || Process.myTid() != sPid) {
-            return false;
-        }
-        if (mLastFlingFlg != FLING_START) {
-            return false;
-        }
-        if (!isEnabledFlingScene()) {
-            return false;
-        }
-        if (sAnimAheadActive) {
-            return false;
-        }
-        long nowNs = System.nanoTime();
-        long timeSinceVsync = nowNs - sLastVsyncTimeNs;
-        long timeToNextVsync = frameIntervalNanos - timeSinceVsync;
-        if (timeToNextVsync < ANIM_AHEAD_MARGIN_NS) {
-            logger("animAhead: not enough time, timeToNext="
-                    + (timeToNextVsync / 1_000_000f) + "ms");
-            return false;
-        }
-        long intendedNext = sLastFrameTimeNs + frameIntervalNanos;
-        if (intendedNext <= nowNs) {
-            intendedNext = nowNs + frameIntervalNanos;
-        }
-        sLastFrameAnimOptTimeNs = intendedNext;
-        logger("animAhead: scheduling, timeToNext="
-                + (timeToNextVsync / 1_000_000f) + "ms target="
-                + (intendedNext / 1_000_000L) + "ms");
-        return true;
-    }
-    public static void setAnimAheadState(boolean active) {
-        sAnimAheadActive = active;
-        logger("animAhead: state=" + active);
-    }
-    public static boolean isAnimAheadActive() {
-        return sAnimAheadActive && sFeatureEnabled;
-    }
     public static boolean isActiveFling() {
         return sFeatureEnabled && mLastFlingFlg == FLING_START;
     }

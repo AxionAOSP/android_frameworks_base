@@ -18,21 +18,30 @@ package com.android.server.am;
 
 import static com.android.server.am.AxUtils.logger;
 
+import android.app.ActivityManagerInternal;
 import android.app.AppGlobals;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.content.pm.IPackageManager;
+import android.content.pm.PackageManager;
+import android.os.Binder;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.StrictMode;
+import android.os.SystemClock;
 import android.provider.Settings;
+import android.app.AxBoostFwk;
 import android.util.Log;
 
 import com.android.server.AxExtServiceFactory;
+import com.android.server.LocalServices;
 import com.android.server.NtServiceInjector;
 import com.android.server.pm.*;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
@@ -47,12 +56,18 @@ import java.util.concurrent.Executors;
 public class UxPerformance implements IUxPerformance {
 
     private static final String TAG = "UxPerformance: ";
+    
+    private static native int nativePosixFadvise(FileDescriptor fd, long offset, long len, int advice);
 
     private static final String LAST_FULL_RUN_KEY = "ux_dexopt_last_full_run";
-    private static final long FULL_RUN_INTERVAL_MS = 15L * 24 * 60 * 60 * 1000; 
+    private static final long FULL_RUN_INTERVAL_MS = 30L * 24 * 60 * 60 * 1000; 
 
     private static final String[] OAT_DIRS = {"/oat/arm64/", "/oat/arm/"};
     private static final String[] FILE_SUFFIXES = {".art", ".odex", ".vdex"};
+
+    private static final int MAX_GRAPH_APPS = 100;
+    private static final int MAX_TARGETS_PER_APP = 20;
+    private static final long DECAY_INTERVAL_MS = 24L * 60 * 60 * 1000;
 
     private final ConcurrentHashMap<File, WeakReference<MappedByteBuffer>> mappedDexBuffers = new ConcurrentHashMap<>();
 
@@ -65,10 +80,17 @@ public class UxPerformance implements IUxPerformance {
 
     private Handler dexPreloadHandler;
     private Handler pAppsHandler;
+    private Handler mPredictorHandler;
 
     private final Object preloadLock = new Object();
+    private final Object mPredictorLock = new Object();
 
     private ExecutorService prefetchExecutor;
+
+    private final Map<String, Map<String, Integer>> mTransitionGraph = new LinkedHashMap<>();
+    private String mLastAppPkg = null;
+    private String mLastPredictedPkg = null;
+    private long mLastDecayTime = 0;
 
     public UxPerformance() {}
 
@@ -77,6 +99,7 @@ public class UxPerformance implements IUxPerformance {
 
         dexPreloadHandler = createHandler("DexPrefetchHandlerThread");
         pAppsHandler = createHandler("PAppsSpeedHandlerThread");
+        mPredictorHandler = createHandler("UxPredictorHandlerThread");
 
         prefetchExecutor = Executors.newFixedThreadPool(
                 Runtime.getRuntime().availableProcessors(), r -> {
@@ -85,6 +108,7 @@ public class UxPerformance implements IUxPerformance {
                     return t;
                 });
 
+        mLastDecayTime = SystemClock.elapsedRealtime();
         systemReady = true;
     }
 
@@ -100,10 +124,177 @@ public class UxPerformance implements IUxPerformance {
         dexPreloadHandler.post(() -> {
             try {
                 dexPrefetch(codePath);
+                ioPrefetch(codePath);
             } catch (Exception e) {
                 logger(TAG + "dexPreload failed: " + e);
             }
         });
+    }
+
+    public void perfIOPrefetchStop() {
+        mappedDexBuffers.clear();
+    }
+
+    public void uxEngineEvent(int opcode, int pid, String pkgName, int lat) {
+        if (!systemReady || pkgName == null) return;
+
+        mPredictorHandler.post(() -> {
+            switch (opcode) {
+                case AxBoostFwk.UXE_EVENT_BINDAPP:
+                case AxBoostFwk.UXE_EVENT_DISPLAYED_ACT:
+                case AxBoostFwk.UXE_EVENT_SUB_LAUNCH:
+                    recordTransition(mLastAppPkg, pkgName);
+                    mLastAppPkg = pkgName;
+                    break;
+                case AxBoostFwk.UXE_EVENT_KILL:
+                    removeAppFromGraph(pkgName);
+                    if (pkgName.equals(mLastAppPkg)) {
+                        mLastAppPkg = null;
+                    }
+                    if (pkgName.equals(mLastPredictedPkg)) {
+                        mLastPredictedPkg = null;
+                    }
+                    break;
+                case AxBoostFwk.UXE_EVENT_PKG_UNINSTALL:
+                    removeAppFromGraph(pkgName);
+                    if (pkgName.equals(mLastAppPkg)) {
+                        mLastAppPkg = null;
+                    }
+                    if (pkgName.equals(mLastPredictedPkg)) {
+                        mLastPredictedPkg = null;
+                    }
+                    break;
+                case AxBoostFwk.UXE_EVENT_PKG_INSTALL:
+                case AxBoostFwk.UXE_EVENT_GAME:
+                default:
+                    break;
+            }
+        });
+    }
+
+    public String uxEngineTrigger() {
+        if (!systemReady) return null;
+
+        decayIfNeeded();
+
+        String predicted = null;
+        synchronized (mPredictorLock) {
+            predicted = getPredictedApp();
+        }
+
+        if (predicted != null && !predicted.equals(mLastPredictedPkg)) {
+            mLastPredictedPkg = predicted;
+            startEmptyActivityForPkg(predicted);
+        }
+
+        return predicted;
+    }
+
+    private void recordTransition(String fromPkg, String toPkg) {
+        if (fromPkg == null || toPkg == null || fromPkg.equals(toPkg)) return;
+
+        synchronized (mPredictorLock) {
+            Map<String, Integer> targets = mTransitionGraph.get(fromPkg);
+            if (targets == null) {
+                if (mTransitionGraph.size() >= MAX_GRAPH_APPS) {
+                    Iterator<String> it = mTransitionGraph.keySet().iterator();
+                    if (it.hasNext()) {
+                        it.next();
+                        it.remove();
+                    }
+                }
+                targets = new LinkedHashMap<>();
+                mTransitionGraph.put(fromPkg, targets);
+            }
+
+            if (targets.size() >= MAX_TARGETS_PER_APP && !targets.containsKey(toPkg)) {
+                Iterator<Map.Entry<String, Integer>> it = targets.entrySet().iterator();
+                if (it.hasNext()) {
+                    it.next();
+                    it.remove();
+                }
+            }
+
+            targets.put(toPkg, targets.getOrDefault(toPkg, 0) + 1);
+        }
+    }
+
+    private void removeAppFromGraph(String pkg) {
+        if (pkg == null) return;
+
+        synchronized (mPredictorLock) {
+            mTransitionGraph.remove(pkg);
+            for (Map<String, Integer> targets : mTransitionGraph.values()) {
+                targets.remove(pkg);
+            }
+        }
+    }
+
+    private void decayIfNeeded() {
+        long now = SystemClock.elapsedRealtime();
+        if (now - mLastDecayTime < DECAY_INTERVAL_MS) return;
+        mLastDecayTime = now;
+
+        synchronized (mPredictorLock) {
+            Iterator<Map.Entry<String, Map<String, Integer>>> srcIt = mTransitionGraph.entrySet().iterator();
+            while (srcIt.hasNext()) {
+                Map.Entry<String, Map<String, Integer>> srcEntry = srcIt.next();
+                Map<String, Integer> targets = srcEntry.getValue();
+                Iterator<Map.Entry<String, Integer>> tgtIt = targets.entrySet().iterator();
+                while (tgtIt.hasNext()) {
+                    Map.Entry<String, Integer> tgtEntry = tgtIt.next();
+                    int newCount = tgtEntry.getValue() / 2;
+                    if (newCount <= 0) {
+                        tgtIt.remove();
+                    } else {
+                        tgtEntry.setValue(newCount);
+                    }
+                }
+                if (targets.isEmpty()) {
+                    srcIt.remove();
+                }
+            }
+        }
+    }
+
+    private String getPredictedApp() {
+        if (mLastAppPkg == null) return null;
+
+        Map<String, Integer> targets = mTransitionGraph.get(mLastAppPkg);
+        if (targets == null || targets.isEmpty()) return null;
+
+        String bestPkg = null;
+        int bestCount = 0;
+        for (Map.Entry<String, Integer> entry : targets.entrySet()) {
+            if (entry.getValue() > bestCount) {
+                bestCount = entry.getValue();
+                bestPkg = entry.getKey();
+            }
+        }
+        return bestPkg;
+    }
+
+    private void startEmptyActivityForPkg(String pkg) {
+        try {
+            ActivityManagerInternal ami = LocalServices.getService(ActivityManagerInternal.class);
+            if (ami == null) return;
+
+            ArrayList<String> apps = new ArrayList<>();
+            apps.add(pkg);
+            Bundle b = new Bundle();
+            b.putStringArrayList("start_empty_apps", apps);
+            ami.startActivityAsUserEmpty(b);
+        } catch (Exception e) {
+            Log.w(TAG, "startEmptyActivity failed: " + e);
+        }
+    }
+
+    private void fadviseFile(File file) {
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+            nativePosixFadvise(raf.getFD(), 0, file.length(), 0);
+        } catch (Exception e) {
+            logger(TAG + "fadvise failed: " + file.getAbsolutePath() + " - " + e);
+        }
     }
 
     private void dexPrefetch(String codePath) {
@@ -126,6 +317,31 @@ public class UxPerformance implements IUxPerformance {
 
         for (File f : filesToLoad) {
             prefetchExecutor.submit(() -> preloadFile(f));
+        }
+    }
+
+    private void ioPrefetch(String codePath) {
+        List<File> filesToLoad = new ArrayList<>();
+
+        File apkFile = new File(codePath + ".apk");
+        if (apkFile.exists()) {
+            filesToLoad.add(apkFile);
+        }
+
+        File libDir = new File(codePath, "lib/arm64");
+        if (!libDir.exists()) {
+            libDir = new File(codePath, "lib/arm");
+        }
+        if (libDir.exists()) {
+            File[] soFiles = libDir.listFiles((dir, name) -> name.endsWith(".so"));
+            if (soFiles != null) {
+                filesToLoad.addAll(Arrays.asList(soFiles));
+            }
+        }
+
+        for (File f : filesToLoad) {
+            prefetchExecutor.submit(() -> preloadFile(f));
+            prefetchExecutor.submit(() -> fadviseFile(f));
         }
     }
 

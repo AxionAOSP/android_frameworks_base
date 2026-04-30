@@ -1436,6 +1436,7 @@ public class HardwareRenderer {
             try {
                 int tid = nGetRenderThreadTid(renderProxy);
                 ActivityManager.getService().setRenderThread(tid);
+                ActivityManager.getService().setHwuiTaskThreads(getHwuiTaskThreadTids());
             } catch (Throwable t) {
                 Log.w(LOG_TAG, "Failed to set scheduler for RenderThread", t);
             }
@@ -1577,6 +1578,12 @@ public class HardwareRenderer {
      * @hide
      */
     public static native int preload();
+
+    /**
+     * @return TIDs for the HWUI common worker pool.
+     * @hide
+     */
+    public static native int[] getHwuiTaskThreadTids();
 
     /**
      * Initialize the Buffer Allocator singleton

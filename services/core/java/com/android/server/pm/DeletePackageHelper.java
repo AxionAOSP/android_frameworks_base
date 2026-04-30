@@ -63,9 +63,12 @@ import android.util.Slog;
 import android.util.SparseArray;
 import android.util.SparseBooleanArray;
 
+import android.app.AxBoostFwk;
+
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.Preconditions;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.ArchiveState;
 import com.android.server.pm.pkg.PackageStateInternal;
@@ -243,6 +246,9 @@ final class DeletePackageHelper {
             isInstallerPackage = mPm.mSettings.isInstallerPackage(packageName);
         }
 
+        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_PKG_UNINSTALL, -2L);
+        AxExtServiceFactory.getUxPerformance().uxEngineEvent(
+                AxBoostFwk.UXE_EVENT_PKG_UNINSTALL, 0, packageName, userId);
         try (PackageManagerTracedLock installLock = mPm.mInstallLock.acquireLock()) {
             if (DEBUG_REMOVE) Slog.d(TAG, "deletePackageX: pkg=" + packageName + " user=" + userId);
             try (PackageFreezer freezer = mPm.freezePackageForDelete(packageName, freezeUser,

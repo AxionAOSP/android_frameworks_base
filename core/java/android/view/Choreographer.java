@@ -43,8 +43,8 @@ import android.ravenwood.annotation.RavenwoodReplace;
 import android.util.Log;
 import android.util.TimeUtils;
 import android.view.animation.AnimationUtils;
+import android.app.AxBoostFwk;
 
-import com.android.internal.util.BoostHelper;
 import com.android.internal.util.ScrollOptimizer;
 
 import java.io.PrintWriter;
@@ -184,8 +184,7 @@ public final class Choreographer {
     private static final int MSG_DO_FRAME = 0;
     private static final int MSG_DO_SCHEDULE_VSYNC = 1;
     private static final int MSG_DO_SCHEDULE_CALLBACK = 2;
-    private static final int MSG_DO_ANIM_AHEAD = 3;
-    private static final int MSG_DO_FRAME_INSERT = 4;
+    private static final int MSG_DO_FRAME_INSERT = 3;
 
     // All frame callbacks posted by applications have this token or VSYNC_CALLBACK_TOKEN.
     private static final Object FRAME_CALLBACK_TOKEN = new Object() {
@@ -910,8 +909,7 @@ public final class Choreographer {
                 }
             } else {
                 sFrameDelay = ScrollOptimizer.getFrameDelay();
-                final long nextFrameTime = Math.max(
-                        mLastFrameTimeNanos / TimeUtils.NANOS_PER_MS + sFrameDelay, now);
+                final long nextFrameTime = Math.max(now + sFrameDelay, now);
                 if (DEBUG_FRAMES) {
                     Log.d(TAG, "Scheduling next frame in " + (nextFrameTime - now) + " ms.");
                 }
@@ -1042,7 +1040,6 @@ public final class Choreographer {
 
     void doFrame(long frameTimeNanos, int frame,
             DisplayEventReceiver.VsyncEventData vsyncEventData) {
-        BoostHelper.onFrameStage(BoostHelper.Frame.PREFETCHER, frameTimeNanos);
         final long startNanos;
         final long frameIntervalNanos = vsyncEventData.frameInterval;
         // Original intended vsync time that is not adjusted by jitter
@@ -1086,6 +1083,8 @@ public final class Choreographer {
                     traceMessage("Frame not scheduled");
                     return; // no work to do
                 }
+                AxBoostFwk.onFrameDraw();
+                AxBoostFwk.acquireHint(AxBoostFwk.OP_FRAME_PREFETCHER, -2L);
                 mLastNoOffsetFrameTimeNanos = frameTimeNanos;
 
                 if (DEBUG_JANK && mDebugPrintNextFrameTimeDelta) {
@@ -1142,7 +1141,6 @@ public final class Choreographer {
                         mBufferStuffingState.numberWaitsForNextVsync++;
                     }
                     scheduleVsyncLocked();
-                    BoostHelper.onFrameStage(BoostHelper.Frame.RENDER_INFO, frameTimeNanos);
                     return;
                 }
 
@@ -1175,6 +1173,7 @@ public final class Choreographer {
             }
             ScrollOptimizer.setUITaskStatus(true);
             ScrollOptimizer.updateOnVsyncInfo(frameTimeNanos, vsyncEventData);
+            ScrollOptimizer.setDoframeBegin(this);
             ScrollOptimizer.updateFrameTimeNanos(frameTimeNanos, mLastFrameTimeNanos, startNanos);
             frameTimeNanos = ScrollOptimizer.getAdjustedFrameTimeNanos(frameTimeNanos);
             updatePreferredFrameTimelineIndex(frameTimeNanos, vsyncEventData);
@@ -1189,33 +1188,31 @@ public final class Choreographer {
                     timeline.mExpectedPresentationTimeNanos);
 
             mFrameInfo.markInputHandlingStart();
-            doCallbacks(Choreographer.CALLBACK_INPUT, frameIntervalNanos);
-
-            mFrameInfo.markAnimationsStart();
-            if (ScrollOptimizer.isAnimAheadActive()) {
-                BoostHelper.onFrameStage(BoostHelper.Frame.PRE_ANIM, frameTimeNanos);
-                ScrollOptimizer.setAnimAheadState(false);
+            if (ScrollOptimizer.isPreAnim()) {
+                ScrollOptimizer.setPreAnimConsumed();
                 synchronized (mLock) {
                     scheduleFrameLocked(SystemClock.uptimeMillis());
                 }
             } else {
-                doCallbacks(Choreographer.CALLBACK_ANIMATION, frameIntervalNanos);
+                doCallbacks(Choreographer.CALLBACK_INPUT, frameIntervalNanos);
             }
+            AxBoostFwk.acquireHint(AxBoostFwk.OP_FRAME_INPUT_END, -2L);
+
+            mFrameInfo.markAnimationsStart();
+            AxBoostFwk.acquireHint(AxBoostFwk.OP_FRAME_PRE_ANIM, -2L);
+            doCallbacks(Choreographer.CALLBACK_ANIMATION, frameIntervalNanos);
             doCallbacks(Choreographer.CALLBACK_INSETS_ANIMATION, frameIntervalNanos);
 
             mFrameInfo.markPerformTraversalsStart();
             doCallbacks(Choreographer.CALLBACK_TRAVERSAL, frameIntervalNanos);
-            BoostHelper.onFrameStage(BoostHelper.Frame.OBTAIN_VIEW, frameTimeNanos);
 
             if (mEnableTraversalLast) {
                 doCallbacks(Choreographer.CALLBACK_TRAVERSAL_LAST, frameIntervalNanos);
             }
             doCallbacks(Choreographer.CALLBACK_COMMIT, frameIntervalNanos);
-            BoostHelper.onFrameStage(BoostHelper.Frame.REAL_DRAW, frameTimeNanos);
+            AxBoostFwk.acquireHint(AxBoostFwk.OP_FRAME_DRAW_STEP, -2L);
             ScrollOptimizer.setUITaskStatus(false);
-            if (ScrollOptimizer.shouldScheduleAnimAhead(frameIntervalNanos)) {
-                postAnimAheadMsg();
-            }
+            ScrollOptimizer.setDoframeEnd(frameTimeNanos);
             if (!mFrameInsertPending && mFrameInsertCount < MAX_FRAME_INSERTS
                     && ScrollOptimizer.shouldInsertFrame()) {
                 mFrameInsertPending = true;
@@ -1240,8 +1237,34 @@ public final class Choreographer {
         }
     }
 
+    /**
+     * @hide
+     */
+    public void setMotionEventInfo(int motionEventType, int touchMoveNum) {
+        if (Looper.myLooper() == mLooper) {
+            ScrollOptimizer.setMotionType(motionEventType);
+        }
+    }
+
+    /**
+     * @hide
+     */
+    public void doPreAnimation(long frameTimeNanos, long frameIntervalNanos) {
+        AnimationUtils.lockAnimationClock(frameTimeNanos / TimeUtils.NANOS_PER_MS);
+        doCallbacks(Choreographer.CALLBACK_INPUT, frameIntervalNanos);
+        AnimationUtils.unlockAnimationClock();
+    }
+
+    /**
+     * @hide
+     */
+    public void forceScheduleNexFrame() {
+        synchronized (mLock) {
+            scheduleFrameLocked(SystemClock.uptimeMillis());
+        }
+    }
+
     void doCallbacks(int callbackType, long frameIntervalNanos) {
-        BoostHelper.onFrameStage(BoostHelper.Frame.FRAME_DRAW_STEP, callbackType);
         CallbackRecord callbacks;
         synchronized (mLock) {
             if (mCallbackQueues[callbackType].mHead == null) {
@@ -1358,40 +1381,6 @@ public final class Choreographer {
         }
     }
 
-    private void postAnimAheadMsg() {
-        Message msg = mHandler.obtainMessage(MSG_DO_ANIM_AHEAD);
-        msg.setAsynchronous(true);
-        mHandler.sendMessageAtFrontOfQueue(msg);
-    }
-    private void doAnimAheadCallback() {
-        final long frameIntervalNanos;
-        synchronized (mLock) {
-            frameIntervalNanos = mLastFrameIntervalNanos;
-        }
-        if (frameIntervalNanos <= 0) {
-            return;
-        }
-        long target = ScrollOptimizer.getLastFrameAnimOptTimeNanos();
-        if (target <= 0L) {
-            synchronized (mLock) {
-                target = mLastFrameTimeNanos + frameIntervalNanos;
-            }
-        }
-        try {
-            if (Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
-                Trace.traceBegin(Trace.TRACE_TAG_VIEW, "Choreographer#doAnimAhead target="
-                        + (target / TimeUtils.NANOS_PER_MS));
-            }
-            ScrollOptimizer.setAnimAheadState(true);
-            AnimationUtils.lockAnimationClock(target / TimeUtils.NANOS_PER_MS);
-            doCallbacks(Choreographer.CALLBACK_ANIMATION, frameIntervalNanos);
-        } finally {
-            AnimationUtils.unlockAnimationClock();
-            if (Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
-                Trace.traceEnd(Trace.TRACE_TAG_VIEW);
-            }
-        }
-    }
     private void doFrameInsert() {
         mFrameInsertPending = false;
         if (mFrameInsertCount >= MAX_FRAME_INSERTS || !ScrollOptimizer.shouldInsertFrame()) {
@@ -1419,12 +1408,15 @@ public final class Choreographer {
         }
         mFrameInsertCount++;
         mFrameScheduled = true;
+        AxBoostFwk.acquireHint(AxBoostFwk.OP_FRAME_VSYNC, -2L);
+        ScrollOptimizer.setInsertFrameActive(true);
         try {
             if (Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
                 Trace.traceBegin(Trace.TRACE_TAG_VIEW, "Choreographer#doFrameInsert");
             }
             doFrame(nextFrameTimeNanos, 0, insertData);
         } finally {
+            ScrollOptimizer.setInsertFrameActive(false);
             if (Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
                 Trace.traceEnd(Trace.TRACE_TAG_VIEW);
             }
@@ -1435,7 +1427,6 @@ public final class Choreographer {
         try {
             Trace.traceBegin(Trace.TRACE_TAG_VIEW, "Choreographer#scheduleVsyncLocked");
             mDisplayEventReceiver.scheduleVsync();
-            BoostHelper.onFrameStage(BoostHelper.Frame.REQUEST_VSYNC, 0L);
         } finally {
             Trace.traceEnd(Trace.TRACE_TAG_VIEW);
         }
@@ -1710,9 +1701,6 @@ public final class Choreographer {
                 case MSG_DO_SCHEDULE_CALLBACK:
                     doScheduleCallback(msg.arg1);
                     break;
-                case MSG_DO_ANIM_AHEAD:
-                    doAnimAheadCallback();
-                    break;
                 case MSG_DO_FRAME_INSERT:
                     doFrameInsert();
                     break;
@@ -1738,7 +1726,6 @@ public final class Choreographer {
         public void onVsync(long timestampNanos, long physicalDisplayId, int frame,
                 VsyncEventData vsyncEventData) {
             try {
-                BoostHelper.onFrameStage(BoostHelper.Frame.PREFETCHER, timestampNanos);
                 if (Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
                     Trace.traceBegin(Trace.TRACE_TAG_VIEW,
                             "Choreographer#onVsync "

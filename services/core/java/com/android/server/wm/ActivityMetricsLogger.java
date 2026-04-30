@@ -102,6 +102,8 @@ import android.util.Slog;
 import android.util.SparseArray;
 import android.util.TimeUtils;
 
+import android.app.AxBoostFwk;
+
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.logging.MetricsLogger;
 import com.android.internal.protolog.ProtoLog;
@@ -109,6 +111,7 @@ import com.android.internal.util.FrameworkStatsLog;
 import com.android.internal.util.LatencyTracker;
 import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.server.FgThread;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.LocalServices;
 import com.android.server.apphibernation.AppHibernationManagerInternal;
 import com.android.server.apphibernation.AppHibernationService;
@@ -185,6 +188,8 @@ class ActivityMetricsLogger {
 
     private ArtManagerInternal mArtManagerInternal;
     private final StringBuilder mStringBuilder = new StringBuilder();
+    
+    private static ActivityRecord mLaunchedActivity;
 
     /**
      * Due to the global single concurrent launch sequence, all calls to this observer must be made
@@ -1158,6 +1163,7 @@ class ActivityMetricsLogger {
                 launchObserverNotifyActivityLaunchFinished(info, timestampNs);
             }
             logAppTransitionFinished(info, isHibernating != null ? isHibernating : false);
+            AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_RENDER_TRANSITION, 0L);
             if (info.mReason == APP_TRANSITION_RECENTS_ANIM) {
                 logRecentsAnimationLatency(info);
             }
@@ -1190,6 +1196,8 @@ class ActivityMetricsLogger {
 
     private void logAppTransitionFinished(@NonNull TransitionInfo info, boolean isHibernating) {
         if (DEBUG_METRICS) Slog.i(TAG, "logging finished transition " + info);
+        
+        mLaunchedActivity = info.mLastLaunchedActivity;
 
         // Take a snapshot of the transition info before sending it to the handler for logging.
         // This will avoid any races with other operations that modify the ActivityRecord.
@@ -1317,6 +1325,9 @@ class ActivityMetricsLogger {
                     stopped, firstLaunch));
         }
 
+        AxExtServiceFactory.getUxPerformance().uxEngineEvent(
+                AxBoostFwk.UXE_EVENT_DISPLAYED_ACT, 0, info.packageName, info.windowsDrawnDelayMs);
+
         logAppStartMemoryStateCapture(info);
     }
 
@@ -1356,6 +1367,15 @@ class ActivityMetricsLogger {
         sb.append(": ");
         TimeUtils.formatDuration(info.windowsDrawnDelayMs, sb);
         Log.i(TAG, sb.toString());
+        
+        if (info.processRecord != null) {
+            AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_FIRST_DRAW, info.windowsDrawnDelayMs);
+        }
+
+        if (mLaunchedActivity.perfActivityBoostHandler > 0) {
+            AxExtServiceFactory.getAxBurstEngine().perfHintRelease(mLaunchedActivity.perfActivityBoostHandler);
+            mLaunchedActivity.perfActivityBoostHandler = -1;
+        }
     }
 
     private void logRecentsAnimationLatency(TransitionInfo info) {

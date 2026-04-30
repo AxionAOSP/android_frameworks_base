@@ -387,6 +387,7 @@ import android.system.OsConstants;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.ArraySet;
+import android.app.AxBoostFwk;
 import android.util.EventLog;
 import android.util.FeatureFlagUtils;
 import android.util.IndentingPrintWriter;
@@ -447,6 +448,7 @@ import com.android.internal.util.Preconditions;
 import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.server.AlarmManagerInternal;
 import com.android.server.AxExtServiceFactory;
+import com.android.server.uifirst.AxUiFirstManager;
 import com.android.server.BootReceiver;
 import com.android.server.DeviceIdleInternal;
 import com.android.server.DisplayThread;
@@ -519,6 +521,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -640,6 +643,8 @@ public class ActivityManagerService extends IActivityManager.Stub
     // the notification will not be legible to the user.
     private static final int MAX_BUGREPORT_TITLE_SIZE = 100;
     private static final int MAX_BUGREPORT_DESCRIPTION_SIZE = 150;
+    
+    public static boolean mForceStopKill = false;
 
     private static final DateTimeFormatter DROPBOX_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSZ");
@@ -988,7 +993,7 @@ public class ActivityManagerService extends IActivityManager.Stub
         final int pid = app.getPid();
         synchronized (mPidsSelfLocked) {
             mPidsSelfLocked.doAddInternal(pid, app);
-            ProcessFreezerManager freezer = ProcessFreezerManager.getInstance();
+            AxBackgroundManager freezer = AxExtServiceFactory.getAxBackgroundManager();
             if (freezer != null && freezer.useFreezerManager()) {
                 freezer.addPidLocked(app);
             }
@@ -1013,10 +1018,10 @@ public class ActivityManagerService extends IActivityManager.Stub
         final boolean removed;
         synchronized (mPidsSelfLocked) {
             removed = mPidsSelfLocked.doRemoveInternal(pid, app);
-            ProcessFreezerManager freezer = ProcessFreezerManager.getInstance();
+            AxBackgroundManager freezer = AxExtServiceFactory.getAxBackgroundManager();
             if (freezer != null && freezer.useFreezerManager()) {
                 freezer.removePidLocked(pid, app);
-                freezer.startUnfreeze(app.processName, ProcessFreezerManager.REMOVE_PROCESS_UNFREEZE);
+                freezer.startUnfreeze(app.processName, AxFreezeManager.REMOVE_PROCESS_UNFREEZE);
             }
         }
         if (removed) {
@@ -1491,9 +1496,6 @@ public class ActivityManagerService extends IActivityManager.Stub
      * The time stamp that all apps have received BOOT_COMPLETED.
      */
     volatile long mBootCompletedTimestamp;
-
-    private final ConcurrentHashMap<Integer, Long> mProcessPssBoostCache = new ConcurrentHashMap<>();
-    private volatile long mProcessPssBoostCacheExpiry;
 
     @GuardedBy("this")
     boolean mDeterministicUidIdle = false;
@@ -2510,6 +2512,8 @@ public class ActivityManagerService extends IActivityManager.Stub
                 THREAD_PRIORITY_FOREGROUND, false /* allowIo */);
         mProcStartHandlerThread.start();
         mProcStartHandler = new ProcStartHandler(this, mProcStartHandlerThread.getLooper());
+        Process.setThreadScheduler(mProcStartHandlerThread.getThreadId(), Process.SCHED_FIFO, 1);
+        Process.setThreadGroupAndCpuset(mProcStartHandlerThread.getThreadId(), Process.THREAD_GROUP_SVP);
 
         mConstants = new ActivityManagerConstants(mContext, this, mHandler);
         mAtmInternal = LocalServices.getService(ActivityTaskManagerInternal.class);
@@ -3531,7 +3535,10 @@ public class ActivityManagerService extends IActivityManager.Stub
             return;
         }
 
-        AxExtServiceFactory.getAxBurstEngine().onProcessKill(pid, app.processName);
+        try {
+            AxExtServiceFactory.getUiFirstManager().onProcessDied(pid);
+        } catch (Exception ignored) {
+        }
 
         mBatteryStatsService.noteProcessDied(app.info.uid, pid);
 
@@ -3569,6 +3576,12 @@ public class ActivityManagerService extends IActivityManager.Stub
             }
             if (doOomAdj) {
                 app.forEachConnectionHost((host) -> enqueueOomAdjTargetLocked(host));
+            }
+
+            if (!mForceStopKill && !app.mErrorState.isNotResponding() && !app.mErrorState.isCrashing()) {
+                AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_KILL, -2L);
+                AxExtServiceFactory.getUxPerformance().uxEngineEvent(
+                        AxBoostFwk.UXE_EVENT_KILL, 0, app.processName, 0);
             }
 
             EventLogTags.writeAmProcDied(app.userId, pid, app.processName, setAdj,
@@ -4076,6 +4089,45 @@ public class ActivityManagerService extends IActivityManager.Stub
         }
     }
 
+    public int startActivityAsUserEmpty(Bundle options) {
+        ArrayList<String> pApps = options.getStringArrayList("start_empty_apps");
+        if (pApps != null && pApps.size() > 0) {
+            Iterator<String> appsItr = pApps.iterator();
+            while (appsItr.hasNext()) {
+                ProcessRecord emptyApp = null;
+                String appStr = appsItr.next();
+                if (appStr == null) continue;
+                synchronized (this) {
+                    Intent intentL = null;
+                    try {
+                        intentL = mContext.getPackageManager().getLaunchIntentForPackage(appStr);
+                        if (intentL == null) continue;
+                        ActivityInfo aInfo = intentL.resolveActivityInfo(
+                                mContext.getPackageManager(), 0);
+                        if (aInfo == null) continue;
+                        emptyApp = startProcessLocked(
+                                appStr,
+                                aInfo.applicationInfo,
+                                false,
+                                0,
+                                sNullHostingRecord,
+                                ZYGOTE_POLICY_FLAG_EMPTY,
+                                false,
+                                false);
+                        if (emptyApp != null) {
+                            updateOomAdjLocked(emptyApp, OOM_ADJ_REASON_SYSTEM_INIT);
+                        }
+                    } catch (Exception e) {
+                        if (DEBUG_PROCESSES) {
+                            Slog.w(TAG, "Exception raised trying to start app as empty " + e);
+                        }
+                    }
+                }
+            }
+        }
+        return 1;
+    }
+
     @Override
     public void closeSystemDialogs(String reason) {
         mAtmInternal.closeSystemDialogs(reason);
@@ -4192,24 +4244,6 @@ public class ActivityManagerService extends IActivityManager.Stub
         final boolean allUids = mAtmInternal.isGetTasksAllowed(
                 "getProcessPss", callingPid, callingUid);
 
-        final long[] pss = new long[pids.length];
-        final boolean shouldCache =
-                AxExtServiceFactory.getAxBurstEngine().isCompositionBoosting()
-                        || mAppProfiler.isActivityStarting();
-        final long nowMs = SystemClock.uptimeMillis();
-        boolean cacheValid;
-        if (shouldCache) {
-            if (nowMs >= mProcessPssBoostCacheExpiry) {
-                mProcessPssBoostCache.clear();
-                mProcessPssBoostCacheExpiry = nowMs + 500;
-            }
-            cacheValid = true;
-        } else {
-            if (!mProcessPssBoostCache.isEmpty()) {
-                mProcessPssBoostCache.clear();
-            }
-            cacheValid = false;
-        }
         for (int i=pids.length-1; i>=0; i--) {
             ProcessRecord proc;
             int oomAdj;
@@ -4224,20 +4258,10 @@ public class ActivityManagerService extends IActivityManager.Stub
                 // just leave it empty.
                 continue;
             }
-            if (cacheValid) {
-                Long cached = mProcessPssBoostCache.get(pids[i]);
-                if (cached != null) {
-                    pss[i] = cached;
-                    continue;
-                }
-            }
             final long[] tmpUss = new long[3];
             final long startTime = SystemClock.currentThreadTimeMillis();
             final long pi = pss[i] = Debug.getPss(pids[i], tmpUss, null);
             final long duration = SystemClock.currentThreadTimeMillis() - startTime;
-            if (cacheValid) {
-                mProcessPssBoostCache.put(pids[i], pi);
-            }
             if (proc != null) {
                 final ProcessProfileRecord profile = proc.mProfile;
                 synchronized (mAppProfiler.mProfilerLock) {
@@ -4419,6 +4443,7 @@ public class ActivityManagerService extends IActivityManager.Stub
         // intentionally not rendering the app nonfunctional; we're just halting its current
         // execution.
         final int appId = UserHandle.getAppId(uid);
+        mForceStopKill = true;
         synchronized (this) {
             synchronized (mProcLock) {
                 mAtmInternal.onForceStopPackage(packageName, true, false, userId);
@@ -4508,6 +4533,8 @@ public class ActivityManagerService extends IActivityManager.Stub
 
             mAppErrors.resetProcessCrashTime(packageName == null, appId, userId);
         }
+        
+        mForceStopKill = true;
 
         synchronized (mProcLock) {
             // Notify first that the package is stopped, so its process won't be restarted
@@ -4782,6 +4809,10 @@ public class ActivityManagerService extends IActivityManager.Stub
         }
 
         EventLogTags.writeAmProcBound(app.userId, pid, app.processName);
+
+        if (app.getHostingRecord() != null && app.getHostingRecord().isTopApp()) {
+            AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_FIRST_LAUNCH_BOOST, -2L);
+        }
 
         synchronized (mProcLock) {
             mProcessStateController.setAttachingProcessStatesLSP(app);
@@ -5480,7 +5511,6 @@ public class ActivityManagerService extends IActivityManager.Stub
         showMteOverrideNotificationIfActive();
 
         t.traceEnd();
-        ProcessFreezerManager.getInstance().init(mFreezer);
     }
 
     private void showConsoleNotificationIfActive() {
@@ -7653,7 +7683,6 @@ public class ActivityManagerService extends IActivityManager.Stub
                 mCachedAppOptimizer.onWakefulnessChanged(wakefulness);
 
                 updateOomAdjLocked(OOM_ADJ_REASON_UI_VISIBILITY);
-                AxExtServiceFactory.getAxBurstEngine().onWakefulnessChanged(isAwake);
             }
         }
     }
@@ -8568,6 +8597,9 @@ public class ActivityManagerService extends IActivityManager.Stub
 
     @Override
     public void setRenderThread(int tid) {
+        final String uiFirstPackageName;
+        final int uiFirstUid;
+        final int uiFirstPid;
         synchronized (mProcLock) {
             ProcessRecord proc;
             int pid = Binder.getCallingPid();
@@ -8585,21 +8617,42 @@ public class ActivityManagerService extends IActivityManager.Stub
                             "Render thread does not belong to process");
                 }
                 proc.setRenderThreadTid(tid);
+                uiFirstPackageName = proc.processName;
+                uiFirstUid = proc.uid;
+                uiFirstPid = pid;
                 if (DEBUG_OOM_ADJ) {
                     Slog.d("UI_FIFO", "Set RenderThread tid " + tid + " for pid " + pid);
                 }
                 // promote to FIFO now
                 if (proc.getCurrentSchedulingGroup() == ProcessList.SCHED_GROUP_TOP_APP) {
                     if (DEBUG_OOM_ADJ) Slog.d("UI_FIFO", "Promoting " + tid + "out of band");
-                    if (proc.useRoundRobinUiScheduling()) {
+                    if (proc.useRoundRobinUiScheduling()
+                            || (AxExtServiceFactory.getAxBackgroundManager().getUiRtLevel()
+                                    == AxUiFirstManager.UiRtLevel.RR
+                                && !proc.info.isSystemApp() && !proc.info.isUpdatedSystemApp()
+                                && proc.processName.equals(proc.info.packageName))) {
                         setThreadScheduler(proc.getRenderThreadTid(),
                                 SCHED_RR | SCHED_RESET_ON_FORK, 1);
-                    } else if (proc.useFifoUiScheduling()) {
+                    } else if (proc.useFifoUiScheduling()
+                            || (AxExtServiceFactory.getAxBackgroundManager().useUiBoost()
+                                && !proc.info.isSystemApp() && !proc.info.isUpdatedSystemApp()
+                                && proc.processName.equals(proc.info.packageName))) {
                         setThreadScheduler(proc.getRenderThreadTid(),
                                 SCHED_FIFO | SCHED_RESET_ON_FORK, 1);
                     } else {
                         setThreadPriority(proc.getRenderThreadTid(),
                             THREAD_PRIORITY_TOP_APP_BOOST);
+                    }
+                    if (AxExtServiceFactory.getAxBackgroundManager().useUiBoost()) {
+                        if (!proc.info.isSystemApp() && !proc.info.isUpdatedSystemApp()
+                                && proc.processName.equals(proc.info.packageName)) {
+                            try {
+                                Process.setThreadAffinity(proc.getRenderThreadTid(),
+                                        Process.AFFINITY_BIG);
+                            } catch (Exception e) {
+                                Slog.e("UI_Affinity", "Failed to set thread affinity", e);
+                            }
+                        }
                     }
                 }
             } else {
@@ -8607,7 +8660,48 @@ public class ActivityManagerService extends IActivityManager.Stub
                     Slog.d("UI_FIFO", "Didn't set thread from setRenderThread? "
                             + "PID: " + pid + ", TID: " + tid + " FIFO: " + mUseFifoUiScheduling);
                 }
+                return;
             }
+        }
+        AxExtServiceFactory.getUiFirstManager().onRenderThreadTid(
+                uiFirstPackageName, uiFirstUid, uiFirstPid, tid);
+    }
+
+    @Override
+    public void setHwuiTaskThreads(int[] tids) {
+        if (tids == null || tids.length == 0) {
+            return;
+        }
+        final int uid;
+        final int pid = Binder.getCallingPid();
+        final int[] hwuiTaskTids;
+        synchronized (mProcLock) {
+            if (pid == Process.myPid()) {
+                return;
+            }
+            final ProcessRecord proc;
+            synchronized (mPidsSelfLocked) {
+                proc = mPidsSelfLocked.get(pid);
+            }
+            if (proc == null) {
+                return;
+            }
+            final IntArray validTids = new IntArray(tids.length);
+            for (int tid : tids) {
+                if (tid > 0 && isThreadInProcess(pid, tid) && validTids.indexOf(tid) < 0) {
+                    validTids.add(tid);
+                }
+            }
+            if (validTids.size() == 0) {
+                return;
+            }
+            hwuiTaskTids = validTids.toArray();
+            proc.setHwuiTaskTids(hwuiTaskTids);
+            uid = proc.uid;
+        }
+        try {
+            AxExtServiceFactory.getUiFirstManager().onHwuiTaskThreads(uid, pid, hwuiTaskTids);
+        } catch (Exception ignored) {
         }
     }
 
@@ -11184,6 +11278,7 @@ public class ActivityManagerService extends IActivityManager.Stub
                 }
             } else if ("locks".equals(cmd)) {
                 LockGuard.dump(fd, pw, args);
+            } else if ("freezer".equals(cmd)) {
             } else if ("users".equals(cmd)) {
                 dumpUsers(pw);
             } else if ("start-info".equals(cmd)) {
@@ -18553,6 +18648,11 @@ public class ActivityManagerService extends IActivityManager.Stub
         public void addCreatorToken(Intent intent, String creatorPackage) {
             ActivityManagerService.this.addCreatorToken(intent, creatorPackage);
         }
+
+        @Override
+        public int startActivityAsUserEmpty(Bundle options) {
+            return ActivityManagerService.this.startActivityAsUserEmpty(options);
+        }
     }
 
     long inputDispatchingTimedOut(int pid, final boolean aboveSystem, TimeoutRecord timeoutRecord) {
@@ -19885,144 +19985,26 @@ public class ActivityManagerService extends IActivityManager.Stub
     }
 
     @Override
-    public void adjustCpusetCpus(String group, String cpus, long duration) {
-        AxExtServiceFactory.getAxBurstEngine().adjustCpusetCpus(group, cpus, duration);
+    public void uxEngineEvent(int opcode, int pid, String pkgName, int lat) {
+        AxExtServiceFactory.getUxPerformance().uxEngineEvent(opcode, pid, pkgName, lat);
     }
 
-    @Override
-    public void inputBoost() {
-        AxExtServiceFactory.getAxBurstEngine().inputBoost();
-    }
-
-    @Override
-    public void getProcessesAndFrozen(String currentResumePackage) {
-        AxExtServiceFactory.getAxBurstEngine().getProcessesAndFrozen(currentResumePackage);
-    }
-    
     @Override
     public void boostThread(int tid) {
         AxExtServiceFactory.getAxBurstEngine().boostThread(tid);
     }
 
     @Override
-    public void launcherItemsLoadingBoost(long duration) {
-        AxExtServiceFactory.getAxBurstEngine().launcherItemsLoadingBoost(duration);
-    }
-    
-    @Override
-    public void systemThreadBoost(int tid, long duration) {
-        if (tid <= 0) return;
-        AxExtServiceFactory.getAxBurstEngine().systemThreadBoost(tid, duration);
+    public void acquireHint(int opcode, long durOverrideMs) {
+        AxExtServiceFactory.getAxBurstEngine().acquireHint(opcode, durOverrideMs);
     }
 
-    @Override
-    public void flingBoost(boolean active) {
-        AxExtServiceFactory.getAxBurstEngine().flingBoost(active);
+    public void onFrameDraw() {
+        AxExtServiceFactory.getAxBurstEngine().onFrameDraw();
     }
 
-    @Override
-    public void compositionBoost(long durationMs) {
-        AxExtServiceFactory.getAxBurstEngine().compositionBoost(durationMs);
-    }
-
-    @Override
-    public void gpuBoost(boolean active) {
-        AxExtServiceFactory.getAxBurstEngine().gpuBoost(active);
-    }
-
-    @Override
-    public void shadeBoost(boolean active) {
-        AxExtServiceFactory.getAxBurstEngine().shadeBoost(active);
-    }
-
-    @Override
-    public void onScrollEvent(int action) {
-        AxExtServiceFactory.getAxBurstEngine().onScrollEvent(action);
-    }
-
-    @Override
-    public void onLaunch(int type) {
-        AxExtServiceFactory.getAxBurstEngine().onLaunch(type);
-    }
-
-    @Override
-    public void onFrameStage(int stage, long frameId) {
-        AxExtServiceFactory.getAxBurstEngine().onFrameStage(stage, frameId);
-    }
-
-    @Override
-    public void onRefreshRateEvent(int event) {
-        AxExtServiceFactory.getAxBurstEngine().onRefreshRateEvent(event);
-    }
-
-    @Override
-    public void onImeTransition(int action) {
-        AxExtServiceFactory.getAxBurstEngine().onImeTransition(action);
-    }
-
-    @Override
-    public void onConsistency(int mode) {
-        AxExtServiceFactory.getAxBurstEngine().onConsistency(mode);
-    }
-
-    @Override
-    public void onAnimation(int action) {
-        AxExtServiceFactory.getAxBurstEngine().onAnimation(action);
-    }
-
-    @Override
-    public void onEarlyWakeup(boolean start, long maxDurMs) {
-        AxExtServiceFactory.getAxBurstEngine().onEarlyWakeup(start, maxDurMs);
-    }
-
-    @Override
-    public void onActivityTransition(String fromPkg, String toPkg, int phase) {
-        AxExtServiceFactory.getAxBurstEngine().onActivityTransition(fromPkg, toPkg, phase);
-    }
-
-    @Override
-    public void onActivityExit(String pkg) {
-        AxExtServiceFactory.getAxBurstEngine().onActivityExit(pkg);
-    }
-
-    @Override
-    public void onProcessKill(int pid, String pkg) {
-        AxExtServiceFactory.getAxBurstEngine().onProcessKill(pid, pkg);
-    }
-
-    @Override
-    public void setTopAppRenderThread(int pid, int tid) {
-        AxExtServiceFactory.getAxBurstEngine().setTopAppRenderThread(pid, tid);
-    }
-
-    @Override
-    public void setTopAppPid(int pid) {
-        AxExtServiceFactory.getAxBurstEngine().setTopAppPid(pid);
-    }
-
-    @Override
-    public long acquireResources(long durMs, String[] resNames, long[] values) {
-        return AxExtServiceFactory.getAxBurstEngine().acquireResources(durMs, resNames, values);
-    }
-
-    @Override
-    public void releaseResources(long handle) {
-        AxExtServiceFactory.getAxBurstEngine().releaseResources(handle);
-    }
-
-    @Override
-    public long swapResources(long prevHandle, long durMs, String[] resNames, long[] values) {
-        return AxExtServiceFactory.getAxBurstEngine().swapResources(prevHandle, durMs, resNames, values);
-    }
-
-    @Override
-    public long acquireHint(String hintName, long durOverrideMs) {
-        return AxExtServiceFactory.getAxBurstEngine().acquireHint(hintName, durOverrideMs);
-    }
-
-    @Override
-    public long swapHint(long prevHandle, String hintName, long durOverrideMs) {
-        return AxExtServiceFactory.getAxBurstEngine().swapHint(prevHandle, hintName, durOverrideMs);
+    public void onFrameRealDraw(long durMs) {
+        AxExtServiceFactory.getAxBurstEngine().onFrameRealDraw(durMs);
     }
 
     @Override

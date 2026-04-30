@@ -108,6 +108,7 @@ import android.view.autofill.AutofillId;
 import android.view.autofill.AutofillManager;
 import android.window.ImeBackCallbackProxy;
 import android.window.WindowOnBackInvokedDispatcher;
+import android.app.AxBoostFwk;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.inputmethod.DirectBootAwareness;
@@ -2353,7 +2354,7 @@ public final class InputMethodManager {
         if (fallbackImm != null) {
             return fallbackImm.showSoftInput(view, flags);
         }
-
+        AxBoostFwk.acquireHint(AxBoostFwk.OP_IME_SHOW_HIDE, -2L);
         return showSoftInput(view, flags, null);
     }
 
@@ -2583,6 +2584,7 @@ public final class InputMethodManager {
      * the visibility of IME.
      */
     public boolean hideSoftInputFromWindow(IBinder windowToken, @HideFlags int flags) {
+        AxBoostFwk.acquireHint(AxBoostFwk.OP_IME_SHOW_HIDE, -2L);
         return hideSoftInputFromWindow(windowToken, flags, null);
     }
 
@@ -3443,6 +3445,7 @@ public final class InputMethodManager {
             @Nullable IBinder windowGainingFocus, @StartInputFlags int startInputFlags,
             @SoftInputModeFlags int softInputMode,
             @WindowManager.LayoutParams.Flags int windowFlags) {
+        AxBoostFwk.acquireHint(AxBoostFwk.OP_IME_INIT, -2L);
         final View view;
         synchronized (mH) {
             view = getServedViewLocked();

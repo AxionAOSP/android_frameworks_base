@@ -109,7 +109,21 @@ public class BoostSettingsRepository {
 
     private void notifyListener() {
         if (mListener != null) {
-            mListener.accept(loadDeviceData());
+            DeviceData.BoostData data = loadDeviceData();
+            pushBoostData(data);
+            mListener.accept(data);
         }
+    }
+
+    static void pushBoostData(DeviceData.BoostData data) {
+        String[] paths = new String[] {
+            data.sMin, data.bMin, data.pMin,
+            data.sMax, data.bMax, data.pMax
+        };
+        String[] values = new String[] {
+            data.uSMin, data.uBMin, data.uPMin,
+            data.uSMax, data.uBMax, data.uPMax
+        };
+        AxBoostManager.native_set_boost_data(paths, values);
     }
 }

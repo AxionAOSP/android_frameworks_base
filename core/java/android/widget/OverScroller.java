@@ -26,8 +26,8 @@ import android.view.ViewConfiguration;
 import android.view.animation.AnimationUtils;
 import android.view.animation.BaseInterpolator;
 import android.view.animation.Interpolator;
+import android.app.AxBoostFwk;
 
-import com.android.internal.util.BoostHelper;
 import com.android.internal.util.ScrollOptimizer;
 
 /**
@@ -199,7 +199,6 @@ public class OverScroller {
         mFlywheel = flywheel;
         mScrollerX = new SplineOverScroller(context);
         mScrollerY = new SplineOverScroller(context);
-        BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.SCROLLER_INIT);
     }
 
     /**
@@ -258,7 +257,6 @@ public class OverScroller {
     public final void setFriction(float friction) {
         mScrollerX.setFriction(friction);
         mScrollerY.setFriction(friction);
-        BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.FLING_FRICTION_UPDATE);
     }
 
     /**
@@ -283,7 +281,7 @@ public class OverScroller {
         mScrollerX.mFinished = mScrollerY.mFinished = finished;
         if (finished && mMode == FLING_MODE) {
             ScrollOptimizer.setFlingFlag(ScrollOptimizer.FLING_END);
-            BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.FLING_FINISH);
+            AxBoostFwk.acquireHint(AxBoostFwk.OP_SCROLL_BOOST, 0L);
         }
     }
 
@@ -411,7 +409,7 @@ public class OverScroller {
         if (isFinished()) {
             if (mMode == FLING_MODE) {
                 ScrollOptimizer.setFlingFlag(ScrollOptimizer.FLING_END);
-                BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.FLING_FINISH);
+                AxBoostFwk.acquireHint(AxBoostFwk.OP_SCROLL_BOOST, 0L);
             }
             return false;
         }
@@ -454,10 +452,10 @@ public class OverScroller {
 
                 if (isFinished()) {
                     ScrollOptimizer.setFlingFlag(ScrollOptimizer.FLING_END);
-                    BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.FLING_FINISH);
+                    AxBoostFwk.acquireHint(AxBoostFwk.OP_SCROLL_BOOST, 0L);
                     mFlingUpdateTick = 0;
                 } else if ((mFlingUpdateTick++ & 7) == 0) {
-                    BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.FLING_UPDATE);
+                    AxBoostFwk.acquireHint(AxBoostFwk.OP_SCROLL_BOOST, -2L);
                 }
 
                 break;
@@ -499,7 +497,7 @@ public class OverScroller {
      */
     public void startScroll(int startX, int startY, int dx, int dy, int duration) {
         ScrollOptimizer.setFlingFlag(ScrollOptimizer.FLING_END);
-        BoostHelper.onScrollEvent(BoostHelper.Scroll.SCROLLER);
+        AxBoostFwk.acquireHint(AxBoostFwk.OP_SCROLL_SCROLLER, -2L);
         mMode = SCROLL_MODE;
         mScrollerX.startScroll(startX, dx, duration);
         mScrollerY.startScroll(startY, dy, duration);
@@ -571,8 +569,9 @@ public class OverScroller {
             }
         }
         
+        ScrollOptimizer.setVelocity(Math.max(Math.abs(velocityX), Math.abs(velocityY)));
         ScrollOptimizer.setFlingFlag(ScrollOptimizer.FLING_START);
-        BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.FLING_START);
+        AxBoostFwk.acquireHint(AxBoostFwk.OP_SCROLL_BOOST, -2L);
         mFlingUpdateTick = 0;
 
         mMode = FLING_MODE;
@@ -644,7 +643,7 @@ public class OverScroller {
     public void abortAnimation() {
         if (mMode == FLING_MODE) {
             ScrollOptimizer.setFlingFlag(ScrollOptimizer.FLING_END);
-            BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.FLING_FINISH);
+            AxBoostFwk.acquireHint(AxBoostFwk.OP_SCROLL_BOOST, 0L);
         }
         mScrollerX.finish();
         mScrollerY.finish();
@@ -1043,11 +1042,10 @@ public class OverScroller {
             // Unused
             mDeceleration = 0.0f;
             mVelocity = 0;
-            BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.SCROLLER_INIT);
         }
 
         void finish() {
-            BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.FLING_FINISH);
+            AxBoostFwk.acquireHint(AxBoostFwk.OP_SCROLL_BOOST, 0L);
             mCurrentPosition = mFinal;
             // Not reset since WebView relies on this value for fast fling.
             // TODO: restore when WebView uses the fast fling implemented in this class.
@@ -1104,7 +1102,7 @@ public class OverScroller {
         }
 
         void fling(int start, int velocity, int min, int max, int over) {
-            BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.FLING_START);
+            AxBoostFwk.acquireHint(AxBoostFwk.OP_SCROLL_BOOST, -2L);
             mOver = over;
             mFinished = false;
             mCurrVelocity = mVelocity = velocity;
@@ -1295,7 +1293,7 @@ public class OverScroller {
             if (currentTime > mDuration) {
                 return false;
             }
-            BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.FLING_UPDATE);
+            AxBoostFwk.acquireHint(AxBoostFwk.OP_SCROLL_BOOST, -2L);
 
             double distance = 0.0;
             switch (mState) {

@@ -47,6 +47,7 @@ import static com.android.server.policy.WindowManagerPolicy.FINISH_LAYOUT_REDO_W
 import static com.android.server.wm.ActivityTaskManagerDebugConfig.TAG_ATM;
 import static com.android.server.wm.ActivityTaskManagerDebugConfig.TAG_WITH_CLASS_NAME;
 
+import android.app.AxBoostFwk;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.internal.perfetto.protos.Windowmanagerservice.KeyguardPerDisplayProto;
@@ -250,7 +251,7 @@ class KeyguardController {
             AxRefreshRateController.getInstance().setKeyguardDone(!keyguardShowing);
             GameSpaceService.get().onKeyguardChanged(keyguardShowing);
             if (!keyguardShowing) {
-                AxExtServiceFactory.getAxBurstEngine().shadeBoost(true);
+                AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_SHADE, -1L);
                 BackgroundThread.getHandler().removeCallbacks(mKeyguardDoneBoostRelease);
                 BackgroundThread.getHandler().postDelayed(mKeyguardDoneBoostRelease, 600L);
             }
@@ -656,7 +657,7 @@ class KeyguardController {
     };
 
     private final Runnable mKeyguardDoneBoostRelease = () ->
-            AxExtServiceFactory.getAxBurstEngine().shadeBoost(false);
+            AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_SHADE, 0L);
 
     // Defer transition until AOD dismissed.
     void updateDeferTransitionForAod(boolean waiting) {

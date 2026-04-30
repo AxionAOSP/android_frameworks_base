@@ -123,6 +123,7 @@ import android.provider.Settings;
 import android.service.voice.IVoiceInteractionSession;
 import android.util.ArrayMap;
 import android.util.ArraySet;
+import android.app.AxBoostFwk;
 import android.util.IntArray;
 import android.util.Pair;
 import android.util.Slog;
@@ -154,7 +155,8 @@ import com.android.server.pm.UserManagerInternal;
 import com.android.server.policy.PermissionPolicyInternal;
 import com.android.server.policy.WindowManagerPolicy;
 import com.android.server.utils.Slogf;
-import com.android.server.am.ProcessFreezerManager;
+import com.android.server.am.AxBackgroundManager;
+import com.android.server.am.AxFreezeManager;
 import com.android.server.wm.utils.RegionUtils;
 import com.android.window.flags.Flags;
 
@@ -2462,13 +2464,16 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
             if (mTmpFindTaskResult.mIdealRecord != null) {
                 if(mTmpFindTaskResult.mIdealRecord.getState() == DESTROYED) {
                     /*It's a new app launch */
-                    startIoPrefetch(r);
+                    acquireAppLaunchPerfLock(r);
                 }
                 if(mTmpFindTaskResult.mIdealRecord.getState() == STOPPED) {
-                    ProcessFreezerManager freezer = ProcessFreezerManager.getInstance();
+                    AxBackgroundManager freezer = AxExtServiceFactory.getAxBackgroundManager();
                     if (freezer != null && freezer.useFreezerManager()) {
-                        freezer.startFreeze(r.packageName, ProcessFreezerManager.WARM_LAUNCH_FREEZE);
+                        freezer.startFreeze(r.packageName, AxFreezeManager.WARM_LAUNCH_FREEZE);
                     }
+                    AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_SUBSEQ_LAUNCH_BOOST, -2L);
+                    AxExtServiceFactory.getUxPerformance().uxEngineEvent(
+                            AxBoostFwk.UXE_EVENT_SUB_LAUNCH, 0, r.packageName, 0);
                 }
                 return mTmpFindTaskResult.mIdealRecord;
             } else if (mTmpFindTaskResult.mCandidateRecord != null) {
@@ -2479,10 +2484,10 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
         if ((mTmpFindTaskResult.mIdealRecord == null) ||
             (mTmpFindTaskResult.mIdealRecord.getState() == DESTROYED)) {
             if (r != null && r.isMainIntent(r.intent)) {
-                startIoPrefetch(r);
-                ProcessFreezerManager freezer = ProcessFreezerManager.getInstance();
+                acquireAppLaunchPerfLock(r);
+                AxBackgroundManager freezer = AxExtServiceFactory.getAxBackgroundManager();
                 if (freezer != null && freezer.useFreezerManager()) {
-                    freezer.startFreeze(r.packageName, ProcessFreezerManager.FIRST_LAUNCH_FREEZE);
+                    freezer.startFreeze(r.packageName, AxFreezeManager.FIRST_LAUNCH_FREEZE);
                 }
             } else if (r == null) {
                 Slog.w(TAG, "Should not happen! Didn't apply launch boost");
@@ -2510,10 +2515,20 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
         return candidateActivity;
     }
 
-    void startIoPrefetch(ActivityRecord r) {
-        AxExtServiceFactory.getUxPerformance().perfIOPrefetchStart(-1, r.packageName,
-                      r.info.applicationInfo.sourceDir.substring(
-                        0, r.info.applicationInfo.sourceDir.lastIndexOf('/')));
+    void acquireAppLaunchPerfLock(ActivityRecord r) {
+        final ApplicationInfo appInfo = r.info.applicationInfo;
+        final int pkgType = AxExtServiceFactory.getAxBurstEngine().perfGetFeedback(appInfo, r.packageName);
+
+        AxExtServiceFactory.getAxBurstEngine().acquireHint(
+                pkgType == AxBoostFwk.WORKLOAD_GAME
+                        ? AxBoostFwk.OP_GAME_LAUNCH_BOOST
+                        : AxBoostFwk.OP_FIRST_LAUNCH_BOOST,
+                -2L);
+
+        if (appInfo != null && appInfo.sourceDir != null) {
+            AxExtServiceFactory.getUxPerformance().perfIOPrefetchStart(-1, r.packageName,
+                    appInfo.sourceDir.substring(0, appInfo.sourceDir.lastIndexOf('/')));
+        }
     }
 
     /**

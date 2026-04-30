@@ -298,7 +298,8 @@ import com.android.internal.policy.PhoneFallbackEventHandler;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.FastPrintWriter;
 import com.android.internal.util.NtThreeFingerGestureHelper;
-import com.android.internal.util.BoostHelper;
+import android.app.AxBoostFwk;
+
 import com.android.internal.util.ScrollOptimizer;
 import com.android.internal.util.ViewCacheManager;
 import com.android.internal.view.BaseSurfaceHolder;
@@ -1530,7 +1531,6 @@ public final class ViewRootImpl implements ViewParent,
         synchronized (this) {
             if (mView == null) {
                 mView = view;
-                BoostHelper.onFrameStage(BoostHelper.Frame.RENDER_INFO, 0L);
 
                 mViewLayoutDirectionInitial = mView.getRawLayoutDirection();
                 mFallbackEventHandler.setView(view);
@@ -2886,7 +2886,6 @@ public final class ViewRootImpl implements ViewParent,
         }
         mBlastBufferQueue = new BLASTBufferQueue(mTag, true /* updateDestinationFrame */);
         ScrollOptimizer.setBLASTBufferQueue(mBlastBufferQueue);
-        BoostHelper.onFrameStage(BoostHelper.Frame.RENDER_INFO, 0L);
         // If we create and destroy BBQ without recreating the SurfaceControl, we can end up
         // queuing buffers on multiple apply tokens causing out of order buffer submissions. We
         // fix this by setting the same apply token on all BBQs created by this VRI.
@@ -3111,7 +3110,7 @@ public final class ViewRootImpl implements ViewParent,
         if (mAttachInfo.mThreadedRenderer != null) {
             mAttachInfo.mThreadedRenderer.notifyRendererForGpuLoadUp(reason);
         }
-        BoostHelper.gpuBoost(true);
+        AxBoostFwk.acquireHint(AxBoostFwk.OP_SCENARIO_GPU, -2L);
     }
 
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
@@ -4647,7 +4646,6 @@ public final class ViewRootImpl implements ViewParent,
                         mPendingTransaction, mLastPerformDrawSkippedReason);
                 mHasPendingTransactions = false;
             }
-            BoostHelper.onFrameStage(BoostHelper.Frame.REAL_DRAW, 0L);
         }
         mWasLastDrawCanceled = cancelAndRedraw;
         mLastTraversalWasVisible = isViewVisible;
@@ -6028,6 +6026,7 @@ public final class ViewRootImpl implements ViewParent,
                 }
 
                 long timeNs = SystemClock.uptimeNanos();
+                AxBoostFwk.onFrameRealDraw(timeNs);
                 mAttachInfo.mThreadedRenderer.draw(mView, mAttachInfo, this);
 
                 // Only trigger once per {@link ViewRootImpl} instance.
@@ -8453,10 +8452,12 @@ public final class ViewRootImpl implements ViewParent,
             mAttachInfo.mUnbufferedDispatchRequested = false;
             mAttachInfo.mHandlingPointerEvent = true;
             if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                BoostHelper.onScrollEvent(BoostHelper.Scroll.INPUT_EVENT);
+                AxBoostFwk.acquireHint(AxBoostFwk.OP_SCROLL_INPUT, -1L);
+                AxBoostFwk.acquireHint(AxBoostFwk.OP_TOUCH_BOOST, -1L);
             } else if (event.getActionMasked() == MotionEvent.ACTION_UP
                     || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
-                BoostHelper.onScrollEvent(BoostHelper.Scroll.PREFILING);
+                AxBoostFwk.acquireHint(AxBoostFwk.OP_SCROLL_INPUT, 0L);
+                AxBoostFwk.acquireHint(AxBoostFwk.OP_TOUCH_BOOST, 0L);
             }
             // If the event was fully handled by the handwriting initiator, then don't dispatch it
             // to the view tree.
@@ -10758,10 +10759,6 @@ public final class ViewRootImpl implements ViewParent,
                     mPendingInputEventCount);
 
             mViewFrameInfo.setInputEvent(mInputEventAssigner.processEvent(q.mEvent));
-            
-            if (q.mEvent instanceof MotionEvent) {
-                ScrollOptimizer.setMotionType(((MotionEvent)q.mEvent).getActionMasked());
-            }
 
             deliverInputEvent(q);
         }

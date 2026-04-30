@@ -38,7 +38,6 @@ public final class DeviceData {
     private static final String CPUINFO_MAX_FREQ_FILE = "/cpufreq/cpuinfo_max_freq";
     private static final String SCALING_AVAILABLE_FREQ_FILE = "/cpufreq/scaling_available_frequencies";
 
-
     public static final String CPU_BG = AxUtils.cpuPath("background");
     public static final String CPU_SYS_BG = AxUtils.cpuPath("system-background");
     public static final String CPU_FG = AxUtils.cpuPath("foreground");
@@ -359,7 +358,7 @@ public final class DeviceData {
         String primeR = toRange(pCores);
 
         String bgCpus = rangeTo(sCores, 3);
-        String fgLimited = joinRanges(smallR, rangeTo(bCores, 1));
+        String fgLimited = smallR;
 
         int primeCount = pCores.isEmpty() ? 0 : pCores.split(",").length;
         int bigCount = bCores.isEmpty() ? 0 : bCores.split(",").length;
@@ -368,9 +367,7 @@ public final class DeviceData {
         int nonPrimeTotal = smallCount + bigCount;
         int fgTarget = Math.max((cpuCount * 3 + 3) / 4, nonPrimeTotal);
         String fgCpus;
-        if (primeCount >= 2) {
-            fgCpus = joinRanges(smallR, bigR);
-        } else if (fgTarget >= nonPrimeTotal) {
+        if (primeCount >= 1 || fgTarget >= nonPrimeTotal) {
             fgCpus = joinRanges(smallR, bigR);
         } else {
             fgCpus = allCores;
@@ -380,19 +377,10 @@ public final class DeviceData {
         if (primeCount > 0) {
             boostCpus = joinRanges(bigR, primeR);
         } else {
-            int boostTarget = cpuCount / 2;
-            if (bigCount >= boostTarget) {
-                boostCpus = bigR;
-            } else {
-                int smallNeeded = boostTarget - bigCount;
-                int smallTailStart = smallCount - smallNeeded;
-                if (smallTailStart < 0) smallTailStart = 0;
-                String smallTail = rangeTail(sCores, smallTailStart);
-                boostCpus = joinRanges(smallTail, bigR);
-            }
+            boostCpus = bigR;
         }
 
-        String svpCpus = (primeCount >= 2) ? primeR : boostCpus;
+        String svpCpus = boostCpus;
 
         String bgLimit = rangeTo(sCores, 2);
         String uiLimit = rangeTo(sCores, 3);

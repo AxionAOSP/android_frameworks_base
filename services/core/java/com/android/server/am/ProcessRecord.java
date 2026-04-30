@@ -32,6 +32,7 @@ import android.app.ActivityManager;
 import android.app.ApplicationExitInfo;
 import android.app.ApplicationExitInfo.Reason;
 import android.app.ApplicationExitInfo.SubReason;
+import android.app.AxBoostFwk;
 import android.app.BackgroundStartPrivileges;
 import android.app.IApplicationThread;
 import android.content.ComponentName;
@@ -64,6 +65,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.procstats.ProcessState;
 import com.android.internal.app.procstats.ProcessStats;
 import com.android.internal.os.Zygote;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.FgThread;
 import com.android.server.am.OomAdjusterImpl.ProcessRecordNode;
 import com.android.server.am.ProcessCachedOptimizerRecord.ShouldNotFreezeReason;
@@ -1314,6 +1316,17 @@ class ProcessRecord extends ProcessRecordInternal implements WindowProcessListen
                     mKillTime = SystemClock.uptimeMillis();
                 }
             }
+            if (!mService.mForceStopKill
+                && !mErrorState.isNotResponding() && !mErrorState.isCrashing()) {
+                AxExtServiceFactory.getUxPerformance().uxEngineEvent(
+                        AxBoostFwk.UXE_EVENT_KILL, 0, processName, 0);
+                AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_KILL, -2L);
+            } else {
+                mService.mForceStopKill = false;
+            }
+            if (processName.equals(info.packageName)) {
+                AxExtServiceFactory.getAxBurstEngine().unpinApp(info.packageName);
+            }
             Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
         }
     }
@@ -1706,6 +1719,9 @@ class ProcessRecord extends ProcessRecordInternal implements WindowProcessListen
             }
             if (packageName != null) {
                 addPackage(packageName, versionCode, mService.mProcessStats);
+                if (processName.equals(packageName)) {
+                    AxExtServiceFactory.getAxBurstEngine().pinApp(info);
+                }
             }
 
             // Update oom adj first, we don't want the additional states are involved in this round.

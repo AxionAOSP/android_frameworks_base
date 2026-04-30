@@ -47,6 +47,7 @@ import static com.android.wm.shell.shared.TransitionUtil.isOpeningType;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.ActivityTaskManager;
+import android.app.AxBoostFwk;
 import android.app.IApplicationThread;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -1251,6 +1252,9 @@ public class Transitions implements RemoteCallable<Transitions>,
         if (mKnownTransitions.containsKey(transitionToken)) {
             throw new RuntimeException("Transition already started " + transitionToken);
         }
+        
+        AxBoostFwk.acquireHint(AxBoostFwk.OP_RENDER_TRANSITION, -2L);
+
         final ActiveTransition active = new ActiveTransition(transitionToken);
         mKnownTransitions.put(transitionToken, active);
         WindowContainerTransaction wct = null;

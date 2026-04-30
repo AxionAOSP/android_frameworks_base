@@ -24,8 +24,8 @@ import android.os.Build;
 import android.view.ViewConfiguration;
 import android.view.animation.AnimationUtils;
 import android.view.animation.Interpolator;
+import android.app.AxBoostFwk;
 
-import com.android.internal.util.BoostHelper;
 
 /**
  * <p>This class encapsulates scrolling. You can use scrollers ({@link Scroller}
@@ -396,7 +396,7 @@ public class Scroller  {
      * @param duration Duration of the scroll in milliseconds.
      */
     public void startScroll(int startX, int startY, int dx, int dy, int duration) {
-        BoostHelper.onScrollEvent(BoostHelper.Scroll.SCROLLER);
+        AxBoostFwk.acquireHint(AxBoostFwk.OP_SCROLL_SCROLLER, -2L);
         mMode = SCROLL_MODE;
         mFinished = false;
         mDuration = duration;
@@ -431,7 +431,7 @@ public class Scroller  {
      */
     public void fling(int startX, int startY, int velocityX, int velocityY,
             int minX, int maxX, int minY, int maxY) {
-        BoostHelper.onRefreshRateEvent(BoostHelper.RefreshRate.FLING_START);
+        AxBoostFwk.acquireHint(AxBoostFwk.OP_SCROLL_BOOST, -2L);
         // Continue a scroll or fling in progress
         if (mFlywheel && !mFinished) {
             float oldVel = getCurrVelocity();

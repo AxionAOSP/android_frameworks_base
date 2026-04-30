@@ -27,6 +27,7 @@ import static android.window.TransitionInfo.FLAG_IS_BEHIND_STARTING_WINDOW;
 
 import android.annotation.NonNull;
 import android.app.ActivityManager.RunningTaskInfo;
+import android.app.AxBoostFwk;
 import android.app.TaskInfo;
 import android.content.Context;
 import android.graphics.Color;
@@ -389,6 +390,8 @@ public class StartingWindowController implements RemoteCallable<StartingWindowCo
                 windowInfo.taskInfo.taskId, windowInfo.transitionToken, windowInfo.appToken));
         mSplashScreenExecutor.execute(() -> {
             Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "addStartingWindow");
+            
+            AxBoostFwk.acquireHint(AxBoostFwk.OP_RENDER_TRANSITION, -2L);
 
             final int suggestionType = mStartingWindowTypeAlgorithm.getSuggestedWindowType(
                     windowInfo);

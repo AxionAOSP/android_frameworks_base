@@ -859,6 +859,21 @@ static int android_view_ThreadedRenderer_preload(JNIEnv*, jclass) {
     return RenderProxy::preload();
 }
 
+static jintArray android_view_ThreadedRenderer_getHwuiTaskThreadTids(JNIEnv* env, jclass) {
+#ifdef __ANDROID__
+    std::vector<int> tids = CommonPool::getThreadIds();
+    const jsize count = static_cast<jsize>(tids.size());
+    jintArray result = env->NewIntArray(count);
+    if (result == nullptr) {
+        return nullptr;
+    }
+    env->SetIntArrayRegion(result, 0, count, reinterpret_cast<const jint*>(tids.data()));
+    return result;
+#else
+    return env->NewIntArray(0);
+#endif
+}
+
 static void android_view_ThreadedRenderer_preInitBufferAllocator(JNIEnv*, jclass) {
 #ifdef __ANDROID__
     CommonPool::async([] {
@@ -1075,6 +1090,8 @@ static const JNINativeMethod gMethods[] = {
          (void*)android_view_ThreadedRenderer_setDisplayDensityDpi},
         {"nInitDisplayInfo", "(IIFIJJZZZ)V", (void*)android_view_ThreadedRenderer_initDisplayInfo},
         {"preload", "()I", (void*)android_view_ThreadedRenderer_preload},
+        {"getHwuiTaskThreadTids", "()[I",
+         (void*)android_view_ThreadedRenderer_getHwuiTaskThreadTids},
         {"preInitBufferAllocator", "()V",
          (void*)android_view_ThreadedRenderer_preInitBufferAllocator},
         {"isWebViewOverlaysEnabled", "()Z",

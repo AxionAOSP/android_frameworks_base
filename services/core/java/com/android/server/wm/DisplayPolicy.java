@@ -133,6 +133,9 @@ import android.window.ClientWindowFrames;
 import android.window.DesktopExperienceFlags;
 import android.window.DesktopModeFlags;
 
+import android.app.AxBoostFwk;
+import android.content.pm.PackageManager;
+
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.BackgroundThread;
@@ -144,6 +147,7 @@ import com.android.internal.util.function.TriFunction;
 import com.android.internal.view.AppearanceRegion;
 import com.android.internal.widget.PointerLocationView;
 import com.android.server.AxExtServiceFactory;
+import com.android.server.am.AxWorkloadDetector;
 import com.android.server.LocalServices;
 import com.android.server.UiModeManagerInternal;
 import com.android.server.UiThread;
@@ -199,10 +203,6 @@ public class DisplayPolicy {
     private final DisplayContent mDisplayContent;
     private final Object mLock;
     private final Handler mHandler;
-    private final Runnable mFlingBoostEndRunnable = () -> {
-        AxExtServiceFactory.getAxBurstEngine().flingBoost(false);
-        AxExtServiceFactory.getAxBurstEngine().gpuBoost(false);
-    };
 
     private Resources mCurrentUserResources;
 
@@ -575,12 +575,30 @@ public class DisplayPolicy {
                         mService.mPowerManagerInternal.setPowerBoost(
                                 Boost.INTERACTION, duration);
                     }
-                    AxExtServiceFactory.getAxBurstEngine().flingBoost(true);
-                    if (mNotificationShade != null && mNotificationShade.isVisible()) {
-                        AxExtServiceFactory.getAxBurstEngine().gpuBoost(true);
+                    final ActivityRecord top = mDisplayContent.topRunningActivity();
+                    final boolean isGame = top != null && AxExtServiceFactory.getAxBurstEngine().perfGetFeedback(
+                            top.info.applicationInfo, top.packageName) == AxBoostFwk.WORKLOAD_GAME;
+                    final long boostDurationMillis = duration + 160L;
+                    AxRefreshRateController.getInstance().setFlingBoost(boostDurationMillis);
+                    if (mNotificationShade != null && mNotificationShade.isVisible() || isGame) {
+                        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_SCENARIO_GPU, boostDurationMillis);
                     }
-                    mHandler.removeCallbacks(mFlingBoostEndRunnable);
-                    mHandler.postDelayed(mFlingBoostEndRunnable, duration + 160);
+                    AxExtServiceFactory.getAxBurstEngine().acquireHint(
+                            AxBoostFwk.OP_SCROLL_BOOST, boostDurationMillis + 100L);
+                }
+
+                @Override
+                public void onScroll(boolean started) {
+                    final ActivityRecord top = mDisplayContent.topRunningActivity();
+                    final boolean isGame = top != null && AxExtServiceFactory.getAxBurstEngine().perfGetFeedback(
+                            top.info.applicationInfo, top.packageName) == AxBoostFwk.WORKLOAD_GAME;
+                    if (started) {
+                        if (isGame) {
+                            AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_SCENARIO_GPU, -2L);
+                        }
+                        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_DRAG_BOOST, -2L);
+                        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_DRAG_START, -2L);
+                    }
                 }
 
                 @Override
@@ -595,9 +613,17 @@ public class DisplayPolicy {
 
                 @Override
                 public void onDown() {
+                    final ActivityRecord top = mDisplayContent.topRunningActivity();
+                    final boolean isGame = top != null && AxExtServiceFactory.getAxBurstEngine().perfGetFeedback(
+                            top.info.applicationInfo, top.packageName) == AxBoostFwk.WORKLOAD_GAME;
                     final WindowOrientationListener listener = getOrientationListener();
                     if (listener != null) {
                         listener.onTouchStart();
+                    }
+                    AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_SCROLL_INPUT, -2L);
+                    AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_TOUCH_BOOST, -2L);
+                    if (isGame) {
+                        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_SCENARIO_GPU, -2L);
                     }
                 }
 

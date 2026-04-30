@@ -42,6 +42,7 @@ import android.util.TimeUtils;
 
 import com.android.internal.annotations.CompositeRWLock;
 import com.android.internal.annotations.GuardedBy;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.am.Flags;
 import com.android.server.am.OomAdjuster;
 import com.android.server.am.OomAdjusterImpl;
@@ -49,6 +50,9 @@ import com.android.server.am.ProcessCachedOptimizerRecord.ShouldNotFreezeReason;
 import com.android.server.am.psc.PlatformCompatCache.CachedCompatChangeId;
 
 import java.io.PrintWriter;
+import java.util.Arrays;
+
+import libcore.util.EmptyArray;
 
 /** The state info of the process, including proc state, oom adj score, et al. */
 public abstract class ProcessRecordInternal {
@@ -839,6 +843,10 @@ public abstract class ProcessRecordInternal {
     @GuardedBy("mProcLock")
     private int mRenderThreadTid;
 
+    /** TIDs for HWUI common worker tasks. */
+    @GuardedBy("mProcLock")
+    private int[] mHwuiTaskTids = EmptyArray.INT;
+
     /** Class to run on start if this is a special isolated process. */
     @GuardedBy("mServiceLock")
     private String mIsolatedEntryPoint;
@@ -881,6 +889,9 @@ public abstract class ProcessRecordInternal {
     @GuardedBy({"mServiceLock", "mProcLock"})
     public void setKilled(boolean killed) {
         mKilled = killed;
+        if (processName.equals(getPackageName()) && killed) {
+            AxExtServiceFactory.getAxBurstEngine().unpinApp(getPackageName());
+        }
     }
 
     @GuardedBy(anyOf = {"mServiceLock", "mProcLock"})
@@ -1868,6 +1879,17 @@ public abstract class ProcessRecordInternal {
     @GuardedBy("mProcLock")
     public void setRenderThreadTid(int renderThreadTid) {
         mRenderThreadTid = renderThreadTid;
+    }
+
+    @GuardedBy("mProcLock")
+    public int[] getHwuiTaskTids() {
+        return mHwuiTaskTids;
+    }
+
+    @GuardedBy("mProcLock")
+    public void setHwuiTaskTids(int[] hwuiTaskTids) {
+        mHwuiTaskTids = hwuiTaskTids.length == 0
+                ? EmptyArray.INT : Arrays.copyOf(hwuiTaskTids, hwuiTaskTids.length);
     }
 
     public String getProcessName() {

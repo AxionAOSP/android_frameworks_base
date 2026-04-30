@@ -158,6 +158,8 @@ import android.util.Slog;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 
+import android.app.AxBoostFwk;
+
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.content.F2fsUtils;
 import com.android.internal.pm.parsing.PackageParser2;
@@ -1429,6 +1431,8 @@ final class InstallPackageHelper {
         }
         if (success) {
             for (InstallRequest request : requests) {
+                AxExtServiceFactory.getUxPerformance().uxEngineEvent(
+                        AxBoostFwk.UXE_EVENT_PKG_INSTALL, 0, request.getName(), 0);
                 mInjector.getAppOpsManagerInternal().onPackageAdded(
                         request.getName(), request.getAppId());
                 if (request.getDataLoaderType() != DataLoaderType.INCREMENTAL) {
@@ -1518,6 +1522,9 @@ final class InstallPackageHelper {
         final File tmpPackageFile = new File(
                 isApex ? request.getApexInfo().modulePath : request.getCodePath());
         if (DEBUG_INSTALL) Slog.d(TAG, "installPackageLI: path=" + tmpPackageFile);
+        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_PKG_INSTALL, -2L);
+        AxExtServiceFactory.getUxPerformance().uxEngineEvent(
+                AxBoostFwk.UXE_EVENT_PKG_INSTALL, 0, "", 1);
 
         // Validity check
         if (instantApp && onExternal) {
@@ -2047,6 +2054,7 @@ final class InstallPackageHelper {
                             "replacePackageLI: new=" + parsedPackage
                                     + ", old=" + oldPackageState.getName());
                 }
+                AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_APP_UPDATE, -2L);
 
                 ps = mPm.mSettings.getPackageLPr(pkgName11);
                 disabledPs = mPm.mSettings.getDisabledSystemPkgLPr(ps);

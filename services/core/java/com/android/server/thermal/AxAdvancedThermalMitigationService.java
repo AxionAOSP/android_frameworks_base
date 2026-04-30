@@ -34,6 +34,8 @@ public class AxAdvancedThermalMitigationService implements IAxAdvancedThermalMit
 
     private final AxAdvancedThermalMitigationDispatcher mDispatcher;
     private final AxAdvancedThermalMitigationProducer mProducer;
+    private int mLastCpuCap = -1;
+    private int mLastGpuCap = -1;
     private int mLastBgKillerStatus = -1;
     private int mLastDexoptStatus = -1;
 
@@ -46,6 +48,7 @@ public class AxAdvancedThermalMitigationService implements IAxAdvancedThermalMit
     @Override
     public void systemReady() {
         registerBurstEngineSubscriber();
+        registerBoostScenarioSubscriber();
         registerBgKillerSubscriber();
         registerDexoptSubscriber();
         mProducer.start();
@@ -62,20 +65,38 @@ public class AxAdvancedThermalMitigationService implements IAxAdvancedThermalMit
                     @Override
                     public void onThermalStatus(
                             List<AxAdvancedThermalMitigationInfo> infos, Bundle bundle) {
-                        int cpuCap = -1;
-                        int gpuCap = -1;
                         for (AxAdvancedThermalMitigationInfo info : infos) {
                             if (AxAdvancedThermalMitigationConfig.UNIT_CPU.equals(info.getUnit())) {
-                                cpuCap = info.getStatus();
+                                mLastCpuCap = info.getStatus();
                             } else if (AxAdvancedThermalMitigationConfig.UNIT_GPU.equals(
                                     info.getUnit())) {
-                                gpuCap = info.getStatus();
+                                mLastGpuCap = info.getStatus();
                             }
                         }
                         int level = (bundle != null) ? bundle.getInt("thermalLevel", 0) : 0;
                         IAxBurstEngine engine = AxExtServiceFactory.getAxBurstEngine();
                         if (engine != null) {
-                            engine.setThermalState(level, cpuCap, gpuCap);
+                            engine.setThermalState(level, mLastCpuCap, mLastGpuCap);
+                        }
+                    }
+                };
+        mDispatcher.listenWithUnitList(listener, units, "system_server");
+    }
+
+    private void registerBoostScenarioSubscriber() {
+        String[] units = new String[] {AxAdvancedThermalMitigationConfig.UNIT_BOOST_SCENARIO};
+        IAxAdvancedThermalMitigationListener listener =
+                new IAxAdvancedThermalMitigationListener() {
+                    @Override
+                    public void onThermalStatus(
+                            List<AxAdvancedThermalMitigationInfo> infos, Bundle bundle) {
+                        int status = -1;
+                        for (AxAdvancedThermalMitigationInfo info : infos) {
+                            if (AxAdvancedThermalMitigationConfig.UNIT_BOOST_SCENARIO.equals(
+                                    info.getUnit())) {
+                                status = info.getStatus();
+                                break;
+                            }
                         }
                     }
                 };

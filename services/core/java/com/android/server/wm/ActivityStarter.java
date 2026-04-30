@@ -93,6 +93,7 @@ import static com.android.server.wm.WindowManagerDebugConfig.TAG_WM;
 import static com.android.window.flags.Flags.balDontBringExistingBackgroundTaskStackToFg;
 import static com.android.window.flags.Flags.balReportAbortedActivityStarts;
 
+import android.app.AxBoostFwk;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -1743,13 +1744,7 @@ class ActivityStarter {
             mService.deferWindowLayout();
             r.mTransitionController.collect(r);
             try {
-                AxExtServiceFactory.getAxBurstEngine().compositionBoost(800L,
-                        r.app != null ? r.app.getPid() : 0);
-                AxExtServiceFactory.getAxBurstEngine().onLaunch(
-                        r.app != null ? IAxBurstEngine.Launch.LAUNCH_HOT
-                                      : IAxBurstEngine.Launch.LAUNCH_COLD);
-                AxExtServiceFactory.getAxBurstEngine().onConsistency(
-                        IAxBurstEngine.Consistency.APP_LAUNCH_RESPONSE);
+                AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_FIRST_LAUNCH_BOOST, -2L);
                 Trace.traceBegin(Trace.TRACE_TAG_WINDOW_MANAGER, "startActivityInner");
                 result = startActivityInner(r, sourceRecord, voiceSession, voiceInteractor,
                         startFlags, options, inTask, inTaskFragment, balVerdict,
@@ -3276,6 +3271,7 @@ class ActivityStarter {
 
     /** Places {@link #mStartActivity} in {@code task} or an embedded {@link TaskFragment}. */
     private void addOrReparentStartingActivity(@NonNull Task task, String reason) {
+        mStartActivity.acquireActivityBoost();
         TaskFragment newParent = task;
         if (mInTaskFragment != null) {
             int embeddingCheckResult = canEmbedActivity(mInTaskFragment, mStartActivity, task);

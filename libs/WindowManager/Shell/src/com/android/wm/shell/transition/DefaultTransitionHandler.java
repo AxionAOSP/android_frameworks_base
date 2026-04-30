@@ -105,7 +105,7 @@ import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.jank.InteractionJankMonitor;
 import com.android.internal.policy.ScreenDecorationsUtils;
-import com.android.internal.util.BoostHelper;
+import android.app.AxBoostFwk;
 import com.android.internal.policy.TransitionAnimation;
 import com.android.internal.protolog.ProtoLog;
 import com.android.window.flags.Flags;
@@ -671,7 +671,7 @@ public class DefaultTransitionHandler implements Transitions.TransitionHandler {
                 }
             }
             if (longestDurationMs > 0L) {
-                BoostHelper.compositionBoost(longestDurationMs + 100L);
+                AxBoostFwk.acquireHint(AxBoostFwk.OP_RENDER_TRANSITION, longestDurationMs + 100L);
             }
 
             // now start animations. they are started on another thread, so we have to post them

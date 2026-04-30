@@ -29,18 +29,14 @@ import com.android.server.wm.AxSandboxService;
 import com.android.server.wm.GameSpaceService;
 import com.android.server.wm.WindowManagerService;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 public class AxExtServiceFactory {
     private static AxExtServiceFactory sInstance = null;
 
-    private static final Object sLock = new Object();
-
-    private static volatile IAxBurstEngine sAxBurstEngine;
-    private static volatile IAxMemoryManager sAxMemoryManager;
-    private static volatile IUxPerformance sUxPerformance;
-    private static volatile IAxPcModeService sPcModeManager;
-    private static volatile IAxSpoofManager sAxSpoofManager;
-    private static volatile IAxUiFirstManager sAxUiFirstManager;
-    private static volatile IAxAdvancedThermalMitigationService sAxAdvancedThermalMitigationService;
+    private static final int MAX_SERVICE_COUNT = 8;
+    private static final ConcurrentHashMap<IAxExtServiceFactory.ExtType, Object> sCache =
+            new ConcurrentHashMap<>(MAX_SERVICE_COUNT);
 
     private AxExtServiceFactory(Context context) {
         NtServiceInjector.get().setCtx(context);
@@ -74,97 +70,45 @@ public class AxExtServiceFactory {
 
     @SuppressWarnings("unchecked")
     public static <T> T getOrCreate(IAxExtServiceFactory.ExtType type) {
-        Object instance;
+        Object obj = sCache.get(type);
+        if (obj == null) {
+            obj = create(type);
+            sCache.put(type, obj);
+        }
+        return (T) obj;
+    }
+
+    private static Object create(IAxExtServiceFactory.ExtType type) {
         switch (type) {
             case AX_BURST_ENGINE:
-                if (sAxBurstEngine == null) {
-                    synchronized (sLock) {
-                        if (sAxBurstEngine == null) {
-                            sAxBurstEngine = new AxBurstEngine();
-                        }
-                    }
-                }
-                instance = sAxBurstEngine;
-                break;
-
+                return new AxBurstEngine();
             case AX_MEMORY_MANAGER:
-                if (sAxMemoryManager == null) {
-                    synchronized (sLock) {
-                        if (sAxMemoryManager == null) {
-                            sAxMemoryManager = new AxMemoryManagerImpl();
-                        }
-                    }
-                }
-                instance = sAxMemoryManager;
-                break;
-
+                return new AxMemoryManagerImpl();
             case UX_PERFORMANCE:
-                if (sUxPerformance == null) {
-                    synchronized (sLock) {
-                        if (sUxPerformance == null) {
-                            sUxPerformance = new UxPerformance();
-                        }
-                    }
-                }
-                instance = sUxPerformance;
-                break;
-
+                return new UxPerformance();
             case PC_MODE_SERVICE:
-                if (sPcModeManager == null) {
-                    synchronized (sLock) {
-                        if (sPcModeManager == null) {
-                            sPcModeManager = new AxPcModeService();
-                        }
-                    }
-                }
-                instance = sPcModeManager;
-                break;
-
+                return new AxPcModeService();
             case AX_SPOOF_MANAGER:
-                if (sAxSpoofManager == null) {
-                    synchronized (sLock) {
-                        if (sAxSpoofManager == null) {
-                            sAxSpoofManager = new AxSpoofManager();
-                        }
-                    }
-                }
-                instance = sAxSpoofManager;
-                break;
-
+                return new AxSpoofManager();
             case AX_UI_FIRST_MANAGER:
-                if (sAxUiFirstManager == null) {
-                    synchronized (sLock) {
-                        if (sAxUiFirstManager == null) {
-                            sAxUiFirstManager = new AxUiFirstManager();
-                        }
-                    }
-                }
-                instance = sAxUiFirstManager;
-                break;
-
+                return new AxUiFirstManager();
+            case AX_BACKGROUND_MANAGER:
+                return new AxBackgroundManager();
+            case AX_FREEZE_MANAGER:
+                return new AxFreezeManager();
             case AX_ADVANCED_THERMAL_MITIGATION:
-                if (sAxAdvancedThermalMitigationService == null) {
-                    synchronized (sLock) {
-                        if (sAxAdvancedThermalMitigationService == null) {
-                            sAxAdvancedThermalMitigationService =
-                                    new AxAdvancedThermalMitigationService();
-                        }
-                    }
-                }
-                instance = sAxAdvancedThermalMitigationService;
-                break;
-
+                return new AxAdvancedThermalMitigationService();
             default:
                 throw new IllegalArgumentException("Unknown ExtType: " + type);
         }
-
-        return (T) type.getClazz().cast(instance);
     }
 
     public static void systemReady() {
         GameSpaceService.systemReady();
         AxSandboxService.systemReady();
         getAxPcModeService().systemReady();
+        getAxBackgroundManager().systemReady();
+        getAxFreezeManager().systemReady();
     }
 
     public static void onLateSystemReady() {
@@ -202,5 +146,13 @@ public class AxExtServiceFactory {
 
     public static IAxAdvancedThermalMitigationService getAdvancedThermalMitigationService() {
         return getOrCreate(IAxExtServiceFactory.ExtType.AX_ADVANCED_THERMAL_MITIGATION);
+    }
+
+    public static AxBackgroundManager getAxBackgroundManager() {
+        return getOrCreate(IAxExtServiceFactory.ExtType.AX_BACKGROUND_MANAGER);
+    }
+    
+    public static AxFreezeManager getAxFreezeManager() {
+        return getOrCreate(IAxExtServiceFactory.ExtType.AX_FREEZE_MANAGER);
     }
 }

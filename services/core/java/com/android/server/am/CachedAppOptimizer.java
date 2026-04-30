@@ -344,8 +344,9 @@ public class CachedAppOptimizer {
     public enum CompactSource { APP, SHELL }
 
     public enum CancelCompactReason {
-        SCREEN_ON, // screen was turned on which cancels all compactions.
-        OOM_IMPROVEMENT // process moved out of cached state and into a more perceptible state.
+        SCREEN_ON,
+        OOM_IMPROVEMENT,
+        FLING
     }
 
     // Handler constants.
@@ -503,6 +504,7 @@ public class CachedAppOptimizer {
     private static final long APP_SWITCH_COMPACT_DELAY_MS = 10_000;
 
     private static final long COMPACT_LAUNCH_DEFER_DURATION_MS = 1_500;
+    private static final long FREEZE_LAUNCH_DEFER_DURATION_MS = 1_500;
 
     private volatile long mLastAppLaunchUptime = 0;
     private volatile boolean mIsAwake = true;
@@ -605,6 +607,15 @@ public class CachedAppOptimizer {
             updateMinOomAdjThrottle();
             updateMaxOomAdjThrottle();
         }
+        AxExtServiceFactory.getAxBurstEngine().setCancelCompactionCallback(
+                () -> {
+                    cancelAllCompactions(CancelCompactReason.FLING);
+                    if (mCompactionHandler != null) {
+                        mCompactionHandler.removeMessages(COMPACT_PROCESS_MSG);
+                        mCompactionHandler.removeMessages(COMPACT_SYSTEM_MSG);
+                        mCompactionHandler.removeMessages(COMPACT_NATIVE_MSG);
+                    }
+                });
     }
 
     /**
@@ -1848,7 +1859,7 @@ public class CachedAppOptimizer {
                         return;
                     }
 
-                    if (AxExtServiceFactory.getAxBurstEngine().isCompositionBoosting()) {
+                    if (AxExtServiceFactory.getAxBurstEngine().shouldDeferProcessPss()) {
                         mCompactStatsManager.logCompactionThrottled(
                                 CompactionStatsManager.COMPACT_THROTTLE_REASON_PROC_STATE,
                                 compactSource, name);
@@ -2015,6 +2026,11 @@ public class CachedAppOptimizer {
             switch (msg.what) {
                 case SET_FROZEN_PROCESS_MSG: {
                     ProcessRecord proc = (ProcessRecord) msg.obj;
+                    if (AxExtServiceFactory.getAxBurstEngine().shouldDeferProcessPss()) {
+                        sendMessageDelayed(obtainMessage(SET_FROZEN_PROCESS_MSG, msg.arg1,
+                                msg.arg2, proc), FREEZE_LAUNCH_DEFER_DURATION_MS);
+                        return;
+                    }
                     synchronized (mAm) {
                         if (!proc.mOptRecord.isPendingFreeze()) {
                             return;
@@ -2056,6 +2072,10 @@ public class CachedAppOptimizer {
                     }
                 } break;
                 case BINDER_ERROR_MSG: {
+                    if (AxExtServiceFactory.getAxBurstEngine().shouldDeferProcessPss()) {
+                        sendEmptyMessageDelayed(BINDER_ERROR_MSG, 1000L);
+                        break;
+                    }
                     IntArray pids = new IntArray();
                     // Copy the frozen pids to a local array to release mProcLock ASAP
                     synchronized (mProcLock) {

@@ -18,10 +18,11 @@ package com.android.server.am;
 import static android.os.Process.SCHED_OTHER;
 import static android.os.Process.SCHED_RESET_ON_FORK;
 import static android.os.Process.SCHED_RR;
+import static android.os.Process.SCHED_FIFO;
+import static android.os.Process.THREAD_GROUP_SVP;
 
 import android.os.Binder;
 import android.os.FileUtils;
-import android.os.Handler;
 import android.os.Process;
 
 import com.android.server.NtServiceInjector;
@@ -29,27 +30,36 @@ import com.android.server.NtServiceInjector;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 public final class AxThreadBoost {
 
-    private final Handler mHandler;
+    private final ScheduledExecutorService mScheduler;
     private final AxBurstEngine mEngine;
     private final HashMap<Integer, Integer> mBoostCount = new HashMap<>();
     private final HashMap<Integer, Integer> mOrigPrio = new HashMap<>();
+    private final HashMap<Integer, ScheduledFuture<?>> mBoostFutures = new HashMap<>();
     private final Runnable mLauncherReset = this::restoreLauncher;
 
-    public AxThreadBoost(Handler handler, AxBurstEngine engine) {
-        mHandler = handler;
+    public AxThreadBoost(AxBurstEngine engine) {
+        mScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "AxThreadBoost");
+            t.setPriority(5);
+            return t;
+        });
         mEngine = engine;
     }
 
     public void boost(int tid) {
-        mHandler.post(() -> Process.setThreadScheduler(tid, SCHED_RR | SCHED_RESET_ON_FORK, 1));
+        Process.setThreadScheduler(tid, SCHED_FIFO | SCHED_RESET_ON_FORK, 1);
+        Process.setThreadGroupAndCpuset(tid, THREAD_GROUP_SVP);
     }
 
     public void systemBoost(int tid, long duration) {
         if (tid <= 0) return;
-        mEngine.boostSfDelegated(duration);
         applyBoost(tid, duration);
         int callerPid = Binder.getCallingPid();
         if (callerPid <= 0 || callerPid == Process.myPid()) return;
@@ -89,7 +99,12 @@ public final class AxThreadBoost {
             return;
         }
         if (tryBoost(tid)) {
-            mHandler.postDelayed(() -> tryRestore(tid), duration);
+            ScheduledFuture<?> future = mScheduler.schedule(
+                    () -> tryRestore(tid), duration, TimeUnit.MILLISECONDS);
+            synchronized (mBoostFutures) {
+                ScheduledFuture<?> prev = mBoostFutures.put(tid, future);
+                if (prev != null) prev.cancel(false);
+            }
         }
     }
 
@@ -98,6 +113,10 @@ public final class AxThreadBoost {
         if (count != null) {
             mBoostCount.put(tid, count + 1);
         } else {
+            if (mBoostCount.size() > 512) {
+                mBoostCount.clear();
+                mOrigPrio.clear();
+            }
             try {
                 mOrigPrio.put(tid, Process.getThreadPriority(tid));
                 ActivityManagerService.scheduleAsRoundRobinPriority(tid, true);
@@ -125,6 +144,10 @@ public final class AxThreadBoost {
             }
             mBoostCount.remove(tid);
             mOrigPrio.remove(tid);
+            synchronized (mBoostFutures) {
+                ScheduledFuture<?> f = mBoostFutures.remove(tid);
+                if (f != null) f.cancel(false);
+            }
         }
     }
 
@@ -135,8 +158,7 @@ public final class AxThreadBoost {
             if (duration >= 0) {
                 ActivityManagerService.scheduleAsRoundRobinPriority(pid, true);
                 if (duration > 0) {
-                    mHandler.removeCallbacks(mLauncherReset);
-                    mHandler.postDelayed(mLauncherReset, duration);
+                    mScheduler.schedule(mLauncherReset, duration, TimeUnit.MILLISECONDS);
                 }
             } else {
                 restoreLauncher();

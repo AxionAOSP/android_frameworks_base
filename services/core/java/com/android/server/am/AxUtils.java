@@ -17,9 +17,7 @@ package com.android.server.am;
 
 import android.os.*;
 import android.os.Process;
-import android.system.ErrnoException;
-import android.system.Os;
-import android.system.OsConstants;
+
 import android.util.IntArray;
 import android.util.Slog;
 
@@ -27,12 +25,9 @@ import com.android.server.am.psc.ProcessRecordInternal;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileDescriptor;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InterruptedIOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Paths;
@@ -574,42 +569,5 @@ public class AxUtils {
 
     public static boolean checkTid(int tid) {
         return tid > 0 && new File("/proc/" + tid).exists();
-    }
-
-    private static final String PMQOS_PATH = "/dev/cpu_dma_latency";
-    private static FileDescriptor sPmqosFd = null;
-    private static int sPmqosLatencyUs = -1;
-    private static boolean sPmqosSupported = true;
-
-    public static synchronized void pmqosHoldFd(int latencyUs) {
-        if (!sPmqosSupported) return;
-        if (sPmqosFd != null && sPmqosLatencyUs == latencyUs) return;
-        if (sPmqosFd != null) pmqosReleaseFdLocked();
-        try {
-            FileDescriptor fd = Os.open(PMQOS_PATH, OsConstants.O_WRONLY, 0);
-            ByteBuffer buf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
-            buf.putInt(latencyUs).flip();
-            Os.write(fd, buf);
-            sPmqosFd = fd;
-            sPmqosLatencyUs = latencyUs;
-            logger("pmqosHoldFd latencyUs=" + latencyUs);
-        } catch (ErrnoException | InterruptedIOException e) {
-            sPmqosSupported = false;
-            logger("pmqosHoldFd failed: " + e);
-        }
-    }
-
-    public static synchronized void pmqosReleaseFd() {
-        pmqosReleaseFdLocked();
-    }
-
-    private static void pmqosReleaseFdLocked() {
-        if (sPmqosFd == null) return;
-        try {
-            Os.close(sPmqosFd);
-        } catch (ErrnoException ignored) {
-        }
-        sPmqosFd = null;
-        sPmqosLatencyUs = -1;
     }
 }

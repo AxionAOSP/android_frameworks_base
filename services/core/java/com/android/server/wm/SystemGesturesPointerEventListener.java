@@ -80,6 +80,7 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
     private final long[] mDownTime = new long[MAX_TRACKED_POINTERS];
 
     private GestureDetector mGestureDetector;
+    private boolean mScrollFired;
 
     int screenHeight;
     int screenWidth;
@@ -184,6 +185,10 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
             case MotionEvent.ACTION_DOWN:
                 mSwipeFireable = true;
                 mDebugFireable = true;
+                if (mScrollFired) {
+                    mCallbacks.onScroll(false);
+                }
+                mScrollFired = false;
                 mDownPointers = 0;
                 captureDown(event, 0);
                 if (mMouseHoveringAtLeft) {
@@ -290,6 +295,10 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
             case MotionEvent.ACTION_CANCEL:
                 mSwipeFireable = false;
                 mDebugFireable = false;
+                if (mScrollFired) {
+                    mCallbacks.onScroll(false);
+                }
+                mScrollFired = false;
                 mCallbacks.onUpOrCancel();
                 break;
             default:
@@ -450,6 +459,16 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
             mCallbacks.onFling(duration);
             return true;
         }
+
+        @Override
+        public boolean onScroll(MotionEvent e1, MotionEvent e2,
+                float distanceX, float distanceY) {
+            if (!mScrollFired) {
+                mCallbacks.onScroll(true);
+                mScrollFired = true;
+            }
+            return true;
+        }
     }
 
     interface Callbacks {
@@ -458,6 +477,7 @@ class SystemGesturesPointerEventListener implements PointerEventListener {
         void onSwipeFromRight();
         void onSwipeFromLeft();
         void onFling(int durationMs);
+        void onScroll(boolean started);
         void onDown();
         void onUpOrCancel();
         void onMouseHoverAtLeft();

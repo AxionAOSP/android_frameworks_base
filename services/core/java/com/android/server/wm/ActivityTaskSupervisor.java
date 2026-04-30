@@ -146,6 +146,7 @@ import android.os.WorkSource;
 import android.permission.PermissionManager;
 import android.provider.MediaStore;
 import android.util.ArrayMap;
+import android.app.AxBoostFwk;
 import android.util.Slog;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
@@ -171,7 +172,8 @@ import com.android.server.am.UserState;
 import com.android.server.companion.virtual.VirtualDeviceManagerInternal;
 import com.android.server.pm.SaferIntentUtils;
 import com.android.server.utils.Slogf;
-import com.android.server.am.ProcessFreezerManager;
+import com.android.server.am.AxBackgroundManager;
+import com.android.server.am.AxFreezeManager;
 import com.android.server.wm.ActivityMetricsLogger.LaunchingState;
 
 import java.io.FileDescriptor;
@@ -1184,6 +1186,22 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         }
     }
 
+    void acquireAppLaunchPerfLock(ActivityRecord r) {
+        final ApplicationInfo appInfo = r.info.applicationInfo;
+        final int pkgType = AxExtServiceFactory.getAxBurstEngine().perfGetFeedback(appInfo, r.packageName);
+
+        AxExtServiceFactory.getAxBurstEngine().acquireHint(
+                pkgType == AxBoostFwk.WORKLOAD_GAME
+                        ? AxBoostFwk.OP_GAME_LAUNCH_BOOST
+                        : AxBoostFwk.OP_FIRST_LAUNCH_BOOST,
+                -2L);
+
+        if (appInfo != null && appInfo.sourceDir != null) {
+            AxExtServiceFactory.getUxPerformance().perfIOPrefetchStart(-1, r.packageName,
+                    appInfo.sourceDir.substring(0, appInfo.sourceDir.lastIndexOf('/')));
+        }
+    }
+
     void startSpecificActivity(ActivityRecord r, boolean andResume, boolean checkConfig) {
         // Is this activity's application already running?
         final WindowProcessController wpc =
@@ -1218,9 +1236,9 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
 
         final boolean isTop = andResume && r.isTopRunningActivity();
         if (isTop) {
-            ProcessFreezerManager freezer = ProcessFreezerManager.getInstance();
+            AxBackgroundManager freezer = AxExtServiceFactory.getAxBackgroundManager();
             if (freezer != null && freezer.useFreezerManager()) {
-                freezer.startFreeze(r.processName, ProcessFreezerManager.COLD_LAUNCH_FREEZE);
+                freezer.startFreeze(r.processName, AxFreezeManager.COLD_LAUNCH_FREEZE);
             }
         }
         mService.startProcessAsync(r, knownToBeDead, isTop,
@@ -1629,8 +1647,7 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         if (allIdle) {
             if (!mWasAllActivitiesIdle) {
                 mWasAllActivitiesIdle = true;
-                AxExtServiceFactory.getAxBurstEngine().onConsistency(
-                        IAxBurstEngine.Consistency.NORMAL_MODE);
+                AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_RENDER_TRANSITION, 0L);
             }
             if (r != null) {
                 mService.scheduleAppGcsLocked();
@@ -1677,8 +1694,7 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         Task focusedStack = mRootWindowContainer.getTopDisplayFocusedRootTask();
         ActivityRecord top = focusedStack != null ? focusedStack.getTopNonFinishingActivity() : null;
         if((top != null) && (top.getState() == DESTROYED)) {
-            AxExtServiceFactory.getUxPerformance().perfIOPrefetchStart(-1, top.packageName,
-                           top.info.applicationInfo.sourceDir.substring(0, top.info.applicationInfo.sourceDir.lastIndexOf('/')));
+            acquireAppLaunchPerfLock(top);
         }
 
         if (currentRootTask == null) {
@@ -2069,6 +2085,18 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
                 ActivityManagerInternal::killProcessesForRemovedTask, mService.mAmInternal,
                 procsToKill);
         mService.mH.sendMessage(m);
+        startPreferredApps();
+    }
+
+    public void startPreferredApps() {
+        try {
+            String predicted = AxExtServiceFactory.getUxPerformance().uxEngineTrigger();
+            if (predicted != null) {
+                Slog.i(TAG, "Predicted next app: " + predicted);
+            }
+        } catch (Exception e) {
+            Slog.w(TAG, "startPreferredApps failed: " + e);
+        }
     }
 
     /**
@@ -2263,11 +2291,9 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         this.mStoppingActivities.remove(r);
         mWasAllActivitiesIdle = false;
         AxExtServiceFactory.getAxBurstEngine().getProcessesAndFrozen(r.packageName);
-        AxExtServiceFactory.getAxBurstEngine().inputBoost();
-        AxExtServiceFactory.getAxBurstEngine().compositionBoost(800L,
-                r.app != null ? r.app.getPid() : 0);
-        AxExtServiceFactory.getAxBurstEngine().onLaunch(
-                IAxBurstEngine.Launch.ACTIVITY_SWITCH);
+        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_TOUCH_BOOST, -2L);
+        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_RENDER_TRANSITION, 800L);
+        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_LAUNCH_ACT_SWITCH, -2L);
         AxExtServiceFactory.getMemoryManager().releaseMemoryAtScreenOn();
         AxExtServiceFactory.getMemoryManager().loadProcessMemory("com.android.launcher3");
         Task rootTask = r.getRootTask();

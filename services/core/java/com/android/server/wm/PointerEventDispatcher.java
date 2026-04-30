@@ -16,6 +16,7 @@
 
 package com.android.server.wm;
 
+import android.app.AxBoostFwk;
 import android.view.InputChannel;
 import android.view.InputDevice;
 import android.view.InputEvent;
@@ -39,7 +40,7 @@ public class PointerEventDispatcher extends InputEventReceiver {
     @Override
     public void onInputEvent(InputEvent event) {
         try {
-            AxExtServiceFactory.getAxBurstEngine().inputBoost();
+            AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_TOUCH_BOOST, -2L);
             AxRefreshRateController.getInstance().onPointerEvent();
             if (event instanceof MotionEvent
                     && (event.getSource() & InputDevice.SOURCE_CLASS_POINTER) != 0) {

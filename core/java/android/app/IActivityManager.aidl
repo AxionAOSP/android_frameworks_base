@@ -1060,46 +1060,14 @@ interface IActivityManager {
     /**
     * Axion Burst Engine
     */
-    void adjustCpusetCpus(String group, String cpus, long duration);
-
-    void getProcessesAndFrozen(String resumePackageName);
-
-    oneway void inputBoost();
-
     oneway void boostThread(int tid);
-
-    oneway void launcherItemsLoadingBoost(long duration);
-
-    oneway void systemThreadBoost(int tid, long duration);
-
-    oneway void flingBoost(boolean active);
-
-    oneway void compositionBoost(long durationMs);
-
-    oneway void gpuBoost(boolean active);
-
-    oneway void shadeBoost(boolean active);
-
-    oneway void onScrollEvent(int action);
-    oneway void onLaunch(int type);
-    oneway void onFrameStage(int stage, long frameId);
-    oneway void onRefreshRateEvent(int event);
-    oneway void onImeTransition(int action);
-    oneway void onConsistency(int mode);
-    oneway void onAnimation(int action);
-    oneway void onEarlyWakeup(boolean start, long maxDurMs);
-    void onActivityTransition(String fromPkg, String toPkg, int phase);
-    void onActivityExit(String pkg);
-    void onProcessKill(int pid, String pkg);
-    void setTopAppRenderThread(int pid, int tid);
-    void setTopAppPid(int pid);
-    long acquireResources(long durMs, in String[] resNames, in long[] values);
-    void releaseResources(long handle);
-    long swapResources(long prevHandle, long durMs, in String[] resNames, in long[] values);
-    long acquireHint(String hintName, long durOverrideMs);
-    long swapHint(long prevHandle, String hintName, long durOverrideMs);
-
+    void setHwuiTaskThreads(in int[] tids);
+    oneway void onFrameDraw();
+    oneway void onFrameRealDraw(long durMs);
     void releaseMemory(int minAdj, int maxKillCount, boolean includeUIProcesses, boolean skipCamera);
+    
+    oneway void acquireHint(int opcode, long durOverrideMs);
+    oneway void uxEngineEvent(int opcode, int pid, String packageName, int lat);
 
     String getSpoofPifConfig();
 

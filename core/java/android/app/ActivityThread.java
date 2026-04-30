@@ -257,7 +257,8 @@ import com.android.internal.os.logging.MetricsLoggerWrapper;
 import com.android.internal.policy.DecorView;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.ArrayUtils;
-import com.android.internal.util.BoostHelper;
+import android.app.AxBoostFwk;
+
 import com.android.internal.util.FastPrintWriter;
 import com.android.internal.util.Preconditions;
 import com.android.internal.util.StringCache;
@@ -4676,18 +4677,19 @@ public final class ActivityThread extends ClientTransactionHandler
         // Initialize before creating the activity
         if (ThreadedRenderer.sRendererEnabled
                 && (r.activityInfo.flags & ActivityInfo.FLAG_HARDWARE_ACCELERATED) != 0) {
+            final int tid = HardwareRenderer.preload();
             if (earlyRenderThreadPriorityBoost()) {
-                final int tid = HardwareRenderer.preload();
                 // Adjust the RenderThread priority as soon as it's created.
                 if (tid > 0) {
                     try {
                         ActivityManager.getService().setRenderThread(tid);
+                        AxBoostFwk.boostThread(tid);
                     } catch (Throwable t) {
                         Log.w(TAG, "Failed to set scheduler for RenderThread", t);
                     }
                 }
             } else {
-                HardwareRenderer.preload();
+                AxBoostFwk.boostThread(tid);
             }
         }
 
@@ -5879,6 +5881,7 @@ public final class ActivityThread extends ClientTransactionHandler
             r.setState(ON_RESUME);
 
             reportTopResumedActivityChanged(r, r.isTopResumedActivity, "topWhenResuming");
+            AxBoostFwk.acquireHint(AxBoostFwk.OP_FIRST_LAUNCH_BOOST, -2L);
         } catch (Exception e) {
             if (!mInstrumentation.onException(r.activity, e)) {
                 throw new RuntimeException("Unable to resume activity "
@@ -5912,7 +5915,6 @@ public final class ActivityThread extends ClientTransactionHandler
         // we are back active so skip it.
         unscheduleGcIdler();
         mSomeActivitiesChanged = true;
-        BoostHelper.onLaunch(BoostHelper.Launch.ACTIVITY_SWITCH);
 
         // TODO Push resumeArgs into the activity for consideration
         // skip below steps for double-resume and r.mFinish = true case.
@@ -7959,6 +7961,12 @@ public final class ActivityThread extends ClientTransactionHandler
                 == 0) {
             mDensityCompatMode = true;
             Bitmap.setDefaultDensity(DisplayMetrics.DENSITY_DEFAULT);
+        } else {
+            int overrideDensity = data.appInfo.getOverrideDensity();
+            if (overrideDensity != 0) {
+                mDensityCompatMode = true;
+                Bitmap.setDefaultDensity(overrideDensity);
+            }
         }
         mConfigurationController.updateDefaultDensity(data.config.densityDpi);
 
@@ -8245,6 +8253,7 @@ public final class ActivityThread extends ClientTransactionHandler
                 }
             });
         }
+        AxBoostFwk.uxEngineEvent(AxBoostFwk.UXE_EVENT_BINDAPP, 0, data.processName, 0);
     }
 
     @UnsupportedAppUsage

@@ -61,6 +61,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityManager;
+import android.app.AxBoostFwk;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -1128,6 +1129,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
         if (isOptical()) {
             mLatencyTracker.onActionStart(ACTION_UDFPS_ILLUMINATE);
         }
+        AxBoostFwk.acquireHint(AxBoostFwk.OP_FIRST_LAUNCH_BOOST, -1L);
         // Refresh screen timeout and boost process priority if possible.
         if (Flags.bouncerUiRevamp()) {
             mUserActivityNotifier.notifyUserActivity(mSystemClock.uptimeMillis(),
@@ -1215,6 +1217,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             long time,
             long gestureStart,
             boolean isAod) {
+        AxBoostFwk.acquireHint(AxBoostFwk.OP_FIRST_LAUNCH_BOOST, 0L);
         mExecution.assertIsMainThread();
         mActivePointerId = MotionEvent.INVALID_POINTER_ID;
         mAcquiredReceived = false;

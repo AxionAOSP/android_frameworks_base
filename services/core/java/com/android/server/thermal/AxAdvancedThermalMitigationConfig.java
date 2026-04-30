@@ -37,6 +37,7 @@ public final class AxAdvancedThermalMitigationConfig {
     public static final String UNIT_BRIGHTNESS = "brightness";
     public static final String UNIT_BG_KILLER = "bg_killer";
     public static final String UNIT_DEXOPT = "dexopt";
+    public static final String UNIT_BOOST_SCENARIO = "boost_scenario";
     public static final String UNIT_NETWORK_LIMIT = "network_speed_limit";
     public static final String UNIT_FILE_LIMIT = "file_speed_limit";
     public static final String UNIT_CAMERA_BRIGHTNESS = "cameraBrightness";

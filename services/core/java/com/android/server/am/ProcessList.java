@@ -123,6 +123,7 @@ import android.system.OsConstants;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.ArraySet;
+import android.app.AxBoostFwk;
 import android.util.DebugUtils;
 import android.util.EventLog;
 import android.util.LongSparseArray;
@@ -1607,7 +1608,6 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
         }
     }
 
-
     // The max size for PROCS_PRIO cmd in LMKD
     private static final int MAX_PROCS_PRIO_PACKET_SIZE = 3;
 
@@ -1632,9 +1632,13 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
         buf.putInt(LMK_PROCS_PRIO);
         for (int i = 0; i < totalApps; i++) {
             final int pid = apps.get(i).getPid();
-            final int amt = apps.get(i).getCurAdj();
+            int amt = apps.get(i).getCurAdj();
             final int uid = apps.get(i).uid;
             if (pid <= 0 || amt == UNKNOWN_ADJ) continue;
+            if (amt >= 0 && AxExtServiceFactory.getAxBackgroundManager().useAppKeepaliveManager()
+                    && AxExtServiceFactory.getAxBackgroundManager().isProcessKeepAlive(apps.get(i))) {
+                amt = 100;
+            }
             if (total_procs_in_buf >= MAX_PROCS_PRIO_PACKET_SIZE) {
                 writeLmkd(buf, null);
                 buf.clear();
@@ -1650,6 +1654,7 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
         }
         writeLmkd(buf, null);
     }
+
 
     /*
      * @hide
@@ -2495,6 +2500,11 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
             ProcessRecord app, int uid, int[] gids, int runtimeFlags, int zygotePolicyFlags,
             int mountExternal, String seInfo, String requiredAbi, String instructionSet,
             String invokeWith, long startTime) {
+        AxBackgroundManager appBgManager = AxExtServiceFactory.getAxBackgroundManager();
+        if (appBgManager != null && appBgManager.shouldPreventProcessStart(
+                app.processName, app.info)) {
+            return null;
+        }
         try {
             Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "Start proc: " +
                     app.processName);
@@ -2700,6 +2710,16 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
             if (bindMountAppStorageDirs) {
                 storageManagerInternal.prepareStorageDirs(userId, pkgDataInfoMap.keySet(),
                         app.processName);
+            }
+            if ((hostingRecord.getType() != null)
+                   && (hostingRecord.getType().equals(HostingRecord.HOSTING_TYPE_NEXT_ACTIVITY)
+                           || hostingRecord.getType().equals(HostingRecord.HOSTING_TYPE_NEXT_TOP_ACTIVITY))) {
+                if (startResult != null) {
+                    AxExtServiceFactory.getAxBurstEngine().acquireHint(
+                            AxBoostFwk.OP_FIRST_LAUNCH_BOOST, -2L);
+                    AxExtServiceFactory.getUiFirstManager().handleProcessStart(
+                            app.info.packageName, app.uid, startResult.pid, app.isolated, app.processName);
+                }
             }
             checkSlow(startTime, "startProcess: returned from zygote!");
             return startResult;
@@ -2955,14 +2975,6 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
                 UserHandle.getUserId(app.getStartUid()), pid, app.getStartUid(),
                 app.processName, app.getHostingRecord().getType(),
                 app.getHostingRecord().getName() != null ? app.getHostingRecord().getName() : "");
-
-        final String hostingType = app.getHostingRecord().getType();
-        if (HostingRecord.HOSTING_TYPE_NEXT_TOP_ACTIVITY.equals(hostingType)
-                || HostingRecord.HOSTING_TYPE_TOP_ACTIVITY.equals(hostingType)
-                || HostingRecord.HOSTING_TYPE_NEXT_ACTIVITY.equals(hostingType)
-                || HostingRecord.HOSTING_TYPE_ACTIVITY.equals(hostingType)) {
-            AxExtServiceFactory.getAxBurstEngine().systemThreadBoost(pid, 500L);
-        }
 
         try {
             AppGlobals.getPackageManager().logAppProcessStartIfNeeded(app.info.packageName,
@@ -3399,6 +3411,7 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
 
             // Reset render thread tid if it was already set, so new process can set it again.
             proc.setRenderThreadTid(0);
+            proc.setHwuiTaskTids(new int[0]);
             mProcessNames.put(proc.processName, proc.uid, proc);
         }
         if (proc.isolated) {

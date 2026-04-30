@@ -36,6 +36,8 @@ import static android.view.WindowInsets.Type.mandatorySystemGestures;
 import static android.view.WindowManager.LayoutParams.FIRST_APPLICATION_WINDOW;
 import static android.view.WindowManager.LayoutParams.LAST_APPLICATION_WINDOW;
 import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD;
+
+import android.app.AxBoostFwk;
 import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD_DIALOG;
 
 import static com.android.internal.protolog.WmProtoLogGroups.WM_DEBUG_TASKS;
@@ -84,6 +86,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.server.am.ActivityManagerService;
+import com.android.server.AxExtServiceFactory;
 
 import com.google.android.collect.Sets;
 
@@ -1316,6 +1319,9 @@ class RecentTasks {
      */
     void remove(Task task) {
         mTasks.remove(task);
+        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_KILL, -2L);
+        AxExtServiceFactory.getUxPerformance().uxEngineEvent(
+                AxBoostFwk.UXE_EVENT_KILL, 0, task.getBasePackageName(), 0);
         notifyTaskRemoved(task, false /* wasTrimmed */, false /* killProcess */);
     }
 

@@ -236,6 +236,7 @@ import android.annotation.Size;
 import android.app.Activity;
 import android.app.ActivityManager.TaskDescription;
 import android.app.ActivityOptions;
+import android.app.AxBoostFwk;
 import android.app.HandoffActivityData;
 import android.app.IApplicationThread;
 import android.app.IScreenCaptureObserver;
@@ -342,6 +343,7 @@ import com.android.modules.utils.TypedXmlSerializer;
 import com.android.server.LocalServices;
 import com.android.server.am.AppTimeTracker;
 import com.android.server.am.PendingIntentRecord;
+import com.android.server.AxExtServiceFactory;
 import com.android.server.contentcapture.ContentCaptureManagerInternal;
 import com.android.server.display.color.ColorDisplayService;
 import com.android.server.pm.UserManagerInternal;
@@ -466,6 +468,7 @@ final class ActivityRecord extends WindowToken {
 
     private final int theme;        // resource identifier of activity's theme.
     private Task task;              // the task this is in.
+    public long perfActivityBoostHandler = -1;
     private long createTime = System.currentTimeMillis();
     long lastVisibleTime;         // last time this activity became visible
     long pauseTime;               // last time we started pausing the activity
@@ -725,7 +728,6 @@ final class ActivityRecord extends WindowToken {
      * the WM side.
      */
     private boolean mWillCloseOrEnterPip;
-
     /**
      * App Compat Facade
      */
@@ -6104,9 +6106,15 @@ final class ActivityRecord extends WindowToken {
                 Slog.v(TAG_VISIBILITY, "Start visible activity, " + this);
             }
             setState(STARTED, "makeActiveIfNeeded");
+            acquireActivityBoost();
 
             final StartActivityItem item = new StartActivityItem(token, takeSceneTransitionInfo());
-            mAtmService.getLifecycleManager().scheduleTransactionItem(app.getThread(), item);
+            
+            try {
+                mAtmService.getLifecycleManager().scheduleTransactionItem(app.getThread(), item);
+            } catch (Exception e) {
+                releaseActivityBoost();
+            }
             // The activity may be waiting for stop, but that is no longer appropriate if we are
             // starting the activity again
             mTaskSupervisor.mStoppingActivities.remove(this);
@@ -6592,8 +6600,37 @@ final class ActivityRecord extends WindowToken {
         }
     }
 
-    /** Called when the windows associated app window container are drawn. */
+    protected void releaseActivityBoost() {
+        if (perfActivityBoostHandler > 0) {
+            AxExtServiceFactory.getAxBurstEngine().perfHintRelease(perfActivityBoostHandler);
+            perfActivityBoostHandler = -1;
+        } else if (perfActivityBoostHandler > 0) {
+            Slog.w(TAG, "activity boost didn't release as expected");
+        }
+    }
+
+    protected void acquireActivityBoost() {
+        int pid = -1;
+        WindowProcessController wpc = null;
+        if (app == null) {
+            if (info != null && info.applicationInfo != null && mAtmService != null) {
+                wpc = mAtmService.getProcessController(processName,
+                        info.applicationInfo.uid);
+            }
+        } else {
+            wpc = app;
+        }
+        if (wpc != null && wpc.hasThread()) {
+            pid = wpc.getPid();
+        }
+        if (pid != -1) {
+            perfActivityBoostHandler = 
+                    AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_FIRST_LAUNCH_BOOST, -1L);
+        }
+    }
+
     private void onWindowsDrawn() {
+        releaseActivityBoost();
         final TransitionInfoSnapshot info = mTaskSupervisor
                 .getActivityMetricsLogger().notifyWindowsDrawn(this);
         final boolean validInfo = info != null;

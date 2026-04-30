@@ -247,10 +247,17 @@ public class CompatibilityInfo implements Parcelable {
                 compatFlags |= NEEDS_SCREEN_COMPAT;
             }
 
-            // Modern apps always support densities.
-            applicationDensity = DisplayMetrics.DENSITY_DEVICE;
-            applicationScale = 1.0f;
-            applicationInvertedScale = 1.0f;
+            int density = appInfo.getOverrideDensity();
+            if (density != 0) {
+                applicationDensity = density;
+                applicationScale = DisplayMetrics.DENSITY_DEVICE / (float) applicationDensity;
+                applicationInvertedScale = 1.0f / applicationScale;
+                compatFlags |= SCALING_REQUIRED;
+            } else {
+                applicationDensity = DisplayMetrics.DENSITY_DEVICE;
+                applicationScale = 1.0f;
+                applicationInvertedScale = 1.0f;
+            }
             applicationDensityScale = 1.0f;
             applicationDensityInvertedScale = 1.0f;
         } else {
@@ -338,7 +345,15 @@ public class CompatibilityInfo implements Parcelable {
                 compatFlags |= NEVER_NEEDS_COMPAT;
             }
 
-            if ((appInfo.flags & ApplicationInfo.FLAG_SUPPORTS_SCREEN_DENSITIES) != 0) {
+            int density = appInfo.getOverrideDensity();
+            if (density != 0) {
+                applicationDensity = density;
+                applicationScale = DisplayMetrics.DENSITY_DEVICE / (float) applicationDensity;
+                applicationInvertedScale = 1.0f / applicationScale;
+                applicationDensityScale = 1.0f;
+                applicationDensityInvertedScale = 1.0f;
+                compatFlags |= SCALING_REQUIRED;
+            } else if ((appInfo.flags & ApplicationInfo.FLAG_SUPPORTS_SCREEN_DENSITIES) != 0) {
                 applicationDensity = DisplayMetrics.DENSITY_DEVICE;
                 applicationScale = 1.0f;
                 applicationInvertedScale = 1.0f;

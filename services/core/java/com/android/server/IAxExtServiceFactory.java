@@ -28,7 +28,9 @@ public interface IAxExtServiceFactory {
         PC_MODE_SERVICE(IAxPcModeService.class),
         AX_SPOOF_MANAGER(IAxSpoofManager.class),
         AX_UI_FIRST_MANAGER(IAxUiFirstManager.class),
-        AX_ADVANCED_THERMAL_MITIGATION(IAxAdvancedThermalMitigationService.class);
+        AX_ADVANCED_THERMAL_MITIGATION(IAxAdvancedThermalMitigationService.class),
+        AX_BACKGROUND_MANAGER(AxBackgroundManager.class),
+        AX_FREEZE_MANAGER(AxFreezeManager.class);
         private final Class<?> clazz;
 
         ExtType(Class<?> clazz) {

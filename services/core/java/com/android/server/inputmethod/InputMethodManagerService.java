@@ -61,6 +61,7 @@ import static com.android.server.inputmethod.InputMethodUtils.isSoftInputModeSta
 
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
+import android.app.AxBoostFwk;
 import android.Manifest;
 import android.annotation.AnyThread;
 import android.annotation.BinderThread;
@@ -1495,7 +1496,7 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
             ProtoLog.v(IMMS_DEBUG, "--- systemReady");
             if (!mSystemReady) {
                 mSystemReady = true;
-                AxExtServiceFactory.getAxBurstEngine().onImeTransition(IAxBurstEngine.Ime.IME_INIT);
+                AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_IME_INIT, -2L);
                 final int currentImeUserId = mCurrentImeUserId;
 
                 // Must happen before registerContentObserverLocked
@@ -3393,7 +3394,7 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
     private boolean showCurrentInputLocked(IBinder windowToken,
             @NonNull ImeTracker.Token statsToken, @SoftInputShowHideReason int reason,
             @UserIdInt int userId) {
-        AxExtServiceFactory.getAxBurstEngine().onImeTransition(IAxBurstEngine.Ime.IME_SHOW);
+        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_IME_SHOW_HIDE, -2L);
         final var userData = getUserData(userId);
         final var visibilityStateComputer = userData.mVisibilityStateComputer;
         if (!visibilityStateComputer.isAllowedByAccessibilityAndDisplayPolicy()) {
@@ -3520,7 +3521,7 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
     private boolean hideCurrentInputLocked(IBinder windowToken,
             @NonNull ImeTracker.Token statsToken, @SoftInputShowHideReason int reason,
             @UserIdInt int userId) {
-        AxExtServiceFactory.getAxBurstEngine().onImeTransition(IAxBurstEngine.Ime.IME_HIDE);
+        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_IME_SHOW_HIDE, -2L);
         final var userData = getUserData(userId);
         final var bindingController = userData.mBindingController;
         final var visibilityStateComputer = userData.mVisibilityStateComputer;
