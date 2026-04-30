@@ -1780,7 +1780,8 @@ public class DisplayPolicy {
             // mode; if it's in gesture navigation mode, the navigation bar will be
             // NAV_BAR_FORCE_TRANSPARENT and its appearance won't be decided by overlapping
             // windows.
-            if (win.isOverlappingWithNavBar()) {
+            if ((mNavBarColorWindowCandidate == null || mNavBarBackgroundWindowCandidate == null)
+                    && win.isOverlappingWithNavBar()) {
                 if (mNavBarColorWindowCandidate == null) {
                     mNavBarColorWindowCandidate = win;
                     addSystemBarColorApp(win);
@@ -2983,8 +2984,9 @@ public class DisplayPolicy {
         final Rect df = displayFrames.mUnrestricted;
         final Rect safe = sTmpDisplayCutoutSafe;
         final Insets waterfallInsets = state.getDisplayCutout().getWaterfallInsets();
-        final Rect outRect = new Rect();
+        final Rect outRect = sTmpRect2;
         final Rect sourceContent = sTmpRect;
+        outRect.setEmpty();
         safe.set(displayFrames.mDisplayCutoutSafe);
         for (int i = state.sourceSize() - 1; i >= 0; i--) {
             final InsetsSource source = state.sourceAt(i);
@@ -3052,6 +3054,9 @@ public class DisplayPolicy {
             final WindowState window = mStatusBarBackgroundWindows.get(i);
             drawBackground &= drawsBarBackground(window, Type.statusBars());
             isFullyTransparentAllowed &= isFullyTransparentAllowed(window, Type.statusBars());
+            if (!drawBackground && !isFullyTransparentAllowed) {
+                break;
+            }
         }
 
         if (drawBackground) {
