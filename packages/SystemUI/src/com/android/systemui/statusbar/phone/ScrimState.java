@@ -26,7 +26,6 @@ import com.android.systemui.dock.DockManager;
 import com.android.systemui.res.R;
 import com.android.systemui.scrim.ScrimView;
 import com.android.systemui.statusbar.notification.stack.StackStateAnimator;
-import com.android.systemui.util.ScreenAnimationController;
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi;
 
@@ -257,7 +256,7 @@ public enum ScrimState {
     AOD {
         @Override
         public void prepare(ScrimState previousState) {
-            final boolean alwaysOnEnabled = mDozeParameters.getAlwaysOn() || ScreenAnimationController.INSTANCE().shouldPlayAnimation();
+            final boolean alwaysOnEnabled = mDozeParameters.getAlwaysOn();
             final boolean quickPickupEnabled = mDozeParameters.isQuickPickupEnabled();
             final boolean isDocked = mDockManager.isDocked();
             mBlankScreen = mDisplayRequiresBlanking;

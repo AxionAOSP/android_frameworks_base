@@ -81,11 +81,6 @@ class ScreenOffAnimationController @Inject constructor(
     fun shouldExpandNotifications(): Boolean =
         animations.any { it.isAnimationPlaying() }
 
-    fun isAnimationPlaying(): Boolean {
-        if (animations.isEmpty()) return true
-        return animations.all { it.isAnimationPlaying() }
-    }
-
     /**
      * If returns true it allows to perform custom animation for showing
      * keyguard in [animateInKeyguard]

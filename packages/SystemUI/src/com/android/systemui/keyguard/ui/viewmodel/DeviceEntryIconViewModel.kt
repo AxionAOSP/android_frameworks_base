@@ -227,7 +227,14 @@ constructor(
             isListeningForUdfps,
             isUnlocked ->
             if (isListeningForUdfps) {
-                DeviceEntryIconView.IconType.FINGERPRINT
+                if (isUnlocked) {
+                    // Don't show any UI until isUnlocked=false. This covers the case
+                    // when the "Power button instantly locks > 0s" or the device doesn't lock
+                    // immediately after a screen time.
+                    DeviceEntryIconView.IconType.NONE
+                } else {
+                    DeviceEntryIconView.IconType.FINGERPRINT
+                }
             } else if (isUnlocked) {
                 DeviceEntryIconView.IconType.UNLOCK
             } else {

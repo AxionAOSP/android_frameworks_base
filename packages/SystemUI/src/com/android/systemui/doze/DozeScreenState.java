@@ -24,7 +24,6 @@ import static com.android.systemui.doze.DozeMachine.State.DOZE_AOD_PAUSED;
 import static com.android.systemui.doze.DozeMachine.State.DOZE_AOD_PAUSING;
 import static com.android.systemui.doze.DozeMachine.State.DOZE_PULSE_DONE;
 
-import android.content.Context;
 import android.hardware.biometrics.BiometricAuthenticator;
 import android.os.Handler;
 import android.util.Log;
@@ -34,7 +33,6 @@ import androidx.annotation.Nullable;
 
 import com.android.systemui.biometrics.AuthController;
 import com.android.systemui.biometrics.UdfpsController;
-import com.android.systemui.dagger.qualifiers.Application;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.doze.dagger.DozeScope;
 import com.android.systemui.doze.dagger.WrappedService;
@@ -42,12 +40,9 @@ import com.android.systemui.keyguard.domain.interactor.DozeInteractor;
 import com.android.systemui.scene.shared.flag.SceneContainerFlag;
 import com.android.systemui.statusbar.phone.DozeParameters;
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor;
-import com.android.systemui.util.ScreenAnimationController;
 import com.android.systemui.util.wakelock.SettableWakeLock;
 import com.android.systemui.util.wakelock.WakeLock;
-import com.android.systemui.util.settings.SystemSettings;
 
-import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Provider;
 
@@ -72,10 +67,6 @@ public class DozeScreenState implements DozeMachine.Part {
      */
     public static final int ENTER_DOZE_HIDE_WALLPAPER_DELAY = 2500;
 
-    private static final int ENTER_SCREEN_OFF_WITH_ANIMATION_DELAY_NO_UDFPS = 500;
-    private static final int ENTER_DOZE_DELAY_BY_QS_EXPANDED_SCREEN_OFF = 700;
-    private static final int ENTER_DOZE_DELAY_BY_LANDSCAPE_SCREEN_OFF = 1500;
-
     /**
      * Add an extra delay to the transition to DOZE when udfps is current activated before
      * the display state transitions from ON => DOZE.
@@ -94,17 +85,12 @@ public class DozeScreenState implements DozeMachine.Part {
     private final DozeScreenBrightness mDozeScreenBrightness;
     private final SelectedUserInteractor mSelectedUserInteractor;
     private final DozeInteractor mDozeInteractor;
-    private final SystemSettings mSystemSettings;
 
     private int mPendingScreenState = Display.STATE_UNKNOWN;
     private SettableWakeLock mWakeLock;
-    private boolean mIsLandscapeScreenOff = false;
-    private final Context mContext;
-    private final DozeScreenStateEx mDozeScreenStateEx;
 
     @Inject
     public DozeScreenState(
-            @Application Context context,
             @WrappedService DozeMachine.Service service,
             @Main Handler handler,
             DozeHost host,
@@ -115,9 +101,7 @@ public class DozeScreenState implements DozeMachine.Part {
             DozeLog dozeLog,
             DozeScreenBrightness dozeScreenBrightness,
             DozeInteractor dozeInteractor,
-            SelectedUserInteractor selectedUserInteractor,
-            SystemSettings systemSettings,
-            DozeScreenStateEx dozeScreenStateEx) {
+            SelectedUserInteractor selectedUserInteractor) {
         mDozeService = service;
         mHandler = handler;
         mParameters = parameters;
@@ -129,15 +113,11 @@ public class DozeScreenState implements DozeMachine.Part {
         mDozeScreenBrightness = dozeScreenBrightness;
         mSelectedUserInteractor = selectedUserInteractor;
         mDozeInteractor = dozeInteractor;
-        mSystemSettings = systemSettings;
-        mContext = context;
-        mDozeScreenStateEx = dozeScreenStateEx;
 
         updateUdfpsController();
         if (mUdfpsController == null) {
             mAuthController.addCallback(mAuthControllerCallback);
         }
-        mDozeScreenStateEx.init(state -> applyScreenState(state));
     }
 
     private void updateUdfpsController() {
@@ -156,7 +136,6 @@ public class DozeScreenState implements DozeMachine.Part {
     @Override
     public void transitionTo(DozeMachine.State oldState, DozeMachine.State newState) {
         int screenState = newState.screenState(mParameters);
-        mDozeScreenStateEx.transitionTo(oldState, newState);
         mDozeHost.cancelGentleSleep();
 
         if (newState == DozeMachine.State.FINISH) {
@@ -181,92 +160,62 @@ public class DozeScreenState implements DozeMachine.Part {
         final boolean turningOff = (oldState.isAlwaysOn() && newState == DOZE)
                 || (oldState == DOZE_AOD_PAUSING && newState == DOZE_AOD_PAUSED);
         final boolean justInitialized = oldState == DozeMachine.State.INITIALIZED;
-        if (justInitialized) {
-            mIsLandscapeScreenOff = false;
-        }
-        if (!messagePending && !justInitialized && !pulseEnding && !turningOn) {
-            if (turningOff) {
-                if (SceneContainerFlag.isEnabled()) {
-                    applyScreenState(screenState);
-                } else {
-                    mDozeHost.prepareForGentleSleep(() -> applyScreenState(screenState));
+        if (messagePending || justInitialized || pulseEnding || turningOn) {
+            // During initialization, we hide the navigation bar. That is however only applied after
+            // a traversal; setting the screen state here is immediate however, so it can happen
+            // that the screen turns on again before the navigation bar is hidden. To work around
+            // that, wait for a traversal to happen before applying the initial screen state.
+            mPendingScreenState = screenState;
+
+            // Delay screen state transitions even longer while animations are running.
+            boolean shouldDelayTransitionEnteringDoze = newState == DOZE_AOD
+                    && mParameters.shouldDelayDisplayDozeTransition() && !turningOn;
+
+            // Delay screen state transition longer if UDFPS is actively authenticating a fp
+            boolean shouldDelayTransitionForUDFPS = newState == DOZE_AOD
+                    && mUdfpsController != null && mUdfpsController.isFingerDown();
+
+            if (!messagePending) {
+                if (DEBUG) {
+                    Log.d(TAG, "Display state changed to " + screenState + " delayed by "
+                            + (shouldDelayTransitionEnteringDoze ? ENTER_DOZE_DELAY : 1));
                 }
-                return;
-            } else {
-                applyScreenState(screenState);
-                return;
-            }
-        }
-        // a traversal; setting the screen state here is immediate however, so it can happen
-        // that the screen turns on again before the navigation bar is hidden. To work around
-        // that, wait for a traversal to happen before applying the initial screen state.
-        mPendingScreenState = screenState;
 
-        // Delay screen state transitions even longer while animations are running.
-        boolean shouldDelayTransitionEnteringDoze = newState == DOZE_AOD
-                && mParameters.shouldDelayDisplayDozeTransition() && !turningOn;
-
-        // Delay screen state transition longer if UDFPS is actively authenticating a fp
-        boolean shouldDelayTransitionForUDFPS = newState == DOZE_AOD
-                && mUdfpsController != null && mUdfpsController.isFingerDown();
-
-        boolean shouldAnimate = (newState == DozeMachine.State.DOZE ||
-                    (newState == DozeMachine.State.DOZE_AOD && oldState != DozeMachine.State.DOZE)) &&
-                    ScreenAnimationController.INSTANCE().shouldPlayAnimation();
-        if (justInitialized) {
-            mIsLandscapeScreenOff = ScreenAnimationController.INSTANCE().isLandscapeScreenOff();
-        }
-        boolean isPanelExpandedWhenScreenOff = ScreenAnimationController.INSTANCE().isPanelExpandedWhenScreenOff();
-
-        if (!messagePending) {
-            if (DEBUG) {
-                Log.d(TAG, "Display state changed to " + screenState + " delayed by "
-                        + (shouldDelayTransitionEnteringDoze ? ENTER_DOZE_DELAY : 1));
-            }
-
-            if (shouldDelayTransitionEnteringDoze) {
-                if (!mDozeScreenStateEx.isUnlockAnimPlaying()) {
+                if (shouldDelayTransitionEnteringDoze) {
                     if (justInitialized) {
+                        // If we are delaying transitioning to doze and the display was not
+                        // turned on we set it to 'on' first to make sure that the animation
+                        // is visible before eventually moving it to doze state.
+                        // The display might be off at this point for example on foldable devices
+                        // when we switch displays and go to doze at the same time.
                         applyScreenState(Display.STATE_ON);
+
+                        // Restore pending screen state as it gets cleared by 'applyScreenState'
                         mPendingScreenState = screenState;
                     }
-                    Log.d(TAG, "applyPendingScreenState when unlock anim is not playing: PendingState: " + mPendingScreenState);
+
                     mHandler.postDelayed(mApplyPendingScreenState, ENTER_DOZE_DELAY);
-                } else if (justInitialized) {
-                    applyScreenState(Display.STATE_ON);
+                } else if (shouldDelayTransitionForUDFPS) {
+                    mDozeLog.traceDisplayStateDelayedByUdfps(mPendingScreenState);
+                    mHandler.postDelayed(mApplyPendingScreenState, UDFPS_DISPLAY_STATE_DELAY);
+                } else {
+                    mHandler.post(mApplyPendingScreenState);
                 }
-            } else if (shouldDelayTransitionForUDFPS) {
-                mDozeLog.traceDisplayStateDelayedByUdfps(mPendingScreenState);
-                mHandler.postDelayed(mApplyPendingScreenState, UDFPS_DISPLAY_STATE_DELAY);
-            } else if (turningOn) {
-                mHandler.post(mApplyPendingScreenState);
-            } else if (shouldAnimate && !mIsLandscapeScreenOff && !isPanelExpandedWhenScreenOff) {
-                if (justInitialized) {
-                    Log.d(TAG, "apply state on when screen state change");
-                    applyScreenState(Display.STATE_ON);
-                    mPendingScreenState = screenState;
-                }
-                boolean showAodOnScreenOff = mSystemSettings.getIntForUser(
-                        "screen_off_aod_enabled", 0, android.os.UserHandle.USER_CURRENT) == 1;
-                boolean isUdfps = mAuthController.isUdfpsEnrolled(
-                    mSelectedUserInteractor.getSelectedUserId());
-                long delay = showAodOnScreenOff ? ENTER_DOZE_DELAY : ENTER_SCREEN_OFF_WITH_ANIMATION_DELAY_NO_UDFPS;
-                mHandler.postDelayed(mApplyPendingScreenState, delay);
-            } else if (mIsLandscapeScreenOff) {
-                mDozeService.setDozeScreenState(Display.STATE_OFF);
-                mHandler.postDelayed(mApplyPendingScreenState, ENTER_DOZE_DELAY_BY_LANDSCAPE_SCREEN_OFF);
-                mIsLandscapeScreenOff = false;
-            } else if (isPanelExpandedWhenScreenOff) {
-                mDozeService.setDozeScreenState(Display.STATE_OFF);
-                mHandler.postDelayed(mApplyPendingScreenState, ENTER_DOZE_DELAY_BY_QS_EXPANDED_SCREEN_OFF);
-            } else {
-                mHandler.post(mApplyPendingScreenState);
+            } else if (DEBUG) {
+                Log.d(TAG, "Pending display state change to " + screenState);
             }
-        } else if (DEBUG) {
-            Log.d(TAG, "Pending display state change to " + screenState);
-        }
-        if (shouldDelayTransitionEnteringDoze || shouldDelayTransitionForUDFPS || mIsLandscapeScreenOff || shouldAnimate || messagePending) {
-            mWakeLock.setAcquired(true);
+
+            if (shouldDelayTransitionEnteringDoze || shouldDelayTransitionForUDFPS) {
+                mWakeLock.setAcquired(true);
+            }
+        } else if (turningOff) {
+            if (SceneContainerFlag.isEnabled()) {
+                applyScreenState(screenState);
+            } else {
+                mDozeHost.prepareForGentleSleep(() -> applyScreenState(screenState));
+            }
+        } else {
+            applyScreenState(screenState);
         }
     }
 
@@ -284,12 +233,6 @@ public class DozeScreenState implements DozeMachine.Part {
     private void applyScreenState(int screenState) {
         if (screenState != Display.STATE_UNKNOWN) {
             if (DEBUG) Log.d(TAG, "setDozeScreenState(" + screenState + ")");
-            if (screenState == Display.STATE_DOZE_SUSPEND
-                && mDozeScreenStateEx.getCurDisplay() != Display.STATE_DOZE) {
-                mDozeService.setDozeScreenState(Display.STATE_DOZE);
-                mHandler.postDelayed(mApplyPendingScreenState, DozeScreenStateEx.SUSPEND_DELAY_TIME);
-                return;
-            }
             mDozeService.setDozeScreenState(screenState);
             mDozeInteractor.setDozeScreenState(screenState);
             if (screenState == Display.STATE_DOZE) {
