@@ -34,6 +34,7 @@ import com.android.systemui.doze.DozeTransitionListener;
 import com.android.systemui.doze.DozeTriggers;
 import com.android.systemui.doze.DozeUi;
 import com.android.systemui.doze.DozeWallpaperState;
+import com.android.systemui.doze.AodDurationController;
 import com.android.systemui.statusbar.phone.DozeParameters;
 import com.android.systemui.util.wakelock.DelayedWakeLock;
 import com.android.systemui.util.wakelock.WakeLock;
@@ -75,7 +76,8 @@ public abstract class DozeModule {
             DozeScreenBrightness dozeScreenBrightness, DozeWallpaperState dozeWallpaperState,
             DozeDockHandler dozeDockHandler, DozeMinMode dozeMinMode,
             DozeAuthRemover dozeAuthRemover,
-            DozeSuppressor dozeSuppressor, DozeTransitionListener dozeTransitionListener) {
+            DozeSuppressor dozeSuppressor, DozeTransitionListener dozeTransitionListener,
+            AodDurationController aodDurationController) {
         List<DozeMachine.Part> parts = new ArrayList<>();
         parts.add(dozePauser);
         parts.add(dozeFalsingManagerAdapter);
@@ -92,6 +94,8 @@ public abstract class DozeModule {
         if (Flags.enableMinmode()) {
             parts.add(dozeMinMode);
         }
+
+        parts.add(aodDurationController);
 
         return parts.toArray(new DozeMachine.Part[0]);
     }
