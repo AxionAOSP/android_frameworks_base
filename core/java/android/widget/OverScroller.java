@@ -757,8 +757,8 @@ public class OverScroller {
         private static final double FRICTION_COEF_3 = 0.3;
 
         private static final double MIN_VELOCITY_ADJUST_FRICTION = 1000.0;
-        private static final double MID_VELOCITY_ADJUST_FRICTION = 4000.0;
-        private static final double MAX_VELOCITY_ADJUST_FRICTION = 10000.0;
+        private static final double MID_VELOCITY_ADJUST_FRICTION = 1000.0;
+        private static final double MAX_VELOCITY_ADJUST_FRICTION = 4000.0;
 
         private static final float SCALE_FACTOR_HIGH = 1.2f;
         private static final float SCALE_FACTOR_MID = 0.8f;
