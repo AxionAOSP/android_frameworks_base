@@ -79,7 +79,15 @@ import java.lang.Math.toRadians
 import kotlinx.coroutines.delay
 
 @Composable
-internal fun PillEventIcon(event: IslandEvent, tint: Color? = null) {
+internal fun PillEventIcon(
+    event: IslandEvent,
+    tint: Color? = null,
+    animated: Boolean = true,
+) {
+    if (!animated) {
+        StaticPillEventIcon(event, tint)
+        return
+    }
     when (event) {
         is IslandEvent.AudioRecording -> AudioRecordingPillIcon(event, tint)
         is IslandEvent.Media -> MediaPillIcon(event)
@@ -106,7 +114,48 @@ internal fun PillEventIcon(event: IslandEvent, tint: Color? = null) {
 }
 
 @Composable
-private fun AospChipPillIcon(event: IslandEvent.AospChip, tint: Color? = null) {
+private fun StaticPillEventIcon(event: IslandEvent, tint: Color? = null) {
+    when (event) {
+        is IslandEvent.Media -> MediaPillIcon(event, animated = false)
+        is IslandEvent.Notification -> NotificationPillIcon(event)
+        is IslandEvent.AppSwitch -> AppSwitchPillIcon(event)
+        is IslandEvent.AospChip -> AospChipPillIcon(event, tint, animated = false)
+        is IslandEvent.PromotedOngoing ->
+            if (event.appIcon != null) {
+                Image(
+                    bitmap = event.appIcon.toScaledBitmap(16.dp),
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp).clip(ShapeXs),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                Icon(
+                    Icons.Filled.Notifications,
+                    null,
+                    tint = tint ?: BlueAccent,
+                    modifier = Modifier.size(SizeBadge),
+                )
+            }
+        else -> {
+            val style = eventStyleFor(event)
+            style.icon?.let {
+                Icon(
+                    it,
+                    null,
+                    tint = tint ?: style.accent,
+                    modifier = Modifier.size(SizeBadge),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AospChipPillIcon(
+    event: IslandEvent.AospChip,
+    tint: Color? = null,
+    animated: Boolean = true,
+) {
     val color = tint ?: aospChipAccent(event.active)
     val context = LocalContext.current
     val isCountdown = event.active.content is OngoingActivityChipModel.Content.Countdown
@@ -163,6 +212,7 @@ private fun AospChipPillIcon(event: IslandEvent.AospChip, tint: Color? = null) {
 
     val isScreenRec = event.active.key == "ScreenRecord"
     when {
+        !animated -> iconContent()
         isCall -> {
             val transition = rememberInfiniteTransition(label = "aosp_call_shake")
             val shake by transition.animateFloat(
@@ -274,7 +324,7 @@ private fun AnimatedTrophyIcon(color: Color) {
 }
 
 @Composable
-private fun MediaPillIcon(event: IslandEvent.Media) {
+private fun MediaPillIcon(event: IslandEvent.Media, animated: Boolean = true) {
     event.albumArt?.let { art ->
         Image(
             bitmap = art.toScaledBitmap(16.dp),
@@ -288,7 +338,12 @@ private fun MediaPillIcon(event: IslandEvent.Media) {
                 Modifier.size(16.dp).clip(CircleShape).background(OrangeAccent.copy(alpha = AlphaSubtle + 0.05f)),
             contentAlignment = Alignment.Center,
         ) {
-            WaveformAnimation(OrangeAccent, Modifier.size(10.dp), isAnimating = event.isPlaying, barCount = 3)
+            WaveformAnimation(
+                OrangeAccent,
+                Modifier.size(10.dp),
+                isAnimating = animated && event.isPlaying,
+                barCount = 3,
+            )
         }
 }
 
@@ -1347,4 +1402,3 @@ fun WaveformAnimation(color: Color, modifier: Modifier = Modifier.size(34.dp, 20
         }
     }
 }
-
