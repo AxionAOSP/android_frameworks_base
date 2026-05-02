@@ -300,6 +300,7 @@ import com.android.internal.util.FastPrintWriter;
 import com.android.internal.util.NtThreeFingerGestureHelper;
 import com.android.internal.util.BoostHelper;
 import com.android.internal.util.ScrollOptimizer;
+import com.android.internal.util.ViewCacheManager;
 import com.android.internal.view.BaseSurfaceHolder;
 import com.android.internal.view.RootViewSurfaceTaker;
 import com.android.internal.view.SurfaceCallbackHelper;
@@ -647,6 +648,7 @@ public final class ViewRootImpl implements ViewParent,
     private boolean mPendingDragResizing;
     private boolean mDragResizing;
     private boolean mInvalidateRootRequested;
+    private boolean mFirstFrameDrawn = true;
     private int mCanvasOffsetX;
     private int mCanvasOffsetY;
     CompatibilityInfo.Translator mTranslator;
@@ -3166,6 +3168,10 @@ public final class ViewRootImpl implements ViewParent,
             mTraversalScheduled = false;
             mQueue.removeSyncBarrier(mTraversalBarrier);
             performTraversals();
+            if (mFirstFrameDrawn) {
+                ViewCacheManager.getInstance().onTraversalEnd(this);
+                mFirstFrameDrawn = false;
+            }
         }
     }
 
