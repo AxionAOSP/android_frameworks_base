@@ -32,6 +32,7 @@ import com.android.systemui.keyguard.shared.model.BiometricUnlockSource
 import com.android.systemui.power.data.repository.PowerRepository
 import com.android.systemui.power.shared.model.WakeSleepReason
 import com.android.systemui.power.shared.model.WakeSleepReason.TAP
+import com.android.systemui.power.shared.model.WakeSleepReason.TOUCH_TO_SLEEP
 import com.android.systemui.res.R
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.statusbar.CircleReveal
@@ -46,7 +47,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -134,16 +137,33 @@ constructor(
 
     /** The reveal effect we'll use for the next non-biometric unlock (tap, power button, etc). */
     private val nonBiometricRevealEffect: Flow<LightRevealEffect> =
-        powerRepository.wakefulness.flatMapLatest { wakefulnessModel ->
+        combine(
+            powerRepository.wakefulness,
+            keyguardRepository.lastTouchToSleepPosition,
+        ) { wakefulnessModel, touchSleepPos ->
+            Pair(wakefulnessModel, touchSleepPos)
+        }.flatMapLatest { (wakefulnessModel, touchSleepPos) ->
             when {
                 wakefulnessModel.isAwakeOrAsleepFrom(WakeSleepReason.POWER_BUTTON) ->
                     powerButtonRevealEffect
                 wakefulnessModel.isAwakeFrom(TAP) -> tapRevealEffect
+                wakefulnessModel.isAwakeOrAsleepFrom(TOUCH_TO_SLEEP) && touchSleepPos != null ->
+                    flowOf(constructCircleRevealFromPoint(touchSleepPos))
                 else -> flowOf(LiftReveal)
             }
         }
 
     private val revealAmountAnimator = ValueAnimator.ofFloat(0f, 1f)
+
+    init {
+        backgroundScope.launch {
+            powerRepository.wakefulness.collect { model ->
+                if (model.isAwake()) {
+                    keyguardRepository.clearLastTouchToSleepPosition()
+                }
+            }
+        }
+    }
 
     override val wallpaperSupportsAmbientMode: MutableStateFlow<Boolean> = MutableStateFlow(false)
 
