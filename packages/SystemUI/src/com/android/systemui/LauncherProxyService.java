@@ -102,6 +102,7 @@ import com.android.systemui.dump.DumpManager;
 import com.android.systemui.keyguard.KeyguardUnlockAnimationController;
 import com.android.systemui.keyguard.KeyguardWmStateRefactor;
 import com.android.systemui.keyguard.WakefulnessLifecycle;
+import com.android.systemui.power.domain.interactor.PowerInteractor;
 import com.android.systemui.keyguard.ui.view.InWindowLauncherUnlockAnimationManager;
 import com.android.systemui.model.SysUiState;
 import com.android.systemui.model.SysUiState.SysUiStateCallback;
@@ -191,6 +192,7 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
     private final ScreenshotHelper mScreenshotHelper;
     private final CommandQueue mCommandQueue;
     private final UserTracker mUserTracker;
+    private final PowerInteractor mPowerInteractor;
     private final ISysuiUnlockAnimationController mSysuiUnlockAnimationController;
     private final Optional<UnfoldTransitionProgressForwarder> mUnfoldTransitionProgressForwarder;
     private final UiEventLogger mUiEventLogger;
@@ -530,8 +532,11 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
         public void onSleepEvent(MotionEvent event) {
             verifyCallerAndClearCallingIdentity("onSleepEvent", () -> {
                 mHandler.post(() -> {
+                    mPowerInteractor.setLastTouchToSleepPosition(
+                            event.getX(), event.getY());
                     mContext.getSystemService(PowerManager.class)
-                            .goToSleep(event.getEventTime());
+                            .goToSleep(event.getEventTime(),
+                                    PowerManager.GO_TO_SLEEP_REASON_TOUCH, 0);
                     event.recycle();
                 });
             });
@@ -815,6 +820,7 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
             UserTracker userTracker,
             UserManager userManager,
             WakefulnessLifecycle wakefulnessLifecycle,
+            PowerInteractor powerInteractor,
             UiEventLogger uiEventLogger,
             DisplayTracker displayTracker,
             KeyguardUnlockAnimationController sysuiUnlockAnimationController,
@@ -857,6 +863,7 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
         mShadeModeInteractor = shadeModeInteractor;
         mShadeDisplayPolicy = shadeDisplayPolicy;
         mUserTracker = userTracker;
+        mPowerInteractor = powerInteractor;
         mConnectionBackoffAttempts = 0;
         mRecentsComponentName = ComponentName.unflattenFromString(context.getString(
                 com.android.internal.R.string.config_recentsComponentName));

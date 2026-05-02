@@ -25,6 +25,7 @@ import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.mistouch.domain.interactor.MistouchInteractor
 import com.android.systemui.plugins.FalsingManager
 import com.android.systemui.plugins.statusbar.StatusBarStateController
+import com.android.systemui.power.domain.interactor.PowerInteractor
 import com.android.systemui.statusbar.StatusBarState
 import com.android.systemui.statusbar.phone.CentralSurfaces
 import lineageos.providers.LineageSettings
@@ -37,6 +38,7 @@ class QQSGestureListener @Inject constructor(
         private val powerManager: PowerManager,
         private val statusBarStateController: StatusBarStateController,
         private val centralSurfaces: CentralSurfaces,
+        private val powerInteractor: PowerInteractor,
 ) : GestureDetector.SimpleOnGestureListener() {
 
     private var doubleTapToSleepEnabled = false
@@ -73,7 +75,9 @@ class QQSGestureListener @Inject constructor(
                 !falsingManager.isFalseDoubleTap
         ) {
             MistouchInteractor.get().handleKeyguardInteraction()
-            powerManager.goToSleep(e.getEventTime())
+            powerInteractor.setLastTouchToSleepPosition(e.x, e.y)
+            powerManager.goToSleep(e.eventTime,
+                PowerManager.GO_TO_SLEEP_REASON_TOUCH, 0)
             return true
         }
         return false

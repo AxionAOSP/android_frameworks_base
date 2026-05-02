@@ -189,6 +189,10 @@ interface KeyguardRepository {
 
     val lastDozeTapToWakePosition: StateFlow<Point?>
 
+    val lastTouchToSleepPosition: StateFlow<Point?>
+
+    fun setLastTouchToSleepPosition(position: Point)
+
     /** Last point that [KeyguardRootView] was tapped */
     val lastRootViewTapPosition: MutableStateFlow<Point?>
 
@@ -283,6 +287,8 @@ interface KeyguardRepository {
     fun setQuickSettingsVisible(isVisible: Boolean)
 
     fun setLastDozeTapToWakePosition(position: Point)
+
+    fun clearLastTouchToSleepPosition()
 
     fun setIsDozing(isDozing: Boolean)
 
@@ -435,6 +441,17 @@ constructor(
 
     override fun setLastDozeTapToWakePosition(position: Point) {
         _lastDozeTapToWakePosition.value = position
+    }
+
+    private val _lastTouchToSleepPosition = MutableStateFlow<Point?>(null)
+    override val lastTouchToSleepPosition = _lastTouchToSleepPosition.asStateFlow()
+
+    override fun setLastTouchToSleepPosition(position: Point) {
+        _lastTouchToSleepPosition.value = position
+    }
+
+    override fun clearLastTouchToSleepPosition() {
+        _lastTouchToSleepPosition.value = null
     }
 
     override val lastRootViewTapPosition: MutableStateFlow<Point?> = MutableStateFlow(null)

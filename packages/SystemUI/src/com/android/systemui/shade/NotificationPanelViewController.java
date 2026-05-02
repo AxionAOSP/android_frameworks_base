@@ -810,7 +810,9 @@ public final class NotificationPanelViewController implements
                 }
                 if (mPowerManager != null) {
                     notifyMistouchKeyguardInteraction();
-                    mPowerManager.goToSleep(e.getEventTime());
+                    mPowerInteractor.setLastTouchToSleepPosition(e.getX(), e.getY());
+                    mPowerManager.goToSleep(e.getEventTime(),
+                            PowerManager.GO_TO_SLEEP_REASON_TOUCH, 0);
                 }
                 return true;
             }

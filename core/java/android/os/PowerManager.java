@@ -597,9 +597,15 @@ public final class PowerManager {
     public static final int GO_TO_SLEEP_REASON_UNKNOWN = 14;
 
     /**
+     * Go to sleep reason code: Going to sleep due to a touch tap or double tap.
      * @hide
      */
-    public static final int GO_TO_SLEEP_REASON_MAX =  GO_TO_SLEEP_REASON_UNKNOWN;
+    public static final int GO_TO_SLEEP_REASON_TOUCH = 15;
+
+    /**
+     * @hide
+     */
+    public static final int GO_TO_SLEEP_REASON_MAX =  GO_TO_SLEEP_REASON_TOUCH;
 
     /**
      * @hide
@@ -620,6 +626,7 @@ public final class PowerManager {
             case GO_TO_SLEEP_REASON_QUIESCENT: return "quiescent";
             case GO_TO_SLEEP_REASON_SLEEP_BUTTON: return "sleep_button";
             case GO_TO_SLEEP_REASON_TIMEOUT: return "timeout";
+            case GO_TO_SLEEP_REASON_TOUCH: return "touch";
             case GO_TO_SLEEP_REASON_UNKNOWN: return "unknown";
             default: return Integer.toString(sleepReason);
         }
@@ -733,6 +740,7 @@ public final class PowerManager {
             GO_TO_SLEEP_REASON_QUIESCENT,
             GO_TO_SLEEP_REASON_SLEEP_BUTTON,
             GO_TO_SLEEP_REASON_TIMEOUT,
+            GO_TO_SLEEP_REASON_TOUCH,
             GO_TO_SLEEP_REASON_UNKNOWN,
     })
     @Retention(RetentionPolicy.SOURCE)
