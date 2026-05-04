@@ -263,6 +263,7 @@ constructor(
             }
 
             override fun onThemeChanged() {
+                MediaPlayerData.players().forEach { it.refreshSeekBarTheme() }
                 updatePlayers(recreateMedia = false)
                 inflateSettingsButton()
             }

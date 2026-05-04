@@ -63,6 +63,7 @@ public class ThemeEngine {
     public static final String CATEGORY_BATTERY_STYLE = "battery_style";
     public static final String CATEGORY_UDFPS_ANIMATION = "android.theme.customization.udfps_animation";
     public static final String CATEGORY_UDFPS_ICON = "android.theme.customization.udfps_icon";
+    public static final String CATEGORY_QS_WAVEFORM = "android.theme.customization.qs_waveform";
 
     private static volatile ThemeEngine sInstance;
 
