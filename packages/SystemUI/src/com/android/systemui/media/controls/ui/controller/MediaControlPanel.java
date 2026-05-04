@@ -98,6 +98,7 @@ import com.android.systemui.media.controls.ui.animation.MetadataAnimationHandler
 import com.android.systemui.media.controls.ui.binder.SeekBarObserver;
 import com.android.systemui.media.controls.ui.view.GutsViewHolder;
 import com.android.systemui.media.controls.ui.view.MediaViewHolder;
+import com.android.systemui.media.controls.ui.view.WaveformSeekBar;
 import com.android.systemui.media.controls.ui.viewmodel.SeekBarViewModel;
 import com.android.systemui.media.controls.util.MediaDataUtils;
 import com.android.systemui.media.controls.util.MediaUiEventLogger;
@@ -338,6 +339,23 @@ public class MediaControlPanel {
     @Nullable
     public MediaViewHolder getMediaViewHolder() {
         return mMediaViewHolder;
+    }
+
+    public void refreshSeekBarTheme() {
+        if (mMediaViewHolder != null && mMediaViewHolder.getSeekBar() instanceof WaveformSeekBar) {
+            WaveformSeekBar seekBar = (WaveformSeekBar) mMediaViewHolder.getSeekBar();
+            seekBar.refreshTheme();
+            updateWaveformSeekBarColor();
+        }
+    }
+
+    private void updateWaveformSeekBarColor() {
+        if (mColorSchemeTransition != null
+                && mMediaViewHolder != null
+                && mMediaViewHolder.getSeekBar() instanceof WaveformSeekBar) {
+            ((WaveformSeekBar) mMediaViewHolder.getSeekBar()).setMediaColor(
+                    mColorSchemeTransition.getSurfaceEffectColor());
+        }
     }
 
     /**
@@ -934,6 +952,7 @@ public class MediaControlPanel {
                 colorSchemeChanged = mColorSchemeTransition.updateColorScheme(colorScheme);
                 
                 MediaSessionManager.Companion.get().onMediaColorsChanged(mColorSchemeTransition.getSurfaceEffectColor());
+                updateWaveformSeekBarColor();
 
                 // Bind the album view to the artwork or a transition drawable
                 ImageView albumView = mMediaViewHolder.getAlbumView();
@@ -1570,4 +1589,3 @@ public class MediaControlPanel {
         set.setAlpha(actionId, visible ? 1.0f : 0.0f);
     }
 }
-
