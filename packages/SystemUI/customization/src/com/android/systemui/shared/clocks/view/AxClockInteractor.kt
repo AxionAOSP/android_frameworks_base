@@ -37,6 +37,10 @@ class AxClockInteractor(
         internal set
     var locale: Locale = Locale.getDefault()
 
+    private var cachedSdf: SimpleDateFormat? = null
+    private var cachedDateFormat: SimpleDateFormat? = null
+    private var cachedDateLocale: Locale = locale
+
     var needsSeconds: Boolean = false
     var useStandardFormat: Boolean = false
 
@@ -70,13 +74,18 @@ class AxClockInteractor(
         if (format == newFormat && locale == newLocale) return
         format = newFormat
         locale = newLocale
+        cachedSdf = null
+        cachedDateFormat = null
         refreshTime()
     }
 
     fun refreshTime(): Boolean {
         format ?: return false
         calendar.timeInMillis = System.currentTimeMillis()
-        val newTime = SimpleDateFormat(format, Locale.ENGLISH).format(calendar.time)
+        if (cachedSdf == null) {
+            cachedSdf = SimpleDateFormat(format, Locale.ENGLISH)
+        }
+        val newTime = cachedSdf!!.format(calendar.time)
         refreshDate()
         val changed = timeStr != newTime
         if (changed) {
@@ -87,8 +96,11 @@ class AxClockInteractor(
     }
 
     fun refreshDate() {
-        val dateFormat = SimpleDateFormat("EEE, dd MMM", locale)
-        state.dateStrFlow.value = dateFormat.format(calendar.time)
+        if (cachedDateFormat == null || cachedDateLocale != locale) {
+            cachedDateFormat = SimpleDateFormat("EEE, dd MMM", locale)
+            cachedDateLocale = locale
+        }
+        state.dateStrFlow.value = cachedDateFormat!!.format(calendar.time)
     }
 
     fun setupPreview(setPreviewMode: () -> Unit) {

@@ -472,7 +472,9 @@ constructor(
             }
 
             override fun onTimeChanged() {
-                refreshTime()
+                if (ScrimUtils.get().isKeyguardShowing()) {
+                    refreshTime()
+                }
             }
 
             private fun refreshTime() {
