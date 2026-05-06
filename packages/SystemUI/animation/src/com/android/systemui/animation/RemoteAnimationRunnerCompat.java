@@ -52,17 +52,6 @@ import com.android.wm.shell.shared.CounterRotator;
 public abstract class RemoteAnimationRunnerCompat extends IRemoteAnimationRunner.Stub {
     private static final String TAG = "RemoteAnimRunnerCompat";
 
-    public interface SmoothTransitionHook {
-        void apply(TransitionInfo info, SurfaceControl.Transaction t,
-                RemoteAnimationTarget[] apps);
-    }
-
-    private static volatile SmoothTransitionHook sSmoothHook;
-
-    public static void setSmoothTransitionHook(SmoothTransitionHook hook) {
-        sSmoothHook = hook;
-    }
-
     public abstract void onAnimationStart(@WindowManager.TransitionOldType int transit,
             RemoteAnimationTarget[] apps, RemoteAnimationTarget[] wallpapers,
             RemoteAnimationTarget[] nonApps, Runnable finishedCallback);
@@ -197,10 +186,6 @@ public abstract class RemoteAnimationRunnerCompat extends IRemoteAnimationRunner
                             counterWallpaper.addChild(t, leashMap.get(wallpaper.getLeash()));
                         }
                     }
-                }
-                final SmoothTransitionHook hook = sSmoothHook;
-                if (hook != null) {
-                    hook.apply(info, t, apps);
                 }
                 t.apply();
 
