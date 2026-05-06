@@ -505,6 +505,7 @@ public class CachedAppOptimizer {
     private static final long COMPACT_LAUNCH_DEFER_DURATION_MS = 1_500;
 
     private volatile long mLastAppLaunchUptime = 0;
+    private volatile boolean mIsAwake = true;
 
     private volatile boolean mUseFreezer = false; // set to DEFAULT in init()
     @GuardedBy("this")
@@ -1435,6 +1436,7 @@ public class CachedAppOptimizer {
     }
 
     void onWakefulnessChanged(int wakefulness) {
+        mIsAwake = wakefulness == PowerManagerInternal.WAKEFULNESS_AWAKE;
         if(wakefulness == PowerManagerInternal.WAKEFULNESS_AWAKE) {
             if (useCompaction()) {
                 // Remove any pending compaction we may have scheduled to happen while screen was
@@ -1511,6 +1513,10 @@ public class CachedAppOptimizer {
      */
     void onProcessFrozen(ProcessRecord frozenProc) {
         if (useCompaction()) {
+            if (mIsAwake) {
+                frozenProc.onProcessFrozen();
+                return;
+            }
             synchronized (mProcLock) {
                 // only full-compact if process is cached
                 if (frozenProc.getSetAdj() >= mCompactThrottleMinOomAdj) {
