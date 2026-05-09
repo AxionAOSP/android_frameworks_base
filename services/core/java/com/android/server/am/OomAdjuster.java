@@ -2189,7 +2189,8 @@ public abstract class OomAdjuster {
                         && state.getCurAdj() == ProcessList.FOREGROUND_APP_ADJ) {
                     Slog.d(TAG_OOM_ADJ, "App adj change from cached state to fg state : "
                             + state.getPid() + " " + state.processName);
-                    AxExtServiceFactory.getAxBurstEngine().perfLockAcquire(10, new int[]{AxBoostFwk.OP_GPU_APP_FG, state.getPid()});
+                    AxExtServiceFactory.getAxBurstEngine().perfLockAcquire(10,
+                            new int[]{AxBoostFwk.OP_GPU_APP_FG});
                 }
                 if (oldOomAdj == ProcessList.PREVIOUS_APP_ADJ
                         && state.getCurAdj() >= ProcessList.CACHED_APP_MIN_ADJ
@@ -2197,7 +2198,8 @@ public abstract class OomAdjuster {
                         && state.hasActivities()) {
                     Slog.d(TAG_OOM_ADJ, "App adj change from previous state to cached state : "
                             + state.getPid() + " " + state.processName);
-                    AxExtServiceFactory.getAxBurstEngine().perfLockAcquire(10, new int[]{AxBoostFwk.OP_GPU_APP_BG, state.getPid()});
+                    AxExtServiceFactory.getAxBurstEngine().perfLockAcquire(10,
+                            new int[]{AxBoostFwk.OP_GPU_APP_BG});
                 }
             }
         }

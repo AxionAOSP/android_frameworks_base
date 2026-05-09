@@ -68,6 +68,28 @@ struct HandleEntry {
     std::vector<std::pair<std::string, std::string>> applied;
 };
 
+enum BoostOpcode {
+    OP_FIRST_LAUNCH_BOOST = 1,
+    OP_SUBSEQ_LAUNCH_BOOST = 2,
+    OP_ACTIVITY_BOOST = 4,
+    OP_ANIM_BOOST = 5,
+    OP_EXIT_ANIM_BOOST = 6,
+    OP_LAUNCH_ACT_SWITCH = 10,
+    OP_SCROLL_BOOST = 11,
+    OP_SCROLL_INPUT = 12,
+    OP_SCROLL_VERTICAL = 14,
+    OP_SCROLL_SCROLLER = 15,
+    OP_TOUCH_BOOST = 19,
+    OP_DRAG_BOOST = 21,
+    OP_DRAG_START = 22,
+    OP_DRAG_END = 23,
+    OP_FRAME_INPUT_END = 25,
+    OP_ROTATION_ANIM_BOOST = 40,
+    OP_SHADE = 46,
+    OP_FIRST_DRAW = 48,
+    OP_GAME_LAUNCH_BOOST = 69,
+};
+
 class AxHintManager {
 public:
     int mRtPid = 0;
@@ -87,8 +109,8 @@ public:
 
     bool isCompositionBoosting() const {
         std::lock_guard<std::mutex> lock(mMutex);
-        for (int i = 0; i < mHintCount; i++) {
-            if (mExpiries[i] > 0) return true;
+        for (const auto& [_, entry] : mHandles) {
+            if (isCompositionOpcode(entry.opcode)) return true;
         }
         return false;
     }
@@ -130,12 +152,24 @@ public:
     void setThermalCeiling(const std::string& path, int ceiling) {
         std::lock_guard<std::mutex> lock(mMutex);
         mThermalCeilings[path] = ceiling;
-        writeSysfs(path, std::to_string(ceiling));
+        std::string value = std::to_string(ceiling);
+        if (writeSysfs(path, value)) mCurrentValues[path] = value;
     }
 
     void removeThermalCeiling(const std::string& path) {
         std::lock_guard<std::mutex> lock(mMutex);
         mThermalCeilings.erase(path);
+        if (mResourceRefs.find(path) != mResourceRefs.end()) {
+            restoreLatestValueLocked(path, -1);
+            return;
+        }
+        auto bit = mRestoreValues.find(path);
+        if (bit != mRestoreValues.end()) {
+            writeClamped(path, bit->second);
+            return;
+        }
+        auto oit = mOriginalValues.find(path);
+        if (oit != mOriginalValues.end()) writeClamped(path, oit->second);
     }
 
     void updateTopApp(int pid, int rTid) {
@@ -179,16 +213,11 @@ public:
             int handle = mOpcodeHandles[opcode];
             auto hit = mHandles.find(handle);
             if (hit != mHandles.end()) {
-                int64_t oldExpiry = hit->second.expiry;
-                bool shouldNotify = expiry > 0 && (oldExpiry <= 0 || expiry < oldExpiry)
-                        && shouldNotifyTimerLocked(expiry, handle);
-                hit->second.expiry = expiry;
-                mExpiries[opcode] = expiry;
-                mLastHintMs[opcode] = now;
-                if (shouldNotify) mCond.notify_one();
-                return handle;
+                releaseHandleLocked(handle);
+                mLastHintMs[opcode] = 0;
+            } else {
+                mOpcodeHandles[opcode] = 0;
             }
-            mOpcodeHandles[opcode] = 0;
         }
         int64_t cooldown = (entry.defaultTimeoutMs > 0) ? entry.defaultTimeoutMs / 2 : kCoalesceMs;
         if (now < mLastHintMs[opcode] + cooldown) return -1;
@@ -206,11 +235,13 @@ public:
             writeClamped(node.path, node.upValue);
             applied.push_back({node.path, node.upValue});
         }
-        int cgroupTid = mRtTid;
-        int cgroupPid = mRtPid;
+        int cgroupTid = 0;
+        int cgroupPid = 0;
         if (!entry.upCgroup.empty() && !isUiBoostActive()) {
-            applyTaskProfileLocked(cgroupPid, entry.upCgroup);
-            applyTaskProfileLocked(cgroupTid, entry.upCgroup);
+            cgroupTid = mRtTid;
+            cgroupPid = mRtPid;
+            acquireTaskProfileLocked(cgroupPid, entry.upCgroup);
+            acquireTaskProfileLocked(cgroupTid, entry.upCgroup);
         }
         mLastHintMs[opcode] = now;
         mHandles[handle] = {
@@ -232,9 +263,11 @@ public:
         if (hit->second.opcode >= 0 && hit->second.opcode < mHintCount
                 && hit->second.cgroupTid > 0) {
             HintEntry& entry = mHints[hit->second.opcode];
-            if (!entry.downCgroup.empty()) {
-                applyTaskProfileLocked(hit->second.cgroupPid, entry.downCgroup);
-                applyTaskProfileLocked(hit->second.cgroupTid, entry.downCgroup);
+            if (!entry.upCgroup.empty()) {
+                releaseTaskProfileLocked(hit->second.cgroupPid, entry.upCgroup,
+                        entry.downCgroup, handle);
+                releaseTaskProfileLocked(hit->second.cgroupTid, entry.upCgroup,
+                        entry.downCgroup, handle);
             }
         }
         for (auto& [path, val] : hit->second.applied) {
@@ -262,7 +295,6 @@ public:
             mExpiries[hit->second.opcode] = 0;
             if (mOpcodeHandles[hit->second.opcode] == handle) {
                 mOpcodeHandles[hit->second.opcode] = 0;
-                mLastHintMs[hit->second.opcode] = 0;
             }
         }
         mHandles.erase(hit);
@@ -583,6 +615,7 @@ public:
     uint64_t mNextSequence = 1;
     std::unordered_map<int, HandleEntry> mHandles;
     std::unordered_map<int, std::string> mTaskProfiles;
+    std::unordered_map<std::string, int> mTaskProfileRefs;
     std::unordered_map<std::string, int> mResourceRefs;
     std::unordered_map<std::string, std::string> mOriginalValues;
     std::unordered_map<std::string, std::string> mCurrentValues;
@@ -630,6 +663,60 @@ private:
         mTaskProfiles[taskId] = profile;
     }
 
+    void acquireTaskProfileLocked(int taskId, const std::string& profile) {
+        if (taskId <= 0 || profile.empty()) return;
+        mTaskProfileRefs[taskProfileRefKey(taskId, profile)]++;
+        applyTaskProfileLocked(taskId, profile);
+    }
+
+    void releaseTaskProfileLocked(int taskId, const std::string& profile,
+            const std::string& fallbackProfile, int releasedHandle) {
+        if (taskId <= 0 || profile.empty()) return;
+        std::string refKey = taskProfileRefKey(taskId, profile);
+        auto refIt = mTaskProfileRefs.find(refKey);
+        if (refIt != mTaskProfileRefs.end()) {
+            refIt->second--;
+            if (refIt->second > 0) return;
+            mTaskProfileRefs.erase(refIt);
+        }
+        std::string latestProfile = latestTaskProfileLocked(taskId, releasedHandle);
+        applyTaskProfileLocked(taskId, latestProfile.empty() ? fallbackProfile : latestProfile);
+    }
+
+    std::string latestTaskProfileLocked(int taskId, int releasedHandle) const {
+        uint64_t latestSequence = 0;
+        std::string latestProfile;
+        for (const auto& [handle, entry] : mHandles) {
+            if (handle == releasedHandle || entry.opcode < 0 || entry.opcode >= mHintCount) {
+                continue;
+            }
+            if (entry.cgroupPid != taskId && entry.cgroupTid != taskId) continue;
+            const std::string& profile = mHints[entry.opcode].upCgroup;
+            if (!profile.empty() && entry.sequence >= latestSequence) {
+                latestSequence = entry.sequence;
+                latestProfile = profile;
+            }
+        }
+        return latestProfile;
+    }
+
+    static std::string taskProfileRefKey(int taskId, const std::string& profile) {
+        return std::to_string(taskId) + '\n' + profile;
+    }
+
+    static bool isCompositionOpcode(int opcode) {
+        return opcode == OP_FIRST_LAUNCH_BOOST || opcode == OP_SUBSEQ_LAUNCH_BOOST
+                || opcode == OP_ACTIVITY_BOOST || opcode == OP_ANIM_BOOST
+                || opcode == OP_EXIT_ANIM_BOOST || opcode == OP_LAUNCH_ACT_SWITCH
+                || opcode == OP_SCROLL_BOOST || opcode == OP_SCROLL_INPUT
+                || opcode == OP_SCROLL_VERTICAL || opcode == OP_SCROLL_SCROLLER
+                || opcode == OP_TOUCH_BOOST || opcode == OP_DRAG_BOOST
+                || opcode == OP_DRAG_START || opcode == OP_DRAG_END
+                || (opcode >= OP_FRAME_INPUT_END && opcode <= OP_ROTATION_ANIM_BOOST)
+                || opcode == OP_SHADE || opcode == OP_FIRST_DRAW
+                || opcode == OP_GAME_LAUNCH_BOOST;
+    }
+
     void restoreLatestValueLocked(const std::string& path, int releasedHandle) {
         uint64_t latestSequence = 0;
         std::string latestValue;
@@ -664,10 +751,13 @@ static void native_set_boost_data(JNIEnv* env, jclass,
     for (jsize i = 0; i < len; i++) {
         jstring p = (jstring)env->GetObjectArrayElement(paths, i);
         jstring v = (jstring)env->GetObjectArrayElement(values, i);
-        if (p == nullptr || v == nullptr) continue;
-        ScopedUtfChars path(env, p);
-        ScopedUtfChars val(env, v);
-        hm->setBoostData(path.c_str(), val.c_str());
+        if (p != nullptr && v != nullptr) {
+            ScopedUtfChars path(env, p);
+            ScopedUtfChars val(env, v);
+            hm->setBoostData(path.c_str(), val.c_str());
+        }
+        if (p != nullptr) env->DeleteLocalRef(p);
+        if (v != nullptr) env->DeleteLocalRef(v);
     }
 }
 

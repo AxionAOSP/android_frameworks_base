@@ -142,7 +142,7 @@ public class AxBurstEngine implements IAxBurstEngine {
 
     public long updateTopApp(String processName, int pid, int tid) {
         mBoostMgr.setTopAppRenderThread(pid, tid);
-        return 1L;
+        return -1L;
     }
 
     public void setThermalState(int level, int cpuCap, int gpuCap) {

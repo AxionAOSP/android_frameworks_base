@@ -6604,8 +6604,6 @@ final class ActivityRecord extends WindowToken {
         if (perfActivityBoostHandler > 0) {
             AxExtServiceFactory.getAxBurstEngine().perfHintRelease(perfActivityBoostHandler);
             perfActivityBoostHandler = -1;
-        } else if (perfActivityBoostHandler > 0) {
-            Slog.w(TAG, "activity boost didn't release as expected");
         }
     }
 

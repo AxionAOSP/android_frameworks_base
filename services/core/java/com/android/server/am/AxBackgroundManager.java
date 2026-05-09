@@ -23,7 +23,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageManager;
 import android.database.ContentObserver;
 import android.net.Uri;
 import android.os.Handler;
@@ -368,8 +367,7 @@ public class AxBackgroundManager {
     }
 
     public boolean isProcessKeepAlive(ProcessRecord app) {
-        if (app.info.isSystemApp() || app.info.isUpdatedSystemApp()
-                || !app.info.packageName.equals(app.processName)) {
+        if (!app.info.packageName.equals(app.processName)) {
             return false;
         }
         return mKeepalivePackages != null && mKeepalivePackages.contains(app.info.packageName);
@@ -383,7 +381,7 @@ public class AxBackgroundManager {
 
     public boolean shouldPreventProcessStart(String processName, ApplicationInfo info) {
         if (mRestrictBgPackages == null || mRestrictBgPackages.isEmpty()) return false;
-        if (info == null || info.isSystemApp() || info.isUpdatedSystemApp()) return false;
+        if (info == null) return false;
         return mRestrictBgPackages.contains(info.packageName)
                 && !processName.equals(info.packageName);
     }
@@ -442,7 +440,7 @@ public class AxBackgroundManager {
 
     public void handleActivityStart(ApplicationInfo info) {
         if (!mSystemReady) return;
-        if (info == null || info.isSystemApp() || info.isUpdatedSystemApp()) return;
+        if (info == null) return;
 
         activateAppForForeground(info.packageName);
     }
@@ -450,8 +448,7 @@ public class AxBackgroundManager {
     public void handleSchedGroupTransition(ProcessRecord app) {
         if (!mSystemReady) return;
 
-        if (app.info.isSystemApp() || app.info.isUpdatedSystemApp()
-                || !app.processName.equals(app.info.packageName)) {
+        if (!app.processName.equals(app.info.packageName)) {
             return;
         }
 
