@@ -223,37 +223,9 @@ final class SkinThermalStatusObserver extends IThermalEventListener.Stub impleme
     private void reportThrottlingIfNeeded(int displayId,
             @Temperature.ThrottlingStatus int currentStatus,
             SparseArray<SurfaceControl.RefreshRateRange> throttlingMap) {
-        if (currentStatus == -1) { // no throttling status reported from thermal sensor yet
-            return;
-        }
-
-        if (throttlingMap.size() == 0) { // map is not configured, using default behaviour
-            fallbackReportThrottlingIfNeeded(displayId, currentStatus);
-            return;
-        }
-
-        SurfaceControl.RefreshRateRange foundRange = findBestMatchingRefreshRateRange(currentStatus,
-                throttlingMap);
-        // if status <= currentStatus not found in the map reset vote
-        Vote vote = null;
-        if (foundRange != null) { // otherwise vote with found range
-            vote = Vote.forRenderFrameRates(foundRange.min, foundRange.max);
-        }
-        mVotesStorage.updateVote(displayId, Vote.PRIORITY_SKIN_TEMPERATURE, vote);
+        mVotesStorage.updateVote(displayId, Vote.PRIORITY_SKIN_TEMPERATURE, null);
         if (mLoggingEnabled) {
-            Slog.d(TAG, "Voted: vote=" + vote + ", display =" + displayId);
-        }
-    }
-
-    private void fallbackReportThrottlingIfNeeded(int displayId,
-            @Temperature.ThrottlingStatus int currentStatus) {
-        Vote vote = null;
-        if (currentStatus >= Temperature.THROTTLING_CRITICAL) {
-            vote = Vote.forRenderFrameRates(0f, 60f);
-        }
-        mVotesStorage.updateVote(displayId, Vote.PRIORITY_SKIN_TEMPERATURE, vote);
-        if (mLoggingEnabled) {
-            Slog.d(TAG, "Voted(fallback): vote=" + vote + ", display =" + displayId);
+            Slog.d(TAG, "Refresh rate thermal throttling disabled, display=" + displayId);
         }
     }
     //endregion

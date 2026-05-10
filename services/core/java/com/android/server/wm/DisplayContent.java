@@ -5236,6 +5236,12 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
 
         if (isDefaultDisplay) {
             final AxRefreshRateController axRrc = AxRefreshRateController.getInstance();
+            if (axRrc.shouldSuppressAppRefreshRateRequests()) {
+                mTmpApplySurfaceChangesTransactionState.preferredModeId = 0;
+                mTmpApplySurfaceChangesTransactionState.preferredRefreshRate = 0;
+                mTmpApplySurfaceChangesTransactionState.preferredMinRefreshRate = 0;
+                mTmpApplySurfaceChangesTransactionState.preferredMaxRefreshRate = 0;
+            }
             axRrc.updateVoteResult();
             if (axRrc.hasActiveVote()) {
                 float axMin = axRrc.getMinPreferredRate();
@@ -5244,7 +5250,9 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
                         axRrc.getPreferredModeId();
                 mTmpApplySurfaceChangesTransactionState.preferredMinRefreshRate = axMin;
                 mTmpApplySurfaceChangesTransactionState.preferredMaxRefreshRate = axMax;
-                mTmpApplySurfaceChangesTransactionState.preferredRefreshRate = axMax;
+                if (axMin > 0 && Math.abs(axMin - axMax) < 1.0f) {
+                    mTmpApplySurfaceChangesTransactionState.preferredRefreshRate = axMax;
+                }
                 Slog.d("AxRefreshRateController", "updateVote: axMin: " + axMin + " axMax: " + axMax);
             }
         }
