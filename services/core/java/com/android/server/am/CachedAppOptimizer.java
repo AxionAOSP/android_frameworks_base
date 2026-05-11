@@ -1459,7 +1459,12 @@ public class CachedAppOptimizer {
     }
 
     void cancelAllCompactions(CancelCompactReason reason) {
+        if (mPendingCompactionProcesses.isEmpty()
+                && DefaultProcessDependencies.mPidCompacting < 0) {
+            return;
+        }
         synchronized (mProcLock) {
+            if (mPendingCompactionProcesses.isEmpty()) return;
             while(!mPendingCompactionProcesses.isEmpty()) {
                 if (DEBUG_COMPACTION) {
                     Slog.e(TAG_AM,

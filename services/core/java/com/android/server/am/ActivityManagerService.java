@@ -499,6 +499,7 @@ import com.android.server.wm.ActivityMetricsLaunchObserver;
 import com.android.server.wm.ActivityServiceConnectionsHolder;
 import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.ActivityTaskManagerService;
+import com.android.server.wm.ActivityTaskSupervisor;
 import com.android.server.wm.WindowManagerInternal;
 import com.android.server.wm.WindowManagerService;
 import com.android.server.wm.WindowProcessController;
@@ -680,6 +681,8 @@ public class ActivityManagerService extends IActivityManager.Stub
     private Installer mInstaller;
 
     final InstrumentationReporter mInstrumentationReporter = new InstrumentationReporter();
+    
+    ActivityTaskSupervisor mTaskSupervisor;
 
     @CompositeRWLock({"this", "mProcLock"})
     final ArrayList<ActiveInstrumentation> mActiveInstrumentation = new ArrayList<>();
@@ -2575,6 +2578,9 @@ public class ActivityManagerService extends IActivityManager.Stub
         mActivityTaskManager = atm;
         mActivityTaskManager.initialize(mIntentFirewall, mPendingIntentController,
                 mProcessStateController, activityTaskLooper);
+                
+        mTaskSupervisor = mActivityTaskManager.mTaskSupervisor;
+
         mHiddenApiBlacklist = new HiddenApiSettings(mHandler, mContext);
 
         Watchdog.getInstance().addMonitor(this);
@@ -4102,8 +4108,8 @@ public class ActivityManagerService extends IActivityManager.Stub
                     try {
                         intentL = mContext.getPackageManager().getLaunchIntentForPackage(appStr);
                         if (intentL == null) continue;
-                        ActivityInfo aInfo = intentL.resolveActivityInfo(
-                                mContext.getPackageManager(), 0);
+                        ActivityInfo aInfo = mTaskSupervisor.resolveActivity
+                            (intentL, null, 0, null, 0, 0, Binder.getCallingPid());
                         if (aInfo == null) continue;
                         emptyApp = startProcessLocked(
                                 appStr,
@@ -13926,6 +13932,27 @@ public class ActivityManagerService extends IActivityManager.Stub
                 mBatteryStatsService.removeIsolatedUid(app.uid, app.info.uid);
             }
             app.setPid(0);
+        }
+        // Call Preferred App
+        if (app != null) {
+            ArrayList<ApplicationExitInfo> results = new ArrayList<ApplicationExitInfo>();
+            mProcessList.mAppExitInfoTracker.getExitInfo(
+                    app.processName, app.uid, app.getPid(), 0, results);
+            if (results != null) {
+                boolean recentAppClose = false;
+                for (int i=0; i<results.size();i++) {
+                    ApplicationExitInfo appExitInfo = results.get(i);
+                    if ((appExitInfo.getReason() == ApplicationExitInfo.REASON_USER_REQUESTED
+                            || appExitInfo.getReason() == ApplicationExitInfo.REASON_USER_STOPPED)
+                                && appExitInfo.getDescription() == "remove task") {
+                        recentAppClose = true;
+                        break;
+                    }
+                }
+                if (recentAppClose) {
+                    mTaskSupervisor.startPreferredApps();
+                }
+            }
         }
         return false;
     }

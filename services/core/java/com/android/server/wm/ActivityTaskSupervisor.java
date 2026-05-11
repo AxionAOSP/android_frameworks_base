@@ -820,7 +820,7 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         }
     }
 
-    ActivityInfo resolveActivity(Intent intent, String resolvedType, int startFlags,
+    public ActivityInfo resolveActivity(Intent intent, String resolvedType, int startFlags,
             ProfilerInfo profilerInfo, int userId, int filterCallingUid, int callingPid) {
         final ResolveInfo rInfo = resolveIntent(intent, resolvedType, userId, 0,
                 filterCallingUid, callingPid);
@@ -2085,17 +2085,13 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
                 ActivityManagerInternal::killProcessesForRemovedTask, mService.mAmInternal,
                 procsToKill);
         mService.mH.sendMessage(m);
-        startPreferredApps();
     }
 
     public void startPreferredApps() {
         try {
-            String predicted = AxExtServiceFactory.getUxPerformance().uxEngineTrigger();
-            if (predicted != null) {
-                Slog.i(TAG, "Predicted next app: " + predicted);
-            }
+            new PreferredAppsTask().execute();
         } catch (Exception e) {
-            Slog.w(TAG, "startPreferredApps failed: " + e);
+            Slog.v (TAG, "Exception while calling PreferredAppsTask: " + e);
         }
     }
 
@@ -3353,6 +3349,29 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
             pw.println(prefix + "  mTargetComponent=" + mTargetComponent);
             pw.println(prefix + "  mResult=");
             mResult.dump(pw, prefix + "    ");
+        }
+    }
+    
+    class PreferredAppsTask extends android.os.AsyncTask<Void, Void, Void> {
+        @Override
+        protected Void doInBackground(Void... params) {
+            int trimLevel = 0;
+            try {
+                trimLevel = ActivityManager.getService().getMemoryTrimLevel();
+            } catch (RemoteException e) {
+                return null;
+            }
+            if (trimLevel < com.android.internal.app.procstats.ProcessStats.ADJ_MEM_FACTOR_CRITICAL) {
+                try {
+                    String predicted = AxExtServiceFactory.getUxPerformance().uxEngineTrigger();
+                    if (predicted != null) {
+                        Slog.i(TAG, "Predicted next app: " + predicted);
+                    }
+                } catch (Exception e) {
+                    Slog.w(TAG, "startPreferredApps failed: " + e);
+                }
+            }
+            return null;
         }
     }
 }
