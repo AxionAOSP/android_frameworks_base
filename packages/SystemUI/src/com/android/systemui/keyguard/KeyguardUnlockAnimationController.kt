@@ -464,11 +464,9 @@ constructor(
     }
 
     override fun onStartedWakingUp() {
-        if (keyguardStateController.isShowing) {
-            cancelWallpaperZoomAnimator()
-            hasPendingScreenOnWallpaperZoom = true
-            setKeyguardWallpaperZoom(LOCKSCREEN_WALLPAPER_ZOOM)
-        }
+        cancelWallpaperZoomAnimator()
+        hasPendingScreenOnWallpaperZoom = true
+        setKeyguardWallpaperZoom(LOCKSCREEN_WALLPAPER_ZOOM)
     }
 
     override fun onFinishedWakingUp() {
@@ -476,11 +474,7 @@ constructor(
             return
         }
         hasPendingScreenOnWallpaperZoom = false
-        if (keyguardStateController.isShowing) {
-            animateKeyguardWallpaperZoom()
-        } else {
-            setKeyguardWallpaperZoom(0f)
-        }
+        animateKeyguardWallpaperZoom()
     }
 
     override fun onStartedGoingToSleep() {
@@ -1140,9 +1134,14 @@ constructor(
         surfaceBehindEntryAnimator.cancel()
         wallpaperCannedUnlockAnimator.cancel()
         wallpaperFadeOutUnlockAnimator.cancel()
-        cancelWallpaperZoomAnimator()
+
+        if (wallpaperZoomAnimator == null && hasPendingScreenOnWallpaperZoom) {
+            hasPendingScreenOnWallpaperZoom = false
+            animateKeyguardWallpaperZoom()
+        } else if (wallpaperZoomAnimator == null) {
+            setKeyguardWallpaperZoom(0f)
+        }
         hasPendingScreenOnWallpaperZoom = false
-        setKeyguardWallpaperZoom(0f)
 
         // That target is no longer valid since the animation finished, null it out.
         surfaceBehindRemoteAnimationTargets = null
