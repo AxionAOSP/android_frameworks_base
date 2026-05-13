@@ -49,7 +49,7 @@ public class OmniJawsClient {
     public static final String WEATHER_ERROR = SERVICE_PACKAGE + ".WEATHER_ERROR";
 
     private static final String ICON_PACKAGE_DEFAULT = "org.omnirom.omnijaws";
-    private static final String ICON_PREFIX_DEFAULT = "google_new_light";
+    private static final String ICON_PREFIX_DEFAULT = "google_new";
     private static final String ICON_PREFIX_OUTLINE = "outline";
     private static final String EXTRA_ERROR = "error";
     public static final int EXTRA_ERROR_NETWORK = 0;
