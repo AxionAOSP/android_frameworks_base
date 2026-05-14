@@ -143,6 +143,7 @@ import com.android.internal.util.FrameworkStatsLog;
 import com.android.server.AxExtServiceFactory;
 import com.android.server.UiThread;
 import com.android.server.am.ActivityManagerService.IntentCreatorToken;
+import com.android.server.am.AxBackgroundManager;
 import com.android.server.am.AxUtils;
 import com.android.server.am.IAxBurstEngine;
 import com.android.server.am.PendingIntentRecord;
@@ -1106,6 +1107,10 @@ class ActivityStarter {
             if (callingUid != realCallingUid
                     && realCallingUid != Request.DEFAULT_REAL_CALLING_UID) {
                 request.logMessage.append(" (realCallingUid=").append(realCallingUid).append(")");
+            }
+            AxBackgroundManager appBgManager = AxExtServiceFactory.getAxBackgroundManager();
+            if (appBgManager != null && appBgManager.useFreezerManager() && aInfo != null) {
+                appBgManager.handleActivityStart(aInfo.applicationInfo);
             }
         }
 

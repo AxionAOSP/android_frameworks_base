@@ -2264,6 +2264,10 @@ public abstract class OomAdjuster {
                     && AxUtils.isInPerfList(state.processName)) {
                 processGroup = THREAD_GROUP_SYSTEMUI;
             }
+            AxBackgroundManager appBgManager = AxExtServiceFactory.getAxBackgroundManager();
+            if (appBgManager != null && appBgManager.useFreezerManager()) {
+                appBgManager.handleSchedGroupTransition((ProcessRecord) state);
+            }
             setAppAndChildProcessGroup(state, processGroup);
             try {
                 final int renderThreadTid = state.getRenderThreadTid();

@@ -65,12 +65,14 @@ public class AxBackgroundManager {
     private static final int UNFREEZE_PACKAGE_LEVEL = 4;
 
     private volatile Set<String> mRestrictBgPackages = new HashSet<>();
+    private volatile Set<String> mAutoStartAllowedPackages = new HashSet<>();
     private volatile Set<String> mKeepalivePackages = new HashSet<>();
     private volatile Set<String> mFreezePackages = new HashSet<>();
     private volatile AppPolicy mAppPolicy = AppPolicy.NORMAL;
     private volatile int mFreezerLevel = 2;
 
     private final Handler mHandler;
+    private final Object mAutoStartLock = new Object();
     private PackageLevelFreezer mPackageFreezerManager;
     private boolean mSystemReady = false;
     
@@ -109,6 +111,9 @@ public class AxBackgroundManager {
         }
 
         mRestrictBgPackages.remove(packageName);
+        synchronized (mAutoStartLock) {
+            mAutoStartAllowedPackages.remove(packageName);
+        }
         mKeepalivePackages.remove(packageName);
         mFreezePackages.remove(packageName);
         getFreezeMgr().setFreezePackages(mFreezePackages);
@@ -301,44 +306,47 @@ public class AxBackgroundManager {
         ContentResolver cr = NtServiceInjector.getCtx().getContentResolver();
         if (cr == null) return;
 
-        String raw = Settings.Secure.getString(cr, "axion_perf_restrict_bg_auto_start");
-        Set<String> restrictPkgs = new HashSet<>();
-        if (raw != null && !raw.isEmpty()) {
-            for (String s : raw.split(",")) {
-                String t = s.trim();
-                if (!t.isEmpty()) restrictPkgs.add(t);
-            }
+        mRestrictBgPackages = parsePackageList(
+                Settings.Secure.getString(cr, "axion_perf_restrict_bg_auto_start"));
+        synchronized (mAutoStartLock) {
+            mAutoStartAllowedPackages.retainAll(mRestrictBgPackages);
         }
-        mRestrictBgPackages = restrictPkgs;
 
-        raw = Settings.Secure.getString(cr, "axion_perf_package_freezer");
-        Set<String> freezePkgs = new HashSet<>();
-        if (raw != null && !raw.isEmpty()) {
-            for (String s : raw.split(",")) {
-                String t = s.trim();
-                if (!t.isEmpty()) freezePkgs.add(t);
-            }
-        }
+        Set<String> freezePkgs = parsePackageList(
+                Settings.Secure.getString(cr, "axion_perf_package_freezer"));
         mFreezePackages = freezePkgs;
         getFreezeMgr().setFreezePackages(freezePkgs);
 
-        raw = Settings.Secure.getString(cr, "axion_perf_keepalive");
-        Set<String> keepPkgs = new HashSet<>();
-        if (raw != null && !raw.isEmpty()) {
-            for (String s : raw.split(",")) {
-                String t = s.trim();
-                if (!t.isEmpty()) keepPkgs.add(t);
-            }
-        }
-        mKeepalivePackages = keepPkgs;
+        mKeepalivePackages = parsePackageList(
+                Settings.Secure.getString(cr, "axion_perf_keepalive"));
 
-        mAppPolicy = AppPolicy.fromValue(Settings.Secure.getInt(cr,
-                "axion_perf_aggressive_policy", 0));
+        mAppPolicy = readAppPolicy(cr);
         getFreezeMgr().setAppPolicy(
                 AxFreezeManager.AppPolicy.fromValue(mAppPolicy.value));
 
         mFreezerLevel = Settings.Secure.getInt(cr, "axion_perf_freezer_level", 2);
         getFreezeMgr().setFreezerLevel(mFreezerLevel);
+    }
+
+    private Set<String> parsePackageList(String raw) {
+        Set<String> packages = new HashSet<>();
+        if (raw != null && !raw.isEmpty()) {
+            for (String s : raw.split(",")) {
+                String t = s.trim();
+                if (!t.isEmpty()) packages.add(t);
+            }
+        }
+        return packages;
+    }
+
+    private AppPolicy readAppPolicy(ContentResolver cr) {
+        try {
+            String raw = Settings.Secure.getString(cr, "axion_perf_aggressive_policy");
+            return AppPolicy.fromValue(raw != null ? Integer.parseInt(raw.trim()) : 0);
+        } catch (NumberFormatException e) {
+            Slog.w(TAG, "Invalid app policy setting, falling back to NORMAL", e);
+            return AppPolicy.NORMAL;
+        }
     }
 
     public boolean usePackageLevelFreezer() {
@@ -382,8 +390,11 @@ public class AxBackgroundManager {
     public boolean shouldPreventProcessStart(String processName, ApplicationInfo info) {
         if (mRestrictBgPackages == null || mRestrictBgPackages.isEmpty()) return false;
         if (info == null) return false;
-        return mRestrictBgPackages.contains(info.packageName)
-                && !processName.equals(info.packageName);
+        if (info.isSystemApp() || info.isUpdatedSystemApp()) return false;
+        if (!mRestrictBgPackages.contains(info.packageName)) return false;
+        synchronized (mAutoStartLock) {
+            return !mAutoStartAllowedPackages.contains(info.packageName);
+        }
     }
 
     public boolean isPackageExemptFromAutoStart(String packageName) {
@@ -431,11 +442,19 @@ public class AxBackgroundManager {
     }
 
     private void setPackageAutoStartAllowed(String packageName) {
-        mRestrictBgPackages.remove(packageName);
+        if (packageName != null && mRestrictBgPackages.contains(packageName)) {
+            synchronized (mAutoStartLock) {
+                mAutoStartAllowedPackages.add(packageName);
+            }
+        }
     }
 
     private void setPackageAutoStartBlocked(String packageName) {
-        mRestrictBgPackages.add(packageName);
+        if (packageName != null) {
+            synchronized (mAutoStartLock) {
+                mAutoStartAllowedPackages.remove(packageName);
+            }
+        }
     }
 
     public void handleActivityStart(ApplicationInfo info) {
