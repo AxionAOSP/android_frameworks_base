@@ -53,6 +53,7 @@ import com.android.systemui.statusbar.NotificationShadeWindowController
 import com.android.systemui.statusbar.SysuiStatusBarStateController
 import com.android.systemui.statusbar.phone.BiometricUnlockController
 import com.android.systemui.statusbar.phone.BiometricUnlockController.MODE_WAKE_AND_UNLOCK_FROM_DREAM
+import com.android.systemui.statusbar.phone.CentralSurfaces
 import com.android.systemui.statusbar.policy.KeyguardStateController
 import dagger.Lazy
 import javax.inject.Inject
@@ -126,8 +127,8 @@ const val LAUNCHER_ICONS_ANIMATION_DURATION_MS = 633L
 const val CANNED_UNLOCK_START_DELAY_MS = 25L
 
 const val LOCKSCREEN_WALLPAPER_ZOOM = 1f
-const val SCREEN_ON_WALLPAPER_ZOOM_DURATION_MS = 650L
-const val SCREEN_ON_WALLPAPER_ZOOM_START_DELAY_MS = 300L
+const val SCREEN_ON_WALLPAPER_ZOOM_DURATION_MS = 550L
+const val SCREEN_ON_WALLPAPER_ZOOM_START_DELAY_MS = 0L
 
 /**
  * Duration for the alpha animation on the surface behind. This plays to fade in the surface during
@@ -314,6 +315,9 @@ constructor(
 
     private var wallpaperZoomAnimator: ValueAnimator? = null
     private var hasPendingScreenOnWallpaperZoom = false
+    private val setScreenOnWallpaperZoomRunnable = Runnable {
+        setKeyguardWallpaperZoom(LOCKSCREEN_WALLPAPER_ZOOM)
+    }
 
     /** Rounded corner radius to apply to the surface behind the keyguard. */
     private var roundedCornerRadius = 0f
@@ -463,10 +467,40 @@ constructor(
         listeners.remove(listener)
     }
 
+    private fun isDozeWakeUp(): Boolean =
+        statusBarStateController.isDozing || statusBarStateController.dozeAmount > 0f
+
+    private fun getScreenOnWallpaperZoomStartDelay(): Long =
+        if (isDozeWakeUp()) {
+            CentralSurfaces.FADE_KEYGUARD_DURATION_PULSING.toLong()
+        } else {
+            SCREEN_ON_WALLPAPER_ZOOM_START_DELAY_MS
+        }
+
+    private fun getLauncherUnlockRevealStartDelay(): Long {
+        val biometricUnlockController = biometricUnlockControllerLazy.get()
+        return if (biometricUnlockController.isWakeAndUnlock || isDozeWakeUp()) {
+            CentralSurfaces.FADE_KEYGUARD_DURATION_PULSING.toLong()
+        } else if (keyguardStateController.isKeyguardFadingAway) {
+            keyguardStateController.keyguardFadingAwayDelay +
+                keyguardStateController.keyguardFadingAwayDuration
+        } else {
+            (CentralSurfaces.FADE_KEYGUARD_START_DELAY +
+                CentralSurfaces.FADE_KEYGUARD_DURATION).toLong()
+        }
+    }
+
     override fun onStartedWakingUp() {
         cancelWallpaperZoomAnimator()
-        hasPendingScreenOnWallpaperZoom = true
-        setKeyguardWallpaperZoom(LOCKSCREEN_WALLPAPER_ZOOM)
+        hasPendingScreenOnWallpaperZoom =
+            keyguardStateController.isShowing || statusBarStateController.isDozing
+        if (hasPendingScreenOnWallpaperZoom) {
+            keyguardViewController.viewRootImpl.view?.postOnAnimation(
+                setScreenOnWallpaperZoomRunnable
+            ) ?: setKeyguardWallpaperZoom(LOCKSCREEN_WALLPAPER_ZOOM)
+        } else {
+            setKeyguardWallpaperZoom(0f)
+        }
     }
 
     override fun onFinishedWakingUp() {
@@ -702,12 +736,18 @@ constructor(
         val isWakeAndUnlockNotFromDream =
             biometricUnlockControllerLazy.get().isWakeAndUnlock &&
                 biometricUnlockControllerLazy.get().mode != MODE_WAKE_AND_UNLOCK_FROM_DREAM
+        val unlockAnimationStartDelay =
+            if (willUnlockWithInWindowLauncherAnimations) {
+                getLauncherUnlockRevealStartDelay()
+            } else {
+                CANNED_UNLOCK_START_DELAY_MS
+            }
 
         listeners.forEach {
             it.onUnlockAnimationStarted(
                 playingCannedUnlockAnimation /* playingCannedAnimation */,
                 isWakeAndUnlockNotFromDream /* isWakeAndUnlockNotFromDream */,
-                CANNED_UNLOCK_START_DELAY_MS /* unlockStartDelay */,
+                unlockAnimationStartDelay /* unlockStartDelay */,
                 LAUNCHER_ICONS_ANIMATION_DURATION_MS, /* unlockAnimationDuration */
             )
         }
@@ -728,6 +768,9 @@ constructor(
     private fun playCannedUnlockAnimation() {
         Log.d(TAG, "playCannedUnlockAnimation")
         playingCannedUnlockAnimation = true
+        hasPendingScreenOnWallpaperZoom = false
+        cancelWallpaperZoomAnimator()
+        setKeyguardWallpaperZoom(0f)
 
         when {
             // If we're set up for in-window launcher animations, ask Launcher to play its in-window
@@ -781,7 +824,7 @@ constructor(
             launcherUnlockController?.playUnlockAnimation(
                 true /* unlocked */,
                 LAUNCHER_ICONS_ANIMATION_DURATION_MS /* duration */,
-                CANNED_UNLOCK_START_DELAY_MS, /* startDelay */
+                getLauncherUnlockRevealStartDelay(), /* startDelay */
             )
         } catch (e: DeadObjectException) {
             // Hello! If you are here investigating a bug where Launcher is blank (no icons)
@@ -1135,7 +1178,10 @@ constructor(
         wallpaperCannedUnlockAnimator.cancel()
         wallpaperFadeOutUnlockAnimator.cancel()
 
-        if (wallpaperZoomAnimator == null && hasPendingScreenOnWallpaperZoom) {
+        if (!showKeyguard) {
+            cancelWallpaperZoomAnimator()
+            setKeyguardWallpaperZoom(0f)
+        } else if (wallpaperZoomAnimator == null && hasPendingScreenOnWallpaperZoom) {
             hasPendingScreenOnWallpaperZoom = false
             animateKeyguardWallpaperZoom()
         } else if (wallpaperZoomAnimator == null) {
@@ -1159,13 +1205,17 @@ constructor(
         wallpaperZoomAnimator =
             ValueAnimator.ofFloat(LOCKSCREEN_WALLPAPER_ZOOM, 0f).apply {
                 duration = SCREEN_ON_WALLPAPER_ZOOM_DURATION_MS
-                startDelay = SCREEN_ON_WALLPAPER_ZOOM_START_DELAY_MS
+                startDelay = getScreenOnWallpaperZoomStartDelay()
                 interpolator = Interpolators.FAST_OUT_SLOW_IN
                 addUpdateListener { valueAnimator ->
                     setKeyguardWallpaperZoom(valueAnimator.animatedValue as Float)
                 }
                 addListener(
                     object : AnimatorListenerAdapter() {
+                        override fun onAnimationStart(animation: Animator) {
+                            setKeyguardWallpaperZoom(LOCKSCREEN_WALLPAPER_ZOOM)
+                        }
+
                         override fun onAnimationEnd(animation: Animator) {
                             setKeyguardWallpaperZoom(0f)
                             if (wallpaperZoomAnimator === animation) {
@@ -1181,6 +1231,7 @@ constructor(
     private fun cancelWallpaperZoomAnimator() {
         wallpaperZoomAnimator?.cancel()
         wallpaperZoomAnimator = null
+        keyguardViewController.viewRootImpl.view?.removeCallbacks(setScreenOnWallpaperZoomRunnable)
     }
 
     private fun setKeyguardWallpaperZoom(zoom: Float) {
