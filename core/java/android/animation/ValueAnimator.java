@@ -220,6 +220,8 @@ public class ValueAnimator extends Animator implements AnimationHandler.Animatio
     @UnsupportedAppUsage
     private long mDuration = 300;
 
+    private long mOriginalDuration = -1;
+
     // The amount of time in ms to delay starting the animation after start() is called. Note
     // that this start delay is unscaled. When there is a duration scale set on the animator, the
     // scaling factor will be applied to this delay.
@@ -710,7 +712,7 @@ public class ValueAnimator extends Animator implements AnimationHandler.Animatio
      */
     @Override
     public long getDuration() {
-        return mDuration;
+        return mOriginalDuration > 0 ? mOriginalDuration : mDuration;
     }
 
     @Override
@@ -1122,6 +1124,7 @@ public class ValueAnimator extends Animator implements AnimationHandler.Animatio
             throw new AndroidRuntimeException("Animators may only be run on Looper threads");
         }
         AxBoostFwk.acquireHint(AxBoostFwk.OP_RENDER_ANIMATION, mDuration);
+        mOriginalDuration = mDuration;
         if (mDuration > 50L && mRepeatCount != INFINITE && mDuration > 0L) {
             mDuration = Math.max(16L, (long) (mDuration * 0.8f));
         }
