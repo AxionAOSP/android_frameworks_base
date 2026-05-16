@@ -273,8 +273,6 @@ class AxionVolumeRepositoryImpl @Inject constructor(
             .mapNotNull { appVolume ->
                 try {
                     val appInfo = packageManager.getApplicationInfo(appVolume.packageName, 0)
-                    if ((appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0) return@mapNotNull null
-
                     val label = packageManager.getApplicationLabel(appInfo).toString()
                     AxionAppVolumeModel(
                         packageName = appVolume.packageName,
