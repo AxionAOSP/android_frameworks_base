@@ -285,7 +285,7 @@ class AxionAgeClockView @JvmOverloads constructor(
                 path.arcTo(Rect(padding, centerY, w - padding, h - padding), -90f, 270f, false)
             }
             '6' -> {
-                path.moveTo(w - padding, padding); path.lineTo(padding, h - padding - dw / 2)
+                path.moveTo(padding, padding); path.lineTo(padding, h - padding - dw / 2)
                 path.addOval(Rect(padding, h - padding - dw, w - padding, h - padding))
             }
             '7' -> {
@@ -296,7 +296,7 @@ class AxionAgeClockView @JvmOverloads constructor(
                 path.addOval(Rect(padding, centerY, w - padding, h - padding))
             }
             '9' -> {
-                path.moveTo(padding, h - padding); path.lineTo(w - padding, padding + dw / 2)
+                path.moveTo(w - padding, h - padding); path.lineTo(w - padding, padding + dw / 2)
                 path.addOval(Rect(padding, padding, w - padding, padding + dw))
             }
         }

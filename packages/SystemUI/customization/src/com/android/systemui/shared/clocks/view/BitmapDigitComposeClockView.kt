@@ -20,6 +20,7 @@ import android.animation.AnimatorSet
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas as AndroidCanvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Point
@@ -85,6 +86,13 @@ private data class LargeFontLayout(
     val cellWidth: Float,
     val canvasHeightDp: Float,
 )
+
+private data class FontDigitVisualBounds(
+    val top: Float,
+    val bottom: Float,
+) {
+    val height: Float get() = bottom - top
+}
 
 class BitmapDigitComposeClockView @JvmOverloads constructor(
     context: Context,
@@ -205,7 +213,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
                     val metrics = fontPaint.fontMetrics
                     metrics.descent - metrics.ascent
                 }
-                is RenderMode.AnalogClock -> return super.clockHeightBase
+                is RenderMode.AnalogClock -> analogFaceHeightPx(config)
             }
             return (contentHeight + (DATE_ROW_DP + config.dateSpacingDp + config.topPaddingDp + config.bottomPaddingDp) * density).toInt()
         }
@@ -403,10 +411,15 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
                     fontPaint.typeface = getCachedTypeface(
                         fontWeights.getOrElse(i) { mode.lsFontWeight }, mode.fontPath
                     )
-                    nativeCanvas.drawText(displayTime[i].toString(), x, baselineY, fontPaint)
+                    drawFontDigit(nativeCanvas, displayTime[i], x, baselineY, mode)
 
                     val charRect = Rect()
                     fontPaint.getTextBounds(displayTime[i].toString(), 0, 1, charRect)
+                    if (shouldNormalizeDigitOneHeight(mode, displayTime[i])) {
+                        val visualBounds = getFontDigitVisualBounds(fontPaint)
+                        charRect.top = visualBounds.top.toInt()
+                        charRect.bottom = visualBounds.bottom.toInt()
+                    }
                     charRect.offset(x.toInt(), baselineY.toInt())
                     val loc = IntArray(2)
                     getLocationOnScreen(loc)
@@ -425,15 +438,18 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
     private fun SmallAnalogContent(config: BitmapFaceConfig) {
         val (time, _, isDoze, screenOff, regionDark) = rememberClockState()
         val dateColor = dateTextColor(config, isDoze, screenOff, regionDark)
+        val dynSizeScale by ClockSettingsRepository.sizeScale.collectAsState()
+        val analogScale = if (isPreviewMode) 1f else dynSizeScale
+        val analogHeightPx = remember(config, analogScale) { analogFaceHeightPx(config, analogScale) }
+        val analogHeight = with(LocalDensity.current) { analogHeightPx.toDp() }
 
         SmallShell(config, dateColor) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
+                    .height(analogHeight)
                     .analogDrawModifier(config, time, isDoze, screenOff, regionDark),
             )
-            Spacer(modifier = Modifier.height(ANALOG_DATE_GAP_DP.dp))
         }
     }
 
@@ -637,7 +653,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
                         )
                         val glyphW = fontPaint.measureText(digits[i].toString())
                         val glyphX = cellX + (cellWidth - glyphW) / 2f
-                        nativeCanvas.drawText(digits[i].toString(), glyphX, baselineY, fontPaint)
+                        drawFontDigit(nativeCanvas, digits[i], glyphX, baselineY, mode)
                         cellX += cellWidth
                     }
                 }
@@ -694,6 +710,13 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
             }
         }
         return result
+    }
+
+    private fun analogFaceHeightPx(config: BitmapFaceConfig, scale: Float = 1f): Float {
+        val fallbackHeight = context.resources.getDimension(R.dimen.clock_height)
+        val tickRes = config.tickResIds.firstOrNull() ?: return fallbackHeight * scaleRatio * scale
+        return (ContextCompat.getDrawable(context, tickRes)?.intrinsicHeight?.toFloat()
+            ?: fallbackHeight) * scaleRatio * scale
     }
 
     private fun Modifier.analogDrawModifier(
@@ -782,7 +805,53 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         return time
     }
 
+    private fun drawFontDigit(
+        canvas: AndroidCanvas,
+        digit: Char,
+        x: Float,
+        baselineY: Float,
+        mode: RenderMode.FontDigit,
+    ) {
+        val digitText = digit.toString()
+        if (!shouldNormalizeDigitOneHeight(mode, digit)) {
+            canvas.drawText(digitText, x, baselineY, fontPaint)
+            return
+        }
 
+        val digitBounds = Rect()
+        fontPaint.getTextBounds(digitText, 0, 1, digitBounds)
+        val digitHeight = digitBounds.height().toFloat()
+        val visualBounds = getFontDigitVisualBounds(fontPaint)
+        if (digitHeight <= 0f || visualBounds.height <= digitHeight) {
+            canvas.drawText(digitText, x, baselineY, fontPaint)
+            return
+        }
+
+        val targetCenterY = baselineY + (visualBounds.top + visualBounds.bottom) / 2f
+        val digitCenterFromBaseline = (digitBounds.top + digitBounds.bottom) / 2f
+        val drawBaselineY = targetCenterY - digitCenterFromBaseline
+        val scaleY = visualBounds.height / digitHeight
+
+        canvas.save()
+        canvas.scale(1f, scaleY, x + fontPaint.measureText(digitText) / 2f, targetCenterY)
+        canvas.drawText(digitText, x, drawBaselineY, fontPaint)
+        canvas.restore()
+    }
+
+    private fun shouldNormalizeDigitOneHeight(mode: RenderMode.FontDigit, digit: Char): Boolean =
+        mode.normalizeDigitOneHeight && digit == NORMALIZED_DIGIT_ONE
+
+    private fun getFontDigitVisualBounds(paint: Paint): FontDigitVisualBounds {
+        val bounds = Rect()
+        var topMin = Int.MAX_VALUE
+        var bottomMax = Int.MIN_VALUE
+        for (digit in '0'..'9') {
+            paint.getTextBounds(digit.toString(), 0, 1, bounds)
+            if (bounds.top < topMin) topMin = bounds.top
+            if (bounds.bottom > bottomMax) bottomMax = bounds.bottom
+        }
+        return FontDigitVisualBounds(topMin.toFloat(), bottomMax.toFloat())
+    }
 
     override fun onDozeAmountChanged(linear: Float, eased: Float) {
         super.onDozeAmountChanged(linear, eased)
@@ -917,7 +986,6 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
     companion object {
         private const val MAX_TABLET_SCALE = 1.2f
         private const val DATE_ROW_DP = 24f
-        private const val ANALOG_DATE_GAP_DP = 16f
         private const val DIGIT_COUNT = 4
         private const val WEIGHT_SNAP = 10
         private const val RIPPLE_ANIM_MS = 500L
@@ -926,6 +994,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         private const val FORCE_RESET_DELAY_MS = 800L
         private const val FIDGET_THIN_WEIGHT = 300
         private const val FIDGET_WEIGHT_DURATION = 250L
+        private const val NORMALIZED_DIGIT_ONE = '1'
         private val RIPPLE_INTERPOLATOR = PathInterpolator(0.6f, 0f, 0.2f, 1f)
         private val FIDGET_INTERPOLATOR = PathInterpolator(0.26873f, 0f, 0.45042f, 1f)
     }

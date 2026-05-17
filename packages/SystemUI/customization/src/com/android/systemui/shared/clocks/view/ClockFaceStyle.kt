@@ -56,6 +56,7 @@ sealed interface RenderMode {
         val aodFontWeight: Int,
         val largeScale: Float = 1.85f,
         val lineSpacing: Float = 16f,
+        val normalizeDigitOneHeight: Boolean = false,
     ) : RenderMode
     data object AnalogClock : RenderMode
 }
@@ -207,6 +208,7 @@ object BitmapFaceConfigs {
                 aodFontWeight = 100,
                 largeScale = 1.85f,
                 lineSpacing = 16f,
+                normalizeDigitOneHeight = true,
             ),
             dateSpacingDp = 0f,
             topPaddingDp = 16f,
@@ -214,6 +216,7 @@ object BitmapFaceConfigs {
         ClockFaceStyle.GRAPHIC to BitmapFaceConfig(
             renderMode = RenderMode.AnalogClock,
             tickResIds = intArrayOf(R.drawable.graphic_tick, R.drawable.graphic_tick_light),
+            dateSpacingDp = 40f,
             topPaddingDp = 16f,
             bottomPaddingDp = 24f,
         ),
