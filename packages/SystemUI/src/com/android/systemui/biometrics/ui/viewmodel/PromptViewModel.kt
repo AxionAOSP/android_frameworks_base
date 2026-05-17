@@ -30,6 +30,7 @@ import android.hardware.biometrics.BiometricPrompt
 import android.hardware.biometrics.Flags
 import android.hardware.biometrics.PromptContentView
 import android.os.UserHandle
+import android.provider.Settings
 import android.text.TextPaint
 import android.util.Log
 import android.view.HapticFeedbackConstants
@@ -942,6 +943,7 @@ constructor(
     }
 
     private fun vibrateOnSuccess() {
+        if (!isFingerprintAuthVibrateEnabled()) return
         val haptics =
             if (msdlFeedback()) {
                 HapticsToPlay.MSDL(MSDLToken.UNLOCK, authInteractionProperties)
@@ -952,6 +954,7 @@ constructor(
     }
 
     private fun vibrateOnError() {
+        if (!isFingerprintAuthVibrateEnabled()) return
         val haptics =
             if (msdlFeedback()) {
                 HapticsToPlay.MSDL(MSDLToken.FAILURE, authInteractionProperties)
@@ -964,6 +967,14 @@ constructor(
     /** Clears the [hapticsToPlay] variable by setting its constant to the NO_HAPTICS default. */
     fun clearHaptics() {
         _hapticsToPlay.update { HapticsToPlay.None }
+    }
+
+    private fun isFingerprintAuthVibrateEnabled(): Boolean {
+        return Settings.Secure.getInt(
+            context.contentResolver,
+            Settings.Secure.FINGERPRINT_AUTH_VIBRATE,
+            1
+        ) != 0
     }
 
     /** The state of haptic feedback to play. */

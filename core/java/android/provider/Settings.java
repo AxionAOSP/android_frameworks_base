@@ -11980,6 +11980,14 @@ public final class Settings {
         public static final String FINGERPRINT_APP_ENABLED = "fingerptint_app_enabled";
 
         /**
+         * Whether fingerprint authentication vibration is enabled.
+         * 1 = enabled (default), 0 = disabled.
+         * @hide
+         */
+        @Readable
+        public static final String FINGERPRINT_AUTH_VIBRATE = "fingerprint_auth_vibrate";
+
+        /**
          * Whether or not face is allowed on Keyguard.
          * @hide
          */

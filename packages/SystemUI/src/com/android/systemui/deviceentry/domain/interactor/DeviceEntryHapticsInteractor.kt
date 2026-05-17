@@ -15,6 +15,8 @@
  */
 package com.android.systemui.deviceentry.domain.interactor
 
+import android.content.ContentResolver
+import android.provider.Settings
 import com.android.keyguard.logging.BiometricUnlockLogger
 import com.android.systemui.Flags
 import com.android.systemui.biometrics.data.repository.FingerprintPropertyRepository
@@ -57,6 +59,7 @@ constructor(
     private val logger: BiometricUnlockLogger,
     powerInteractor: PowerInteractor,
     keyguardInteractor: KeyguardInteractor,
+    private val contentResolver: ContentResolver,
     private val systemClock: SystemClock,
     dumpManager: DumpManager,
 ) : FlowDumperImpl(dumpManager) {
@@ -94,6 +97,10 @@ constructor(
                 )
             )
             .filter { (sideFpsEnrolled, powerButtonDown, lastPowerButtonWakeup) ->
+                if (!isFingerprintAuthVibrateEnabled()) {
+                    logger.d("Skip success haptic. Auth vibration disabled in settings.")
+                    return@filter false
+                }
                 val sideFpsAllowsHaptic =
                     !powerButtonDown &&
                         systemClock.uptimeMillis() - lastPowerButtonWakeup >
@@ -145,6 +152,10 @@ constructor(
         playErrorHapticForBiometricFailure
             .sample(combine(powerButtonSideFpsEnrolled, powerButtonDown, ::Pair))
             .filter { (sideFpsEnrolled, powerButtonDown) ->
+                if (!isFingerprintAuthVibrateEnabled()) {
+                    logger.d("Skip error haptic. Auth vibration disabled in settings.")
+                    return@filter false
+                }
                 val allowHaptic = !sideFpsEnrolled || !powerButtonDown
                 if (!allowHaptic) {
                     logger.d("Skip error haptic. Power button is down.")
@@ -154,6 +165,14 @@ constructor(
             // map to Unit
             .map {}
             .dumpWhileCollecting("playErrorHaptic")
+
+    private fun isFingerprintAuthVibrateEnabled(): Boolean {
+        return Settings.Secure.getInt(
+            contentResolver,
+            Settings.Secure.FINGERPRINT_AUTH_VIBRATE,
+            1
+        ) != 0
+    }
 
     private val recentPowerButtonPressThresholdMs = 400L
 }
