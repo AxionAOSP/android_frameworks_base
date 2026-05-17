@@ -46,8 +46,8 @@ public enum ScrimState {
     OFF {
         @Override
         public void prepare(ScrimState previousState) {
-            mFrontTint = mBackgroundColor;
-            mBehindTint = mBackgroundColor;
+            mFrontTint = Color.BLACK;
+            mBehindTint = Color.BLACK;
 
             mFrontAlpha = 1f;
             mBehindAlpha = 1f;
@@ -86,13 +86,14 @@ public enum ScrimState {
                 mAnimationDuration = ScrimController.ANIMATION_DURATION;
             }
             if (Flags.notificationShadeBlur()) {
+                mFrontTint = previousState.isLowPowerState() ? Color.BLACK : mBackgroundColor;
                 mBehindTint = mBackgroundColor;
                 mNotifTint = mNotificationScrimColor;
                 mBehindAlpha = mScrimBehindAlphaKeyguard;
                 mNotifAlpha = 0.0f;
                 mFrontAlpha = 0.0f;
             } else {
-                mFrontTint = mBackgroundColor;
+                mFrontTint = previousState.isLowPowerState() ? Color.BLACK : mBackgroundColor;
                 mBehindTint = mBackgroundColor;
                 mNotifTint = mClipQsScrim ? mBackgroundColor : Color.TRANSPARENT;
                 mFrontAlpha = 0;
@@ -261,11 +262,11 @@ public enum ScrimState {
             final boolean isDocked = mDockManager.isDocked();
             mBlankScreen = mDisplayRequiresBlanking;
 
-            mFrontTint = mBackgroundColor;
+            mFrontTint = Color.BLACK;
             mFrontAlpha = (alwaysOnEnabled || isDocked || quickPickupEnabled)
                     ? mAodFrontScrimAlpha : 1f;
 
-            mBehindTint = mBackgroundColor;
+            mBehindTint = Color.BLACK;
             mBehindAlpha = ScrimController.TRANSPARENT;
 
             mAnimationDuration = ScrimController.ANIMATION_DURATION_LONG;
@@ -298,8 +299,8 @@ public enum ScrimState {
         @Override
         public void prepare(ScrimState previousState) {
             mFrontAlpha = mAodFrontScrimAlpha;
-            mBehindTint = mBackgroundColor;
-            mFrontTint = mBackgroundColor;
+            mBehindTint = Color.BLACK;
+            mFrontTint = Color.BLACK;
             mBlankScreen = mDisplayRequiresBlanking;
             mAnimationDuration = mWakeLockScreenSensorActive
                     ? ScrimController.ANIMATION_DURATION_LONG : ScrimController.ANIMATION_DURATION;
@@ -332,12 +333,12 @@ public enum ScrimState {
 
             if (mDisplayRequiresBlanking && previousState == ScrimState.AOD) {
                 // Set all scrims black, before they fade transparent.
-                updateScrimColor(mScrimInFront, 1f /* alpha */, mBackgroundColor /* tint */);
-                updateScrimColor(mScrimBehind, 1f /* alpha */, mBackgroundColor /* tint */);
+                updateScrimColor(mScrimInFront, 1f /* alpha */, Color.BLACK /* tint */);
+                updateScrimColor(mScrimBehind, 1f /* alpha */, Color.BLACK /* tint */);
 
                 // Scrims should still be black at the end of the transition.
-                mFrontTint = mBackgroundColor;
-                mBehindTint = mBackgroundColor;
+                mFrontTint = Color.BLACK;
+                mBehindTint = Color.BLACK;
                 mBlankScreen = true;
             } else if (Flags.notificationShadeBlur()) {
                 mBehindTint = mShadePanelColor;
