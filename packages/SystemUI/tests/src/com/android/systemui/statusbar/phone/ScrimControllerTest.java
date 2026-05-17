@@ -392,6 +392,8 @@ public class ScrimControllerTest extends SysuiTestCase {
                 mScrimInFront, true,
                 mScrimBehind, true
         ));
+        assertScrimTint(mScrimInFront, Color.BLACK);
+        assertScrimTint(mScrimBehind, Color.BLACK);
     }
 
     @Test
@@ -407,6 +409,8 @@ public class ScrimControllerTest extends SysuiTestCase {
                 mScrimInFront, true,
                 mScrimBehind, true
         ));
+        assertScrimTint(mScrimInFront, Color.BLACK);
+        assertScrimTint(mScrimBehind, Color.BLACK);
     }
 
     @Test
@@ -520,6 +524,8 @@ public class ScrimControllerTest extends SysuiTestCase {
                 mScrimInFront, true,
                 mScrimBehind, true
         ));
+        assertScrimTint(mScrimInFront, Color.BLACK);
+        assertScrimTint(mScrimBehind, Color.BLACK);
 
         // ... and when ambient goes dark, front scrim should be semi-transparent
         mScrimController.setAodFrontScrimAlpha(0.5f);
