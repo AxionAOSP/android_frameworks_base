@@ -26,9 +26,6 @@ import android.content.pm.ApplicationInfo;
 import android.database.ContentObserver;
 import android.net.Uri;
 import android.os.Handler;
-import android.os.Looper;
-import android.os.Process;
-import android.os.Trace;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Slog;
@@ -40,8 +37,6 @@ import com.android.server.ServiceThread;
 import com.android.server.uifirst.AxUiFirstManager;
 import com.android.server.am.psc.ProcessRecordInternal;
 
-import java.io.FileDescriptor;
-import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -63,6 +58,8 @@ public class AxBackgroundManager {
 
     private static final int FREEZE_PACKAGE_LEVEL = 3;
     private static final int UNFREEZE_PACKAGE_LEVEL = 4;
+    private static final int DEFAULT_PROC_WEIGHT = -1;
+    private static final int LOW_PROC_WEIGHT = 0;
 
     private volatile Set<String> mRestrictBgPackages = new HashSet<>();
     private volatile Set<String> mAutoStartAllowedPackages = new HashSet<>();
@@ -284,7 +281,7 @@ public class AxBackgroundManager {
 
     private void registerSettingsObserver() {
         ContentResolver cr = NtServiceInjector.getCtx().getContentResolver();
-        ContentObserver observer = new ContentObserver(new Handler(Looper.getMainLooper())) {
+        ContentObserver observer = new ContentObserver(mHandler) {
             @Override
             public void onChange(boolean selfChange, Uri uri) {
                 loadSettings();
@@ -317,8 +314,17 @@ public class AxBackgroundManager {
         mFreezePackages = freezePkgs;
         getFreezeMgr().setFreezePackages(freezePkgs);
 
-        mKeepalivePackages = parsePackageList(
+        Set<String> keepalivePkgs = parsePackageList(
                 Settings.Secure.getString(cr, "axion_perf_keepalive"));
+        final boolean wasKeepaliveEnabled = useAppKeepaliveManager();
+        final boolean isKeepaliveEnabled = !keepalivePkgs.isEmpty();
+        if (!wasKeepaliveEnabled && isKeepaliveEnabled) {
+            ProcessList.updateLmkLazyKillFlag(true);
+        }
+        mKeepalivePackages = keepalivePkgs;
+        if (wasKeepaliveEnabled && !isKeepaliveEnabled) {
+            ProcessList.updateLmkLazyKillFlag(false);
+        }
 
         mAppPolicy = readAppPolicy(cr);
         getFreezeMgr().setAppPolicy(
@@ -358,7 +364,7 @@ public class AxBackgroundManager {
     }
 
     public boolean useAppKeepaliveManager() {
-        return mKeepalivePackages != null && !mKeepalivePackages.isEmpty();
+        return !mKeepalivePackages.isEmpty();
     }
 
     public boolean useUiBoost() {
@@ -375,16 +381,24 @@ public class AxBackgroundManager {
     }
 
     public boolean isProcessKeepAlive(ProcessRecord app) {
-        if (!app.info.packageName.equals(app.processName)) {
-            return false;
-        }
-        return mKeepalivePackages != null && mKeepalivePackages.contains(app.info.packageName);
+        return mKeepalivePackages.contains(app.info.packageName);
     }
 
     public boolean isProcessKeepAlive(ProcessRecordInternal app) {
         String pkg = app.getPackageName();
-        if (pkg == null) return false;
-        return mKeepalivePackages != null && mKeepalivePackages.contains(pkg);
+        return pkg != null && mKeepalivePackages.contains(pkg);
+    }
+
+    public ArrayList<Integer> getProcsKeepaliveWeight(ArrayList<ProcessRecordInternal> procs) {
+        ArrayList<Integer> weights = new ArrayList<>(procs.size());
+        for (int i = 0; i < procs.size(); i++) {
+            weights.add(getProcKeepaliveWeight(procs.get(i)));
+        }
+        return weights;
+    }
+
+    public int getProcKeepaliveWeight(ProcessRecordInternal app) {
+        return isProcessKeepAlive(app) ? LOW_PROC_WEIGHT : DEFAULT_PROC_WEIGHT;
     }
 
     public boolean shouldPreventProcessStart(String processName, ApplicationInfo info) {

@@ -384,6 +384,7 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
     static final byte LMK_START_MONITORING = 9; // Start monitoring if delayed earlier
     static final byte LMK_BOOT_COMPLETED = 10;
     static final byte LMK_PROCS_PRIO = 11;  // Batch option for LMK_PROCPRIO
+    static final byte LMK_UPDATE_LAZY_KILL_FLAG = 12;
 
     // Low Memory Killer Daemon command codes.
     // These must be kept in sync with async_event_type definitions in lmkd.h
@@ -1608,11 +1609,36 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
         }
     }
 
+    public static void setOomAdjExt(int pid, int uid, int amt, int weight) {
+        if (pid <= 0) {
+            return;
+        }
+        if (amt == UNKNOWN_ADJ)
+            return;
+
+        long start = SystemClock.elapsedRealtime();
+        ByteBuffer buf = ByteBuffer.allocate(4 * 6);
+        buf.putInt(LMK_PROCPRIO);
+        buf.putInt(pid);
+        buf.putInt(uid);
+        buf.putInt(amt);
+        buf.putInt(weight);
+        buf.putInt(0);
+        writeLmkd(buf, null);
+        long now = SystemClock.elapsedRealtime();
+        if ((now-start) > 250) {
+            Slog.w("ActivityManager", "SLOW OOM ADJ: " + (now-start) + "ms for pid " + pid
+                    + " = " + amt);
+        }
+    }
+
     // The max size for PROCS_PRIO cmd in LMKD
     private static final int MAX_PROCS_PRIO_PACKET_SIZE = 3;
 
     // (4 bytes per field * 4 fields * 3 processes per batch) + 4 bytes for the LMKD cmd
     private static final int MAX_OOM_ADJ_BATCH_LENGTH = ((4 * 4) * MAX_PROCS_PRIO_PACKET_SIZE) + 4;
+    private static final int MAX_OOM_ADJ_BATCH_LENGTH_EXT =
+            ((4 * 5) * MAX_PROCS_PRIO_PACKET_SIZE) + 4;
 
     /**
      * Set the out-of-memory badness adjustment for a list of processes.
@@ -1632,18 +1658,13 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
         buf.putInt(LMK_PROCS_PRIO);
         for (int i = 0; i < totalApps; i++) {
             final int pid = apps.get(i).getPid();
-            int amt = apps.get(i).getCurAdj();
+            final int amt = apps.get(i).getCurAdj();
             final int uid = apps.get(i).uid;
             if (pid <= 0 || amt == UNKNOWN_ADJ) continue;
-            if (amt >= 0 && AxExtServiceFactory.getAxBackgroundManager().useAppKeepaliveManager()
-                    && AxExtServiceFactory.getAxBackgroundManager().isProcessKeepAlive(apps.get(i))) {
-                amt = 100;
-            }
             if (total_procs_in_buf >= MAX_PROCS_PRIO_PACKET_SIZE) {
                 writeLmkd(buf, null);
                 buf.clear();
                 total_procs_in_buf = 0;
-                buf.allocate(MAX_OOM_ADJ_BATCH_LENGTH);
                 buf.putInt(LMK_PROCS_PRIO);
             }
             buf.putInt(pid);
@@ -1652,9 +1673,51 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
             buf.putInt(0);  // Default proc type to PROC_TYPE_APP
             total_procs_in_buf++;
         }
-        writeLmkd(buf, null);
+        if (total_procs_in_buf > 0) {
+            writeLmkd(buf, null);
+        }
     }
 
+    public static void batchSetOomAdjExt(ArrayList<ProcessRecordInternal> apps,
+            ArrayList<Integer> weights) {
+        final int totalApps = apps.size();
+        if (totalApps == 0) {
+            return;
+        }
+
+        ByteBuffer buf = ByteBuffer.allocate(MAX_OOM_ADJ_BATCH_LENGTH_EXT);
+        int total_procs_in_buf = 0;
+        buf.putInt(LMK_PROCS_PRIO);
+        for (int i = 0; i < totalApps; i++) {
+            final int pid = apps.get(i).getPid();
+            final int amt = apps.get(i).getCurAdj();
+            final int uid = apps.get(i).uid;
+            final int weight = weights.get(i);
+            if (pid <= 0 || amt == UNKNOWN_ADJ) continue;
+            if (total_procs_in_buf >= MAX_PROCS_PRIO_PACKET_SIZE) {
+                writeLmkd(buf, null);
+                buf.clear();
+                total_procs_in_buf = 0;
+                buf.putInt(LMK_PROCS_PRIO);
+            }
+            buf.putInt(pid);
+            buf.putInt(uid);
+            buf.putInt(amt);
+            buf.putInt(weight);
+            buf.putInt(0);
+            total_procs_in_buf++;
+        }
+        if (total_procs_in_buf > 0) {
+            writeLmkd(buf, null);
+        }
+    }
+
+    public static void updateLmkLazyKillFlag(boolean enable) {
+        ByteBuffer buf = ByteBuffer.allocate(4 * 2);
+        buf.putInt(LMK_UPDATE_LAZY_KILL_FLAG);
+        buf.putInt(enable ? 1 : 0);
+        writeLmkd(buf, null);
+    }
 
     /*
      * @hide
@@ -1714,6 +1777,12 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
             buf = ByteBuffer.allocate(4 * 2);
             buf.putInt(LMK_SUBSCRIBE);
             buf.putInt(LMK_ASYNC_EVENT_STAT);
+            ostream.write(buf.array(), 0, buf.position());
+
+            buf = ByteBuffer.allocate(4 * 2);
+            buf.putInt(LMK_UPDATE_LAZY_KILL_FLAG);
+            buf.putInt(AxExtServiceFactory.getAxBackgroundManager().useAppKeepaliveManager()
+                    ? 1 : 0);
             ostream.write(buf.array(), 0, buf.position());
         } catch (IOException ex) {
             return false;

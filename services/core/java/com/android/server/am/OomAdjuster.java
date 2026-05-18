@@ -451,8 +451,17 @@ public abstract class OomAdjuster {
             ProcessList.batchSetOomAdj(procsToOomAdj);
         }
 
+        void batchSetOomAdjExt(ArrayList<ProcessRecordInternal> procsToOomAdj,
+                ArrayList<Integer> weights) {
+            ProcessList.batchSetOomAdjExt(procsToOomAdj, weights);
+        }
+
         void setOomAdj(int pid, int uid, int adj) {
             ProcessList.setOomAdj(pid, uid, adj);
+        }
+
+        void setOomAdjExt(int pid, int uid, int adj, int weight) {
+            ProcessList.setOomAdjExt(pid, uid, adj, weight);
         }
 
         void setThreadPriority(int tid, int priority) {
@@ -1279,9 +1288,6 @@ public abstract class OomAdjuster {
                 && mService.mAppProfiler.getAllowLowerMemLevelLocked()) {
             selectedAppRecord.setCurAdj(ProcessList.CACHED_APP_MAX_ADJ);
             selectedAppRecord.setAdjType("bservice");
-            if (AxExtServiceFactory.getAxBackgroundManager().useAppKeepaliveManager()) {
-                AxExtServiceFactory.getAxBackgroundManager().isProcessKeepAlive(selectedAppRecord);
-            }
             if (DEBUG_OOM_ADJ) {
                 Slog.d(TAG_OOM_ADJ, "app.processName = " + selectedAppRecord.getProcessName()
                         + " app.pid = " + selectedAppRecord.getPid()
@@ -1303,7 +1309,13 @@ public abstract class OomAdjuster {
         }
 
         if (!mProcsToOomAdj.isEmpty()) {
-            mInjector.batchSetOomAdj(mProcsToOomAdj);
+            AxBackgroundManager appBgManager = AxExtServiceFactory.getAxBackgroundManager();
+            if (appBgManager.useAppKeepaliveManager()) {
+                mInjector.batchSetOomAdjExt(mProcsToOomAdj,
+                        appBgManager.getProcsKeepaliveWeight(mProcsToOomAdj));
+            } else {
+                mInjector.batchSetOomAdj(mProcsToOomAdj);
+            }
             mProcsToOomAdj.clear();
         }
 
@@ -2169,7 +2181,12 @@ public abstract class OomAdjuster {
             if (isBatchingOomAdj && mConstants.ENABLE_BATCHING_OOM_ADJ) {
                 mProcsToOomAdj.add(state);
             } else {
-                mInjector.setOomAdj(state.getPid(), state.uid, state.getCurAdj());
+                if (freezer.useAppKeepaliveManager()) {
+                    mInjector.setOomAdjExt(state.getPid(), state.uid, state.getCurAdj(),
+                            freezer.getProcKeepaliveWeight(state));
+                } else {
+                    mInjector.setOomAdj(state.getPid(), state.uid, state.getCurAdj());
+                }
             }
 
             if (reportDebugMsgs) {
