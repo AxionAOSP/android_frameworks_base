@@ -29,6 +29,7 @@ import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.keyguard.domain.interactor.KeyguardClockInteractor
 import com.android.systemui.keyguard.shared.model.ClockSize
+import com.android.systemui.lockscreen.KeyguardWidgetHostController
 import com.android.systemui.log.LogBuffer
 import com.android.systemui.log.core.LogLevel
 import com.android.systemui.log.dagger.KeyguardLargeClockLog
@@ -37,6 +38,9 @@ import com.android.systemui.plugins.keyguard.ui.clocks.ClockController
 import com.android.systemui.plugins.keyguard.ui.clocks.ClockPreviewConfig
 import com.android.systemui.res.R as SysuiR
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
+import com.android.systemui.shared.clocks.ClockSettingsRepository
+import com.android.systemui.shared.clocks.ClockTopPaddingRange
+import com.android.systemui.shared.clocks.ClockWidgetGridMetrics
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
 import com.android.systemui.statusbar.notification.icon.ui.viewmodel.NotificationIconContainerAlwaysOnDisplayViewModel
@@ -50,6 +54,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 @SysUISingleton
 class KeyguardClockViewModel
@@ -70,6 +76,10 @@ constructor(
 ) {
     var burnInLayer: Layer? = null
 
+    init {
+        ClockSettingsRepository.init(context)
+    }
+
     val clockSize: StateFlow<ClockSize> = keyguardClockInteractor.clockSize
 
     val isLargeClockVisible: StateFlow<Boolean> =
@@ -78,7 +88,7 @@ constructor(
             .stateIn(
                 scope = applicationScope,
                 started = SharingStarted.Eagerly,
-                initialValue = true,
+                initialValue = false,
             )
 
     val clockEventController: ClockEventController = keyguardClockInteractor.clockEventController
@@ -179,16 +189,68 @@ constructor(
                         clocksR.dimen.status_view_margin_horizontal
                     ),
             )
-            .getSmallClockTopPadding()
+            .getSmallClockTopPadding() +
+            (clockTopPaddingRange().clamp(ClockSettingsRepository.topPaddingDp.value) *
+                    context.resources.displayMetrics.density)
+                .roundToInt()
     }
 
     val smallClockTopMargin =
         combine(
             configurationInteractor.onAnyConfigurationChange,
             shadeModeInteractor.isFullWidthShade,
-        ) { _, _ ->
+            ClockSettingsRepository.topPaddingDp,
+            ClockSettingsRepository.sizeScale,
+            ClockSettingsRepository.lockscreenWidgetLayoutState,
+        ) { _, _, _, _, _ ->
             getSmallClockTopMargin()
         }
+
+    private fun clockTopPaddingRange(): ClockTopPaddingRange {
+        val reservedHeightDp =
+            ClockWidgetGridMetrics(
+                cellSizeDp = lockscreenWidgetCellSizeDp(),
+                cellGapDp = lockscreenWidgetCellGapDp(),
+                topPaddingDp = WIDGET_COMPOSE_TOP_PADDING_DP,
+            ).reservedHeightDp(ClockSettingsRepository.lockscreenWidgetLayoutState.value)
+        return ClockTopPaddingRange(
+            min = ClockSettingsRepository.TOP_PADDING_MIN_DP,
+            baseMax = ClockSettingsRepository.TOP_PADDING_MAX_DP,
+            reservedHeightDp = reservedHeightDp,
+        )
+    }
+
+    private fun lockscreenWidgetCellSizeDp(): Float {
+        val displayMetrics = context.resources.displayMetrics
+        val density = displayMetrics.density
+        val maxWidth = context.resources.getDimensionPixelSize(SysuiR.dimen.shade_panel_width)
+        val sidePadding = context.resources.getDimensionPixelSize(SysuiR.dimen.kg_widget_side_padding)
+        val cellGap = context.resources.getDimensionPixelSize(SysuiR.dimen.kg_widget_cell_gap)
+        val baseWidth =
+            if (context.resources.getBoolean(SysuiR.bool.config_use_split_notification_shade)) {
+                min(displayMetrics.widthPixels / 2, maxWidth)
+            } else {
+                min(min(displayMetrics.widthPixels, displayMetrics.heightPixels), maxWidth)
+            }
+        val widthCell =
+            (baseWidth - 2 * sidePadding -
+                (KeyguardWidgetHostController.GRID_COLUMNS - 1) * cellGap) /
+                KeyguardWidgetHostController.GRID_COLUMNS
+        val maxContainerHeight =
+            (KeyguardWidgetHostController.MAX_CONTAINER_HEIGHT_DP * density).toInt()
+        val composeTopPadding = (WIDGET_COMPOSE_TOP_PADDING_DP * density).toInt()
+        val availableHeight = maxContainerHeight - composeTopPadding
+        val heightCell =
+            (availableHeight -
+                (KeyguardWidgetHostController.MAX_ROWS - 1) * cellGap) /
+                KeyguardWidgetHostController.MAX_ROWS
+        return min(widthCell, heightCell) / density
+    }
+
+    private fun lockscreenWidgetCellGapDp(): Float {
+        return context.resources.getDimensionPixelSize(SysuiR.dimen.kg_widget_cell_gap) /
+            context.resources.displayMetrics.density
+    }
 
     /** Calculates the top margin for the large clock. */
     fun getLargeClockTopMargin(): Int {
@@ -332,6 +394,7 @@ constructor(
 
     companion object {
         const val TAG = "KeyguardClockViewModel"
+        private const val WIDGET_COMPOSE_TOP_PADDING_DP = 8f
 
         // font size to display size
         // These values come from changing the font size and display size on a non-foldable.

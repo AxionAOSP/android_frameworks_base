@@ -38,7 +38,6 @@ import com.android.systemui.statusbar.notification.domain.interactor.HeadsUpNoti
 import com.android.systemui.statusbar.notification.promoted.PromotedNotificationUi
 import com.android.systemui.statusbar.notification.promoted.domain.interactor.AODPromotedNotificationInteractor
 import com.android.systemui.util.kotlin.combine
-import com.android.systemui.utils.coroutines.flow.flatMapLatestConflated
 import com.android.systemui.wallpapers.domain.interactor.WallpaperFocalAreaInteractor
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -135,20 +134,12 @@ constructor(
         }
 
     val clockSize: StateFlow<ClockSize> =
-        selectedClockSize
-            .flatMapLatestConflated { selectedSize ->
-                if (selectedSize == ClockSizeSetting.SMALL ||
-                    keyguardClockRepository.areLockscreenWidgetsEnabled
-                ) {
-                    flowOf(ClockSize.SMALL)
-                } else {
-                    dynamicClockSize
-                }
-            }
+        dynamicClockSize
+            .map { ClockSize.SMALL }
             .stateIn(
                 scope = applicationScope,
                 started = SharingStarted.Eagerly,
-                initialValue = ClockSize.LARGE,
+                initialValue = ClockSize.SMALL,
             )
 
     val clockShouldBeCentered: Flow<Boolean> =

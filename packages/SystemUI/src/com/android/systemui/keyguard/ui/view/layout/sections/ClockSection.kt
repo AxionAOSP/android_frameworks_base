@@ -49,11 +49,13 @@ import com.android.systemui.res.R
 import com.android.systemui.shade.LargeScreenHeaderHelper
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shared.R as sharedR
+import com.android.systemui.shared.clocks.ClockSettingsRepository
 import com.android.systemui.shared.clocks.useAxClocks
 import com.android.systemui.util.ui.value
 import dagger.Lazy
 import javax.inject.Inject
 import kotlinx.coroutines.DisposableHandle
+import kotlin.math.roundToInt
 
 internal fun ConstraintSet.setVisibility(views: Iterable<View>, visibility: Int) =
     views.forEach { view -> this.setVisibility(view.id, visibility) }
@@ -161,6 +163,12 @@ constructor(
         if (keyguardClockViewModel.isLargeClockVisible.value) clock.smallClock.layout
         else clock.largeClock.layout
 
+    private fun getSmallClockHeight(): Int {
+        val baseHeight = context.resources.getDimensionPixelSize(custR.dimen.clock_height)
+        if (!useAxClocks) return baseHeight
+        return (baseHeight * ClockSettingsRepository.sizeScale.value).roundToInt()
+    }
+
     private fun constrainWeatherClockDateIconsBarrier(constraints: ConstraintSet) {
         constraints.apply {
             createBarrier(
@@ -195,6 +203,7 @@ constructor(
 
     fun applyDefaultConstraints(constraints: ConstraintSet) {
         val isLargeVisible = keyguardClockViewModel.isLargeClockVisible.value
+        val smallClockHeight = getSmallClockHeight()
         val guideline =
             if (keyguardClockViewModel.clockShouldBeCentered.value) PARENT_ID
             else R.id.split_shade_guideline
@@ -256,7 +265,7 @@ constructor(
             constrainWidth(ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL, MATCH_CONSTRAINT)
             constrainHeight(
                 ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL,
-                context.resources.getDimensionPixelSize(custR.dimen.clock_height),
+                smallClockHeight,
             )
             connect(
                 ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL,
@@ -285,8 +294,7 @@ constructor(
             setTransformPivot(ClockViewIds.LOCKSCREEN_CLOCK_VIEW_LARGE, Float.NaN, Float.NaN)
 
             val smallClockBottom =
-                keyguardClockViewModel.getSmallClockTopMargin() +
-                    context.resources.getDimensionPixelSize(custR.dimen.clock_height)
+                keyguardClockViewModel.getSmallClockTopMargin() + smallClockHeight
             val marginBetweenSmartspaceAndNotification =
                 context.resources.getDimensionPixelSize(
                     R.dimen.keyguard_status_view_bottom_margin

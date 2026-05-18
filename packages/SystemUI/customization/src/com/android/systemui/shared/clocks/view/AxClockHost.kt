@@ -30,6 +30,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -86,6 +87,7 @@ class AxClockHost(private val clock: AxClockView) {
             val align = state.alignmentState.value
             val trigger by state.fidgetTrigger
             val isDoze by state.dozeFlow.collectAsState()
+            val configurationVersion = state.configurationVersion.intValue
             val animScale = remember { Animatable(1f) }
             var initialDoze by remember { mutableStateOf(true) }
 
@@ -124,7 +126,9 @@ class AxClockHost(private val clock: AxClockView) {
                         }
                     }
             ) {
-                content()
+                key(configurationVersion) {
+                    content()
+                }
             }
         }
     }

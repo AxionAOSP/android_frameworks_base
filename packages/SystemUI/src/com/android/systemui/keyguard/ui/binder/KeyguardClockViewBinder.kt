@@ -113,6 +113,12 @@ object KeyguardClockViewBinder {
                     }
 
                     launch {
+                        viewModel.smallClockTopMargin.collect {
+                            blueprintInteractor.refreshBlueprint(Type.DefaultTransition)
+                        }
+                    }
+
+                    launch {
                         combine(
                             viewModel.clockShouldBeCentered,
                             viewModel.isLargeClockVisible

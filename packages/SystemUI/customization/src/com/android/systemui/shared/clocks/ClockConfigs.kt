@@ -117,6 +117,35 @@ object ClockConfigs {
             Align.CENTER,
             visible = false,
         ),
+        "OplusClassicClockView" to ClockStyleConfig(
+            Position.ABOVE,
+            Align.CENTER,
+            visible = false,
+        ),
+        "OplusClassicClockView_large" to ClockStyleConfig(
+            Position.BELOW,
+            Align.CENTER,
+            visible = false,
+        ),
+        "OplusBigClockView" to ClockStyleConfig(
+            Position.ABOVE,
+            Align.CENTER,
+            visible = false,
+        ),
+        "OplusBigClockView_large" to ClockStyleConfig(
+            Position.BELOW,
+            Align.CENTER,
+            visible = false,
+        ),
+        "OplusGraffitiClockView" to ClockStyleConfig(
+            Position.ABOVE,
+            Align.CENTER,
+            visible = false,
+        ),
+        "OplusGraffitiClockView_large" to ClockStyleConfig(
+            Position.BELOW,
+            Align.CENTER,
+            visible = false,
+        ),
     )
 }
-

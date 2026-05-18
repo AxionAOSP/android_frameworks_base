@@ -33,7 +33,16 @@ class ClockDepthController(private val view: View) {
     private var cachedZoom = 0f
     private var cachedScreenW = 0f
     private var cachedScreenH = 0f
+    private var cachedViewX = Float.NaN
+    private var cachedViewY = Float.NaN
     private var pathDirty = true
+    var sourceBoundsProvider: (() -> RectF?)? = null
+        set(value) {
+            if (field === value) return
+            field = value
+            resetTransformCache()
+            view.postInvalidateOnAnimation()
+        }
     private val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         style = Paint.Style.FILL
@@ -120,20 +129,63 @@ class ClockDepthController(private val view: View) {
     fun drawWithDepth(canvas: Canvas, drawSuper: (Canvas) -> Unit) {
         val path = subjectPath ?: run { drawSuper(canvas); return }
 
-        view.getLocationOnScreen(location)
+        val boundsProvider = sourceBoundsProvider
+        val sourceBounds = boundsProvider?.invoke()
+        val boundsW = sourceBounds?.width() ?: 0f
+        val boundsH = sourceBounds?.height() ?: 0f
+        val useSourceBounds = boundsW > 0f && boundsH > 0f
+        if (boundsProvider != null && !useSourceBounds) {
+            drawSuper(canvas)
+            return
+        }
+        if (useSourceBounds) {
+            view.getLocationInWindow(location)
+        } else {
+            view.getLocationOnScreen(location)
+        }
         val viewX = location[0].toFloat()
         val viewY = location[1].toFloat()
+        val nextScreenW: Float
+        val nextScreenH: Float
+        val nextViewX: Float
+        val nextViewY: Float
+        val nextZoom: Float
 
-        if (cachedScreenW == 0f) {
+        if (useSourceBounds && sourceBounds != null) {
+            nextScreenW = boundsW
+            nextScreenH = boundsH
+            nextViewX = viewX - sourceBounds.left
+            nextViewY = viewY - sourceBounds.top
+            nextZoom = 1f
+        } else {
             val realMetrics = DisplayMetrics()
             view.context.display?.getRealMetrics(realMetrics)
-            cachedScreenW = realMetrics.widthPixels.toFloat()
-            cachedScreenH = realMetrics.heightPixels.toFloat()
-            cachedZoom = getZoom()
+            nextScreenW = realMetrics.widthPixels.toFloat()
+            nextScreenH = realMetrics.heightPixels.toFloat()
+            nextViewX = viewX
+            nextViewY = viewY
+            nextZoom = if (cachedScreenW == 0f) getZoom() else cachedZoom
+        }
+
+        if (
+            cachedScreenW != nextScreenW ||
+                cachedScreenH != nextScreenH ||
+                cachedViewX != nextViewX ||
+                cachedViewY != nextViewY ||
+                cachedZoom != nextZoom
+        ) {
+            cachedScreenW = nextScreenW
+            cachedScreenH = nextScreenH
+            cachedViewX = nextViewX
+            cachedViewY = nextViewY
+            cachedZoom = nextZoom
             pathDirty = true
         }
+
         val screenW = cachedScreenW
         val screenH = cachedScreenH
+        val translatedViewX = cachedViewX
+        val translatedViewY = cachedViewY
         val zoom = cachedZoom
 
         val wallAspect = pathAspect
@@ -161,7 +213,7 @@ class ClockDepthController(private val view: View) {
             if (zoom != 1f) {
                 pathMatrix.postScale(zoom, zoom, screenW / 2f, screenH / 2f)
             }
-            pathMatrix.postTranslate(-viewX, -viewY)
+            pathMatrix.postTranslate(-translatedViewX, -translatedViewY)
 
             val viewScaleX = view.scaleX
             val viewScaleY = view.scaleY
@@ -177,10 +229,10 @@ class ClockDepthController(private val view: View) {
         val pathBounds = RectF()
         transformedPath.computeBounds(pathBounds, true)
 
-        val layerLeft = -viewX
-        val layerTop = -viewY
-        val layerRight = screenW - viewX
-        val layerBottom = screenH - viewY
+        val layerLeft = -translatedViewX
+        val layerTop = -translatedViewY
+        val layerRight = screenW - translatedViewX
+        val layerBottom = screenH - translatedViewY
         val layerRect = RectF(layerLeft, layerTop, layerRight, layerBottom)
 
         if (!RectF.intersects(pathBounds, layerRect)) {
@@ -276,6 +328,15 @@ class ClockDepthController(private val view: View) {
             }
             start()
         }
+    }
+
+    private fun resetTransformCache() {
+        cachedScreenW = 0f
+        cachedScreenH = 0f
+        cachedZoom = 0f
+        cachedViewX = Float.NaN
+        cachedViewY = Float.NaN
+        pathDirty = true
     }
 
     private companion object {

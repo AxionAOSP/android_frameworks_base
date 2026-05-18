@@ -242,7 +242,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
             config.digitLightResIds?.let { loadDigitBitmaps(it) }
         }
 
-        val dynSizeScale by ClockSettingsRepository.sizeScale.collectAsState()
+        val dynSizeScale = rememberSmallClockSizeScale()
         val scale = context.scaleRatio * config.smallScaleMultiplier * dynSizeScale
         val spacing = if (config.negativeSpacing) {
             -context.scaledDimen(config.digitSpacingRes) * dynSizeScale
@@ -335,7 +335,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
     private fun SmallFontContent(config: BitmapFaceConfig, mode: RenderMode.FontDigit) {
         val (time, _, isDoze, screenOff, regionDark) = rememberClockState()
 
-        val dynSizeScale by ClockSettingsRepository.sizeScale.collectAsState()
+        val dynSizeScale = rememberSmallClockSizeScale()
         val scale = context.scaleRatio * dynSizeScale
         val canvasHeight = remember(scale) {
             fontPaint.textSize = mode.fontSize * scale
@@ -438,8 +438,8 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
     private fun SmallAnalogContent(config: BitmapFaceConfig) {
         val (time, _, isDoze, screenOff, regionDark) = rememberClockState()
         val dateColor = dateTextColor(config, isDoze, screenOff, regionDark)
-        val dynSizeScale by ClockSettingsRepository.sizeScale.collectAsState()
-        val analogScale = if (isPreviewMode) 1f else dynSizeScale
+        val dynSizeScale = rememberSmallClockSizeScale()
+        val analogScale = dynSizeScale
         val analogHeightPx = remember(config, analogScale) { analogFaceHeightPx(config, analogScale) }
         val analogHeight = with(LocalDensity.current) { analogHeightPx.toDp() }
 
@@ -460,6 +460,8 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         content: @Composable ColumnScope.() -> Unit,
     ) {
         val dateBelow by state.dateBelowState
+        val display = viewModel.rememberResolvedDisplay()
+        val hasInfo = display !is DateDisplay.Hidden
         val horizontalAlign = when {
             isLeftAligned -> Alignment.Start
             isRightAligned -> Alignment.End
@@ -483,7 +485,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = horizontalAlign,
         ) {
-            if (!dateBelow) {
+            if (!dateBelow && hasInfo) {
                 if (topPadding > 0.dp) Spacer(modifier = Modifier.height(topPadding))
                 EnhancedDateArea(modifier = datePaddingModifier, textColor = textColor)
                 Spacer(modifier = Modifier.height(dateSpacing))
@@ -491,7 +493,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
 
             content()
 
-            if (dateBelow) {
+            if (dateBelow && hasInfo) {
                 Spacer(modifier = Modifier.height(dateSpacing))
                 EnhancedDateArea(modifier = datePaddingModifier, textColor = textColor)
                 if (topPadding > 0.dp) Spacer(modifier = Modifier.height(topPadding))
@@ -514,6 +516,8 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
     @Composable
     private fun LargeBitmapContent(config: BitmapFaceConfig) {
         val (time, date, isDoze, screenOff, regionDark) = rememberClockState()
+        val display = viewModel.rememberResolvedDisplay()
+        val hasInfo = display !is DateDisplay.Hidden
 
         val bitmaps = remember(config) {
             loadDigitBitmaps(config.digitLargeResIds ?: config.digitResIds)
@@ -567,19 +571,23 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
                 drawDigitLine(minutes, bitmaps, scale, minutesX, digitHeight + lineSpacing, finalSpacing, tintColor)
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            EnhancedDateArea(
-                textColor = tintColor,
-                textSize = 16.sp,
-                iconSize = 18.dp,
-                rowArrangement = Arrangement.Center,
-            )
+            if (hasInfo) {
+                Spacer(modifier = Modifier.height(16.dp))
+                EnhancedDateArea(
+                    textColor = tintColor,
+                    textSize = 16.sp,
+                    iconSize = 18.dp,
+                    rowArrangement = Arrangement.Center,
+                )
+            }
         }
     }
 
     @Composable
     private fun LargeFontContent(config: BitmapFaceConfig, mode: RenderMode.FontDigit) {
         val (time, date, isDoze, screenOff, regionDark) = rememberClockState()
+        val display = viewModel.rememberResolvedDisplay()
+        val hasInfo = display !is DateDisplay.Hidden
 
         val tintColor = androidColorToComposeColor(
             config.clockColor(isDoze, screenOff, regionDark)
@@ -662,19 +670,23 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
                 drawCenteredLine(minutes, minutesBaselineY, hours.length)
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            EnhancedDateArea(
-                textColor = tintColor,
-                textSize = 16.sp,
-                iconSize = 18.dp,
-                rowArrangement = Arrangement.Center,
-            )
+            if (hasInfo) {
+                Spacer(modifier = Modifier.height(16.dp))
+                EnhancedDateArea(
+                    textColor = tintColor,
+                    textSize = 16.sp,
+                    iconSize = 18.dp,
+                    rowArrangement = Arrangement.Center,
+                )
+            }
         }
     }
 
     @Composable
     private fun LargeAnalogContent(config: BitmapFaceConfig) {
         val (time, date, isDoze, screenOff, regionDark) = rememberClockState()
+        val display = viewModel.rememberResolvedDisplay()
+        val hasInfo = display !is DateDisplay.Hidden
 
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -692,12 +704,14 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
                     .padding(bottom = 24.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                EnhancedDateArea(
-                    textColor = tintColor,
-                    textSize = 16.sp,
-                    iconSize = 18.dp,
-                    rowArrangement = Arrangement.Center,
-                )
+                if (hasInfo) {
+                    EnhancedDateArea(
+                        textColor = tintColor,
+                        textSize = 16.sp,
+                        iconSize = 18.dp,
+                        rowArrangement = Arrangement.Center,
+                    )
+                }
             }
         }
     }

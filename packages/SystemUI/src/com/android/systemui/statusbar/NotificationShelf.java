@@ -333,22 +333,23 @@ public class NotificationShelf extends ActivatableNotificationView {
      */
     @VisibleForTesting
     public void setActualWidth(float actualWidth) {
-        setBackgroundWidth((int) actualWidth);
+        final int shelfWidth = getClockAlignedShelfWidth(actualWidth);
+        mActualWidth = shelfWidth;
+        setBackgroundWidth(shelfWidth);
         if (mShelfIcons != null) {
-            mShelfIcons.setAlignToEnd(isAlignedToEnd());
-            mShelfIcons.setActualLayoutWidth((int) actualWidth);
+            mShelfIcons.setAlignToEnd(shouldAlignShelfToEnd());
+            mShelfIcons.setActualLayoutWidth(shelfWidth);
         }
-        mActualWidth = actualWidth;
     }
 
     @Override
     public void setBackgroundWidth(int width) {
         super.setBackgroundWidth(width);
-        if (!NotificationMinimalism.isEnabled()) {
-            return;
-        }
         if (mBackgroundNormal != null) {
-            mBackgroundNormal.setAlignToEnd(isAlignedToEnd());
+            final boolean centerAligned = isClockAlignedCenter();
+            mBackgroundNormal.setAlignCenter(centerAligned);
+            mBackgroundNormal.setAlignToEnd(centerAligned ? false : shouldAlignShelfToEnd());
+            mBackgroundNormal.setTranslationX(centerAligned ? getShelfLeftBound() : 0f);
         }
     }
 
@@ -356,13 +357,8 @@ public class NotificationShelf extends ActivatableNotificationView {
     public void getBoundsOnScreen(Rect outRect, boolean clipToParent) {
         super.getBoundsOnScreen(outRect, clipToParent);
         final int actualWidth = getActualWidth();
-        final boolean alignedToRight = NotificationMinimalism.isEnabled() ? isAlignedToRight() :
-                isLayoutRtl();
-        if (alignedToRight) {
-            outRect.left = outRect.right - actualWidth;
-        } else {
-            outRect.right = outRect.left + actualWidth;
-        }
+        outRect.left += (int) getShelfLeftBound();
+        outRect.right = outRect.left + actualWidth;
     }
 
     /**
@@ -406,7 +402,7 @@ public class NotificationShelf extends ActivatableNotificationView {
     public boolean pointInView(float localX, float localY, float slop) {
         final float left, right;
 
-        if (NotificationMinimalism.isEnabled()) {
+        if (NotificationMinimalism.isEnabled() || isAlignedToRight() || isClockAlignedCenter()) {
             left = getShelfLeftBound();
             right = getShelfRightBound();
         } else {
@@ -428,6 +424,9 @@ public class NotificationShelf extends ActivatableNotificationView {
      */
     @VisibleForTesting
     public float getShelfLeftBound() {
+        if (isClockAlignedCenter()) {
+            return Math.max((getWidth() - getActualWidth()) / 2.0f, 0);
+        }
         if (isAlignedToRight()) {
             return getWidth() - getActualWidth();
         } else {
@@ -440,6 +439,9 @@ public class NotificationShelf extends ActivatableNotificationView {
      */
     @VisibleForTesting
     public float getShelfRightBound() {
+        if (isClockAlignedCenter()) {
+            return getShelfLeftBound() + getActualWidth();
+        }
         if (isAlignedToRight()) {
             return getWidth();
         } else {
@@ -449,7 +451,25 @@ public class NotificationShelf extends ActivatableNotificationView {
 
     @VisibleForTesting
     public boolean isAlignedToRight() {
+        if (mShelfIcons != null && mShelfIcons.shouldAlignIconsEnd()) {
+            return true;
+        }
         return isAlignedToEnd() ^ isLayoutRtl();
+    }
+
+    private int getClockAlignedShelfWidth(float actualWidth) {
+        return (int) actualWidth;
+    }
+
+    private boolean shouldAlignShelfToEnd() {
+        if (mShelfIcons != null && mShelfIcons.shouldAlignIconsEnd()) {
+            return !isLayoutRtl();
+        }
+        return isAlignedToEnd();
+    }
+
+    private boolean isClockAlignedCenter() {
+        return mShelfIcons != null && mShelfIcons.shouldCenterIcons();
     }
 
     /**
@@ -1049,7 +1069,8 @@ public class NotificationShelf extends ActivatableNotificationView {
         mClipRect.set(0, -height, getWidth(), height);
         if (mShelfIcons != null) {
             mShelfIcons.setClipBounds(mClipRect);
-            if (mAmbientState.isDozing() && mShelfIcons.shouldCenterIcons()) {
+            if (mAmbientState.isDozing()
+                    && (mShelfIcons.shouldCenterIcons() || mShelfIcons.shouldAlignIconsEnd())) {
                 mShelfIcons.calculateIconXTranslations();
                 mShelfIcons.applyIconStates();
             }

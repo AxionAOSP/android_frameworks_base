@@ -37,6 +37,7 @@ class AxClockState {
     val alignmentState = mutableStateOf(ClockSettingsRepository.alignment.value)
     val clockColorOverrideState = mutableStateOf(ClockSettingsRepository.clockColorOverride.value)
     val fontVersion = mutableIntStateOf(0)
+    val configurationVersion = mutableIntStateOf(0)
 
     var isDoze: Boolean
         get() = dozeFlow.value

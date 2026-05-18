@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.android.systemui.shared.clocks.ClockSettingsRepository
@@ -77,7 +78,7 @@ class AxionAgeClockView @JvmOverloads constructor(
 
     @Composable
     override fun Content() {
-        val (time, date, isDoze, screenOff, regionDark) = rememberClockState()
+        val (time, date, isDoze, screenOff, regionDark, _, _, display) = rememberClockState()
         val fidgetByTrigger by state.fidgetTrigger
 
         val weightFidget = remember { Animatable(0f) }
@@ -101,7 +102,7 @@ class AxionAgeClockView @JvmOverloads constructor(
         val fidgetValue = weightFidget.value
         val textColor = tintColor(isDoze, screenOff, regionDark)
         val isDark = isDoze || regionDark
-        val dynSizeScale by ClockSettingsRepository.sizeScale.collectAsState()
+        val dynSizeScale = rememberSmallClockSizeScale()
         val sz = if (large) 1f else dynSizeScale
         val digitW = (if (large) 90.dp else 48.dp) * sz
         val digitH = (if (large) 150.dp else 108.dp) * sz
@@ -111,6 +112,7 @@ class AxionAgeClockView @JvmOverloads constructor(
         val infoTextSize = if (large) 18.sp else 14.sp
         val infoIconSize = if (large) 24.dp else 16.dp
         val infoSpacing = if (large) 6.dp else 4.dp
+        val showInfo = display !is DateDisplay.Hidden
 
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -122,9 +124,9 @@ class AxionAgeClockView @JvmOverloads constructor(
             },
         ) {
             if (large) {
-                LargeLayout(time, date, isDark, fidgetValue, digitW, digitH, digitSpacing, digitStroke, glowExtra, infoTextSize, infoIconSize, infoSpacing, textColor)
+                LargeLayout(time, date, isDark, fidgetValue, digitW, digitH, digitSpacing, digitStroke, glowExtra, infoTextSize, infoIconSize, infoSpacing, textColor, showInfo)
             } else {
-                SmallLayout(time, date, isDark, fidgetValue, digitW, digitH, digitSpacing, digitStroke, glowExtra, infoTextSize, infoIconSize, infoSpacing, textColor)
+                SmallLayout(time, date, isDark, fidgetValue, digitW, digitH, digitSpacing, digitStroke, glowExtra, infoTextSize, infoIconSize, infoSpacing, textColor, showInfo)
             }
         }
     }
@@ -133,8 +135,8 @@ class AxionAgeClockView @JvmOverloads constructor(
     private fun LargeLayout(
         time: String, date: String, isDark: Boolean, fidgetValue: Float,
         digitW: Dp, digitH: Dp, digitSpacing: Dp, digitStroke: Dp, glowExtra: Float,
-        infoTextSize: androidx.compose.ui.unit.TextUnit, infoIconSize: Dp, infoSpacing: Dp,
-        textColor: Color,
+        infoTextSize: TextUnit, infoIconSize: Dp, infoSpacing: Dp,
+        textColor: Color, showInfo: Boolean,
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -155,12 +157,14 @@ class AxionAgeClockView @JvmOverloads constructor(
                     }
                 }
             }
-            EnhancedDateArea(
-                textColor = textColor,
-                textSize = infoTextSize,
-                iconSize = infoIconSize,
-                rowArrangement = Arrangement.Center,
-            )
+            if (showInfo) {
+                EnhancedDateArea(
+                    textColor = textColor,
+                    textSize = infoTextSize,
+                    iconSize = infoIconSize,
+                    rowArrangement = Arrangement.Center,
+                )
+            }
         }
     }
 
@@ -168,8 +172,8 @@ class AxionAgeClockView @JvmOverloads constructor(
     private fun SmallLayout(
         time: String, date: String, isDark: Boolean, fidgetValue: Float,
         digitW: Dp, digitH: Dp, digitSpacing: Dp, digitStroke: Dp, glowExtra: Float,
-        infoTextSize: androidx.compose.ui.unit.TextUnit, infoIconSize: Dp, infoSpacing: Dp,
-        textColor: Color,
+        infoTextSize: TextUnit, infoIconSize: Dp, infoSpacing: Dp,
+        textColor: Color, showInfo: Boolean,
     ) {
         val rowArrangement = when {
             isLeftAligned -> Arrangement.Start
@@ -198,14 +202,15 @@ class AxionAgeClockView @JvmOverloads constructor(
                 }
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            EnhancedDateArea(
-                textColor = textColor,
-                textSize = infoTextSize,
-                iconSize = infoIconSize,
-                rowArrangement = Arrangement.Start,
-            )
+            if (showInfo) {
+                Spacer(modifier = Modifier.width(12.dp))
+                EnhancedDateArea(
+                    textColor = textColor,
+                    textSize = infoTextSize,
+                    iconSize = infoIconSize,
+                    rowArrangement = Arrangement.Start,
+                )
+            }
         }
     }
 

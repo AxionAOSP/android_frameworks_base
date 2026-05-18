@@ -103,8 +103,12 @@ class GeneralClockView @JvmOverloads constructor(
     private val textPrimarySize = 28.sp
     private val textMajorSize = 20.sp
 
-    override fun onFontSettingChanged() {
-        super.onFontSettingChanged()
+    override fun onDisplayMetricsChanged() {
+        super.onDisplayMetricsChanged()
+        reloadDigitBitmaps()
+    }
+
+    private fun reloadDigitBitmaps() {
         bitmaps = loadDigitBitmaps(digitResIds)
         lightBitmaps = loadDigitBitmaps(digitLightResIds)
     }
@@ -130,7 +134,7 @@ class GeneralClockView @JvmOverloads constructor(
 
     @Composable
     private fun LargeContent() {
-        val (time, date, isDoze, screenOff, regionDark) = rememberClockState()
+        val (time, date, isDoze, screenOff, regionDark, _, _, display) = rememberClockState()
 
         val largeScale = min(context.scaleRatio, MAX_TABLET_SCALE) * LARGE_SCALE_MULTIPLIER
         val digitSpacing = context.scaledDimen(R.dimen.large_clock_digit_spacing)
@@ -192,14 +196,15 @@ class GeneralClockView @JvmOverloads constructor(
                 drawLine(minutes, (size.width - minutesW) / 2f, dh + lineSpacing)
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            EnhancedDateArea(
-                textColor = tintColor,
-                textSize = 16.sp,
-                iconSize = 18.dp,
-                rowArrangement = Arrangement.Center,
-            )
+            if (display !is DateDisplay.Hidden) {
+                Spacer(modifier = Modifier.height(12.dp))
+                EnhancedDateArea(
+                    textColor = tintColor,
+                    textSize = 16.sp,
+                    iconSize = 18.dp,
+                    rowArrangement = Arrangement.Center,
+                )
+            }
         }
     }
 
@@ -207,7 +212,7 @@ class GeneralClockView @JvmOverloads constructor(
     private fun SmallContent() {
         val (time, date, isDoze, screenOff, regionDark, icon, tintIcon, display) = rememberClockState()
 
-        val dynSizeScale by ClockSettingsRepository.sizeScale.collectAsState()
+        val dynSizeScale = rememberSmallClockSizeScale()
         val scale = context.scaleRatio * dynSizeScale
         val paddingV = context.scaledDimen(R.dimen.clock_padding) * dynSizeScale
         val dotSz = context.scaledDimen(R.dimen.dot_small_size)
@@ -225,10 +230,15 @@ class GeneralClockView @JvmOverloads constructor(
             0.dp
         }
 
-        val placeholderText = config?.placeholderTextRes?.let { context.getString(it) }
-        val hasSpecialContent = display !is DateDisplay.DateOnly
+        val placeholderText = if (display is DateDisplay.Hidden) {
+            null
+        } else {
+            config?.placeholderTextRes?.let { context.getString(it) }
+        }
+        val hasSpecialContent = display !is DateDisplay.DateOnly && display !is DateDisplay.Hidden
         val bottomText = when (display) {
             is DateDisplay.Weather -> (display as DateDisplay.Weather).temp
+            is DateDisplay.Hidden -> ""
             else -> date
         }
         val useLight = hasSpecialContent
@@ -246,25 +256,27 @@ class GeneralClockView @JvmOverloads constructor(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = horizontalAlign,
         ) {
-            Text(
-                text = dateStr,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = TextStyle(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = tintColor.copy(alpha = if (isDoze) 0.6f else 0.8f),
-                    letterSpacing = 0.5.sp,
-                ),
-                modifier = Modifier
-                    .padding(
-                        start = if (isRightAligned) 0.dp else sidePadding,
-                        end = if (isRightAligned) sidePadding else 0.dp,
-                        top = 4.dp,
-                        bottom = 4.dp,
-                    )
-                    .then(inverseModifier),
-            )
+            if (display !is DateDisplay.Hidden) {
+                Text(
+                    text = dateStr,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = tintColor.copy(alpha = if (isDoze) 0.6f else 0.8f),
+                        letterSpacing = 0.5.sp,
+                    ),
+                    modifier = Modifier
+                        .padding(
+                            start = if (isRightAligned) 0.dp else sidePadding,
+                            end = if (isRightAligned) sidePadding else 0.dp,
+                            top = 4.dp,
+                            bottom = 4.dp,
+                        )
+                        .then(inverseModifier),
+                )
+            }
 
             Canvas(
                 modifier = Modifier

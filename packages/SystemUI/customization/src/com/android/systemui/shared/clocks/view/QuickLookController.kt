@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import com.android.systemui.plugins.keyguard.data.model.AlarmData
 import com.android.systemui.plugins.keyguard.ui.clocks.ClockData
+import com.android.systemui.shared.clocks.ClockSettingsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.util.concurrent.TimeUnit
 
@@ -73,9 +74,29 @@ class QuickLookController(private val view: AxClockView) {
         val nowPlaying by nowPlayingFlow.collectAsState()
         val nowPlayingTapAction by nowPlayingTapActionFlow.collectAsState()
         val alarm by nextAlarmFlow.collectAsState()
+        val displayMode by ClockSettingsRepository.infoDisplayMode.collectAsState()
+        val displaySources by ClockSettingsRepository.infoDisplaySources.collectAsState()
 
-        return remember(clockData, media, nowPlaying, nowPlayingTapAction, alarm, dateStr) {
-            view.resolveDisplay(clockData, media, nowPlaying, nowPlayingTapAction, alarm, dateStr)
+        return remember(
+            clockData,
+            media,
+            nowPlaying,
+            nowPlayingTapAction,
+            alarm,
+            dateStr,
+            displayMode,
+            displaySources,
+        ) {
+            view.resolveDisplay(
+                clockData,
+                media,
+                nowPlaying,
+                nowPlayingTapAction,
+                alarm,
+                dateStr,
+                displayMode,
+                displaySources,
+            )
         }
     }
 }

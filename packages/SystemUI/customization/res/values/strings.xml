@@ -22,7 +22,7 @@
 
     <!-- default clock face description [CHAR LIMIT=NONE]-->
     <string name="clock_default_description">Digital default</string>
-    
+
     <string name="clock_id_general">GENERAL</string>
     <string name="clock_id_graphic">GRAPHIC</string>
     <string name="clock_id_london_ug">LONDON_UG</string>
@@ -35,9 +35,44 @@
     <string name="clock_id_cyberpunk">CYBERPUNK</string>
     <string name="clock_id_axion_age">AXION_AGE</string>
     <string name="clock_id_segments">SEGMENTS</string>
+    <string name="clock_id_oplus_classic">OPLUS_CLASSIC</string>
+    <string name="clock_id_oplus_classic_start">OPLUS_CLASSIC_START</string>
+    <string name="clock_id_oplus_classic_end">OPLUS_CLASSIC_END</string>
+    <string name="clock_id_oplus_classic_stacked">OPLUS_CLASSIC_STACKED</string>
+    <string name="clock_id_oplus_classic_start_vertical">OPLUS_CLASSIC_START_VERTICAL</string>
+    <string name="clock_id_oplus_classic_end_vertical">OPLUS_CLASSIC_END_VERTICAL</string>
+    <string name="clock_id_oplus_classic_dual_horizontal">OPLUS_CLASSIC_DUAL_HORIZONTAL</string>
+    <string name="clock_id_oplus_classic_dual_vertical">OPLUS_CLASSIC_DUAL_VERTICAL</string>
+    <string name="clock_id_oplus_big">OPLUS_BIG</string>
+    <string name="clock_id_oplus_big_center_vertical">OPLUS_BIG_CENTER_VERTICAL</string>
+    <string name="clock_id_oplus_big_vertical">OPLUS_BIG_VERTICAL</string>
+    <string name="clock_id_oplus_big_wide">OPLUS_BIG_WIDE</string>
+    <string name="clock_id_oplus_big_start_horizontal">OPLUS_BIG_START_HORIZONTAL</string>
+    <string name="clock_id_oplus_big_end_horizontal">OPLUS_BIG_END_HORIZONTAL</string>
+    <string name="clock_id_oplus_snapshot">OPLUS_SNAPSHOT</string>
+    <string name="clock_id_oplus_snapshot_old">OPLUS_SNAPSHOT_OLD</string>
+    <string name="clock_id_oplus_playful">OPLUS_PLAYFUL</string>
+    <string name="clock_id_oplus_playful_bright">OPLUS_PLAYFUL_BRIGHT</string>
+    <string name="clock_id_oplus_playful_cute">OPLUS_PLAYFUL_CUTE</string>
+    <string name="clock_id_oplus_playful_game">OPLUS_PLAYFUL_GAME</string>
+    <string name="clock_id_oplus_playful_keep">OPLUS_PLAYFUL_KEEP</string>
+    <string name="clock_id_oplus_cover">OPLUS_COVER</string>
+    <string name="clock_id_oplus_cover_start">OPLUS_COVER_START</string>
+    <string name="clock_id_oplus_cover_center">OPLUS_COVER_CENTER</string>
+    <string name="clock_id_oplus_cover_end">OPLUS_COVER_END</string>
+    <string name="clock_id_none">NONE</string>
+    <string name="clock_oplus_classic_name">Classic</string>
+    <string name="clock_oplus_classic_description">OPlus Classic lock screen clock</string>
+    <string name="clock_oplus_big_name">Big</string>
+    <string name="clock_oplus_big_description">OPlus Big lock screen clock</string>
+    <string name="clock_oplus_playful_name">Playful</string>
+    <string name="clock_oplus_playful_description">OPlus Playful lock screen clock</string>
+    <string name="clock_none_name">None</string>
+    <string name="clock_none_description">No lock screen clock</string>
     <string name="clock_image_placeholder">?</string>
     <string name="clock_old_quick_look_image_placeholder">__°</string>
     <string name="clock_text_placeholder">: )</string>
+    <string name="clock_now_playing">Now playing %1$s</string>
     <string name="quick_look_setting_calendar_subtitle">Calendar events and reminders</string>
     <string name="quick_look_setting_calendar_title">Schedule</string>
     <string name="system_ui_aod_date_pattern">EEEMMMd</string>

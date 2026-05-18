@@ -21,14 +21,11 @@ import static com.android.systemui.statusbar.phone.HeadsUpAppearanceController.C
 
 import android.content.Context;
 import android.content.res.Configuration;
-import android.database.ContentObserver;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.drawable.Icon;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.AttributeSet;
 import android.util.Property;
 import android.view.ContextThemeWrapper;
@@ -169,19 +166,14 @@ public class NotificationIconContainer extends ViewGroup {
     private int mThemedTextColorPrimaryInverse;
     @Nullable private Runnable mIsolatedIconAnimationEndRunnable;
     private boolean mUseIncreasedIconScale;
-    private boolean mShouldCenterIcons = false;
-    private final ContentObserver mClockSettingsObserver;
+    private String mIconAlignment = ClockSettingsRepository.ALIGNMENT_CENTER;
+    private final ClockSettingsRepository.ClockLayoutAlignmentListener mClockAlignmentListener;
 
     public NotificationIconContainer(Context context, AttributeSet attrs) {
         super(context, attrs);
         initResources();
         setWillNotDraw(!(DEBUG || DEBUG_OVERFLOW));
-        mClockSettingsObserver = new ContentObserver(new Handler(Looper.getMainLooper())) {
-            @Override
-            public void onChange(boolean selfChange) {
-                updateShouldCenterIcons();
-            }
-        };
+        mClockAlignmentListener = this::updateIconAlignment;
     }
 
     private void initResources() {
@@ -602,22 +594,31 @@ public class NotificationIconContainer extends ViewGroup {
      */
     protected float getLeftBound() {
         float basePadding = getActualPaddingStart();
-        if (mShouldCenterIcons && getChildCount() > 0) {
-            float iconsWidth = 0;
-            int childCount = getChildCount();
-            int maxVisibleIcons = mMaxIcons;
-            int showCount = Math.min(childCount, maxVisibleIcons);
-            for (int i = 0; i < showCount; i++) {
-                View child = getChildAt(i);
-                iconsWidth += child.getWidth() * getDrawingScale(child);
-            }
-            if (childCount > maxVisibleIcons) {
-                iconsWidth += mStaticDotDiameter + mDotPadding;
-            }
+        if (getChildCount() > 0 && shouldCenterIcons()) {
+            float iconsWidth = getVisibleIconsWidth();
             float centeredPadding = Math.max(0, (getWidth() - iconsWidth) / 2);
             return centeredPadding;
         }
+        if (getChildCount() > 0 && shouldAlignIconsEnd()) {
+            float iconsWidth = getVisibleIconsWidth();
+            return Math.max(basePadding, getRightBound() - iconsWidth);
+        }
         return basePadding;
+    }
+
+    private float getVisibleIconsWidth() {
+        float iconsWidth = 0;
+        int childCount = getChildCount();
+        int maxVisibleIcons = mMaxIcons;
+        int showCount = Math.min(childCount, maxVisibleIcons);
+        for (int i = 0; i < showCount; i++) {
+            View child = getChildAt(i);
+            iconsWidth += child.getWidth() * getDrawingScale(child);
+        }
+        if (childCount > maxVisibleIcons) {
+            iconsWidth += mStaticDotDiameter + mDotPadding;
+        }
+        return iconsWidth;
     }
 
     protected float getActualPaddingEnd() {
@@ -911,35 +912,34 @@ public class NotificationIconContainer extends ViewGroup {
             }
         }
     }
+
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        ClockSettingsRepository.init(getContext());
-        getContext().getContentResolver().registerContentObserver(
-            ClockSettingsRepository.clockFaceUri,
-            false,
-            mClockSettingsObserver
+        ClockSettingsRepository.addClockLayoutAlignmentListener(
+            getContext(),
+            mClockAlignmentListener
         );
-        getContext().getContentResolver().registerContentObserver(
-            ClockSettingsRepository.alignmentUri,
-            false,
-            mClockSettingsObserver
-        );
-        updateShouldCenterIcons();
     }
+
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        getContext().getContentResolver().unregisterContentObserver(mClockSettingsObserver);
+        ClockSettingsRepository.removeClockLayoutAlignmentListener(mClockAlignmentListener);
     }
-    private void updateShouldCenterIcons() {
-        final boolean shouldCenter = ClockSettingsRepository.shouldCenterIcons(getContext());
-        if (mShouldCenterIcons != shouldCenter) {
-            mShouldCenterIcons = shouldCenter;
+
+    private void updateIconAlignment(String iconAlignment) {
+        if (!mIconAlignment.equals(iconAlignment)) {
+            mIconAlignment = iconAlignment;
             requestLayout();
         }
     }
+
     public boolean shouldCenterIcons() {
-        return mShouldCenterIcons;
+        return ClockSettingsRepository.ALIGNMENT_CENTER.equals(mIconAlignment);
+    }
+
+    public boolean shouldAlignIconsEnd() {
+        return ClockSettingsRepository.ALIGNMENT_RIGHT.equals(mIconAlignment);
     }
 }

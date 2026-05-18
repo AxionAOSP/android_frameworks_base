@@ -37,10 +37,13 @@ constructor(context: Context, attrs: AttributeSet? = null) :
      * @return The left boundary (not the RTL compatible start) of the area that icons can be added.
      */
     public override fun getLeftBound(): Float {
-        if (!NotificationMinimalism.isEnabled) {
+        if (!usesShortShelfAlignment) {
             return super.getLeftBound()
         }
 
+        if (isAlignedToCenter) {
+            return (centeredShelfStart + actualPaddingStart)
+        }
         if (isAlignedToRight) {
             return (max(width - actualWidth, 0) + actualPaddingStart)
         }
@@ -52,10 +55,13 @@ constructor(context: Context, attrs: AttributeSet? = null) :
      */
     @VisibleForTesting
     public override fun getRightBound(): Float {
-        if (!NotificationMinimalism.isEnabled) {
+        if (!usesShortShelfAlignment) {
             return super.getRightBound()
         }
 
+        if (isAlignedToCenter) {
+            return centeredShelfStart + actualWidth.toFloat() - actualPaddingEnd
+        }
         if (isAlignedToRight) {
             return width - actualPaddingEnd
         }
@@ -68,7 +74,7 @@ constructor(context: Context, attrs: AttributeSet? = null) :
      * when RTL.
      */
     override fun getRtlIconTranslationX(iconState: IconState, iconView: View): Float {
-        if (!NotificationMinimalism.isEnabled) {
+        if (!usesShortShelfAlignment) {
             return super.getRtlIconTranslationX(iconState, iconView)
         }
 
@@ -76,6 +82,10 @@ constructor(context: Context, attrs: AttributeSet? = null) :
             return iconState.xTranslation
         }
 
+        if (isAlignedToCenter) {
+            return centeredShelfStart * 2f + actualWidth.toFloat() -
+                iconState.xTranslation - iconView.width
+        }
         if (isAlignedToRight) {
             return width * 2 - actualWidth - iconState.xTranslation - iconView.width
         }
@@ -85,9 +95,21 @@ constructor(context: Context, attrs: AttributeSet? = null) :
     @VisibleForTesting
     val isAlignedToRight: Boolean
         get() {
+            if (shouldAlignIconsEnd()) {
+                return true
+            }
             if (!NotificationMinimalism.isEnabled) {
                 return isLayoutRtl
             }
             return alignToEnd xor isLayoutRtl
         }
+
+    private val isAlignedToCenter: Boolean
+        get() = shouldCenterIcons()
+
+    private val centeredShelfStart: Float
+        get() = max((width - actualWidth) / 2f, 0f)
+
+    private val usesShortShelfAlignment: Boolean
+        get() = NotificationMinimalism.isEnabled || shouldAlignIconsEnd() || shouldCenterIcons()
 }

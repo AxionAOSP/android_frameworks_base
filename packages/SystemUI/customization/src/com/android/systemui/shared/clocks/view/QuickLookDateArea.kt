@@ -62,6 +62,8 @@ fun QuickLookDateArea(
     uppercase: Boolean = false,
     rowArrangement: Arrangement.Horizontal = Arrangement.Center,
 ) {
+    if (display is DateDisplay.Hidden) return
+
     val style = TextStyle(
         fontSize = textSize,
         fontWeight = fontWeight,

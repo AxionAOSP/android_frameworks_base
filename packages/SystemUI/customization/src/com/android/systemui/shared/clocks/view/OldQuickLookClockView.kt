@@ -83,7 +83,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
     private fun SmallContent() {
         val (time, date, isDoze, screenOff, regionDark, icon, tintIcon, display) = rememberClockState()
 
-        val dynSizeScale by ClockSettingsRepository.sizeScale.collectAsState()
+        val dynSizeScale = rememberSmallClockSizeScale()
         val textColor = tintColor(isDoze, screenOff, regionDark)
         val horizontalAlign = when {
             isLeftAligned -> Alignment.Start
@@ -101,10 +101,15 @@ class OldQuickLookClockView @JvmOverloads constructor(
         val infoFontFamily = FontFamily(Typeface.create(infoFontName, Typeface.NORMAL))
         val clockFontFamily = FontFamily(Typeface.create("nothingdot57", Typeface.NORMAL))
 
-        val placeholderText = config?.placeholderTextRes?.let { context.getString(it) }
-        val hasSpecialContent = display !is DateDisplay.DateOnly
+        val placeholderText = if (display is DateDisplay.Hidden) {
+            null
+        } else {
+            config?.placeholderTextRes?.let { context.getString(it) }
+        }
+        val hasSpecialContent = display !is DateDisplay.DateOnly && display !is DateDisplay.Hidden
         val bottomText = when (display) {
             is DateDisplay.Weather -> (display as DateDisplay.Weather).temp
+            is DateDisplay.Hidden -> ""
             else -> date
         }
 
@@ -129,17 +134,19 @@ class OldQuickLookClockView @JvmOverloads constructor(
                 ),
             )
 
-            Text(
-                text = dateStr,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = TextStyle(
-                    fontSize = dateTextSize,
-                    fontWeight = FontWeight.Normal,
-                    fontFamily = infoFontFamily,
-                    color = textColor,
-                ),
-            )
+            if (display !is DateDisplay.Hidden) {
+                Text(
+                    text = dateStr,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(
+                        fontSize = dateTextSize,
+                        fontWeight = FontWeight.Normal,
+                        fontFamily = infoFontFamily,
+                        color = textColor,
+                    ),
+                )
+            }
 
             Column(
                 horizontalAlignment = horizontalAlign,
@@ -189,7 +196,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
 
     @Composable
     private fun LargeContent() {
-        val (time, _, isDoze, screenOff, regionDark) = rememberClockState()
+        val (time, _, isDoze, screenOff, regionDark, _, _, display) = rememberClockState()
 
         val textColor = tintColor(isDoze, screenOff, regionDark)
         val clockFontFamily = FontFamily(Typeface.create("nothingdot57", Typeface.NORMAL))
@@ -237,14 +244,15 @@ class OldQuickLookClockView @JvmOverloads constructor(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                EnhancedDateArea(
-                    textColor = textColor,
-                    textSize = 16.sp,
-                    iconSize = 18.dp,
-                    rowArrangement = Arrangement.Center,
-                )
+                if (display !is DateDisplay.Hidden) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    EnhancedDateArea(
+                        textColor = textColor,
+                        textSize = 16.sp,
+                        iconSize = 18.dp,
+                        rowArrangement = Arrangement.Center,
+                    )
+                }
             }
         }
     }
