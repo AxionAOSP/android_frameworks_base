@@ -15,7 +15,6 @@
  */
 package com.android.systemui.biometrics
 
-import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -23,7 +22,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -37,8 +35,6 @@ import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import com.android.systemui.res.R
-
-private const val TAG = "UdfpsAnimationCompose"
 
 @Composable
 fun UdfpsAnimation(
@@ -68,7 +64,7 @@ fun UdfpsAnimation(
                     painter = painter,
                     contentDescription = null,
                     modifier = Modifier.size(animationSizeDp),
-                    contentScale = ContentScale.Inside
+                    contentScale = ContentScale.Fit
                 )
             } else {
                 val compositionResult = rememberLottieComposition(
