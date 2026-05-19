@@ -136,9 +136,23 @@ constructor(
      * @param opaque if surface is opaque, regardless or having blurs or no.
      * @param scale blur scale effect relative to 1.0
      */
-    fun applyBlur(viewRootImpl: ViewRootImpl?, radius: Int, opaque: Boolean, scale: Float = 1.0f) {
+    fun applyBlur(
+        viewRootImpl: ViewRootImpl?,
+        radius: Int,
+        opaque: Boolean,
+        scale: Float = 1.0f,
+    ): Boolean {
         if (viewRootImpl == null || !viewRootImpl.surfaceControl.isValid) {
-            return
+            if (
+                earlyWakeupEnabled &&
+                    lastAppliedBlur != 0 &&
+                    radius == 0 &&
+                    !persistentEarlyWakeupRequired
+            ) {
+                immediateEarlyWakeupEnd(APPLY_BLUR_TRACE_NAME)
+            }
+            lastTargetViewRootImpl = null
+            return false
         }
         updateTransactionApplier(viewRootImpl)
         val builder =
@@ -148,10 +162,11 @@ constructor(
             if (shouldScaleWithTransaction()) {
                 builder.withBackgroundBlurScale(scale)
             }
-            if (lastAppliedBlur == 0 && radius != 0) {
-                Trace.instantForTrack(TRACE_TAG_APP, TRACK_NAME, "notifyRendererForGpuLoadUp")
-                viewRootImpl.notifyRendererForGpuLoadUp("applyBlur")
-
+            if (radius != 0) {
+                if (lastAppliedBlur == 0) {
+                    Trace.instantForTrack(TRACE_TAG_APP, TRACK_NAME, "notifyRendererForGpuLoadUp")
+                    viewRootImpl.notifyRendererForGpuLoadUp("applyBlur")
+                }
                 if (!earlyWakeupEnabled) {
                     earlyWakeupStartNextFrame(builder, APPLY_BLUR_TRACE_NAME)
                 }
@@ -168,6 +183,7 @@ constructor(
         }
         builder.withOpaque(opaque)
         transactionApplier.scheduleApply(builder.build())
+        return true
     }
 
     private fun updateTransactionApplier(viewRootImpl: ViewRootImpl) {
