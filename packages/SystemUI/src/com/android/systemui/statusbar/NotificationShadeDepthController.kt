@@ -235,6 +235,7 @@ constructor(
         set(value) {
             if (field == value) return
             field = value
+            invalidateLastAppliedBlur()
             scheduleUpdate()
         }
 
@@ -368,14 +369,24 @@ constructor(
             val blurScale = zoomOutAsScale(zoomOutFromShadeRadius)
             val cur = Triple(blur, opaque, blurScale)
             val vri = root.viewRootImpl
+            var blurApplied = true
             TrackTracer.instantForGroup("shade", "shade_blur_radius", blur)
             if (cur != lastAppliedBlurTuple || vri !== lastAppliedBlurVri) {
-                lastAppliedBlurTuple = cur
-                lastAppliedBlurVri = vri
-                blurUtils.applyBlur(vri, blur, opaque, blurScale)
+                blurApplied = blurUtils.applyBlur(vri, blur, opaque, blurScale)
+                if (blurApplied) {
+                    lastAppliedBlurTuple = cur
+                    lastAppliedBlurVri = vri
+                }
             }
-            onBlurApplied(blur, zoomOutFromShadeRadius)
+            if (blurApplied) {
+                onBlurApplied(blur, zoomOutFromShadeRadius)
+            }
         }
+
+    private fun invalidateLastAppliedBlur() {
+        lastAppliedBlurTuple = null
+        lastAppliedBlurVri = null
+    }
 
     private fun onBlurApplied(appliedBlurRadius: Int, zoomOutFromShadeRadius: Float) {
         if (lastAppliedBlur == 0 && appliedBlurRadius > 0) {
@@ -408,10 +419,15 @@ constructor(
     private val keyguardStateCallback =
         object : KeyguardStateController.Callback {
             override fun onKeyguardFadingAwayChanged() {
-                if (
-                    !keyguardStateController.isKeyguardFadingAway ||
-                        biometricUnlockController.mode != MODE_WAKE_AND_UNLOCK
-                ) {
+                if (!keyguardStateController.isKeyguardFadingAway) {
+                    wakeAndUnlockBlurRadius = 0f
+                    blursDisabledForUnlock = false
+                    invalidateLastAppliedBlur()
+                    scheduleUpdate()
+                    return
+                }
+
+                if (biometricUnlockController.mode != MODE_WAKE_AND_UNLOCK) {
                     return
                 }
 
