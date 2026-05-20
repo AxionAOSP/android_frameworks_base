@@ -13,18 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 
 package com.android.systemui.axion.volume.ui.composable
 
-import androidx.compose.animation.core.Animatable
+import android.view.HapticFeedbackConstants
+import android.view.View
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,25 +39,21 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Android
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.asImageBitmap
@@ -63,15 +61,25 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import android.view.HapticFeedbackConstants
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.DpSize
 import androidx.core.graphics.drawable.toBitmap
 import com.android.systemui.axion.volume.domain.model.AxionAppVolumeModel
 import com.android.systemui.axion.volume.domain.model.AxionVolumeStreamModel
 import com.android.systemui.axion.volume.domain.model.VolumeSliderItem
 import com.android.systemui.axion.volume.ui.viewmodel.AxionVolumeDialogViewModel
+import com.android.systemui.haptics.slider.SliderHapticFeedbackFilter
+import com.android.systemui.haptics.slider.compose.ui.SliderHapticsViewModel
+import com.android.systemui.volume.dialog.sliders.ui.compose.SliderTrack
+import com.android.systemui.volume.haptics.ui.VolumeHapticsConfigsProvider
+import com.android.systemui.volume.ui.compose.slider.AccessibilityParams
+import com.android.systemui.volume.ui.compose.slider.Haptics
+import com.android.systemui.volume.ui.compose.slider.Slider as VolumeDialogSlider
+import com.android.systemui.volume.ui.compose.slider.SliderIcon
+import java.text.NumberFormat
+import kotlin.math.roundToInt
 
 private val GrayscaleMatrix = ColorMatrix().apply { setToSaturation(0f) }
 private val GrayscaleFilter = ColorFilter.colorMatrix(GrayscaleMatrix)
@@ -82,9 +90,11 @@ fun SliderColumn(
     viewModel: AxionVolumeDialogViewModel,
     touchWidth: Dp = CollapsedPanelWidth,
     iconSize: Dp = SliderIconSize,
-    showPercentage: Boolean = false
+    showPercentage: Boolean = true,
+    modifier: Modifier = Modifier,
 ) {
     val muted = stream.isMuted
+    val valueRange = stream.minLevel.toFloat()..stream.maxLevel.toFloat()
     val motionScheme = MaterialTheme.motionScheme
     val iconAlpha by animateFloatAsState(
         if (muted) 0.38f else 1f,
@@ -93,10 +103,15 @@ fun SliderColumn(
     )
 
     VolumeSlider(
-        value = if (muted) 0f else stream.level,
+        value = if (muted) valueRange.start else stream.sliderLevel(),
+        valueRange = valueRange,
         onValueChange = { viewModel.setVolume(stream.streamType, it) },
         onOverscroll = { viewModel.setOverscrollOffset(it) },
         touchWidth = touchWidth,
+        stepDistance = 1f,
+        modifier = modifier,
+        hapticsViewModelFactory = viewModel.sliderHapticsViewModelFactory,
+        contentDescription = stream.streamInfo.label,
         icon = {
             Icon(
                 painter = painterResource(if (muted) stream.mutedIconRes else stream.iconRes),
@@ -104,7 +119,6 @@ fun SliderColumn(
                 modifier = Modifier
                     .size(iconSize)
                     .graphicsLayer { alpha = iconAlpha },
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
         },
         onIconClick = { viewModel.toggleMute(stream.streamType) },
@@ -127,7 +141,7 @@ fun AppVolumeSlider(
     viewModel: AxionVolumeDialogViewModel,
     touchWidth: Dp = CollapsedPanelWidth,
     iconSize: Dp = SliderIconSize,
-    showPercentage: Boolean = false
+    showPercentage: Boolean = true
 ) {
     val context = LocalContext.current
     val pm = context.packageManager
@@ -149,6 +163,8 @@ fun AppVolumeSlider(
         onValueChange = { viewModel.setAppVolume(appVolume.packageName, it) },
         onOverscroll = { viewModel.setOverscrollOffset(it) },
         touchWidth = touchWidth,
+        hapticsViewModelFactory = viewModel.sliderHapticsViewModelFactory,
+        contentDescription = label,
         icon = {
             if (imageBitmap != null) {
                 Image(
@@ -167,7 +183,6 @@ fun AppVolumeSlider(
                     modifier = Modifier
                         .size(iconSize)
                         .graphicsLayer { alpha = iconAlpha },
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
         },
@@ -187,177 +202,220 @@ fun AppVolumeSlider(
 @Composable
 private fun VolumeSlider(
     value: Float,
+    valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
     onValueChange: (Float) -> Unit,
     onOverscroll: (Float) -> Unit,
     touchWidth: Dp,
+    stepDistance: Float = 0.01f,
+    modifier: Modifier = Modifier,
+    hapticsViewModelFactory: SliderHapticsViewModel.Factory,
+    contentDescription: String,
     icon: @Composable () -> Unit,
     onIconClick: () -> Unit,
     showPercentage: Boolean = false,
     onInteractionStart: () -> Unit = {},
     onInteractionEnd: () -> Unit = {},
 ) {
-    var sliderValue by remember { mutableFloatStateOf(value) }
-    var isDragging by remember { mutableStateOf(false) }
-    var lastUserInteraction by remember { mutableStateOf(0L) }
-    var wasAtEdge by remember { mutableStateOf(false) }
     val currentOnValueChange by rememberUpdatedState(onValueChange)
     val currentOnOverscroll by rememberUpdatedState(onOverscroll)
+    val interactionSource = remember { MutableInteractionSource() }
     val view = LocalView.current
 
-    LaunchedEffect(value) {
-        if (isDragging) return@LaunchedEffect
-        val inGracePeriod = System.currentTimeMillis() - lastUserInteraction < VOLUME_UPDATE_GRACE_PERIOD
-        if (!inGracePeriod) {
-            sliderValue = value
+    LaunchedEffect(interactionSource) {
+        interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is DragInteraction.Start -> onInteractionStart()
+                is DragInteraction.Stop,
+                is DragInteraction.Cancel -> {
+                    onInteractionEnd()
+                    currentOnOverscroll(0f)
+                }
+            }
         }
     }
 
-    val motionScheme = MaterialTheme.motionScheme
-
-    val drawValue by animateFloatAsState(
-        targetValue = sliderValue,
-        animationSpec = if (isDragging) snap() else motionScheme.fastEffectsSpec(),
-        label = "trackFill"
+    val colors = SliderDefaults.colors(
+        activeTrackColor = MaterialTheme.colorScheme.primary,
+        activeTickColor = MaterialTheme.colorScheme.onPrimary,
+        inactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f),
+        inactiveTickColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        disabledActiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+        disabledActiveTickColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+        disabledInactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
+        disabledInactiveTickColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
     )
-
-    val trackVisualWidthDp by animateFloatAsState(
-        targetValue = if (isDragging) SliderTrackWidthThick.value else SliderTrackWidthThin.value,
-        animationSpec = if (isDragging) motionScheme.fastSpatialSpec()
-                        else motionScheme.defaultSpatialSpec(),
-        label = "trackWidth"
-    )
-
-    val primary = MaterialTheme.colorScheme.primary
-    val dotColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
 
     Column(
-        modifier = Modifier.width(touchWidth),
+        modifier = modifier.width(touchWidth),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        if (showPercentage) {
+            VolumeSliderPercentage(value = value, valueRange = valueRange)
+        }
         Spacer(modifier = Modifier.height(SliderTopPadding))
 
-        Box(
+        VolumeDialogSlider(
+            value = value.coerceIn(valueRange.start, valueRange.endInclusive),
+            valueRange = valueRange,
+            onValueChanged = { newValue ->
+                currentOnValueChange(newValue)
+            },
+            onValueChangeFinished = {
+                onInteractionEnd()
+                currentOnOverscroll(0f)
+            },
+            isEnabled = true,
+            isVertical = true,
+            isReverseDirection = true,
+            interactionSource = interactionSource,
+            colors = colors,
+            stepDistance = stepDistance,
+            accessibilityParams = AccessibilityParams(contentDescription = contentDescription),
+            haptics = Haptics.Enabled(
+                hapticsViewModelFactory = hapticsViewModelFactory,
+                hapticConfigs = VolumeHapticsConfigsProvider.continuousConfigs(
+                    SliderHapticFeedbackFilter()
+                ),
+                orientation = Orientation.Vertical,
+            ),
+            track = { sliderState ->
+                SliderTrack(
+                    sliderState = sliderState,
+                    colors = colors,
+                    isEnabled = true,
+                    isVertical = true,
+                    trackSize = SliderTrackWidthThick,
+                    activeTrackEndIcon = { iconsState ->
+                        VolumeSliderIcon(
+                            isVisible = !iconsState.isInactiveTrackEndIconVisible,
+                            onIconClick = onIconClick,
+                            icon = icon,
+                        )
+                    },
+                    inactiveTrackEndIcon = { iconsState ->
+                        VolumeSliderIcon(
+                            isVisible = iconsState.isInactiveTrackEndIconVisible,
+                            onIconClick = onIconClick,
+                            icon = icon,
+                        )
+                    },
+                )
+            },
+            thumb = { sliderState, interactions ->
+                SliderDefaults.Thumb(
+                    sliderState = sliderState,
+                    interactionSource = interactions,
+                    enabled = true,
+                    colors = colors,
+                    thumbSize = DpSize(SliderThumbWidth, SliderThumbHeight),
+                )
+            },
             modifier = Modifier
                 .height(SliderTrackHeight)
                 .width(touchWidth)
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onTap = {
-                            val rawVal = 1f - (it.y / size.height)
-                            val newVal = rawVal.coerceIn(0f, 1f)
-                            sliderValue = newVal
-                            lastUserInteraction = System.currentTimeMillis()
-                            currentOnValueChange(newVal)
-                            if (newVal == 0f || newVal == 1f) {
-                                view.performHapticFeedback(HapticFeedbackConstants.REJECT)
-                                val offset = if (newVal == 0f) 10f else -10f
-                                currentOnOverscroll(offset)
-                                currentOnOverscroll(0f)
-                            }
-                        }
-                    )
-                }
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragStart = {
-                            isDragging = true
-                            wasAtEdge = false
-                            onInteractionStart()
-                            val newVal = 1f - (it.y / size.height).coerceIn(0f, 1f)
-                            sliderValue = newVal
-                            lastUserInteraction = System.currentTimeMillis()
-                            currentOnValueChange(newVal)
-                        },
-                        onDragEnd = {
-                            isDragging = false
-                            wasAtEdge = false
-                            onInteractionEnd()
-                            currentOnOverscroll(0f)
-                            lastUserInteraction = System.currentTimeMillis()
-                        },
-                        onDragCancel = {
-                            isDragging = false
-                            wasAtEdge = false
-                            onInteractionEnd()
-                            currentOnOverscroll(0f)
-                            lastUserInteraction = System.currentTimeMillis()
-                        },
-                        onVerticalDrag = { change, _ ->
-                            change.consume()
-                            val rawVal = 1f - (change.position.y / size.height)
-                            when {
-                                rawVal < 0f -> {
-                                    sliderValue = 0f
-                                    if (!wasAtEdge) {
-                                        wasAtEdge = true
-                                        view.performHapticFeedback(HapticFeedbackConstants.REJECT)
-                                    }
-                                    currentOnOverscroll((-rawVal * 30f).coerceAtMost(10f))
-                                }
-                                rawVal > 1f -> {
-                                    sliderValue = 1f
-                                    if (!wasAtEdge) {
-                                        wasAtEdge = true
-                                        view.performHapticFeedback(HapticFeedbackConstants.REJECT)
-                                    }
-                                    currentOnOverscroll((-(rawVal - 1f) * 30f).coerceAtLeast(-10f))
-                                }
-                                else -> {
-                                    sliderValue = rawVal
-                                    wasAtEdge = false
-                                    currentOnOverscroll(0f)
-                                }
-                            }
-                            lastUserInteraction = System.currentTimeMillis()
-                            currentOnValueChange(sliderValue)
-                        }
-                    )
-                }
-                .drawWithCache {
-                    val h = size.height
-                    val cx = size.width / 2f
-                    val dotR = DotMatrixDotRadius.toPx()
-                    val dotSpacing = DotMatrixDotSpacing.toPx()
-                    val minFillH = SliderTrackWidthThin.toPx()
-
-                    onDrawBehind {
-                        val trackW = trackVisualWidthDp * density
-                        val cr = CornerRadius(trackW / 2f)
-                        val trackLeft = (size.width - trackW) / 2f
-                        val fillH = minFillH + (h - minFillH) * drawValue
-                        val fillTop = h - fillH
-
-                        var dotY = dotR
-                        while (dotY < fillTop - dotR) {
-                            drawCircle(color = dotColor, radius = dotR, center = Offset(cx, dotY))
-                            dotY += dotSpacing
-                        }
-
-                        drawRoundRect(
-                            color = primary,
-                            topLeft = Offset(trackLeft, fillTop),
-                            size = Size(trackW, fillH),
-                            cornerRadius = cr
-                        )
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {}
-
-        Spacer(modifier = Modifier.height(TrackToIconSpacing))
-
-        Box(
-            modifier = Modifier
-                .size(SliderIconContainerSize)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onIconClick
+                .trackSliderOverscroll(
+                    onOverscroll = currentOnOverscroll,
+                    view = view,
                 ),
-            contentAlignment = Alignment.Center
-        ) {
-            icon()
+        )
+    }
+}
+
+@Composable
+private fun VolumeSliderPercentage(
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+) {
+    val percentFormat = remember {
+        NumberFormat.getPercentInstance().apply {
+            maximumFractionDigits = 0
         }
+    }
+    val percent = value.percentIn(valueRange)
+    Box(
+        modifier = Modifier
+            .width(SliderIconContainerSize)
+            .padding(top = SliderTopPadding + TrackToIconSpacing / 2f),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = percentFormat.format(percent),
+            style = MaterialTheme.typography.labelMedium.copy(
+                platformStyle = PlatformTextStyle(includeFontPadding = false)
+            ),
+            color = volumePanelSecondaryContentColor(),
+            maxLines = 1,
+        )
+    }
+}
+
+private fun AxionVolumeStreamModel.sliderLevel(): Float {
+    val range = maxLevel - minLevel
+    if (range <= 0) return minLevel.toFloat()
+    return (minLevel + level.coerceIn(0f, 1f) * range)
+        .roundToInt()
+        .coerceIn(minLevel, maxLevel)
+        .toFloat()
+}
+
+private fun Float.percentIn(valueRange: ClosedFloatingPointRange<Float>): Float {
+    val range = valueRange.endInclusive - valueRange.start
+    if (range <= 0f) return 0f
+    return ((this - valueRange.start) / range).coerceIn(0f, 1f)
+}
+
+@Composable
+private fun VolumeSliderIcon(
+    isVisible: Boolean,
+    onIconClick: () -> Unit,
+    icon: @Composable () -> Unit,
+) {
+    SliderIcon(
+        icon = {
+            Box(
+                modifier = Modifier
+                    .size(SliderIconContainerSize)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onIconClick,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                icon()
+            }
+        },
+        isVisible = isVisible,
+    )
+}
+
+private fun Modifier.trackSliderOverscroll(
+    onOverscroll: (Float) -> Unit,
+    view: View,
+): Modifier = pointerInput(onOverscroll, view) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false)
+        var wasAtEdge = false
+        var pressed = true
+        while (pressed) {
+            val event = awaitPointerEvent()
+            val pointer = event.changes.firstOrNull { it.pressed }
+            if (pointer != null) {
+                val rawValue = 1f - pointer.position.y / size.height
+                val overscroll = when {
+                    rawValue < 0f -> (-rawValue * 30f).coerceAtMost(10f)
+                    rawValue > 1f -> (-(rawValue - 1f) * 30f).coerceAtLeast(-10f)
+                    else -> 0f
+                }
+                if (overscroll != 0f && !wasAtEdge) {
+                    view.performHapticFeedback(HapticFeedbackConstants.REJECT)
+                }
+                wasAtEdge = overscroll != 0f
+                onOverscroll(overscroll)
+            }
+            pressed = event.changes.any { it.pressed }
+        }
+        onOverscroll(0f)
     }
 }
 
@@ -365,9 +423,10 @@ private fun VolumeSlider(
 fun VolumeSlidersRow(
     viewModel: AxionVolumeDialogViewModel,
     sliderItems: List<VolumeSliderItem.Stream>,
-    showPercentage: Boolean = false,
+    showPercentage: Boolean = true,
     sliderCount: Int = MaxVisibleSliders,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    streamSliderModifier: (Int) -> Modifier = { Modifier },
 ) {
     Row(
         modifier = modifier.padding(horizontal = SliderRowHorizontalPadding),
@@ -382,7 +441,8 @@ fun VolumeSlidersRow(
                         stream = item.model,
                         viewModel = viewModel,
                         touchWidth = SliderWidthExpanded,
-                        showPercentage = showPercentage
+                        showPercentage = showPercentage,
+                        modifier = streamSliderModifier(item.model.streamType)
                     )
                 }
             } else {
@@ -401,7 +461,7 @@ fun AppVolumeSlidersRow(
     Row(
         modifier = modifier
             .padding(horizontal = SliderRowHorizontalPadding)
-            .padding(top = TrackToIconSpacing),
+            .padding(vertical = TrackToIconSpacing),
         horizontalArrangement = Arrangement.spacedBy(SliderRowSpacing)
     ) {
         val padded = appItems.take(MaxVisibleSliders)
@@ -413,7 +473,7 @@ fun AppVolumeSlidersRow(
                         appVolume = item.model,
                         viewModel = viewModel,
                         touchWidth = SliderWidthExpanded,
-                        showPercentage = false
+                        showPercentage = true
                     )
                 }
             } else {

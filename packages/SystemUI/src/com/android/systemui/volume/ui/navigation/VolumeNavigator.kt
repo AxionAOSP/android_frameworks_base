@@ -127,6 +127,7 @@ constructor(
             isDraggable = false,
             // TODO(b/337205027) change maxWidth
             maxWidth = 800.dp,
+            useAxBlur = true,
         )
     }
 }

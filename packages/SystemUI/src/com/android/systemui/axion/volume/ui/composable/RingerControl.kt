@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.android.axion.blur.AxBlurSurface
 import com.android.systemui.axion.volume.domain.model.AxionRingerMode
 
 @Composable
@@ -54,25 +55,33 @@ fun RingerCircleButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(
+    AxBlurSurface(
         modifier = modifier
             .size(RingerCircleSize)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceBright)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             ),
-        contentAlignment = Alignment.Center
+        shape = CircleShape,
+        cornerRadius = RingerCircleSize / 2f,
+        contentAlignment = Alignment.Center,
     ) {
         Crossfade(targetState = ringerMode, label = "ringerIcon") { mode ->
-            Icon(
-                painter = painterResource(mode.iconRes),
-                contentDescription = mode.label,
-                modifier = Modifier.size(SliderIconSize),
-                tint = MaterialTheme.colorScheme.onSurface
-            )
+            Box(
+                modifier = Modifier
+                    .size(RingerRowIconSize)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(mode.iconRes),
+                    contentDescription = mode.label,
+                    modifier = Modifier.size(SliderIconSize),
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
+            }
         }
     }
 }
@@ -105,7 +114,7 @@ fun RingerRow(
 
     val primary = MaterialTheme.colorScheme.primary
     val onPrimary = MaterialTheme.colorScheme.onPrimary
-    val onSurface = MaterialTheme.colorScheme.onSurface
+    val inactiveContent = volumePanelSecondaryContentColor()
 
     Box(modifier = modifier.size(width = panelWidth, height = RingerRowHeight)) {
         Box(
@@ -127,7 +136,7 @@ fun RingerRow(
                     mode = supportedModes[0],
                     isActive = activeIndex == 0,
                     activeColor = onPrimary,
-                    inactiveColor = onSurface,
+                    inactiveColor = inactiveContent,
                     onClick = { onModeSelected(supportedModes[0]) }
                 )
             }
@@ -139,7 +148,7 @@ fun RingerRow(
                         mode = supportedModes[mid],
                         isActive = activeIndex == mid,
                         activeColor = onPrimary,
-                        inactiveColor = onSurface,
+                        inactiveColor = inactiveContent,
                         onClick = { onModeSelected(supportedModes[mid]) }
                     )
                 }
@@ -147,7 +156,7 @@ fun RingerRow(
                     mode = supportedModes[modeCount - 1],
                     isActive = activeIndex == modeCount - 1,
                     activeColor = onPrimary,
-                    inactiveColor = onSurface,
+                    inactiveColor = inactiveContent,
                     onClick = { onModeSelected(supportedModes[modeCount - 1]) }
                 )
             } else if (modeCount == 2) {
@@ -156,7 +165,7 @@ fun RingerRow(
                     mode = supportedModes[1],
                     isActive = activeIndex == 1,
                     activeColor = onPrimary,
-                    inactiveColor = onSurface,
+                    inactiveColor = inactiveContent,
                     onClick = { onModeSelected(supportedModes[1]) }
                 )
             }

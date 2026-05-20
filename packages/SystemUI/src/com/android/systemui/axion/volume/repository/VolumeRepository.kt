@@ -36,7 +36,6 @@ import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.plugins.VolumeDialogController
 import com.android.systemui.statusbar.policy.bluetooth.data.repository.BluetoothRepository
 import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
-import com.android.systemui.volume.VolumeDialogControllerImpl
 import javax.inject.Inject
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.awaitClose
@@ -55,7 +54,7 @@ interface AxionVolumeRepository {
     val activeStreamFlow: Flow<Int>
     val inCallFlow: Flow<Boolean>
 
-    fun setVolume(streamType: Int, level: Float, flags: Int = 0)
+    fun setVolume(streamType: Int, level: Int)
     fun setMute(streamType: Int, muted: Boolean)
     fun setAppVolume(packageName: String, volume: Float)
     fun setAppMute(packageName: String, muted: Boolean)
@@ -325,17 +324,13 @@ class AxionVolumeRepositoryImpl @Inject constructor(
         return streams
     }
 
-    override fun setVolume(streamType: Int, level: Float, flags: Int) {
+    override fun setVolume(streamType: Int, level: Int) {
         val max = getMaxVolume(streamType)
         val min = getMinVolume(streamType)
-        val volume = (min + (level * (max - min))).toInt().coerceIn(min, max)
+        val volume = level.coerceIn(min, max)
 
-        if (streamType >= VolumeDialogControllerImpl.DYNAMIC_STREAM_REMOTE_START_INDEX ||
-            streamType == VolumeDialogControllerImpl.DYNAMIC_STREAM_BROADCAST) {
-            controller.setStreamVolume(streamType, volume, false)
-        } else {
-            audioManager.setStreamVolume(streamType, volume, flags)
-        }
+        controller.setStreamVolume(streamType, volume, true)
+        controller.setActiveStream(streamType, true)
     }
 
     override fun setMute(streamType: Int, muted: Boolean) {

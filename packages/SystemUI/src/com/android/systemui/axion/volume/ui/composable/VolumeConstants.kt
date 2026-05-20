@@ -16,20 +16,19 @@
 
 package com.android.systemui.axion.volume.ui.composable
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 
-internal val SliderTrackHeight = 160.dp
-internal val SliderTrackWidthThin = 10.dp
+internal val SliderTrackHeight = 224.dp
 internal val SliderTrackWidthThick = 40.dp
-internal val SliderCornerRadius = 100.dp
+internal val SliderThumbWidth = 52.dp
+internal val SliderThumbHeight = 4.dp
 internal val SliderIconSize = 20.dp
-
-internal val DotMatrixDotRadius = 2.dp
-internal val DotMatrixDotSpacing = 7.dp
 
 internal val CollapsedPanelWidth = 56.dp
 internal val ExpandedPanelWidth = 288.dp
-internal val SliderWidthExpanded = 48.dp
+internal val SliderWidthExpanded = 56.dp
 internal val SliderRowSpacing = 8.dp
 internal val SliderRowHorizontalPadding = 8.dp
 
@@ -39,17 +38,20 @@ internal val RingerRowOuterPadding = 8.dp
 internal val RingerRowHeight = RingerRowIconSize + RingerRowOuterPadding * 2
 
 internal val RingerToSliderGap = 10.dp
-internal val SliderTopPadding = 28.dp
+internal val SliderTopPadding = 4.dp
 internal val TrackToIconSpacing = 4.dp
 internal val IconToExpandSpacing = 4.dp
-internal val SliderIconContainerSize = 36.dp
+internal val SliderIconContainerSize = 40.dp
 
 internal val DialogCornerRadius = 28.dp
 internal val WindowPadding = 12.dp
-internal val ContentSpacingSmall = 6.dp
+internal val ContentSpacingSmall = 8.dp
 
-internal const val VOLUME_UPDATE_GRACE_PERIOD = 1000L
 internal const val MaxVisibleSliders = 5
 
-internal val SeeMoreHeight = 46.dp
+internal val SeeMoreHeight = SliderIconContainerSize
 internal val HeaderIconSize = 20.dp
+
+@Composable
+internal fun volumePanelSecondaryContentColor() =
+    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
