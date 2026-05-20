@@ -33,7 +33,7 @@ import kotlinx.coroutines.flow.*
 
 interface AxionVolumeDialogInteractor {
     val volumeDialogState: Flow<AxionVolumeDialogState>
-    fun setVolume(streamType: Int, level: Float)
+    fun setVolume(streamType: Int, level: Int)
     fun setActiveStream(streamType: Int)
     fun setRingerMode(mode: AxionRingerMode)
     fun toggleMute(streamType: Int)
@@ -124,8 +124,9 @@ class AxionVolumeDialogInteractorImpl @Inject constructor(
         )
     }
 
-    override fun setVolume(streamType: Int, level: Float) {
+    override fun setVolume(streamType: Int, level: Int) {
         volumeRepository.setVolume(streamType, level)
+        volumeRepository.setActiveApp(null)
     }
 
     override fun setActiveStream(streamType: Int) {

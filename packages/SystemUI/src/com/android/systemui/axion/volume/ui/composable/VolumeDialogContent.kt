@@ -20,20 +20,21 @@ package com.android.systemui.axion.volume.ui.composable
 import android.media.AudioManager
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
@@ -59,18 +60,25 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.android.axion.blur.AxBlurLifecycle
+import com.android.axion.blur.AxBlurSurface
+import com.android.compose.animation.scene.ContentKey
 import com.android.compose.animation.scene.ContentScope
 import com.android.compose.animation.scene.ElementKey
+import com.android.compose.animation.scene.ElementMatcher
 import com.android.compose.animation.scene.SceneKey
 import com.android.compose.animation.scene.SceneTransitionLayout
+import com.android.compose.animation.scene.TransitionBuilder
 import com.android.compose.animation.scene.rememberMutableSceneTransitionLayoutState
 import com.android.compose.animation.scene.transitions
 import com.android.systemui.axion.volume.domain.model.VolumeSliderItem
 import com.android.systemui.axion.volume.ui.viewmodel.AxionVolumeDialogUiState
 import com.android.systemui.axion.volume.ui.viewmodel.AxionVolumeDialogViewModel
 import com.android.systemui.res.R
+import kotlin.math.roundToInt
 
 private val CardShape = RoundedCornerShape(DialogCornerRadius)
 
@@ -80,34 +88,43 @@ private object VolumeScenes {
 }
 
 private object VolumeElements {
-    val RingerCircle = ElementKey("ax_vol_ringer_circle")
-    val RingerRow = ElementKey("ax_vol_ringer_row")
-    val CollapsedSliderCard = ElementKey("ax_vol_collapsed_slider_card")
-    val ExpandedSliderCard = ElementKey("ax_vol_expanded_slider_card")
+    val PanelCard = ElementKey("ax_vol_panel_card", placeAllCopies = true)
+    val PanelBackground = ElementKey("ax_vol_panel_background")
+    val RingerControl = ElementKey("ax_vol_ringer_control")
+    val CollapsedExpandButton = ElementKey("ax_vol_collapsed_expand_button")
+    val ExpandedSeeMore = ElementKey("ax_vol_expanded_see_more")
+    val StreamSliders =
+        object : ElementMatcher {
+            override fun matches(key: ElementKey, content: ContentKey): Boolean {
+                return key.debugName.startsWith(StreamSliderElementPrefix)
+            }
+        }
 }
 
 private val VolumeTransitions = transitions {
     from(VolumeScenes.Collapsed, to = VolumeScenes.Expanded) {
-        spec = tween(durationMillis = 300)
-        fractionRange(end = 0.2f) {
-            fade(VolumeElements.RingerCircle)
-            fade(VolumeElements.CollapsedSliderCard)
-        }
-        fractionRange(start = 0.2f) {
-            fade(VolumeElements.RingerRow)
-            fade(VolumeElements.ExpandedSliderCard)
-        }
+        volumePanelMorphTransition()
     }
-    from(VolumeScenes.Expanded, to = VolumeScenes.Collapsed) {
-        spec = tween(durationMillis = 250)
-        fractionRange(end = 0.2f) {
-            fade(VolumeElements.RingerRow)
-            fade(VolumeElements.ExpandedSliderCard)
-        }
-        fractionRange(start = 0.2f) {
-            fade(VolumeElements.RingerCircle)
-            fade(VolumeElements.CollapsedSliderCard)
-        }
+}
+
+private const val StreamSliderElementPrefix = "ax_vol_stream_slider_"
+
+private fun volumeStreamSliderElementKey(streamType: Int): ElementKey =
+    ElementKey("$StreamSliderElementPrefix$streamType", streamType)
+
+private fun TransitionBuilder.volumePanelMorphTransition() {
+    spec = tween(durationMillis = 340, easing = FastOutSlowInEasing)
+    sharedElement(VolumeElements.PanelCard)
+    sharedElement(VolumeElements.PanelBackground)
+    sharedElement(VolumeElements.RingerControl)
+    sharedElement(VolumeElements.StreamSliders)
+    anchoredTranslate(VolumeElements.CollapsedExpandButton, VolumeElements.PanelCard)
+    anchoredTranslate(VolumeElements.ExpandedSeeMore, VolumeElements.PanelCard)
+    fractionRange(end = 0.22f) {
+        fade(VolumeElements.CollapsedExpandButton)
+    }
+    fractionRange(start = 0.58f) {
+        fade(VolumeElements.ExpandedSeeMore)
     }
 }
 
@@ -169,27 +186,55 @@ fun AxionVolumeDialogContent(
 
     Box(
         modifier = Modifier
+            .offset {
+                val dir = if (isLeft) -1f else 1f
+                IntOffset(
+                    (dir * 24f * (1f - visibilityProgress)).roundToInt(),
+                    animatedOverscroll.roundToInt(),
+                )
+            }
             .graphicsLayer {
                 alpha = visibilityProgress
-                val dir = if (isLeft) -1f else 1f
-                translationX = dir * 24f * (1f - visibilityProgress)
-                translationY = animatedOverscroll
             },
         contentAlignment = edgeAlignment
     ) {
-        SceneTransitionLayout(state = stlState) {
-            scene(VolumeScenes.Collapsed) {
-                CollapsedPanelContent(viewModel = viewModel, uiState = uiState, isLeft = isLeft)
-            }
-            scene(VolumeScenes.Expanded) {
-                ExpandedPanelContent(
-                    viewModel = viewModel,
-                    uiState = uiState,
-                    sliderItems = sliderItems,
-                    currStreamCount = currStreamCount
-                )
+        AxBlurLifecycle(enabled = isVisible) {
+            SceneTransitionLayout(state = stlState) {
+                scene(VolumeScenes.Collapsed) {
+                    CollapsedPanelContent(viewModel = viewModel, uiState = uiState, isLeft = isLeft)
+                }
+                scene(VolumeScenes.Expanded) {
+                    ExpandedPanelContent(
+                        viewModel = viewModel,
+                        uiState = uiState,
+                        sliderItems = sliderItems,
+                        currStreamCount = currStreamCount
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun ContentScope.VolumePanelCard(
+    modifier: Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .element(VolumeElements.PanelCard)
+            .clip(CardShape),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        AxBlurSurface(
+            modifier = Modifier
+                .matchParentSize()
+                .element(VolumeElements.PanelBackground),
+            shape = CardShape,
+            cornerRadius = DialogCornerRadius,
+        ) {}
+        content()
     }
 }
 
@@ -205,8 +250,6 @@ private fun ContentScope.CollapsedPanelContent(
     val streamModel = dialogState.volumeStreams.find { it.streamType == activeStream }
         ?: dialogState.volumeStreams.find { it.streamType == AudioManager.STREAM_MUSIC }
     val appVolumes = dialogState.appVolumes
-
-    val surfaceBright = MaterialTheme.colorScheme.surfaceBright
 
     val cardAnimDir = if (isLeft) -1f else 1f
     var isCardVisible by remember { mutableStateOf(appVolumes.isNotEmpty()) }
@@ -234,62 +277,65 @@ private fun ContentScope.CollapsedPanelContent(
                 .requiredWidth(CollapsedPanelWidth)
                 .pointerInput(Unit) { detectTapGestures {} }
         ) {
-            RingerCircleButton(
-                ringerMode = ringerMode,
-                onClick = {
-                    viewModel.rescheduleTimeout()
-                    viewModel.cycleRingerMode()
-                },
-                modifier = Modifier.element(VolumeElements.RingerCircle)
-            )
-
-            Spacer(modifier = Modifier.height(RingerToSliderGap))
-
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .element(VolumeElements.CollapsedSliderCard)
-                    .clip(CardShape)
-                    .background(surfaceBright)
-                    .padding(bottom = ContentSpacingSmall)
+            VolumePanelCard(
+                modifier = Modifier.requiredWidth(CollapsedPanelWidth),
             ) {
-                if (streamModel != null) {
-                    SliderColumn(
-                        stream = streamModel,
-                        viewModel = viewModel,
-                        touchWidth = CollapsedPanelWidth,
-                        showPercentage = false
-                    )
-                } else {
-                    Spacer(
-                        modifier = Modifier.height(
-                            SliderTopPadding + SliderTrackHeight + TrackToIconSpacing + SliderIconContainerSize
-                        )
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(IconToExpandSpacing))
-
-                Box(
-                    modifier = Modifier
-                        .size(SliderIconContainerSize)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            viewModel.rescheduleTimeout()
-                            viewModel.toggleExpanded()
-                        },
-                    contentAlignment = Alignment.Center
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(bottom = ContentSpacingSmall)
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.KeyboardArrowRight,
-                        contentDescription = "Expand",
-                        modifier = Modifier
-                            .size(HeaderIconSize)
-                            .graphicsLayer { scaleX = if (isLeft) 1f else -1f },
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    RingerCircleButton(
+                        ringerMode = ringerMode,
+                        onClick = {
+                            viewModel.rescheduleTimeout()
+                            viewModel.cycleRingerMode()
+                        },
+                        modifier = Modifier.element(VolumeElements.RingerControl)
                     )
+
+                    if (streamModel != null) {
+                        SliderColumn(
+                            stream = streamModel,
+                            viewModel = viewModel,
+                            touchWidth = CollapsedPanelWidth,
+                            showPercentage = true,
+                            modifier = Modifier.element(
+                                volumeStreamSliderElementKey(streamModel.streamType)
+                            )
+                        )
+                    } else {
+                        Spacer(
+                            modifier = Modifier.height(
+                                SliderTopPadding + SliderTrackHeight
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(IconToExpandSpacing))
+
+                    Box(
+                        modifier = Modifier
+                            .element(VolumeElements.CollapsedExpandButton)
+                            .size(SliderIconContainerSize)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                viewModel.rescheduleTimeout()
+                                viewModel.toggleExpanded()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.KeyboardArrowRight,
+                            contentDescription =
+                                stringResource(R.string.volume_panel_expanded_sliders),
+                            modifier = Modifier
+                                .size(HeaderIconSize)
+                                .graphicsLayer { scaleX = if (isLeft) 1f else -1f },
+                            tint = volumePanelSecondaryContentColor()
+                        )
+                    }
                 }
             }
         }
@@ -306,29 +352,44 @@ private fun ContentScope.CollapsedPanelContent(
                             tween(durationMillis = 240, delayMillis = index * 50)
                         )
                     }
+                    val cardAlpha = appCardEntrance.value * sliderEntrance.value
+                    val appCardTopPadding = ContentSpacingSmall
+                    val appCardBottomPadding = ContentSpacingSmall + TrackToIconSpacing / 2f
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.graphicsLayer {
-                            alpha = appCardEntrance.value * sliderEntrance.value
-                            translationX = cardAnimDir * 24f * (1f - appCardEntrance.value)
-                            translationY = 16f * (1f - sliderEntrance.value)
-                        }
+                        modifier = Modifier
+                            .offset {
+                                IntOffset(
+                                    (cardAnimDir * 24f * (1f - appCardEntrance.value))
+                                        .roundToInt(),
+                                    RingerCircleSize.roundToPx() -
+                                        appCardTopPadding.roundToPx() +
+                                        (16f * (1f - sliderEntrance.value)).roundToInt(),
+                                )
+                            }
+                            .graphicsLayer {
+                                alpha = cardAlpha
+                            }
                     ) {
-                        Spacer(modifier = Modifier.height(RingerCircleSize + RingerToSliderGap))
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .clip(CardShape)
-                                .background(surfaceBright)
-                                .padding(bottom = ContentSpacingSmall)
-                                .pointerInput(Unit) { detectTapGestures {} }
+                        AxBlurSurface(
+                            modifier = Modifier.pointerInput(Unit) { detectTapGestures {} },
+                            shape = CardShape,
+                            cornerRadius = DialogCornerRadius,
                         ) {
-                            AppVolumeSlider(
-                                appVolume = app,
-                                viewModel = viewModel,
-                                touchWidth = CollapsedPanelWidth,
-                                showPercentage = false
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(
+                                    top = appCardTopPadding,
+                                    bottom = appCardBottomPadding
+                                )
+                            ) {
+                                AppVolumeSlider(
+                                    appVolume = app,
+                                    viewModel = viewModel,
+                                    touchWidth = CollapsedPanelWidth,
+                                    showPercentage = true
+                                )
+                            }
                         }
                     }
                 }
@@ -364,9 +425,7 @@ private fun ContentScope.ExpandedPanelContent(
     val supportedModes = dialogState.supportedRingerModes
     val streamItems = sliderItems.filterIsInstance<VolumeSliderItem.Stream>()
     val streamCount = currStreamCount.coerceIn(1, MaxVisibleSliders)
-    val panelWidth = (8 + 56 * streamCount).dp
-
-    val surfaceBright = MaterialTheme.colorScheme.surfaceBright
+    val panelWidth = (8 + 64 * streamCount).dp
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -374,61 +433,59 @@ private fun ContentScope.ExpandedPanelContent(
             .requiredWidth(panelWidth)
             .pointerInput(Unit) { detectTapGestures {} }
     ) {
-        Box(
-            modifier = Modifier
-                .element(VolumeElements.RingerRow)
-                .clip(CardShape)
-                .background(surfaceBright)
+        VolumePanelCard(
+            modifier = Modifier.requiredWidth(panelWidth),
         ) {
-            RingerRow(
-                ringerMode = ringerMode,
-                supportedModes = supportedModes,
-                panelWidth = panelWidth,
-                onModeSelected = { mode ->
-                    viewModel.rescheduleTimeout()
-                    viewModel.setRingerMode(mode)
-                }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(RingerToSliderGap))
-
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .element(VolumeElements.ExpandedSliderCard)
-                .clip(CardShape)
-                .background(surfaceBright)
-                .padding(bottom = ContentSpacingSmall)
-        ) {
-            VolumeSlidersRow(
-                viewModel = viewModel,
-                sliderItems = streamItems,
-                showPercentage = false,
-                sliderCount = streamCount
-            )
-
-            Spacer(modifier = Modifier.height(IconToExpandSpacing))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(SeeMoreHeight)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        viewModel.rescheduleTimeout()
-                        viewModel.onSeeMoreClick()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(R.string.see_more_title).uppercase(),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(
+                    top = ContentSpacingSmall,
+                    bottom = ContentSpacingSmall,
                 )
+            ) {
+                RingerRow(
+                    ringerMode = ringerMode,
+                    supportedModes = supportedModes,
+                    panelWidth = panelWidth - SliderRowHorizontalPadding * 2,
+                    onModeSelected = { mode ->
+                        viewModel.rescheduleTimeout()
+                        viewModel.setRingerMode(mode)
+                    },
+                    modifier = Modifier.element(VolumeElements.RingerControl)
+                )
+
+                VolumeSlidersRow(
+                    viewModel = viewModel,
+                    sliderItems = streamItems,
+                    showPercentage = true,
+                    sliderCount = streamCount,
+                    streamSliderModifier = { streamType ->
+                        Modifier.element(volumeStreamSliderElementKey(streamType))
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(IconToExpandSpacing))
+
+                Box(
+                    modifier = Modifier
+                        .element(VolumeElements.ExpandedSeeMore)
+                        .fillMaxWidth()
+                        .height(SeeMoreHeight)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            viewModel.rescheduleTimeout()
+                            viewModel.onSeeMoreClick()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(R.string.see_more_title).uppercase(),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
         }
     }

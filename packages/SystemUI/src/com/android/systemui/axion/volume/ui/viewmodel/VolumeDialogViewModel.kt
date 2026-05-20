@@ -16,20 +16,24 @@
 
 package com.android.systemui.axion.volume.ui.viewmodel
 
+import android.media.AudioManager
+import android.os.SystemClock
 import com.android.systemui.axion.volume.dagger.AxionVolumeDialogScope
 import com.android.systemui.axion.volume.dagger.AxionVolumeScope
-import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.axion.volume.domain.interactor.AxionVolumeDialogInteractor
-import android.media.AudioManager
 import com.android.systemui.axion.volume.domain.model.AxionRingerMode
 import com.android.systemui.axion.volume.domain.model.AxionVolumeDialogState
 import com.android.systemui.axion.volume.domain.model.AxionVolumeStreamModel
 import com.android.systemui.axion.volume.domain.model.VolumeSliderItem
 import com.android.systemui.axion.volume.ui.composable.MaxVisibleSliders
+import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.haptics.slider.compose.ui.SliderHapticsViewModel
 import javax.inject.Inject
+import kotlin.math.roundToInt
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+
+private const val VOLUME_UPDATE_GRACE_PERIOD = 1000L
 
 enum class VisibilityState {
     DISMISSED,
@@ -74,6 +78,8 @@ class AxionVolumeDialogViewModel @Inject constructor(
     private val _overscrollOffset = MutableStateFlow(0f)
     private val _volumeKeyHapticTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private val _rescheduleTimeoutTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val volumeEvents = MutableStateFlow<VolumeEvent?>(null)
+    private val appVolumeEvents = MutableStateFlow<AppVolumeEvent?>(null)
 
     val uiState: StateFlow<AxionVolumeDialogUiState> = combine(
         interactor.volumeDialogState,
@@ -82,8 +88,12 @@ class AxionVolumeDialogViewModel @Inject constructor(
         interactor.isLeftSide,
         _isInteracting,
         _showingAppVolumes,
+        volumeEvents,
+        appVolumeEvents,
     ) { flows ->
-        val dialogState = flows[0] as AxionVolumeDialogState
+        val dialogState = (flows[0] as AxionVolumeDialogState)
+            .withUserVolumeUpdate(flows[6] as VolumeEvent?)
+            .withUserAppVolumeUpdate(flows[7] as AppVolumeEvent?)
         val visibilityState = flows[1] as VisibilityState
         val expansionState = flows[2] as ExpansionState
         val isLeftSide = flows[3] as Boolean
@@ -221,30 +231,34 @@ class AxionVolumeDialogViewModel @Inject constructor(
         _showingAppVolumes.value = !_showingAppVolumes.value
     }
 
-    private data class VolumeEvent(val streamType: Int, val level: Float)
-    private data class AppVolumeEvent(val packageName: String, val volume: Float)
-
-    private val volumeEvents = MutableSharedFlow<VolumeEvent>(extraBufferCapacity = 1)
-    private val appVolumeEvents = MutableSharedFlow<AppVolumeEvent>(extraBufferCapacity = 1)
-
     init {
         volumeEvents
-            .distinctUntilChanged()
-            .mapLatest { event ->
+            .filterNotNull()
+            .distinctUntilChanged { old, new ->
+                old.streamType == new.streamType && old.level == new.level
+            }
+            .onEach { event ->
                 withContext(bgDispatcher) { interactor.setVolume(event.streamType, event.level) }
             }
             .launchIn(scope)
 
         appVolumeEvents
-            .distinctUntilChanged()
-            .mapLatest { event ->
+            .filterNotNull()
+            .distinctUntilChanged { old, new ->
+                old.packageName == new.packageName && old.volume == new.volume
+            }
+            .onEach { event ->
                 withContext(bgDispatcher) { interactor.setAppVolume(event.packageName, event.volume) }
             }
             .launchIn(scope)
     }
 
     fun setVolume(streamType: Int, level: Float) {
-        volumeEvents.tryEmit(VolumeEvent(streamType, level))
+        volumeEvents.value = VolumeEvent(
+            streamType,
+            streamLevel(streamType, level),
+            SystemClock.uptimeMillis()
+        )
     }
 
     fun setActiveStream(streamType: Int) {
@@ -269,7 +283,7 @@ class AxionVolumeDialogViewModel @Inject constructor(
     }
 
     fun setAppVolume(packageName: String, volume: Float) {
-        appVolumeEvents.tryEmit(AppVolumeEvent(packageName, volume))
+        appVolumeEvents.value = AppVolumeEvent(packageName, volume, SystemClock.uptimeMillis())
     }
 
     fun setAppMute(packageName: String, muted: Boolean) {
@@ -290,4 +304,67 @@ class AxionVolumeDialogViewModel @Inject constructor(
         val nextIndex = (currentIndex + 1) % supportedModes.size
         interactor.setRingerMode(supportedModes[nextIndex])
     }
+
+    private fun AxionVolumeDialogState.withUserVolumeUpdate(
+        event: VolumeEvent?
+    ): AxionVolumeDialogState {
+        if (event == null || !event.isFresh()) return this
+        return copy(
+            volumeStreams = volumeStreams.map { stream ->
+                if (stream.streamType == event.streamType) {
+                    stream.copy(level = streamLevelFraction(stream, event.level))
+                } else {
+                    stream
+                }
+            }
+        )
+    }
+
+    private fun AxionVolumeDialogState.withUserAppVolumeUpdate(
+        event: AppVolumeEvent?
+    ): AxionVolumeDialogState {
+        if (event == null || !event.isFresh()) return this
+        return copy(
+            appVolumes = appVolumes.map { appVolume ->
+                if (appVolume.packageName == event.packageName) {
+                    appVolume.copy(volume = event.volume)
+                } else {
+                    appVolume
+                }
+            }
+        )
+    }
+
+    private fun VolumeEvent.isFresh(): Boolean =
+        SystemClock.uptimeMillis() - timestampMillis < VOLUME_UPDATE_GRACE_PERIOD
+
+    private fun AppVolumeEvent.isFresh(): Boolean =
+        SystemClock.uptimeMillis() - timestampMillis < VOLUME_UPDATE_GRACE_PERIOD
+
+    private fun streamLevel(streamType: Int, level: Float): Int {
+        val stream = uiState.value.dialogState.volumeStreams.find { it.streamType == streamType }
+            ?: return level.roundToInt()
+        return level
+            .roundToInt()
+            .coerceIn(stream.minLevel, stream.maxLevel)
+    }
+
+    private fun streamLevelFraction(stream: AxionVolumeStreamModel, level: Int): Float {
+        val range = stream.maxLevel - stream.minLevel
+        if (range <= 0) return 0f
+        val volume = level.coerceIn(stream.minLevel, stream.maxLevel)
+        return (volume - stream.minLevel).toFloat() / range
+    }
+
+    private data class VolumeEvent(
+        val streamType: Int,
+        val level: Int,
+        val timestampMillis: Long,
+    )
+
+    private data class AppVolumeEvent(
+        val packageName: String,
+        val volume: Float,
+        val timestampMillis: Long,
+    )
 }
