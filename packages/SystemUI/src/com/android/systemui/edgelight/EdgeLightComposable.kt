@@ -15,7 +15,6 @@
  */
 package com.android.systemui.edgelight
 
-import android.content.res.Configuration
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -23,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.platform.LocalConfiguration
 
 @Composable
 fun EdgeLight(
@@ -32,17 +30,11 @@ fun EdgeLight(
 ) {
     if (!state.isEnabled || !state.isVisible) return
 
-    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val color = Color(state.color)
 
     Canvas(modifier = modifier.fillMaxSize()) {
-        if (isLandscape) {
-            drawEdgeGlow(color, state.pulseAlpha, state.spread, state.intensity, vertical = true, fromStart = true)
-            drawEdgeGlow(color, state.pulseAlpha, state.spread, state.intensity, vertical = true, fromStart = false)
-        } else {
-            drawEdgeGlow(color, state.pulseAlpha, state.spread, state.intensity, vertical = false, fromStart = true)
-            drawEdgeGlow(color, state.pulseAlpha, state.spread, state.intensity, vertical = false, fromStart = false)
-        }
+        drawEdgeGlow(color, state.pulseAlpha, state.spread, state.intensity, fromStart = true)
+        drawEdgeGlow(color, state.pulseAlpha, state.spread, state.intensity, fromStart = false)
     }
 }
 
@@ -51,7 +43,6 @@ private fun DrawScope.drawEdgeGlow(
     alpha: Float,
     spread: Float,
     intensity: Float,
-    vertical: Boolean,
     fromStart: Boolean,
 ) {
     val a = (alpha * intensity).coerceIn(0f, 1f)
@@ -63,50 +54,26 @@ private fun DrawScope.drawEdgeGlow(
     val p3 = s * 0.60f
     val p4 = s
 
-    val brush = if (vertical) {
-        if (fromStart) {
-            Brush.verticalGradient(
-                p0 to color.copy(alpha = a),
-                p1 to color.copy(alpha = a * 0.65f),
-                p2 to color.copy(alpha = a * 0.28f),
-                p3 to color.copy(alpha = a * 0.08f),
-                p4 to Color.Transparent,
-                startY = 0f,
-                endY = size.height,
-            )
-        } else {
-            Brush.verticalGradient(
-                (1f - p4) to Color.Transparent,
-                (1f - p3) to color.copy(alpha = a * 0.08f),
-                (1f - p2) to color.copy(alpha = a * 0.28f),
-                (1f - p1) to color.copy(alpha = a * 0.65f),
-                (1f - p0) to color.copy(alpha = a),
-                startY = 0f,
-                endY = size.height,
-            )
-        }
+    val brush = if (fromStart) {
+        Brush.horizontalGradient(
+            p0 to color.copy(alpha = a),
+            p1 to color.copy(alpha = a * 0.65f),
+            p2 to color.copy(alpha = a * 0.28f),
+            p3 to color.copy(alpha = a * 0.08f),
+            p4 to Color.Transparent,
+            startX = 0f,
+            endX = size.width,
+        )
     } else {
-        if (fromStart) {
-            Brush.horizontalGradient(
-                p0 to color.copy(alpha = a),
-                p1 to color.copy(alpha = a * 0.65f),
-                p2 to color.copy(alpha = a * 0.28f),
-                p3 to color.copy(alpha = a * 0.08f),
-                p4 to Color.Transparent,
-                startX = 0f,
-                endX = size.width,
-            )
-        } else {
-            Brush.horizontalGradient(
-                (1f - p4) to Color.Transparent,
-                (1f - p3) to color.copy(alpha = a * 0.08f),
-                (1f - p2) to color.copy(alpha = a * 0.28f),
-                (1f - p1) to color.copy(alpha = a * 0.65f),
-                (1f - p0) to color.copy(alpha = a),
-                startX = 0f,
-                endX = size.width,
-            )
-        }
+        Brush.horizontalGradient(
+            (1f - p4) to Color.Transparent,
+            (1f - p3) to color.copy(alpha = a * 0.08f),
+            (1f - p2) to color.copy(alpha = a * 0.28f),
+            (1f - p1) to color.copy(alpha = a * 0.65f),
+            (1f - p0) to color.copy(alpha = a),
+            startX = 0f,
+            endX = size.width,
+        )
     }
     drawRect(brush = brush)
 }
