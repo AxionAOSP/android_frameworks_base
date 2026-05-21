@@ -70,7 +70,7 @@ class MistouchPreventionWindowController @Inject constructor(
 
     private val mistouchPreventionEnabled
         get() = secureSettings.getIntForUser(
-            KEY_MISTOUCH_PREVENTION, 1, UserHandle.USER_CURRENT
+            KEY_MISTOUCH_PREVENTION, 0, UserHandle.USER_CURRENT
         ) == 1
     private val keyguardShowing get() = ScrimUtils.get().isKeyguardShowing()
     private val dozing get() = ScrimUtils.get().isDozing()
