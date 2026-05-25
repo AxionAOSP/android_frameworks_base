@@ -23,13 +23,16 @@ import android.widget.FrameLayout
 import com.android.systemui.plugins.keyguard.ui.clocks.*
 import com.android.systemui.shared.clocks.view.BitmapDigitComposeClockView
 import com.android.systemui.shared.clocks.view.AxClockView
+import com.android.systemui.shared.clocks.view.BitmapFaceConfig
 import java.io.PrintWriter
 
 class AxClockController @JvmOverloads constructor(
     context: Context,
     clockType: AxClockType,
     layoutInflater: LayoutInflater,
-    clockMessageBuffers: ClockMessageBuffers? = null
+    clockMessageBuffers: ClockMessageBuffers? = null,
+    val pluginContext: Context? = null,
+    val customConfig: BitmapFaceConfig? = null
 ) : ClockController {
     private val TAG = "AxClockController"
 
@@ -49,6 +52,8 @@ class AxClockController @JvmOverloads constructor(
         }
 
         val smallClockView = layoutInflater.inflate(clockType.viewId, container, false) as AxClockView
+        smallClockView.pluginContext = pluginContext
+        customConfig?.style?.let { (smallClockView as? BitmapDigitComposeClockView)?.faceStyle = it }
         clockType.bitmapFaceStyle?.let { style ->
             (smallClockView as? BitmapDigitComposeClockView)?.faceStyle = style
         }
@@ -64,6 +69,8 @@ class AxClockController @JvmOverloads constructor(
 
         val largeClockView = layoutInflater.inflate(clockType.largeViewId, container, false) as AxClockView
         largeClockView.isLargeClock = true
+        largeClockView.pluginContext = pluginContext
+        customConfig?.style?.let { (largeClockView as? BitmapDigitComposeClockView)?.faceStyle = it }
         clockType.bitmapFaceStyle?.let { style ->
             (largeClockView as? BitmapDigitComposeClockView)?.faceStyle = style
         }

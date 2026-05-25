@@ -29,11 +29,14 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.graphics.drawable.Drawable
 import android.text.TextUtils
 import android.text.format.DateFormat
 import android.util.AttributeSet
+import android.util.Log
 import android.util.LruCache
 import android.view.animation.PathInterpolator
+import android.content.res.Resources
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -96,11 +99,22 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
     var faceStyle: ClockFaceStyle = ClockFaceStyle.DEFAULT
         set(value) {
             field = value
-            cachedConfig = BitmapFaceConfigs.getConfig(value)
-            (cachedConfig?.renderMode as? RenderMode.FontDigit)?.let { initFontMode(it) }
+            customConfig = null
+            updateConfig()
+        }
+
+    override var customConfig: BitmapFaceConfig? = null
+        set(value) {
+            field = value
+            updateConfig()
         }
 
     private var cachedConfig: BitmapFaceConfig? = BitmapFaceConfigs.getConfig(faceStyle)
+
+    private fun updateConfig() {
+        cachedConfig = customConfig ?: BitmapFaceConfigs.getConfig(faceStyle)
+        (cachedConfig?.renderMode as? RenderMode.FontDigit)?.let { initFontMode(it) }
+    }
 
     private val typefaceCache = LruCache<Int, Typeface>(16)
     private val fontPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -138,7 +152,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
     private val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
     private fun initFontMode(mode: RenderMode.FontDigit) {
-        fontPaint.textSize = mode.fontSize * context.scaleRatio
+        fontPaint.textSize = mode.fontSize * (pluginContext ?: context).scaleRatio
         for (i in 0 until DIGIT_COUNT) {
             fontWeights[i] = mode.lsFontWeight
         }
@@ -146,10 +160,18 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
 
     private fun getCachedTypeface(weight: Int, fontPath: String): Typeface {
         val snapped = (weight / WEIGHT_SNAP) * WEIGHT_SNAP
-        return typefaceCache.get(snapped) ?: Typeface.Builder(context.assets, fontPath)
-            .setFontVariationSettings("'wght' $snapped")
-            .build()
-            .also { typefaceCache.put(snapped, it) }
+        typefaceCache.get(snapped)?.let { return it }
+
+        val resCtx = pluginContext ?: context
+        return try {
+            Typeface.Builder(resCtx.assets, fontPath)
+                .setFontVariationSettings("'wght' $snapped")
+                .build()
+                .also { typefaceCache.put(snapped, it) }
+        } catch (e: Exception) {
+            Log.e(getTag(), "Failed to load font: $fontPath, falling back to system", e)
+            Typeface.DEFAULT
+        }
     }
 
     private fun dateTextColor(
@@ -192,11 +214,12 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         get() {
             if (isLargeClock) return super.clockHeightBase
             val config = cachedConfig ?: return super.clockHeightBase
-            val density = context.resources.displayMetrics.density
+            val resCtx = pluginContext ?: context
+            val density = resCtx.resources.displayMetrics.density
             val contentHeight = when (val mode = config.renderMode) {
                 is RenderMode.BitmapDigit -> {
                     if (config.digitResIds.isEmpty()) return super.clockHeightBase
-                    val d = ContextCompat.getDrawable(context, config.digitResIds[0])
+                    val d = safeGetDrawable(config.digitResIds[0])
                         ?: return super.clockHeightBase
                     d.intrinsicHeight * scaleRatio * config.smallScaleMultiplier
                 }
@@ -228,6 +251,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
     @Composable
     private fun SmallBitmapContent(config: BitmapFaceConfig) {
         val (time, _, isDoze, screenOff, regionDark) = rememberClockState()
+        val resCtx = pluginContext ?: context
 
         val bitmaps = remember(config) { loadDigitBitmaps(config.digitResIds) }
         val lightBitmaps = remember(config) {
@@ -235,24 +259,24 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         }
 
         val dynSizeScale by ClockSettingsRepository.sizeScale.collectAsState()
-        val scale = context.scaleRatio * config.smallScaleMultiplier * dynSizeScale
+        val scale = resCtx.scaleRatio * config.smallScaleMultiplier * dynSizeScale
         val spacing = if (config.negativeSpacing) {
-            -context.scaledDimen(config.digitSpacingRes) * dynSizeScale
+            -safeScaledDimen(config.digitSpacingRes) * dynSizeScale
         } else {
-            context.scaledDimen(config.digitSpacingRes) * dynSizeScale
+            safeScaledDimen(config.digitSpacingRes) * dynSizeScale
         }
-        val overlapPadding = if (config.overlapSpacingRes != 0) context.scaledDimen(config.overlapSpacingRes) * dynSizeScale else 0f
+        val overlapPadding = if (config.overlapSpacingRes != 0) safeScaledDimen(config.overlapSpacingRes) * dynSizeScale else 0f
 
-        val dotSize = context.scaledDimen(config.dotSizeRes) * dynSizeScale
-        val dotMargin = context.scaledDimen(config.dotMarginRes) * dynSizeScale
-        val dotCenterMargin = context.scaledDimen(config.dotCenterMarginRes) * dynSizeScale
+        val dotSize = safeScaledDimen(config.dotSizeRes) * dynSizeScale
+        val dotMargin = safeScaledDimen(config.dotMarginRes) * dynSizeScale
+        val dotCenterMargin = safeScaledDimen(config.dotCenterMarginRes) * dynSizeScale
 
         val tintColor = androidColorToComposeColor(
             config.clockColor(isDoze, screenOff, regionDark)
         )
 
         val sampleBitmap = remember(config) {
-            ContextCompat.getDrawable(context, config.digitResIds[0])
+            safeGetDrawable(config.digitResIds[0])
         }
         val canvasHeight = remember(sampleBitmap, scale) {
             ((sampleBitmap?.intrinsicHeight ?: 0) * scale).coerceAtLeast(1f)
@@ -326,9 +350,10 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
     @Composable
     private fun SmallFontContent(config: BitmapFaceConfig, mode: RenderMode.FontDigit) {
         val (time, _, isDoze, screenOff, regionDark) = rememberClockState()
+        val resCtx = pluginContext ?: context
 
         val dynSizeScale by ClockSettingsRepository.sizeScale.collectAsState()
-        val scale = context.scaleRatio * dynSizeScale
+        val scale = resCtx.scaleRatio * dynSizeScale
         val canvasHeight = remember(scale) {
             fontPaint.textSize = mode.fontSize * scale
             val metrics = fontPaint.fontMetrics
@@ -443,6 +468,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         textColor: Color,
         content: @Composable ColumnScope.() -> Unit,
     ) {
+        val resCtx = pluginContext ?: context
         val dateBelow by state.dateBelowState
         val horizontalAlign = when {
             isLeftAligned -> Alignment.Start
@@ -453,7 +479,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         val bottomPadding = config.bottomPaddingDp.dp
         val dateSpacing = config.dateSpacingDp.dp
         val sidePadding = if (isSideAligned) {
-            (clockPaddingStart / context.resources.displayMetrics.density).dp
+            (clockPaddingStart / resCtx.resources.displayMetrics.density).dp
         } else {
             0.dp
         }
@@ -498,22 +524,23 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
     @Composable
     private fun LargeBitmapContent(config: BitmapFaceConfig) {
         val (time, date, isDoze, screenOff, regionDark) = rememberClockState()
+        val resCtx = pluginContext ?: context
 
         val bitmaps = remember(config) {
             loadDigitBitmaps(config.digitLargeResIds ?: config.digitResIds)
         }
 
-        val baseScale = minOf(context.scaleRatio, MAX_TABLET_SCALE)
+        val baseScale = minOf(resCtx.scaleRatio, MAX_TABLET_SCALE)
         val scale = baseScale * config.largeScaleMultiplier
-        val digitSpacing = context.scaledDimen(config.largeDigitSpacingRes)
-        val lineSpacing = context.scaledDimen(config.largeLineSpacingRes)
+        val digitSpacing = safeScaledDimen(config.largeDigitSpacingRes)
+        val lineSpacing = safeScaledDimen(config.largeLineSpacingRes)
 
         val tintColor = androidColorToComposeColor(
             config.clockColor(isDoze, screenOff, regionDark)
         )
 
         val finalSpacing = if (config.negativeSpacing) {
-            -context.scaledDimen(config.largeDigitSpacingRes)
+            -safeScaledDimen(config.largeDigitSpacingRes)
         } else {
             digitSpacing
         }
@@ -564,12 +591,13 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
     @Composable
     private fun LargeFontContent(config: BitmapFaceConfig, mode: RenderMode.FontDigit) {
         val (time, date, isDoze, screenOff, regionDark) = rememberClockState()
+        val resCtx = pluginContext ?: context
 
         val tintColor = androidColorToComposeColor(
             config.clockColor(isDoze, screenOff, regionDark)
         )
 
-        val scale = context.scaleRatio
+        val scale = resCtx.scaleRatio
         val largeFontSize = mode.fontSize * scale * mode.largeScale
         val fontLayout = remember(largeFontSize, mode.lineSpacing, scale, mode.fontPath, mode.lsFontWeight) {
             val tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -593,7 +621,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
                 visualTopOffset = topMin.toFloat(),
                 visualHeight = visualHeight,
                 cellWidth = advanceMax,
-                canvasHeightDp = canvasPx / context.resources.displayMetrics.density,
+                canvasHeightDp = canvasPx / resCtx.resources.displayMetrics.density,
             )
         }
         val canvasHeightDp = fontLayout.canvasHeightDp
@@ -686,10 +714,26 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         }
     }
 
+    private fun safeGetDrawable(resId: Int): Drawable? {
+        val plugin = pluginContext
+        if (plugin != null) {
+            try {
+                return ContextCompat.getDrawable(plugin, resId)
+            } catch (_: Resources.NotFoundException) {
+                // Fallback to system context below
+            }
+        }
+        return try {
+            ContextCompat.getDrawable(context, resId)
+        } catch (_: Resources.NotFoundException) {
+            null
+        }
+    }
+
     private fun loadDigitBitmaps(resIds: IntArray): Map<Char, Bitmap> {
         val result = mutableMapOf<Char, Bitmap>()
         resIds.forEachIndexed { index, resId ->
-            ContextCompat.getDrawable(context, resId)?.toBitmap()?.let { bmp ->
+            safeGetDrawable(resId)?.toBitmap()?.let { bmp ->
                 result['0' + index] = bmp
             }
         }
@@ -707,22 +751,27 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         state.clockColorOverrideState.value
         if (time.isEmpty() || !TextUtils.isDigitsOnly(time)) return@drawWithContent
 
+        val resCtx = pluginContext ?: context
         val canvas = drawContext.canvas.nativeCanvas
         val clockSz = min(size.width, size.height)
         val cx = size.width / 2f
         val cy = size.height / 2f
         val color = config.clockColor(isDoze, screenOff, regionDark)
-        val highlightColor = ContextCompat.getColor(context, R.color.clock_dot_color)
-        val bitmaps = createBitmaps(context, config.tickResIds)
+        val highlightColor = try {
+            ContextCompat.getColor(pluginContext ?: context, R.color.clock_dot_color)
+        } catch (_: Resources.NotFoundException) {
+            ContextCompat.getColor(context, R.color.clock_dot_color)
+        }
+        val bitmaps = config.tickResIds.map { safeGetDrawable(it)?.toBitmap() }
         val tick = bitmaps.getOrNull(0)
         val tickLight = bitmaps.getOrNull(1)
 
-        val baseScale = context.scaleRatio * sizeScale
+        val baseScale = resCtx.scaleRatio * sizeScale
         val tickNaturalW = (tick?.width ?: 0) * baseScale
         val fitScale = fitToWidth(tickNaturalW)
         val scale = baseScale * fitScale
-        val dotSize = context.scaledDimen(R.dimen.dot_size) * sizeScale * fitScale
-        val handSize = context.scaledDimen(R.dimen.clock_hand_size) * sizeScale * fitScale
+        val dotSize = safeScaledDimen(R.dimen.dot_size) * sizeScale * fitScale
+        val handSize = safeScaledDimen(R.dimen.clock_hand_size) * sizeScale * fitScale
 
         if (tick != null && tickLight != null) {
             tickPaint.colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN)

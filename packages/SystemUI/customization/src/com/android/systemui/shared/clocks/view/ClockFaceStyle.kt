@@ -62,6 +62,7 @@ sealed interface RenderMode {
 
 data class BitmapFaceConfig(
     val renderMode: RenderMode = RenderMode.BitmapDigit,
+    val style: ClockFaceStyle? = null,
     val digitResIds: IntArray = intArrayOf(),
     val digitLightResIds: IntArray? = null,
     val digitLargeResIds: IntArray? = null,

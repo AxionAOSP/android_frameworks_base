@@ -18,6 +18,7 @@ package com.android.systemui.shared.clocks.view
 
 import android.content.Context
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.graphics.*
 import android.icu.util.TimeZone
 import android.text.format.DateFormat
@@ -66,6 +67,9 @@ abstract class AxClockView @JvmOverloads constructor(
 
     var isLargeClock = false
 
+    var pluginContext: Context? = null
+    open var customConfig: BitmapFaceConfig? = null
+
     var isPreviewMode = false
         set(value) {
             field = value
@@ -90,18 +94,36 @@ abstract class AxClockView @JvmOverloads constructor(
         get() = depthController.enabled
         set(value) { depthController.enabled = value }
 
-    protected open val clockHeightBase: Int get() = context.scaledDimenInt(R.dimen.clock_height)
-    val clockPaddingTop get() = context.scaledDimen(R.dimen.clock_padding_top)
-    val clockPaddingStart get() = context.scaledDimen(R.dimen.clock_padding_start)
-    val clockDateTextSize get() = context.scaledDimen(R.dimen.clock_date_text_size)
-    val clockDateMarginTop get() = context.scaledDimen(R.dimen.clock_date_margin_top)
-    val scaleRatio get() = context.scaleRatio
+    fun safeScaledDimen(resId: Int): Float {
+        val plugin = pluginContext
+        if (plugin != null) {
+            try {
+                return plugin.scaledDimen(resId)
+            } catch (_: Resources.NotFoundException) {
+                // Fallback to system context below
+            }
+        }
+        return try {
+            context.scaledDimen(resId)
+        } catch (_: Resources.NotFoundException) {
+            0f
+        }
+    }
+
+    fun safeScaledDimenInt(resId: Int): Int = safeScaledDimen(resId).toInt()
+
+    protected open val clockHeightBase: Int get() = safeScaledDimenInt(R.dimen.clock_height)
+    val clockPaddingTop get() = safeScaledDimen(R.dimen.clock_padding_top)
+    val clockPaddingStart get() = safeScaledDimen(R.dimen.clock_padding_start)
+    val clockDateTextSize get() = safeScaledDimen(R.dimen.clock_date_text_size)
+    val clockDateMarginTop get() = safeScaledDimen(R.dimen.clock_date_margin_top)
+    val scaleRatio get() = (pluginContext ?: context).scaleRatio
     val sizeScale get() = when {
         isPreviewMode -> 1f
         isLargeClock -> 1f
         else -> ClockSettingsRepository.sizeScale.value
     }
-    val iconSize get() = context.scaledDimenInt(R.dimen.clock_icon_secondary_size)
+    val iconSize get() = safeScaledDimenInt(R.dimen.clock_icon_secondary_size)
 
     protected val config: ClockConfigs.ClockStyleConfig?
         get() {
@@ -115,7 +137,7 @@ abstract class AxClockView @JvmOverloads constructor(
 
     val clockHeight: Int
         get() {
-            val resHeight = config?.customHeightRes?.let { context.scaledDimenInt(it) } ?: clockHeightBase
+            val resHeight = config?.customHeightRes?.let { safeScaledDimenInt(it) } ?: clockHeightBase
             val bottomPad = if (!isLargeClock) {
                 (SMALL_CLOCK_BOTTOM_PAD_DP * context.resources.displayMetrics.density).toInt()
             } else 0
@@ -126,7 +148,7 @@ abstract class AxClockView @JvmOverloads constructor(
         get() {
             val cfg = config ?: return 0
             if (!cfg.visible) return 0
-            return (cfg.customDateMarginTop?.let { context.scaledDimen(it) } ?: clockDateMarginTop).toInt()
+            return (cfg.customDateMarginTop?.let { safeScaledDimen(it) } ?: clockDateMarginTop).toInt()
         }
 
     val dateHeight: Int
