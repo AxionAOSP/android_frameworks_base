@@ -110,11 +110,17 @@ class RoutinesRepository @Inject constructor(
         save()
     }
 
-    fun markTriggered(routineId: String, timestamp: Long = System.currentTimeMillis()) {
+    suspend fun markTriggered(routineId: String, timestamp: Long = System.currentTimeMillis()) {
         _routines.value = _routines.value.map {
             if (it.id == routineId) it.copy(lastTriggeredAt = timestamp) else it
         }
+        save()
     }
+
+    fun getLastTriggeredRoutine(): Routine? =
+        _routines.value
+            .filter { it.enabled && it.lastTriggeredAt != null }
+            .maxByOrNull { it.lastTriggeredAt ?: Long.MIN_VALUE }
 
     companion object {
         private const val TAG = "RoutinesRepository"

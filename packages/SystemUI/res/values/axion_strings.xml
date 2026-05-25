@@ -31,7 +31,9 @@
     <!-- Routines -->
     <string name="ax_routines_notification_channel_name">Routines</string>
     <string name="ax_routines_toast_executing">Running routine: <xliff:g id="name">%1$s</xliff:g></string>
+    <string name="status_bar_routines">Routines active</string>
     <string name="quick_settings_routines_label">Routines</string>
+    <string name="quick_settings_routines_off">Off</string>
     <string name="quick_settings_routines_dialog_title">Run a routine</string>
     <string name="quick_settings_routines_empty">No routines available. Create one in Axion settings.</string>
     <string name="quick_settings_routines_action_count">%1$d actions</string>

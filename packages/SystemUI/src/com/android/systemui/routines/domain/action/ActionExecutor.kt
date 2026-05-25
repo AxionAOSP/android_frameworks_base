@@ -393,7 +393,9 @@ class ActionExecutor @Inject constructor(
     ): Int {
         val host = url.host
         val isHttps = url.protocol.equals("https", ignoreCase = true)
-        val port = if (url.port != -1) url.port else if (isHttps) 443 else 80
+        val defaultPort = if (isHttps) 443 else 80
+        val port = if (url.port != -1) url.port else defaultPort
+        val hostHeader = if (port == defaultPort) host else "$host:$port"
         val path = (url.path.ifEmpty { "/" }) +
             (url.query?.let { "?$it" } ?: "")
 
@@ -419,7 +421,7 @@ class ActionExecutor @Inject constructor(
         return socket.use { s ->
             val req = buildString {
                 append("${action.method} $path HTTP/1.1\r\n")
-                append("Host: $host\r\n")
+                append("Host: $hostHeader\r\n")
                 append("Connection: close\r\n")
                 action.headers.forEach { (k, v) -> append("$k: $v\r\n") }
                 val bodyBytes = action.body?.toByteArray(Charsets.UTF_8)

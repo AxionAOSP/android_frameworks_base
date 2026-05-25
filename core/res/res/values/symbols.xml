@@ -3398,6 +3398,7 @@
   <java-symbol type="string" name="status_bar_phone_signal" />
   <java-symbol type="string" name="status_bar_battery" />
   <java-symbol type="string" name="status_bar_alarm_clock" />
+  <java-symbol type="string" name="status_bar_routines" />
   <java-symbol type="string" name="status_bar_secure" />
   <java-symbol type="string" name="status_bar_clock" />
   <java-symbol type="string" name="status_bar_airplane" />

@@ -40,6 +40,7 @@ import com.android.systemui.qs.logging.QSLogger
 import com.android.systemui.qs.tileimpl.QSTileImpl
 import com.android.systemui.res.R
 import com.android.systemui.routines.data.RoutinesRepository
+import com.android.systemui.routines.domain.RoutinesSettings
 import com.android.systemui.statusbar.phone.SystemUIDialog
 import com.android.systemui.statusbar.policy.KeyguardStateController
 import java.util.concurrent.Executor
@@ -48,8 +49,8 @@ import javax.inject.Provider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
+import com.android.app.tracing.coroutines.launchTraced as launch
 
 class RoutinesTile @Inject constructor(
     host: QSHost,
@@ -62,6 +63,7 @@ class RoutinesTile @Inject constructor(
     activityStarter: ActivityStarter,
     qsLogger: QSLogger,
     private val repository: RoutinesRepository,
+    private val settings: RoutinesSettings,
     private val keyguardStateController: KeyguardStateController,
     private val dialogTransitionAnimator: DialogTransitionAnimator,
     private val dialogDelegateProvider: Provider<RoutinesTileDialogDelegate>,
@@ -89,7 +91,8 @@ class RoutinesTile @Inject constructor(
         if (listening) {
             if (observerJob == null) {
                 observerJob = appScope.launch {
-                    repository.routines.onEach { refreshState() }.collect()
+                    combine(repository.routines, settings.isEnabled) { _, _ -> }
+                        .collect { refreshState() }
                 }
             }
         } else {
@@ -132,14 +135,23 @@ class RoutinesTile @Inject constructor(
 
     override fun handleUpdateState(state: BooleanState, arg: Any?) {
         val routines = repository.routines.value
+        val routinesEnabled = settings.isEnabled.value
         val enabledCount = routines.count { it.enabled }
+        val active = routinesEnabled && enabledCount > 0
         state.label = mContext.getString(R.string.quick_settings_routines_label)
-        state.secondaryLabel = mContext.resources.getQuantityString(
-            R.plurals.quick_settings_routines_count, enabledCount, enabledCount,
-        )
+        state.secondaryLabel = when {
+            !routinesEnabled -> mContext.getString(R.string.quick_settings_routines_off)
+            else -> repository.getLastTriggeredRoutine()?.name
+                ?: mContext.resources.getQuantityString(
+                    R.plurals.quick_settings_routines_count,
+                    enabledCount,
+                    enabledCount,
+                )
+        }
         state.contentDescription = "${state.label}, ${state.secondaryLabel}"
         state.icon = ResourceIcon.get(R.drawable.qs_routines_icon)
-        state.state = if (enabledCount > 0) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+        state.value = active
+        state.state = if (active) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
     }
 
     override fun isAvailable(): Boolean = true
