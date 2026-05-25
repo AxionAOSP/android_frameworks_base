@@ -17,6 +17,7 @@
 package com.android.systemui.ax
 
 import android.content.Context
+import android.media.AudioManager
 import android.os.Bundle
 import com.android.axion.platform.AxPlatformClient
 import com.android.systemui.dagger.SysUISingleton
@@ -76,6 +77,15 @@ class AxPlatformFeatureMapper @Inject constructor(
         AxPlatformClient.FEATURE_ZEN -> {
             val mode = state.getInt("mode", 0)
             if (mode != 0) context.getString(R.string.zen_mode_on) else null
+        }
+        AxPlatformClient.FEATURE_RINGER_MODE -> {
+            when (state.getInt("ringerMode", AudioManager.RINGER_MODE_NORMAL)) {
+                AudioManager.RINGER_MODE_VIBRATE ->
+                    context.getString(R.string.volume_ringer_status_vibrate)
+                AudioManager.RINGER_MODE_SILENT ->
+                    context.getString(R.string.volume_ringer_status_silent)
+                else -> context.getString(R.string.volume_ringer_status_normal)
+            }
         }
         AxPlatformClient.FEATURE_POWER_SHARE -> {
             if (batteryController.isAodPowerSave)
@@ -138,7 +148,8 @@ class AxPlatformFeatureMapper @Inject constructor(
             AxPlatformClient.FEATURE_CAST to R.string.quick_settings_cast_title,
             AxPlatformClient.FEATURE_PROFILES to R.string.quick_settings_profiles_label,
             AxPlatformClient.FEATURE_SCREEN_RECORD to R.string.quick_settings_screen_record_label,
-            AxPlatformClient.FEATURE_SCREENSHOT to R.string.quick_settings_screenshot_label
+            AxPlatformClient.FEATURE_SCREENSHOT to R.string.quick_settings_screenshot_label,
+            AxPlatformClient.FEATURE_RINGER_MODE to R.string.quick_settings_sound_mode_label
         )
     }
 }

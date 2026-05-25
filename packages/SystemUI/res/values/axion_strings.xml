@@ -27,6 +27,7 @@
 
     <!-- Screenshot -->
     <string name="quick_settings_screenshot_label">Screenshot</string>
+    <string name="quick_settings_sound_mode_label">Sound mode</string>
 
     <!-- Routines -->
     <string name="ax_routines_notification_channel_name">Routines</string>

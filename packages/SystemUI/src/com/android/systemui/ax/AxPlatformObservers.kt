@@ -25,12 +25,14 @@ import android.content.res.Configuration
 import android.database.ExecutorContentObserver
 import android.hardware.SensorPrivacyManager
 import android.hardware.usb.UsbManager
+import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.PlaybackState
 import android.nfc.NfcAdapter
 import android.os.Bundle
 import android.os.RemoteException
 import android.os.UserHandle
+import android.os.Vibrator
 import android.provider.Settings
 import android.util.Log
 import com.android.axion.platform.AxPlatformClient
@@ -127,6 +129,8 @@ class AxPlatformObservers @Inject constructor(
     private var lastMediaArtist: String? = null
     private var lastMediaPackage: String? = null
     private var lastMobileDataEnabled: Boolean? = null
+    private val audioManager: AudioManager? = context.getSystemService(AudioManager::class.java)
+    private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
     private val wifiStateFlow = MutableSharedFlow<Bundle>(
         replay = 0, extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST
@@ -151,6 +155,7 @@ class AxPlatformObservers @Inject constructor(
     fun registerAll() {
         registerControllerCallbacks()
         registerSettingsObservers()
+        registerRingerMode()
         registerNfc()
         registerBatteryFlow()
         registerSensorPrivacy()
@@ -242,6 +247,49 @@ class AxPlatformObservers @Inject constructor(
             }
         }, IntentFilter(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED))
     }
+
+    private fun registerRingerMode() {
+        audioManager ?: return
+        broadcastRingerMode()
+        val filter = IntentFilter().apply {
+            addAction(AudioManager.INTERNAL_RINGER_MODE_CHANGED_ACTION)
+            addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
+        }
+        broadcastDispatcher.registerReceiver(object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context, intent: Intent) {
+                broadcastRingerMode()
+            }
+        }, filter)
+    }
+
+    private fun broadcastRingerMode() {
+        val manager = audioManager ?: return
+        val mode = manager.ringerModeInternal
+        val modes = availableRingerModes()
+        stateManager.broadcastState(AxPlatformClient.FEATURE_RINGER_MODE, Bundle().apply {
+            putBoolean("enabled", mode == AudioManager.RINGER_MODE_NORMAL)
+            putBoolean("active", mode == AudioManager.RINGER_MODE_NORMAL)
+            putBoolean("available", true)
+            putBoolean("hasVibrator", modes.contains(AudioManager.RINGER_MODE_VIBRATE))
+            putInt("mode", mode)
+            putInt("ringerMode", mode)
+            putIntArray("availableModes", modes)
+        })
+    }
+
+    private fun availableRingerModes(): IntArray =
+        if (vibrator?.hasVibrator() == true) {
+            intArrayOf(
+                AudioManager.RINGER_MODE_NORMAL,
+                AudioManager.RINGER_MODE_VIBRATE,
+                AudioManager.RINGER_MODE_SILENT
+            )
+        } else {
+            intArrayOf(
+                AudioManager.RINGER_MODE_NORMAL,
+                AudioManager.RINGER_MODE_SILENT
+            )
+        }
 
     private fun registerBatteryFlow() {
         scope.launch {
