@@ -23,8 +23,10 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.hardware.SensorPrivacyManager
 import android.hardware.display.ColorDisplayManager
+import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
+import android.os.Vibrator
 import android.view.WindowManager
 import com.android.internal.util.ScreenshotHelper
 import android.media.projection.StopReason
@@ -92,6 +94,8 @@ class AxPlatformFeatureController @Inject constructor(
     } catch (e: Exception) { null }
 
     private val nfcAdapter: NfcAdapter? = NfcAdapter.getDefaultAdapter(context)
+    private val audioManager: AudioManager? = context.getSystemService(AudioManager::class.java)
+    private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
     private val uiModeManager: UiModeManager = context.getSystemService(UiModeManager::class.java)
     private val colorDisplayManager: ColorDisplayManager =
         context.getSystemService(ColorDisplayManager::class.java)
@@ -131,6 +135,8 @@ class AxPlatformFeatureController @Inject constructor(
             add(AxPlatformClient.FEATURE_VPN)
             add(AxPlatformClient.FEATURE_CAST)
             add(AxPlatformClient.FEATURE_SMART_PIXELS)
+            if (audioManager != null)
+                add(AxPlatformClient.FEATURE_RINGER_MODE)
             if (profileManager != null)
                 add(AxPlatformClient.FEATURE_PROFILES)
             add(AxPlatformClient.FEATURE_SCREEN_RECORD)
@@ -170,6 +176,7 @@ class AxPlatformFeatureController @Inject constructor(
                 val current = zenModeController.zen
                 zenModeController.setZen(if (current == 0) 1 else 0, null, TAG)
             }
+            AxPlatformClient.FEATURE_RINGER_MODE -> toggleRingerMode()
             AxPlatformClient.FEATURE_DATA_SAVER ->
                 dataSaverController.setDataSaverEnabled(!dataSaverController.isDataSaverEnabled)
             AxPlatformClient.FEATURE_AOD ->
@@ -304,6 +311,11 @@ class AxPlatformFeatureController @Inject constructor(
             AxPlatformClient.FEATURE_BATTERY_SAVER -> batteryController.setPowerSaveMode(enabled)
             AxPlatformClient.FEATURE_ZEN ->
                 zenModeController.setZen(if (enabled) 1 else 0, null, TAG)
+            AxPlatformClient.FEATURE_RINGER_MODE ->
+                setRingerMode(
+                    if (enabled) AudioManager.RINGER_MODE_NORMAL
+                    else AudioManager.RINGER_MODE_SILENT
+                )
             AxPlatformClient.FEATURE_DATA_SAVER -> dataSaverController.setDataSaverEnabled(enabled)
             AxPlatformClient.FEATURE_AOD ->
                 stateManager.setSecureBool(Settings.Secure.DOZE_ALWAYS_ON, enabled)
@@ -407,6 +419,7 @@ class AxPlatformFeatureController @Inject constructor(
                 if (zenModeController.zen != value)
                     zenModeController.setZen(value, null, TAG)
             }
+            AxPlatformClient.FEATURE_RINGER_MODE -> setRingerMode(value)
             else -> Log.w(TAG, "Unknown setValue: $feature")
         }
     }
@@ -428,6 +441,33 @@ class AxPlatformFeatureController @Inject constructor(
     fun getAllBluetoothDevices(): Collection<CachedBluetoothDevice> =
         localBluetoothManager?.cachedDeviceManager?.cachedDevicesCopy
             ?: bluetoothController.connectedDevices
+
+    private fun toggleRingerMode() {
+        val manager = audioManager ?: return
+        val modes = availableRingerModes()
+        val currentIndex = modes.indexOf(manager.ringerModeInternal)
+        val nextIndex = if (currentIndex >= 0) (currentIndex + 1) % modes.size else 0
+        manager.ringerModeInternal = modes[nextIndex]
+    }
+
+    private fun setRingerMode(mode: Int) {
+        if (mode !in availableRingerModes()) return
+        audioManager?.ringerModeInternal = mode
+    }
+
+    private fun availableRingerModes(): IntArray =
+        if (vibrator?.hasVibrator() == true) {
+            intArrayOf(
+                AudioManager.RINGER_MODE_NORMAL,
+                AudioManager.RINGER_MODE_VIBRATE,
+                AudioManager.RINGER_MODE_SILENT
+            )
+        } else {
+            intArrayOf(
+                AudioManager.RINGER_MODE_NORMAL,
+                AudioManager.RINGER_MODE_SILENT
+            )
+        }
 
     private fun profilesEnabled(): Boolean =
         LineageSettings.System.getIntForUser(
