@@ -102,9 +102,10 @@ public:
 
     void setBoostData(const std::string& path, const std::string& value) {
         std::lock_guard<std::mutex> lock(mMutex);
-        mRestoreValues[path] = value;
-        if (mResourceRefs.find(path) != mResourceRefs.end()) return;
-        writeClamped(path, value);
+        std::string resolvedPath = normalizeResourcePath(path);
+        mRestoreValues[resolvedPath] = value;
+        if (mResourceRefs.find(resolvedPath) != mResourceRefs.end()) return;
+        writeClamped(resolvedPath, value);
     }
 
     bool isCompositionBoosting() const {
@@ -369,7 +370,10 @@ public:
         if (writeSysfs(path, clamped)) mCurrentValues[path] = clamped;
     }
 
-    AxHintManager() : mRunning(true), mTimerThread(&AxHintManager::timerLoop, this) {
+    AxHintManager()
+            : mUseStune(detectStuneBackend()),
+              mRunning(true),
+              mTimerThread(&AxHintManager::timerLoop, this) {
         std::unordered_map<int, ResourceEntry> resMap;
         loadResources("/vendor/etc/ax_perf_resources.xml", resMap);
         if (resMap.empty()) loadResources("/system/etc/ax_perf_resources.xml", resMap);
@@ -506,7 +510,7 @@ public:
             std::string chunk = xml.substr(pos, end - pos);
             pos = end + 2;
             std::string idStr = attr(chunk, "id");
-            std::string rpath = attr(chunk, "path");
+            std::string rpath = normalizeResourcePath(attr(chunk, "path"));
             std::string def = attr(chunk, "default");
             if (idStr.empty() || rpath.empty()) continue;
             int id = std::stoi(idStr, nullptr, 16);
@@ -620,6 +624,7 @@ public:
     std::unordered_map<std::string, std::string> mOriginalValues;
     std::unordered_map<std::string, std::string> mCurrentValues;
     std::unordered_map<std::string, int> mFdCache;
+    bool mUseStune;
     mutable std::mutex mMutex;
     std::condition_variable mCond;
     std::atomic<bool> mRunning;
@@ -659,8 +664,28 @@ private:
         if (taskId <= 0 || profile.empty()) return;
         auto it = mTaskProfiles.find(taskId);
         if (it != mTaskProfiles.end() && it->second == profile) return;
-        SetTaskProfiles(taskId, std::vector<std::string>{profile});
+        SetTaskProfiles(taskId, std::vector<std::string>{profile}, true);
+        applyStuneProfileLocked(taskId, profile);
         mTaskProfiles[taskId] = profile;
+    }
+
+    void applyStuneProfileLocked(int taskId, const std::string& profile) {
+        if (!mUseStune || taskId <= 0) return;
+        std::string group = stuneGroupForProfile(profile);
+        if (group.empty()) return;
+        std::string taskPath = "/dev/stune/" + group + "/tasks";
+        if (!pathExists(taskPath)) return;
+        writeSysfs(taskPath, std::to_string(taskId));
+        if (profile == "SvpPolicy") {
+            writeStuneValue(group, "schedtune.boost", "100");
+            writeStuneValue(group, "schedtune.prefer_idle", "1");
+        }
+    }
+
+    void writeStuneValue(
+            const std::string& group, const std::string& file, const std::string& value) {
+        std::string path = "/dev/stune/" + group + "/" + file;
+        if (pathExists(path)) writeClamped(path, value);
     }
 
     void acquireTaskProfileLocked(int taskId, const std::string& profile) {
@@ -702,6 +727,110 @@ private:
 
     static std::string taskProfileRefKey(int taskId, const std::string& profile) {
         return std::to_string(taskId) + '\n' + profile;
+    }
+
+    static bool pathExists(const std::string& path) {
+        return access(path.c_str(), F_OK) == 0;
+    }
+
+    static bool detectStuneBackend() {
+        return pathExists("/dev/stune/top-app/tasks") && !hasUclampBackend();
+    }
+
+    static bool hasUclampBackend() {
+        return pathExists("/dev/cpuctl/top-app/cpu.uclamp.min")
+                || pathExists("/dev/cpuctl/foreground/cpu.uclamp.min")
+                || pathExists("/dev/cpuctl/top-app/cpu.uclamp.latency_sensitive");
+    }
+
+    std::string normalizeResourcePath(const std::string& path) const {
+        if (!mUseStune) return path;
+        return stunePathForUclamp(path);
+    }
+
+    static std::string stunePathForUclamp(const std::string& path) {
+        static const std::string prefix = "/dev/cpuctl/";
+        if (path.rfind(prefix, 0) != 0) return path;
+        size_t groupStart = prefix.size();
+        size_t groupEnd = path.find('/', groupStart);
+        if (groupEnd == std::string::npos) return path;
+        std::string file = path.substr(groupEnd + 1);
+        if (file != "cpu.uclamp.min" && file != "cpu.uclamp.latency_sensitive") return path;
+        std::string group = path.substr(groupStart, groupEnd - groupStart);
+        std::string stuneFile = file == "cpu.uclamp.min"
+                ? "schedtune.boost" : "schedtune.prefer_idle";
+        return "/dev/stune/" + group + "/" + stuneFile;
+    }
+
+    static std::string stuneGroupForProfile(const std::string& profile) {
+        if (profile == "HighEnergySaving" || profile == "ProcessCapacityLow"
+                || profile == "CPUSET_SP_BACKGROUND" || profile == "SCHED_SP_BACKGROUND") {
+            return "background";
+        }
+        if (profile == "HighPerformance" || profile == "ProcessCapacityHigh"
+                || profile == "CPUSET_SP_FOREGROUND" || profile == "SCHED_SP_FOREGROUND") {
+            return "foreground";
+        }
+        if (profile == "HighPerformanceWI" || profile == "ProcessCapacityHighWI"
+                || profile == "CPUSET_SP_FOREGROUND_WINDOW"
+                || profile == "SCHED_SP_FOREGROUND_WINDOW") {
+            return "foreground_window";
+        }
+        if (profile == "MaxPerformance" || profile == "ProcessCapacityMax"
+                || profile == "CPUSET_SP_TOP_APP" || profile == "SCHED_SP_TOP_APP"
+                || profile == "InputPolicy" || profile == "SFMainPolicy"
+                || profile == "SFRenderEnginePolicy") {
+            return "top-app";
+        }
+        if (profile == "RealtimePerformance" || profile == "SCHED_SP_RT_APP") {
+            return "rt";
+        }
+        if (profile == "ServicePerformance" || profile == "ServiceCapacityLow"
+                || profile == "CPUSET_SP_SYSTEM" || profile == "SCHED_SP_SYSTEM"
+                || profile == "OtaProfiles") {
+            return "system-background";
+        }
+        if (profile == "NormalPerformance") {
+            return "system";
+        }
+        if (profile == "ServiceCapacityRestricted" || profile == "CPUSET_SP_RESTRICTED") {
+            return "restricted";
+        }
+        if (profile == "CameraServicePerformance" || profile == "CameraServiceCapacity") {
+            return "camera-daemon";
+        }
+        if (profile == "NNApiHALPerformance") {
+            return "nnapi-hal";
+        }
+        if (profile == "Dex2oatPerformance" || profile == "Dex2OatBootComplete"
+                || profile == "Dex2OatBackground") {
+            return "dex2oat";
+        }
+        if (profile == "SvpPolicy" || profile == "SvpSched" || profile == "CPUSET_SP_SVP"
+                || profile == "SCHED_SP_SVP") {
+            return "svp";
+        }
+        if (profile == "HighAxPerformance" || profile == "ProcessAxCapacityHigh"
+                || profile == "CPUSET_SP_AX_FOREGROUND" || profile == "SCHED_SP_AX_FG") {
+            return "ax_foreground";
+        }
+        if (profile == "AudioPolicy" || profile == "CPUSET_SP_AUDIO") {
+            return "audio-app";
+        }
+        if (profile == "CpuctlLBackground" || profile == "CpuSetLBackground"
+                || profile == "CPUSET_SP_LBACKGROUND" || profile == "SCHED_SP_LBACKGROUND") {
+            return "l-background";
+        }
+        if (profile == "CpuctlHBackground" || profile == "CpuSetHBackground"
+                || profile == "CPUSET_SP_HBACKGROUND" || profile == "SCHED_SP_HBACKGROUND") {
+            return "h-background";
+        }
+        if (profile == "CpuctlSystemUI" || profile == "CpuSetSystemUI"
+                || profile == "SchedtuneSystemUI" || profile == "CPUSET_SP_SYSTEMUI"
+                || profile == "SCHED_SP_SYSTEMUI") {
+            return "systemui";
+        }
+        return "";
     }
 
     static bool isCompositionOpcode(int opcode) {

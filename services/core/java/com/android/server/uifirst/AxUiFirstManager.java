@@ -22,6 +22,7 @@ import android.content.pm.PackageManager;
 import android.os.FileUtils;
 import android.os.Process;
 import android.os.SystemClock;
+import android.system.OsConstants;
 import android.util.IntArray;
 import android.util.Log;
 import android.util.Slog;
@@ -94,6 +95,8 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
     private static final int[] EMPTY_TIDS = new int[0];
     private static final SparseArray<ThreadCache> sThreadCaches = new SparseArray<>();
     private static final SparseLongArray sAppliedUclamp = new SparseLongArray();
+    private static volatile int sUclampSupport = 0;
+    private static volatile int sUseStune = -1;
 
     private final Object mTopAppLock = new Object();
     private final SparseArray<AppInfo> mProcesses = new SparseArray<>();
@@ -167,8 +170,9 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
     public void setUxThreads(int uid, int pid, int[] tids, int role) {
         if (tids == null || tids.length == 0) return;
         int[] cfg = uclampForRole(role);
+        String group = role == ROLE_RT ? "rt" : "top-app";
         for (int tid : tids) {
-            applyUclamp(tid, cfg[0], cfg[1]);
+            applyUclampWithStuneGroup(tid, cfg[0], cfg[1], group);
         }
         if (DBG) Log.d(TAG, "setUxThreads pid=" + pid + " role=" + role + " count=" + tids.length);
     }
@@ -293,26 +297,28 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
         } else if (oldPid == pid) {
             if (oldRenderTid > 0 && oldRenderTid != renderTid) {
                 applyUclamp(oldRenderTid, RESET_UCLAMP_MIN, RESET_UCLAMP_MAX);
+                moveToBoostGroup(oldRenderTid, "foreground");
             }
             if (!sameTids(oldHwuiTids, hwuiTids)) {
                 for (int tid : oldHwuiTids) {
                     applyUclamp(tid, RESET_UCLAMP_MIN, RESET_UCLAMP_MAX);
+                    moveToBoostGroup(tid, "foreground");
                 }
             }
         }
         int[] uiCfg = uclampForRole(ROLE_UI);
         applyUclamp(pid, uiCfg[0], uiCfg[1]);
-        moveToCpuctl(pid, "top-app");
+        moveToBoostGroup(pid, "top-app");
         if (renderTid > 0) {
             int[] rtCfg = uclampForRole(ROLE_RENDER);
             applyUclamp(renderTid, rtCfg[0], rtCfg[1]);
-            moveToCpuctl(renderTid, "top-app");
+            moveToBoostGroup(renderTid, "top-app");
         }
         if (hwuiTids != null && hwuiTids.length > 0) {
             int[] hwCfg = uclampForRole(ROLE_HWUI_TASK);
             for (int tid : hwuiTids) {
                 applyUclamp(tid, hwCfg[0], hwCfg[1]);
-                moveToCpuctl(tid, "top-app");
+                moveToBoostGroup(tid, "top-app");
             }
         }
         BackgroundThread.getHandler()
@@ -341,7 +347,7 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
             }
             int[] hwCfg = uclampForRole(ROLE_HWUI_TASK);
             for (int tid : tids) {
-                applyUclamp(tid, hwCfg[0], hwCfg[1]);
+                applyUclampWithStuneGroup(tid, hwCfg[0], hwCfg[1], "top-app");
             }
         } catch (Exception e) {
         }
@@ -368,7 +374,7 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
         }
         if (applyTop || applyForeground) {
             int[] hwCfg = uclampForRole(ROLE_HWUI_TASK);
-            applyUclamp(tid, hwCfg[0], hwCfg[1]);
+            applyUclampWithStuneGroup(tid, hwCfg[0], hwCfg[1], applyTop ? "top-app" : "foreground");
         }
     }
 
@@ -393,7 +399,7 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
         }
         if (applyTop || applyForeground) {
             int[] glCfg = uclampForRole(ROLE_GL);
-            applyUclamp(tid, glCfg[0], glCfg[1]);
+            applyUclampWithStuneGroup(tid, glCfg[0], glCfg[1], applyTop ? "top-app" : "foreground");
         }
     }
 
@@ -415,6 +421,7 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
             }
         }
         applyUclamp(tid, RESET_UCLAMP_MIN, RESET_UCLAMP_MAX);
+        moveToBoostGroup(tid, "foreground");
     }
 
     @Override
@@ -460,7 +467,7 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
             }
             if (applyRenderRole) {
                 int[] rtCfg = uclampForRole(ROLE_RENDER);
-                applyUclamp(renderTid, rtCfg[0], rtCfg[1]);
+                applyUclampWithStuneGroup(renderTid, rtCfg[0], rtCfg[1], "top-app");
             }
         } catch (Exception e) {
         }
@@ -525,18 +532,18 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
 
     private static void applyForegroundRoles(AppInfo info) {
         int[] uiCfg = uclampForRole(ROLE_UI);
-        applyUclamp(info.pid, uiCfg[0], uiCfg[1]);
+        applyUclampWithStuneGroup(info.pid, uiCfg[0], uiCfg[1], "foreground");
         if (info.renderTid > 0) {
             int[] rtCfg = uclampForRole(ROLE_RENDER);
-            applyUclamp(info.renderTid, rtCfg[0], rtCfg[1]);
+            applyUclampWithStuneGroup(info.renderTid, rtCfg[0], rtCfg[1], "foreground");
         }
         int[] hwCfg = uclampForRole(ROLE_HWUI_TASK);
         for (int tid : info.hwuiTids) {
-            applyUclamp(tid, hwCfg[0], hwCfg[1]);
+            applyUclampWithStuneGroup(tid, hwCfg[0], hwCfg[1], "foreground");
         }
         int[] glCfg = uclampForRole(ROLE_GL);
         for (int tid : info.glTids) {
-            applyUclamp(tid, glCfg[0], glCfg[1]);
+            applyUclampWithStuneGroup(tid, glCfg[0], glCfg[1], "foreground");
         }
     }
 
@@ -584,21 +591,21 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
             int[] hwCfg = uclampForRole(ROLE_HWUI_TASK);
             for (int tid : hwuiTids) {
                 applyUclamp(tid, hwCfg[0], hwCfg[1]);
-                moveToCpuctl(tid, "top-app");
+                moveToBoostGroup(tid, "top-app");
             }
         }
         if (glTids.length > 0) {
             int[] glCfg = uclampForRole(ROLE_GL);
             for (int tid : glTids) {
                 applyUclamp(tid, glCfg[0], glCfg[1]);
-                moveToCpuctl(tid, "top-app");
+                moveToBoostGroup(tid, "top-app");
             }
         }
         if (binderTids.length > 0) {
             int[] bpCfg = uclampForRole(ROLE_BINDER_POOL);
             for (int tid : binderTids) {
                 applyUclamp(tid, bpCfg[0], bpCfg[1]);
-                moveToCpuctl(tid, "top-app");
+                moveToBoostGroup(tid, "top-app");
             }
         }
         if (DBG)
@@ -745,9 +752,11 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
     public void setBinderThreadUxFlag(int pid, int flag) {
         final int targetPid;
         final int[] binderTids;
+        final boolean targetIsTop;
         synchronized (mTopAppLock) {
             targetPid = pid > 0 ? pid : mAppliedTopPid;
-            binderTids = targetPid == mAppliedTopPid ? mAppliedTopBinderTids : EMPTY_TIDS;
+            targetIsTop = targetPid == mAppliedTopPid;
+            binderTids = targetIsTop ? mAppliedTopBinderTids : EMPTY_TIDS;
         }
         if (targetPid <= 0) {
             return;
@@ -759,40 +768,56 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
         }
         if (flag > 0) {
             for (int tid : tids) {
-                applyUclamp(tid, ASYNC_BINDER_UX_MIN, DEFAULT_BINDER_POOL_MAX);
+                applyUclampWithStuneGroup(tid, ASYNC_BINDER_UX_MIN,
+                        DEFAULT_BINDER_POOL_MAX, targetIsTop ? "top-app" : "foreground");
             }
         } else {
             int[] cfg = uclampForRole(ROLE_BINDER_POOL);
             for (int tid : tids) {
-                applyUclamp(tid, cfg[0], cfg[1]);
+                applyUclampWithStuneGroup(tid, cfg[0], cfg[1],
+                        targetIsTop ? "top-app" : "foreground");
             }
         }
     }
 
-    private static void moveToCpuctl(int tid, String group) {
+    private static void applyUclampWithStuneGroup(int tid, int min, int max, String group) {
+        applyUclamp(tid, min, max);
+        moveToStuneGroup(tid, group);
+    }
+
+    private static void moveToBoostGroup(int tid, String group) {
         if (tid <= 0) return;
         AxUtils.write("/dev/cpuctl/" + group + "/tasks", String.valueOf(tid));
+        moveToStuneGroup(tid, group);
+    }
+
+    private static void moveToStuneGroup(int tid, String group) {
+        if (tid <= 0 || !useStuneFallback()) return;
+        File taskFile = new File("/dev/stune/" + group + "/tasks");
+        if (taskFile.exists()) {
+            AxUtils.write(taskFile.getPath(), String.valueOf(tid));
+        }
     }
 
     private static void resetTopAppRoles(
             int pid, int renderTid, int[] hwuiTids, int[] glTids, int[] binderTids) {
         applyUclamp(pid, RESET_UCLAMP_MIN, RESET_UCLAMP_MAX);
-        moveToCpuctl(pid, "foreground");
+        moveToBoostGroup(pid, "foreground");
         if (renderTid > 0) {
             applyUclamp(renderTid, RESET_UCLAMP_MIN, RESET_UCLAMP_MAX);
-            moveToCpuctl(renderTid, "foreground");
+            moveToBoostGroup(renderTid, "foreground");
         }
         for (int tid : hwuiTids) {
             applyUclamp(tid, RESET_UCLAMP_MIN, RESET_UCLAMP_MAX);
-            moveToCpuctl(tid, "foreground");
+            moveToBoostGroup(tid, "foreground");
         }
         for (int tid : glTids) {
             applyUclamp(tid, RESET_UCLAMP_MIN, RESET_UCLAMP_MAX);
-            moveToCpuctl(tid, "foreground");
+            moveToBoostGroup(tid, "foreground");
         }
         for (int tid : binderTids) {
             applyUclamp(tid, RESET_UCLAMP_MIN, RESET_UCLAMP_MAX);
-            moveToCpuctl(tid, "foreground");
+            moveToBoostGroup(tid, "foreground");
         }
     }
 
@@ -850,18 +875,21 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
                 restoreEarlyWakeupBoost(
                         oldPid, oldRenderTid, oldHwuiTids, oldGlTids, oldBinderTids);
             }
-            applyUclamp(pid, EARLY_WAKEUP_UI_MIN, DEFAULT_UI_MAX);
+            applyUclampWithStuneGroup(pid, EARLY_WAKEUP_UI_MIN, DEFAULT_UI_MAX, "top-app");
             if (renderTid > 0) {
-                applyUclamp(renderTid, EARLY_WAKEUP_RENDER_MIN, DEFAULT_RENDER_MAX);
+                applyUclampWithStuneGroup(renderTid, EARLY_WAKEUP_RENDER_MIN,
+                        DEFAULT_RENDER_MAX, "top-app");
             }
             for (int tid : hwuiTids) {
-                applyUclamp(tid, EARLY_WAKEUP_HWUI_MIN, DEFAULT_HWUI_TASK_MAX);
+                applyUclampWithStuneGroup(tid, EARLY_WAKEUP_HWUI_MIN,
+                        DEFAULT_HWUI_TASK_MAX, "top-app");
             }
             for (int tid : glTids) {
-                applyUclamp(tid, EARLY_WAKEUP_GL_MIN, DEFAULT_GL_MAX);
+                applyUclampWithStuneGroup(tid, EARLY_WAKEUP_GL_MIN, DEFAULT_GL_MAX, "top-app");
             }
             for (int tid : binderTids) {
-                applyUclamp(tid, EARLY_WAKEUP_BINDER_MIN, DEFAULT_BINDER_POOL_MAX);
+                applyUclampWithStuneGroup(tid, EARLY_WAKEUP_BINDER_MIN,
+                        DEFAULT_BINDER_POOL_MAX, "top-app");
             }
         } else {
             final int appliedRenderTid;
@@ -890,22 +918,22 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
     private static void restoreEarlyWakeupBoost(
             int pid, int renderTid, int[] hwuiTids, int[] glTids, int[] binderTids) {
         int[] uiCfg = uclampForRole(ROLE_UI);
-        applyUclamp(pid, uiCfg[0], uiCfg[1]);
+        applyUclampWithStuneGroup(pid, uiCfg[0], uiCfg[1], "top-app");
         if (renderTid > 0) {
             int[] rtCfg = uclampForRole(ROLE_RENDER);
-            applyUclamp(renderTid, rtCfg[0], rtCfg[1]);
+            applyUclampWithStuneGroup(renderTid, rtCfg[0], rtCfg[1], "top-app");
         }
         int[] hwCfg = uclampForRole(ROLE_HWUI_TASK);
         for (int tid : hwuiTids) {
-            applyUclamp(tid, hwCfg[0], hwCfg[1]);
+            applyUclampWithStuneGroup(tid, hwCfg[0], hwCfg[1], "top-app");
         }
         int[] glCfg = uclampForRole(ROLE_GL);
         for (int tid : glTids) {
-            applyUclamp(tid, glCfg[0], glCfg[1]);
+            applyUclampWithStuneGroup(tid, glCfg[0], glCfg[1], "top-app");
         }
         int[] binderCfg = uclampForRole(ROLE_BINDER_POOL);
         for (int tid : binderTids) {
-            applyUclamp(tid, binderCfg[0], binderCfg[1]);
+            applyUclampWithStuneGroup(tid, binderCfg[0], binderCfg[1], "top-app");
         }
     }
 
@@ -915,9 +943,13 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
         if (tids.length == 0) return;
         if (enable) {
             int[] cfg = uclampForRole(ROLE_BINDER_POOL);
-            for (int tid : tids) applyUclamp(tid, cfg[0], cfg[1]);
+            for (int tid : tids) {
+                applyUclampWithStuneGroup(tid, cfg[0], cfg[1], "top-app");
+            }
         } else {
-            for (int tid : tids) applyUclamp(tid, RESET_UCLAMP_MIN, RESET_UCLAMP_MAX);
+            for (int tid : tids) {
+                applyUclampWithStuneGroup(tid, RESET_UCLAMP_MIN, RESET_UCLAMP_MAX, "foreground");
+            }
         }
         if (DBG)
             Log.d(TAG, "setBinderUx pid=" + pid + " enable=" + enable + " count=" + tids.length);
@@ -927,16 +959,18 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
     public void setImeRelevant(int uid, int pid, boolean enable) {
         if (enable) {
             int[] uiCfg = uclampForRole(ROLE_UI);
-            applyUclamp(pid, uiCfg[0], uiCfg[1]);
+            applyUclampWithStuneGroup(pid, uiCfg[0], uiCfg[1], "foreground");
             int[] binderTids = discoverThreadsByPrefix(pid, PREFIX_BINDER);
             int[] bpCfg = uclampForRole(ROLE_BINDER_POOL);
-            for (int tid : binderTids) applyUclamp(tid, bpCfg[0], bpCfg[1]);
+            for (int tid : binderTids) {
+                applyUclampWithStuneGroup(tid, bpCfg[0], bpCfg[1], "foreground");
+            }
             if (DBG)
                 Log.d(TAG, "setImeRelevant pid=" + pid + " enabled binder=" + binderTids.length);
         } else {
-            applyUclamp(pid, RESET_UCLAMP_MIN, RESET_UCLAMP_MAX);
+            applyUclampWithStuneGroup(pid, RESET_UCLAMP_MIN, RESET_UCLAMP_MAX, "foreground");
             for (int tid : discoverThreadsByPrefix(pid, PREFIX_BINDER)) {
-                applyUclamp(tid, RESET_UCLAMP_MIN, RESET_UCLAMP_MAX);
+                applyUclampWithStuneGroup(tid, RESET_UCLAMP_MIN, RESET_UCLAMP_MAX, "foreground");
             }
         }
     }
@@ -1102,23 +1136,64 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
     }
 
     private static void applyUclamp(int tid, int min, int max) {
+        if (tid <= 0) return;
         final long packed = (((long) min) << 32) | (max & 0xffffffffL);
         synchronized (sAppliedUclamp) {
             if (sAppliedUclamp.get(tid, Long.MIN_VALUE) == packed) {
                 return;
             }
         }
-        try {
-            Process.setThreadUtilClamp(tid, min, max);
+        if (sUclampSupport >= 0) {
+            try {
+                int result = Process.setThreadUtilClamp(tid, min, max);
+                if (result == 0) {
+                    sUclampSupport = 1;
+                    synchronized (sAppliedUclamp) {
+                        sAppliedUclamp.put(tid, packed);
+                    }
+                    return;
+                }
+                if (isUclampUnsupported(result)) {
+                    sUclampSupport = -1;
+                } else {
+                    synchronized (sAppliedUclamp) {
+                        sAppliedUclamp.delete(tid);
+                    }
+                    if (DBG) Log.w(TAG, "setThreadUtilClamp failed tid=" + tid + " rc=" + result);
+                    return;
+                }
+            } catch (Exception e) {
+                synchronized (sAppliedUclamp) {
+                    sAppliedUclamp.delete(tid);
+                }
+                if (DBG) Log.w(TAG, "setThreadUtilClamp failed tid=" + tid, e);
+                return;
+            }
+        }
+        if (useStuneFallback()) {
             synchronized (sAppliedUclamp) {
                 sAppliedUclamp.put(tid, packed);
             }
-        } catch (Exception e) {
-            synchronized (sAppliedUclamp) {
-                sAppliedUclamp.delete(tid);
-            }
-            if (DBG) Log.w(TAG, "setThreadUtilClamp failed tid=" + tid, e);
+            return;
         }
+        synchronized (sAppliedUclamp) {
+            sAppliedUclamp.delete(tid);
+        }
+    }
+
+    private static boolean isUclampUnsupported(int result) {
+        return result == -OsConstants.ENOSYS
+                || result == -OsConstants.EOPNOTSUPP
+                || result == -OsConstants.EINVAL;
+    }
+
+    private static boolean useStuneFallback() {
+        int cached = sUseStune;
+        if (cached >= 0) return cached == 1;
+        boolean use = !new File("/dev/cpuctl/top-app/cpu.uclamp.min").exists()
+                && new File("/dev/stune/top-app/tasks").exists();
+        sUseStune = use ? 1 : 0;
+        return use;
     }
 
     private static int[] uclampForRole(int role) {
