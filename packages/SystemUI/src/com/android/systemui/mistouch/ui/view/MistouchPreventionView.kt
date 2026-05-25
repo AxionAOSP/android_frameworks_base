@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.systemui.mistouch
+package com.android.systemui.mistouch.ui.view
 
 import android.content.Context
 import android.view.KeyEvent
@@ -21,6 +21,7 @@ import android.view.MotionEvent
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.android.axion.compose.host.AxComposeView
+import com.android.systemui.mistouch.ui.composable.MistouchPreventionContent
 
 class MistouchPreventionView(context: Context) : FrameLayout(context) {
 
@@ -29,12 +30,17 @@ class MistouchPreventionView(context: Context) : FrameLayout(context) {
     }
 
     private var listener: VolumeKeyCallback? = null
-    private val composeView = AxComposeView(context).also {
-        it.setContent { MistouchPreventionContent() }
-        addView(it, ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT,
-        ))
+
+    init {
+        addView(
+            AxComposeView(context).apply {
+                setContent { MistouchPreventionContent() }
+            },
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
     }
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean = true
@@ -42,7 +48,10 @@ class MistouchPreventionView(context: Context) : FrameLayout(context) {
     override fun onTouchEvent(event: MotionEvent): Boolean = true
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP && event.action == KeyEvent.ACTION_UP) {
+        if (
+            event.keyCode == KeyEvent.KEYCODE_VOLUME_UP &&
+                (event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP)
+        ) {
             listener?.onVolumeUpPressed()
             listener = null
         }

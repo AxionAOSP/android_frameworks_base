@@ -46,6 +46,7 @@ import com.android.systemui.keyguard.shared.model.KeyguardQuickAffordancePickerR
 import com.android.systemui.keyguard.shared.model.KeyguardSlotPickerRepresentation
 import com.android.systemui.keyguard.shared.quickaffordance.KeyguardQuickAffordancePosition
 import com.android.systemui.keyguard.shared.quickaffordance.KeyguardQuickAffordancesMetricsLogger
+import com.android.systemui.mistouch.domain.interactor.MistouchInteractor
 import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.res.R
 import com.android.systemui.scene.domain.interactor.SceneInteractor
@@ -200,7 +201,7 @@ constructor(
      * @param slotId The id of the lockscreen slot that the affordance is in
      */
     fun onQuickAffordanceTriggered(configKey: String, expandable: Expandable?, slotId: String) {
-        com.android.systemui.mistouch.MistouchInteractor.get().handleAffordanceLongClick()
+        MistouchInteractor.get().handleAffordanceLongClick()
         val (decodedSlotId, decodedConfigKey) = configKey.decode()
         val config =
             repository.get().selections.value[decodedSlotId]?.find { it.key == decodedConfigKey }

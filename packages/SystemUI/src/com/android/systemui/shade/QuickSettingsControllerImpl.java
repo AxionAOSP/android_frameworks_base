@@ -76,6 +76,7 @@ import com.android.systemui.dump.DumpManager;
 import com.android.systemui.fragments.FragmentHostManager;
 import com.android.systemui.media.controls.domain.pipeline.MediaDataManager;
 import com.android.systemui.media.controls.ui.controller.MediaHierarchyManager;
+import com.android.systemui.mistouch.domain.interactor.MistouchInteractor;
 import com.android.systemui.plugins.FalsingManager;
 import com.android.systemui.plugins.qs.QS;
 import com.android.systemui.qs.flags.QSComposeFragment;
@@ -222,6 +223,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     private float mInitialTouchY;
     /** whether current touch Y delta is above falsing threshold */
     private boolean mTouchAboveFalsingThreshold;
+    private boolean mMistouchInteractionNotifiedThisGesture;
     /** pointerId of the pointer we're currently tracking */
     private int mTrackingPointer;
 
@@ -718,10 +720,31 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     }
 
     private boolean isQsFalseTouch() {
+        boolean isFalseTouch;
         if (mFalsingManager.isClassifierEnabled()) {
-            return mFalsingManager.isFalseTouch(Classifier.QUICK_SETTINGS);
+            isFalseTouch = mFalsingManager.isFalseTouch(Classifier.QUICK_SETTINGS);
+        } else {
+            isFalseTouch = !mTouchAboveFalsingThreshold;
         }
-        return !mTouchAboveFalsingThreshold;
+        if (!isFalseTouch) {
+            notifyMistouchKeyguardInteraction();
+        }
+        return isFalseTouch;
+    }
+
+    private void notifyMistouchKeyguardInteractionIfNeeded(MotionEvent event) {
+        if (mTouchAboveFalsingThreshold
+                && event.getEventTime() - event.getDownTime()
+                        >= MistouchInteractor.KEYGUARD_INTERACTION_TIMEOUT_MS) {
+            notifyMistouchKeyguardInteraction();
+        }
+    }
+
+    private void notifyMistouchKeyguardInteraction() {
+        if (!mMistouchInteractionNotifiedThisGesture && mKeyguardStateController.isShowing()) {
+            MistouchInteractor.get().handleKeyguardInteraction();
+            mMistouchInteractionNotifiedThisGesture = true;
+        }
     }
 
     int getFalsingThreshold() {
@@ -1713,6 +1736,9 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             mStatusBarLongPressGestureDetector.get().handleTouch(event);
         }
         final int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            mMistouchInteractionNotifiedThisGesture = false;
+        }
         boolean collapsedQs = !getExpanded() && !mSplitShadeEnabled;
         boolean expansionEnabled = isExpansionEnabled();
         if (!expansionEnabled) {
@@ -1844,6 +1870,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                 if (h >= mPanelViewControllerLazy.get().getFalsingThreshold()) {
                     mTouchAboveFalsingThreshold = true;
                 }
+                notifyMistouchKeyguardInteractionIfNeeded(event);
                 trackMovement(event);
                 break;
 
@@ -1883,6 +1910,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
 
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
+                mMistouchInteractionNotifiedThisGesture = false;
                 mInitialTouchY = y;
                 mInitialTouchX = x;
                 initVelocityTracker();

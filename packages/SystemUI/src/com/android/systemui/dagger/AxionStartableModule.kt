@@ -18,19 +18,13 @@ package com.android.systemui.dagger
 
 import com.android.systemui.CoreStartable
 import com.android.systemui.ax.AxPlatformServiceImpl
-import com.android.systemui.doze.AodScheduleController
-import com.android.systemui.mistouch.MistouchPreventionWindowController
-import com.axion.applocker.AxAppLockerHelper
-import com.android.systemui.statusbar.policy.NetworkSpeedController
-import com.android.systemui.overlay.KeyguardOverlayViewManager
 import com.android.systemui.axdynamicbar.domain.AxDynamicBarChipsRefiner
 import com.android.systemui.axdynamicbar.ui.AxDynamicBarManager
-import com.android.systemui.statusbar.chips.ui.viewmodel.OngoingActivityChipsRefiner
-import com.android.systemui.statusbar.phone.PhoneStatusBarPolicyExt
 import com.android.systemui.axsmartpixel.ui.AxSmartPixelManager
 import com.android.systemui.axsmartpixel.ui.AxSmartPixelTile
-import com.android.systemui.routines.ui.RoutinesManager
-import com.android.systemui.usb.UsbModePickerDialogDelegate
+import com.android.systemui.doze.AodScheduleController
+import com.android.systemui.mistouch.domain.startable.StartMistouchPreventionModule
+import com.android.systemui.overlay.KeyguardOverlayViewManager
 import com.android.systemui.qs.QsEventLogger
 import com.android.systemui.qs.pipeline.shared.TileSpec
 import com.android.systemui.qs.shared.model.TileCategory
@@ -38,6 +32,12 @@ import com.android.systemui.qs.tileimpl.QSTileImpl
 import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
 import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
 import com.android.systemui.res.R
+import com.android.systemui.routines.ui.RoutinesManager
+import com.android.systemui.statusbar.chips.ui.viewmodel.OngoingActivityChipsRefiner
+import com.android.systemui.statusbar.phone.PhoneStatusBarPolicyExt
+import com.android.systemui.statusbar.policy.NetworkSpeedController
+import com.android.systemui.usb.UsbModePickerDialogDelegate
+import com.axion.applocker.AxAppLockerHelper
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -46,7 +46,7 @@ import dagger.multibindings.IntoMap
 import dagger.multibindings.IntoSet
 import dagger.multibindings.StringKey
 
-@Module
+@Module(includes = [StartMistouchPreventionModule::class])
 abstract class AxionStartableModule {
     @Binds
     @IntoMap
@@ -79,11 +79,6 @@ abstract class AxionStartableModule {
     @IntoMap
     @ClassKey(NetworkSpeedController::class)
     abstract fun bindNetworkSpeedController(impl: NetworkSpeedController): CoreStartable
-    @Binds
-    @IntoMap
-    @ClassKey(MistouchPreventionWindowController::class)
-    abstract fun bindMistouchPreventionWindowController(impl: MistouchPreventionWindowController): CoreStartable
-
     @Binds
     @IntoMap
     @ClassKey(AxAppLockerHelper::class)

@@ -13,36 +13,45 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.systemui.mistouch
+package com.android.systemui.mistouch.domain.interactor
 
+import com.android.systemui.mistouch.domain.model.MistouchEvent
 import com.android.systemui.util.WeakListenerManager
 
 class MistouchInteractor private constructor() {
 
-    interface MistouchEvents {
-        fun onAffordanceLongClick() {}
-        fun onDoubleTapPowerGesture() {}
-        fun onEmergencyButtonClick() {}
+    interface MistouchEventListener {
+        fun onMistouchEvent(event: MistouchEvent) {}
     }
 
-    private val listenerManager = WeakListenerManager<MistouchEvents>()
+    private val listenerManager = WeakListenerManager<MistouchEventListener>()
 
-    fun addListener(listener: MistouchEvents) = listenerManager.addListener(listener)
-    fun removeListener(listener: MistouchEvents) = listenerManager.removeListener(listener)
+    fun addListener(listener: MistouchEventListener) = listenerManager.addListener(listener)
+    fun removeListener(listener: MistouchEventListener) = listenerManager.removeListener(listener)
 
     fun handleEmergencyButtonClick() {
-        listenerManager.notify { it.onEmergencyButtonClick() }
+        notify(MistouchEvent.EMERGENCY_BUTTON_CLICK)
     }
 
     fun handleDoubleTapPowerGesture() {
-        listenerManager.notify { it.onDoubleTapPowerGesture() }
+        notify(MistouchEvent.DOUBLE_TAP_POWER_GESTURE)
     }
 
     fun handleAffordanceLongClick() {
-        listenerManager.notify { it.onAffordanceLongClick() }
+        notify(MistouchEvent.AFFORDANCE_LONG_CLICK)
+    }
+
+    fun handleKeyguardInteraction() {
+        notify(MistouchEvent.KEYGUARD_INTERACTION)
+    }
+
+    private fun notify(event: MistouchEvent) {
+        listenerManager.notify { it.onMistouchEvent(event) }
     }
 
     companion object {
+        const val KEYGUARD_INTERACTION_TIMEOUT_MS = 1500L
+
         @Volatile
         private var instance: MistouchInteractor? = null
 

@@ -40,6 +40,7 @@ import com.android.internal.widget.LockPatternUtils;
 import com.android.keyguard.dagger.KeyguardBouncerScope;
 import com.android.systemui.dagger.qualifiers.Background;
 import com.android.systemui.dagger.qualifiers.Main;
+import com.android.systemui.mistouch.domain.interactor.MistouchInteractor;
 import com.android.systemui.shade.ShadeController;
 import com.android.systemui.statusbar.policy.ConfigurationController;
 import com.android.systemui.statusbar.policy.ConfigurationController.ConfigurationListener;
@@ -171,7 +172,7 @@ public class EmergencyButtonController extends ViewController<EmergencyButton> {
      */
     @SuppressLint("MissingPermission")
     public void takeEmergencyCallAction() {
-        com.android.systemui.mistouch.MistouchInteractor.get().handleEmergencyButtonClick();
+        MistouchInteractor.get().handleEmergencyButtonClick();
         mMetricsLogger.action(MetricsEvent.ACTION_EMERGENCY_CALL);
         if (msdlFeedback()) {
             mMSDLPlayer.playToken(MSDLToken.KEYPRESS_RETURN, null);

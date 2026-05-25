@@ -22,6 +22,7 @@ import android.os.PowerManager
 import android.view.GestureDetector
 import android.view.MotionEvent
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.mistouch.domain.interactor.MistouchInteractor
 import com.android.systemui.plugins.FalsingManager
 import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.power.domain.interactor.PowerInteractor
@@ -73,6 +74,7 @@ class QQSGestureListener @Inject constructor(
                         !centralSurfaces.isBouncerShowing()) &&
                 !falsingManager.isFalseDoubleTap
         ) {
+            MistouchInteractor.get().handleKeyguardInteraction()
             powerInteractor.setLastTouchToSleepPosition(e.x, e.y)
             powerManager.goToSleep(e.eventTime,
                 PowerManager.GO_TO_SLEEP_REASON_TOUCH, 0)

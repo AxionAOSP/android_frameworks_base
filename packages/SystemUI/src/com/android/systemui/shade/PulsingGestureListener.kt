@@ -27,6 +27,7 @@ import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dock.DockManager
 import com.android.systemui.dump.DumpManager
 import com.android.systemui.keyguard.domain.interactor.DozeInteractor
+import com.android.systemui.mistouch.domain.interactor.MistouchInteractor
 import com.android.systemui.plugins.FalsingManager
 import com.android.systemui.plugins.FalsingManager.LOW_PENALTY
 import com.android.systemui.plugins.statusbar.StatusBarStateController
@@ -100,6 +101,7 @@ constructor(
             val isNotAFalseTap = !falsingManager.isFalseTap(LOW_PENALTY)
             shadeLogger.logSingleTapUpFalsingState(proximityIsNotNear, isNotAFalseTap)
             if (proximityIsNotNear && isNotAFalseTap) {
+                MistouchInteractor.get().handleKeyguardInteraction()
                 shadeLogger.d("Single tap handled, requesting centralSurfaces.wakeUpIfDozing")
                 dozeInteractor.setLastTapToWakePosition(Point(x.toInt(), y.toInt()))
                 powerInteractor.wakeUpIfDozing("PULSING_SINGLE_TAP", PowerManager.WAKE_REASON_TAP)
@@ -133,6 +135,7 @@ constructor(
                 !falsingManager.isProximityNear &&
                 !falsingManager.isFalseDoubleTap
         ) {
+            MistouchInteractor.get().handleKeyguardInteraction()
             dozeInteractor.setLastTapToWakePosition(Point(x.toInt(), y.toInt()))
             powerInteractor.wakeUpIfDozing("PULSING_DOUBLE_TAP", PowerManager.WAKE_REASON_TAP)
             return true

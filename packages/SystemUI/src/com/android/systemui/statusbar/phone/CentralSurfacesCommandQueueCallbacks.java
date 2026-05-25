@@ -53,6 +53,7 @@ import com.android.systemui.emergency.EmergencyGesture;
 import com.android.systemui.emergency.EmergencyGestureModule.EmergencyGestureIntentFactory;
 import com.android.systemui.keyguard.WakefulnessLifecycle;
 import com.android.systemui.keyguard.domain.interactor.KeyguardInteractor;
+import com.android.systemui.mistouch.domain.interactor.MistouchInteractor;
 import com.android.systemui.plugins.ActivityStarter;
 import com.android.systemui.qs.QSHost;
 import com.android.systemui.qs.QSPanelController;
@@ -391,7 +392,7 @@ public class CentralSurfacesCommandQueueCallbacks implements CommandQueue.Callba
         }
 
         if (source == StatusBarManager.CAMERA_LAUNCH_SOURCE_POWER_DOUBLE_TAP) {
-            com.android.systemui.mistouch.MistouchInteractor.get().handleDoubleTapPowerGesture();
+            MistouchInteractor.get().handleDoubleTapPowerGesture();
             Log.v(CentralSurfaces.TAG, "Camera launch");
             mKeyguardUpdateMonitor.onCameraLaunched();
         }
