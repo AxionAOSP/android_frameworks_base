@@ -30,6 +30,7 @@
     <!-- QS -->
     <dimen name="ax_qs_offset_reduction">10dp</dimen>
     <dimen name="ax_qs_content_padding">7dp</dimen>
+    <dimen name="ax_qs_top_padding">24dp</dimen>
 
     <!-- Network Speed -->
     <dimen name="network_speed_margin_bottom">7dp</dimen>

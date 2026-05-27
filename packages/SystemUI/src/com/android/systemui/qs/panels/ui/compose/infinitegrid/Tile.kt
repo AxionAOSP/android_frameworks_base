@@ -36,11 +36,8 @@ import androidx.compose.foundation.layout.Arrangement.spacedBy
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -63,8 +60,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
@@ -223,21 +218,13 @@ fun ContentScope.Tile(
             surfaceRevealModifier = Modifier
             contentRevealModifier = Modifier
         }
-        
+
         if (!iconOnly) {
             val sliderTileModifier =
                 modifier
                     .fillMaxWidth()
                     .height(CommonTileDefaults.TileHeight * LocalTileScale.current)
-                    .verticalSquish(squishiness)
-                    .graphicsLayer {
-                        val s = squishiness()
-                        scaleX = s
-                        scaleY = s
-                        transformOrigin = TransformOrigin(0.5f, 0.5f)
-                        alpha = if (s < 0.83f) 0f
-                            else ((s - 0.83f) / (1f - 0.83f)).coerceIn(0f, 1f)
-                    }
+                    .squishLayoutScale(squishiness)
             if (tile.spec.spec == RingerModeTileImpl.TILE_SPEC) {
                 RingerSliderTileContent(modifier = sliderTileModifier)
                 return@trace
@@ -255,7 +242,6 @@ fun ContentScope.Tile(
             modifier =
                 modifier
                     .then(surfaceRevealModifier)
-                    .borderOnFocus(color = MaterialTheme.colorScheme.secondary, tileShape.topEnd)
                     .fillMaxWidth()
                     .thenIf(currentBounceableInfo != null) {
                         Modifier.bounceable(
@@ -265,7 +251,8 @@ fun ContentScope.Tile(
                             orientation = Orientation.Horizontal,
                             bounceEnd = currentBounceableInfo!!.bounceEnd,
                         )
-                    },
+                    }
+                    .borderOnFocus(color = MaterialTheme.colorScheme.secondary, tileShape.topEnd),
         ) { expandable ->
             // Use main click on long press for small, available dual target tiles.
             // Open settings otherwise.
@@ -388,13 +375,7 @@ private fun TileExpandable(
 ) {
     Expandable(
         controller = rememberExpandableController(color = color, shape = shape),
-        modifier = modifier.clip(shape).verticalSquish(squishiness).graphicsLayer {
-            val s = squishiness()
-            scaleX = s
-            scaleY = s
-            transformOrigin = TransformOrigin(0.5f, 0.5f)
-            alpha = if (s < 0.83f) 0f else ((s - 0.83f) / (1f - 0.83f)).coerceIn(0f, 1f)
-        },
+        modifier = modifier.clip(shape).verticalSquish(squishiness).squishScale(squishiness),
         useModifierBasedImplementation = true,
     ) {
         content(hapticsViewModel?.createStateAwareExpandable(it) ?: it)

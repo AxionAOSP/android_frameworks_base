@@ -19,21 +19,30 @@ package com.android.systemui.qs.composefragment.ui
 import com.android.compose.animation.scene.TransitionBuilder
 import com.android.systemui.qs.composefragment.SceneKeys
 import com.android.systemui.qs.shared.ui.QuickSettings.Elements
+import com.android.systemui.qs.ui.composable.QuickSettingsShade
+import com.android.systemui.shade.ui.composable.ShadeHeader
 
 fun TransitionBuilder.quickQuickSettingsToQuickSettings(
     shouldFadeQqsTiles: Boolean = true,
     animateTilesExpansion: () -> Boolean = { true },
-    animateBrightnessSlider: () -> Boolean = { true }
+    animateBrightnessSlider: () -> Boolean = { true },
+    animateVolumeSlider: () -> Boolean = { false },
 ) {
 
     fractionRange(start = 0.43f) { fade(Elements.QuickSettingsContent) }
-
-    fractionRange(start = 0.9f) { fade(Elements.FooterActions) }
 
     anchoredTranslate(Elements.QuickSettingsContent, Elements.GridAnchor)
 
     sharedElement(Elements.TileElementMatcher, enabled = animateTilesExpansion())
     sharedElement(Elements.BrightnessSlider, enabled = animateBrightnessSlider())
+    if (animateVolumeSlider()) {
+        sharedElement(Elements.VolumeSlider)
+    } else {
+        fractionRange(start = 0.43f) { fade(Elements.VolumeSlider) }
+    }
+    sharedElement(QuickSettingsShade.Elements.StatusBar)
+    sharedElement(ShadeHeader.Elements.Clock, enabled = false)
+    fractionRange(start = 0.43f) { fade(QuickSettingsShade.Elements.Header) }
 
     // This will animate between 0f (QQS) and 0.5, fading in the QQS tiles when coming back
     // from non first page QS. The QS content ends fading out at 0.43f, so there's a brief

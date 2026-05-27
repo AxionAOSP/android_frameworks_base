@@ -20,4 +20,7 @@
 
     <!-- Charging info current divider, if needed -->
     <integer name="config_currentInfoDivider" translatable="false">1000</integer>
+    
+    <!-- wether to use display cutout as top padding of the qs panel if false will use ax_qs_top_padding -->
+    <bool name="config_shouldUseDisplayCutOutPadding" translatable="false">true</bool>
 </resources>

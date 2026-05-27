@@ -21,7 +21,10 @@ import com.android.systemui.classifier.domain.interactor.falsingInteractor
 import com.android.systemui.globalactions.globalActionsDialogLite
 import com.android.systemui.kosmos.Kosmos
 import com.android.systemui.kosmos.testDispatcher
+import com.android.systemui.plugins.activityStarter
+import com.android.systemui.qs.footerActionsController
 import com.android.systemui.qs.footerActionsInteractor
+import com.android.systemui.qs.panels.domain.interactor.textFeedbackInteractor
 import com.android.systemui.qs.panels.ui.viewmodel.textFeedbackContentViewModelFactory
 import com.android.systemui.user.domain.interactor.fakeHeadlessSystemUserMode
 import com.android.systemui.user.domain.interactor.selectedUserInteractor
@@ -33,9 +36,12 @@ val Kosmos.toolbarViewModelFactory by
                 return ToolbarViewModel(
                     editModeButtonViewModelFactory,
                     textFeedbackContentViewModelFactory,
+                    footerActionsController,
                     footerActionsInteractor,
                     { globalActionsDialogLite },
                     falsingInteractor,
+                    activityStarter,
+                    textFeedbackInteractor,
                     selectedUserInteractor,
                     fakeHeadlessSystemUserMode,
                     applicationContext,

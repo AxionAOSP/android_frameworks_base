@@ -20,17 +20,14 @@ import android.content.ContentResolver
 import android.content.Context
 import android.database.ContentObserver
 import android.os.UserHandle
-import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import androidx.annotation.VisibleForTesting
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.VectorConverter
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -38,20 +35,18 @@ import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderColors
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -86,7 +81,6 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -107,6 +101,7 @@ import com.android.compose.modifiers.sliderPercentage
 import com.android.compose.modifiers.thenIf
 import com.android.compose.theme.LocalAndroidColorScheme
 import com.android.compose.ui.graphics.drawInOverlay
+import com.android.internal.R as AndroidInternalR
 import com.android.systemui.biometrics.Utils.toBitmap
 import com.android.systemui.brightness.shared.model.GammaBrightness
 import com.android.systemui.brightness.ui.compose.AnimationSpecs.IconAppearSpec
@@ -132,12 +127,13 @@ import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.qs.composefragment.LocalBlurEnabled
 import com.android.systemui.qs.ui.compose.borderOnFocus
 import com.android.systemui.res.R
+import com.android.systemui.util.ui.compose.SystemSliderColors
 import com.android.systemui.utils.PolicyRestriction
 import lineageos.providers.LineageSettings
 import platform.test.motion.compose.values.MotionTestValueKey
 import platform.test.motion.compose.values.motionTestValues
 
-private const val useAxBrightnessSlider = true
+private const val useAxBrightnessSlider = false
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -156,6 +152,7 @@ fun BrightnessSlider(
     overriddenByAppState: Boolean,
     modifier: Modifier = Modifier,
     showToast: () -> Unit = {},
+    showAutoBrightnessButton: Boolean = true,
     hapticsViewModelFactory: SliderHapticsViewModel.Factory,
 ) {
     var value by remember(gammaValue) { mutableIntStateOf(gammaValue) }
@@ -178,7 +175,7 @@ fun BrightnessSlider(
                 SeekableSliderTrackerConfig(),
             )
         }
-    val colors = colors()
+    val colors = SystemSliderColors.colors()
 
     // The value state is recreated every time gammaValue changes, so we recreate this derivedState
     // We have to use value as that's the value that changes when the user is dragging (gammaValue
@@ -293,8 +290,8 @@ fun BrightnessSlider(
                 }
             }
         }
-    val activeIconColor = colors.activeTickColor
-    val inactiveIconColor = colors.inactiveTickColor
+    val activeIconColor = SystemSliderColors.activeIconColor(colors, enabled)
+    val inactiveIconColor = SystemSliderColors.inactiveIconColor(colors, enabled)
     // Offset from the right
     val trackIcon: DrawScope.(Offset, Color, Float) -> Unit = remember {
         { offset, color, alpha ->
@@ -313,34 +310,16 @@ fun BrightnessSlider(
         }
     }
 
-    val cr = context.contentResolver
-    val hasAutoBrightness = context.resources.getBoolean(
-        com.android.internal.R.bool.config_automatic_brightness_available
-    )
-    var showAutoBrightness by remember { mutableStateOf(readShowAutoBrightness(cr)) }
-
-    DisposableEffect(Unit) {
-        val observer = object : ContentObserver(null) {
-            override fun onChange(selfChange: Boolean) {
-                context.mainExecutor.execute {
-                    showAutoBrightness = readShowAutoBrightness(cr)
-                }
-            }
+    val showAutoBrightness =
+        if (showAutoBrightnessButton) {
+            isAutoBrightnessButtonVisible()
+        } else {
+            false
         }
-
-        cr.registerContentObserver(
-            LineageSettings.Secure.getUriFor(LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS),
-            false, observer, UserHandle.USER_ALL
-        )
-
-        onDispose {
-            cr.unregisterContentObserver(observer)
-        }
-    }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
+        modifier = Modifier.fillMaxWidth()
     ) {
         Slider(
             value = animatedValue,
@@ -476,9 +455,8 @@ fun BrightnessSlider(
             },
         )
 
-        if (hasAutoBrightness && showAutoBrightness) {
-            Spacer(modifier = Modifier.width(10.dp))
-            drawAutoBrightnessButton(autoMode = autoMode, onIconClick = onIconClick)
+        if (showAutoBrightness) {
+            BrightnessAutoButton(autoMode = autoMode, onIconClick = onIconClick)
         }
     }
 
@@ -504,6 +482,46 @@ private fun Modifier.sliderBackground(color: Color) = drawWithCache {
     }
 }
 
+@Composable
+fun isAutoBrightnessButtonVisible(): Boolean {
+    val context = LocalContext.current
+    val contentResolver = context.contentResolver
+    val hasAutoBrightness =
+        context.resources.getBoolean(
+            AndroidInternalR.bool.config_automatic_brightness_available
+        )
+    var showAutoBrightness by
+        remember(contentResolver, hasAutoBrightness) {
+            mutableStateOf(hasAutoBrightness && readShowAutoBrightness(contentResolver))
+        }
+
+    DisposableEffect(context, contentResolver, hasAutoBrightness) {
+        if (hasAutoBrightness) {
+            val observer =
+                object : ContentObserver(null) {
+                    override fun onChange(selfChange: Boolean) {
+                        context.mainExecutor.execute {
+                            showAutoBrightness = readShowAutoBrightness(contentResolver)
+                        }
+                    }
+                }
+
+            contentResolver.registerContentObserver(
+                LineageSettings.Secure.getUriFor(LineageSettings.Secure.QS_SHOW_AUTO_BRIGHTNESS),
+                false,
+                observer,
+                UserHandle.USER_ALL,
+            )
+
+            onDispose { contentResolver.unregisterContentObserver(observer) }
+        } else {
+            onDispose {}
+        }
+    }
+
+    return hasAutoBrightness && showAutoBrightness
+}
+
 private fun readShowAutoBrightness(cr: ContentResolver): Boolean =
     try {
         LineageSettings.Secure.getIntForUser(
@@ -515,63 +533,28 @@ private fun readShowAutoBrightness(cr: ContentResolver): Boolean =
     }
 
 @Composable
-private fun drawAutoBrightnessButton(
+private fun BrightnessAutoButton(
     autoMode: Boolean,
     onIconClick: suspend () -> Unit,
 ) {
-    val view = LocalView.current
     val coroutineScope = rememberCoroutineScope()
-    val animatedCornerRadius by animateDpAsState(
-        targetValue = if (autoMode) {
-            SliderTrackRoundedCorner
-        } else {
-            22.5.dp
-        }
-    )
-    val backgroundColor by animateColorAsState(
-        targetValue = if (autoMode) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            LocalAndroidColorScheme.current.surfaceEffect1
-        }
-    )
-    val iconTint by animateColorAsState(
-        targetValue = if (autoMode) {
-            MaterialTheme.colorScheme.onPrimary
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        }
-    )
     val painterRes = if (autoMode) {
         R.drawable.ic_qs_brightness_auto_on
     } else {
         R.drawable.ic_qs_brightness_auto_off
     }
-    val hapticConstant = if (autoMode) {
-        HapticFeedbackConstants.TOGGLE_OFF
-    } else {
-        HapticFeedbackConstants.TOGGLE_ON
-    }
 
-    Box(
-        modifier = Modifier
-            .size(45.dp)
-            .clip(RoundedCornerShape(animatedCornerRadius))
-            .background(backgroundColor)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null, // Disable ripple effect
-                onClick = {
-                    view.performHapticFeedback(hapticConstant)
-                    coroutineScope.launch { onIconClick() }
-                }
+    IconButton(
+        colors =
+            IconButtonDefaults.iconButtonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
             ),
-        contentAlignment = Alignment.Center
+        onClick = { coroutineScope.launch { onIconClick() } },
     ) {
         Icon(
-            painter = painterResource(painterRes),
+            painterResource(painterRes),
             contentDescription = stringResource(R.string.accessibility_adaptive_brightness),
-            tint = iconTint
         )
     }
 }
@@ -581,6 +564,7 @@ fun BrightnessSliderContainer(
     viewModel: BrightnessSliderViewModel,
     modifier: Modifier = Modifier,
     containerColors: ContainerColors,
+    showAutoBrightnessButton: Boolean = true,
 ) {
     val gamma = viewModel.currentBrightness.value
     if (gamma == BrightnessSliderViewModel.initialValue.value) { // Ignore initial negative value.
@@ -657,6 +641,7 @@ fun BrightnessSliderContainer(
             showToast = {
                 viewModel.showToast(context, R.string.quick_settings_brightness_unable_adjust_msg)
             },
+            showAutoBrightnessButton = showAutoBrightnessButton,
         )
     }
 }
@@ -667,7 +652,7 @@ data class ContainerColors(val idleColor: Color, val mirrorColor: Color) {
 
         val defaultContainerColor: Color
             @Composable @ReadOnlyComposable get() = colorResource(
-                com.android.internal.R.color.materialColorSurfaceContainer
+                AndroidInternalR.color.materialColorSurfaceContainer
             )
     }
 }
@@ -715,14 +700,4 @@ object BrightnessSliderMotionTestKeys {
     val AnimatingIcon = MotionTestValueKey<Boolean>("animatingIcon")
     val ActiveIconAlpha = MotionTestValueKey<Float>("activeIconAlpha")
     val InactiveIconAlpha = MotionTestValueKey<Float>("inactiveIconAlpha")
-}
-
-@Composable
-private fun colors(): SliderColors {
-    return SliderDefaults.colors()
-        .copy(
-            inactiveTrackColor = LocalAndroidColorScheme.current.surfaceEffect1,
-            activeTickColor = MaterialTheme.colorScheme.onPrimary,
-            inactiveTickColor = MaterialTheme.colorScheme.onSurface,
-        )
 }

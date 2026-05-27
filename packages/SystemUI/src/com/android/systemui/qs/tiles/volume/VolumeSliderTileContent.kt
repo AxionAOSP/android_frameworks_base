@@ -18,9 +18,7 @@ package com.android.systemui.qs.tiles.volume
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -33,7 +31,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -51,8 +48,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -63,7 +58,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.android.compose.theme.LocalAndroidColorScheme
 import com.android.systemui.qs.composefragment.LocalBlurEnabled
-import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.TileHeight
 
 @Composable
 fun VolumeSliderTileContent(
@@ -127,15 +121,6 @@ fun VolumeSliderTileContent(
         label = "content_color"
     )
 
-    val enabledScale by animateFloatAsState(
-        targetValue = if (isEnabled) 1.05f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "enabled_scale"
-    )
-
     val interactionModifier = if (interactable) {
         Modifier
             .pointerInput(Unit) {
@@ -172,8 +157,6 @@ fun VolumeSliderTileContent(
 
     BoxWithConstraints(
         modifier = modifier
-            .height(TileHeight)
-            .scale(enabledScale)
             .clip(CircleShape)
             .background(trackColor, CircleShape)
             .then(borderModifier)
@@ -183,10 +166,9 @@ fun VolumeSliderTileContent(
         val fillWidth = boxWidthPx * animatedLevel
 
         Canvas(Modifier.fillMaxSize().clip(CircleShape)) {
-            drawRoundRect(
+            drawRect(
                 color = fillColor,
                 size = Size(fillWidth, size.height),
-                cornerRadius = CornerRadius(size.height / 2)
             )
         }
 

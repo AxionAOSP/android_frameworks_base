@@ -28,13 +28,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -157,13 +157,13 @@ fun EditModeButton(
         ) {
             Box(
                 modifier = Modifier
-                    .size(24.dp)
+                    .minimumInteractiveComponentSize()
                     .sysuiResTag("qs_edit_mode_button")
                     .borderOnFocus(
                         color = MaterialTheme.colorScheme.secondary,
-                        cornerSize = CornerSize(12.dp),
+                        cornerSize = CornerSize(percent = 50),
                     )
-                    .clip(RoundedCornerShape(CornerSize(12.dp)))
+                    .clip(RoundedCornerShape(CornerSize(percent = 50)))
                     .combinedClickable(
                         onClick = viewModel::onButtonClick,
                     ),

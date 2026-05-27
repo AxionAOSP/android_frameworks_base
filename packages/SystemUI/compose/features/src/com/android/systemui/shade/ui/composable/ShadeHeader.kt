@@ -346,6 +346,8 @@ fun ContentScope.OverlayShadeHeader(
     quickSettingsHighlight: ChipHighlightModel,
     showClock: Boolean,
     modifier: Modifier = Modifier,
+    onNotificationIconChipClicked: () -> Unit = viewModel::onNotificationIconChipClicked,
+    onSystemIconChipClicked: () -> Unit = viewModel::onSystemIconChipClicked,
 ) {
     val horizontalPadding =
         max(LocalScreenCornerRadius.current / 2f, Shade.Dimensions.HorizontalPadding)
@@ -359,7 +361,7 @@ fun ContentScope.OverlayShadeHeader(
                     backgroundColor = notificationsHighlight.backgroundColor,
                     onHoveredBackgroundColor = notificationsHighlight.onHoveredBackgroundColor,
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
-                    onClick = viewModel::onNotificationIconChipClicked,
+                    onClick = onNotificationIconChipClicked,
                     modifier =
                         Modifier.align(Alignment.CenterStart)
                             .bouncy(
@@ -392,7 +394,7 @@ fun ContentScope.OverlayShadeHeader(
                 ShadeHighlightChip(
                     backgroundColor = quickSettingsHighlight.backgroundColor,
                     onHoveredBackgroundColor = quickSettingsHighlight.onHoveredBackgroundColor,
-                    onClick = viewModel::onSystemIconChipClicked,
+                    onClick = onSystemIconChipClicked,
                     modifier =
                         Modifier.bouncy(
                             isEnabled = viewModel.animateSystemIconChipBounce,
@@ -447,6 +449,19 @@ fun QuickSettingsOverlayHeader(viewModel: ShadeHeaderViewModel, modifier: Modifi
     ) {
         ShadeCarrierGroup(viewModel = viewModel)
         BatteryInfo(viewModel = viewModel, showIcon = false, useExpandedFormat = true)
+    }
+}
+
+@Composable
+fun QuickSettingsOverlayCarrierHeader(
+    viewModel: ShadeHeaderViewModel,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        ShadeCarrierGroup(viewModel = viewModel)
     }
 }
 
@@ -647,8 +662,11 @@ private fun BatteryIconLegacy(
 @OptIn(ExperimentalKairosApi::class)
 @Composable
 private fun ShadeCarrierGroup(viewModel: ShadeHeaderViewModel, modifier: Modifier = Modifier) {
+    val foregroundColor = ShadeHeader.Colors.textColor.toArgb()
+    val backgroundColor = ShadeHeader.Colors.inverseTextColor.toArgb()
+
     if (StatusBarMobileIconKairos.isEnabled) {
-        ShadeCarrierGroupKairos(viewModel, modifier)
+        ShadeCarrierGroupKairos(viewModel, modifier, foregroundColor, backgroundColor)
         return
     }
 
@@ -667,7 +685,14 @@ private fun ShadeCarrierGroup(viewModel: ShadeHeaderViewModel, modifier: Modifie
                                 ) as ShadeCarrierGroupMobileIconViewModel),
                         )
                         .also { it.setOnClickListener { viewModel.onShadeCarrierGroupClicked() } }
-                }
+                },
+                update = {
+                    it.setStyleAndTint(
+                        R.style.TextAppearance_QS_Status,
+                        foregroundColor,
+                        backgroundColor,
+                    )
+                },
             )
         }
     }
@@ -677,7 +702,9 @@ private fun ShadeCarrierGroup(viewModel: ShadeHeaderViewModel, modifier: Modifie
 @Composable
 private fun ShadeCarrierGroupKairos(
     viewModel: ShadeHeaderViewModel,
-    modifier: Modifier = Modifier,
+    modifier: Modifier,
+    @ColorInt foregroundColor: Int,
+    @ColorInt backgroundColor: Int,
 ) {
     Row(modifier = modifier) {
         ActivatedKairosSpec(
@@ -708,7 +735,14 @@ private fun ShadeCarrierGroupKairos(
                             .also {
                                 it.setOnClickListener { viewModel.onShadeCarrierGroupClicked() }
                             }
-                    }
+                    },
+                    update = {
+                        it.setStyleAndTint(
+                            R.style.TextAppearance_QS_Status,
+                            foregroundColor,
+                            backgroundColor,
+                        )
+                    },
                 )
             }
         }

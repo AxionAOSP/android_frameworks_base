@@ -54,13 +54,30 @@ class ModernShadeCarrierGroupMobileView(context: Context, attrs: AttributeSet?) 
     var subId: Int = -1
 
     private lateinit var binding: ModernShadeCarrierGroupMobileViewBinding
+    private var pendingStyleResId: Int? = null
+    private var pendingFgColor = 0
+    private var pendingBgColor = 0
 
     /**
      * Update the appearance of the mobile carrier group. The text itself can use the text
      * appearance resId, but the mobile icon needs to know specifically about fg/bg colors.
      */
     fun setStyleAndTint(@StyleRes styleResId: Int, fgColor: Int, bgColor: Int) {
+        pendingStyleResId = styleResId
+        pendingFgColor = fgColor
+        pendingBgColor = bgColor
+        if (!::binding.isInitialized) {
+            return
+        }
+        applyStyleAndTint(styleResId, fgColor, bgColor)
+    }
+
+    private fun applyStyleAndTint(@StyleRes styleResId: Int, fgColor: Int, bgColor: Int) {
         binding.setStyleAndTint(style = styleResId, fgColor = fgColor, bgColor = bgColor)
+    }
+
+    private fun applyPendingStyleAndTint() {
+        pendingStyleResId?.let { applyStyleAndTint(it, pendingFgColor, pendingBgColor) }
     }
 
     override fun toString(): String {
@@ -108,8 +125,10 @@ class ModernShadeCarrierGroupMobileView(context: Context, attrs: AttributeSet?) 
                             ) {
                                 iconView.setStaticDrawableColor(fgColor, bgColor)
                                 shadeCarrierBinding.setTextAppearance(style)
+                                shadeCarrierBinding.setTextColor(fgColor)
                             }
                         }
+                    applyPendingStyleAndTint()
                 }
         }
 
@@ -174,8 +193,10 @@ class ModernShadeCarrierGroupMobileView(context: Context, attrs: AttributeSet?) 
                             override fun setStyleAndTint(style: Int, fgColor: Int, bgColor: Int) {
                                 iconView.setStaticDrawableColor(fgColor, bgColor)
                                 shadeCarrierBinding.setTextAppearance(style)
+                                shadeCarrierBinding.setTextColor(fgColor)
                             }
                         }
+                    view.applyPendingStyleAndTint()
                 }
         }
     }

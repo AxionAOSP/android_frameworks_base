@@ -16,15 +16,11 @@
 
 package com.android.systemui.qs.panels.ui.compose
 
-import androidx.compose.foundation.layout.Arrangement.spacedBy
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
@@ -44,16 +40,12 @@ import com.android.compose.animation.scene.ContentScope
 import com.android.compose.modifiers.padding
 import com.android.systemui.common.ui.compose.PagerDots
 import com.android.systemui.compose.modifiers.sysuiResTag
-import com.android.systemui.development.ui.compose.BuildNumber
-import com.android.systemui.development.ui.viewmodel.BuildNumberViewModel
 import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.qs.panels.dagger.PaginatedBaseLayoutType
 import com.android.systemui.qs.panels.ui.compose.Dimensions.FooterHeight
 import com.android.systemui.qs.panels.ui.compose.Dimensions.InterPageSpacing
-import com.android.systemui.qs.panels.ui.compose.toolbar.EditModeButton
 import com.android.systemui.qs.panels.ui.viewmodel.PaginatedGridViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.TileViewModel
-import com.android.systemui.qs.panels.ui.viewmodel.toolbar.EditModeButtonViewModel
 import com.android.systemui.res.R
 import javax.inject.Inject
 
@@ -149,61 +141,36 @@ constructor(
                     )
                 }
             }
-            FooterBar(
-                buildNumberViewModelFactory = viewModel.buildNumberViewModelFactory,
-                pagerState = pagerState,
-                showArrowsInPager = viewModel.showArrowsInPagerDots,
-                editButtonViewModelFactory = viewModel.editModeButtonViewModelFactory,
-                isVisible = { listening() && layoutState.isIdle() },
-            )
+
+            if (pages.size > 1) {
+                PageIndicatorFooter(
+                    pagerState = pagerState,
+                    showArrowsInPager = viewModel.showArrowsInPagerDots,
+                )
+            }
         }
     }
 }
 
 private object Dimensions {
-    val FooterHeight = 28.dp
+    val FooterHeight = 24.dp
     val InterPageSpacing = 16.dp
 }
 
 @Composable
-private fun FooterBar(
-    buildNumberViewModelFactory: BuildNumberViewModel.Factory,
+private fun PageIndicatorFooter(
     pagerState: PagerState,
     showArrowsInPager: Boolean,
-    editButtonViewModelFactory: EditModeButtonViewModel.Factory,
-    isVisible: () -> Boolean = { true },
 ) {
-    val editButtonViewModel =
-        rememberViewModel(traceName = "PaginatedGridLayout-editButtonViewModel") {
-            editButtonViewModelFactory.create()
-        }
-
-    // Use requiredHeight so it won't be squished if the view doesn't quite fit. As this is
-    // expected to be inside a scrollable container, this should not be an issue.
-    // Also, we construct the layout this way to do the following:
-    // * PagerDots is centered in the row, taking as much space as it needs.
-    // * On the start side, we place the BuildNumber, taking as much space as it needs, but
-    //   constrained by the available space left over after PagerDots.
-    // * On the end side, we place the edit mode button, with the same constraints as for
-    //   BuildNumber (but it will usually fit, as it's just a square button).
-    Row(
-        modifier = Modifier.padding(top = 4.dp).requiredHeight(FooterHeight).fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = spacedBy(8.dp),
+    Box(
+        modifier = Modifier.fillMaxWidth().requiredHeight(FooterHeight),
+        contentAlignment = Alignment.Center,
     ) {
-        Row(Modifier.weight(1f)) {
-            Spacer(modifier = Modifier.weight(1f))
-        }
         PagerDots(
             pagerState = pagerState,
             activeColor = MaterialTheme.colorScheme.primary,
             nonActiveColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-            modifier = Modifier.wrapContentWidth(),
             showArrows = showArrowsInPager,
         )
-        Row(Modifier.weight(1f)) {
-            Spacer(modifier = Modifier.weight(1f))
-            EditModeButton(viewModel = editButtonViewModel, isVisible = isVisible())
-        }
     }
 }

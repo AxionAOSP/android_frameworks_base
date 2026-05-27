@@ -19,6 +19,7 @@ import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -46,7 +47,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.android.compose.theme.LocalAndroidColorScheme
 import com.android.compose.ui.graphics.painter.rememberDrawablePainter
-import com.android.systemui.qs.composefragment.LocalBlurEnabled
+import com.android.systemui.qs.composefragment.model.QSComponentVisibility
 import com.android.systemui.qs.composefragment.model.QSPanelComponent
 import com.android.systemui.qs.panels.shared.model.SizedTile
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults
@@ -55,11 +56,19 @@ import com.android.systemui.qs.panels.ui.viewmodel.TileViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.toIconProvider
 import com.android.systemui.res.R
 import com.android.systemui.qs.panels.ui.viewmodel.ComponentReorderViewModel
+import com.android.systemui.util.ui.compose.SystemSliderColors
 
 private const val COMPONENT_MIME_TYPE = "text/plain"
 private const val HEADER_KEY = "reorder_header"
+private const val SLIDER_PREVIEW_ACTIVE_ICON_THRESHOLD = 0.86f
 
 private val QS_CONTENT_MAX_WIDTH = 376.dp
+private val SLIDER_PREVIEW_HEIGHT = 64.dp
+private val SLIDER_PREVIEW_TRACK_HEIGHT = 40.dp
+private val SLIDER_PREVIEW_THUMB_HEIGHT = 52.dp
+private val SLIDER_PREVIEW_THUMB_WIDTH = 4.dp
+private val SLIDER_PREVIEW_TRACK_CORNER = 12.dp
+private val SLIDER_PREVIEW_ICON_PADDING = 8.dp
 
 val LocalComponentPreviews =
     compositionLocalOf<Map<QSPanelComponent, @Composable () -> Unit>> { emptyMap() }
@@ -72,7 +81,8 @@ fun ComponentReorderScreen(
     modifier: Modifier = Modifier,
 ) {
     val currentOrder = viewModel.componentOrder
-    val brightnessSliderState = viewModel.brightnessSliderState
+    val brightnessSliderVisibility = viewModel.brightnessSliderVisibility
+    val volumeSliderVisibility = viewModel.volumeSliderVisibility
     val orientation = viewModel.orientation
     val surfaceEffect2 = LocalAndroidColorScheme.current.surfaceEffect2
     val isLargeScreen = LocalContext.current.resources.getBoolean(
@@ -131,8 +141,11 @@ fun ComponentReorderScreen(
             ComponentReorderList(
                 currentOrder = currentOrder,
                 onOrderChanged = viewModel::updateComponentOrder,
-                brightnessSliderState = brightnessSliderState,
-                onBrightnessSliderStateChanged = viewModel::updateBrightnessSliderState,
+                brightnessSliderVisibility = brightnessSliderVisibility,
+                onBrightnessSliderVisibilityChanged =
+                    viewModel::updateBrightnessSliderVisibility,
+                volumeSliderVisibility = volumeSliderVisibility,
+                onVolumeSliderVisibilityChanged = viewModel::updateVolumeSliderVisibility,
                 orientation = orientation,
                 modifier = Modifier
                     .widthIn(max = maxContentWidth)
@@ -178,8 +191,10 @@ private class ComponentDragDropState(initialOrder: List<QSPanelComponent>) {
 fun ComponentReorderList(
     currentOrder: List<QSPanelComponent>,
     onOrderChanged: (List<QSPanelComponent>) -> Unit,
-    brightnessSliderState: Int,
-    onBrightnessSliderStateChanged: (Int) -> Unit,
+    brightnessSliderVisibility: QSComponentVisibility,
+    onBrightnessSliderVisibilityChanged: (QSComponentVisibility) -> Unit,
+    volumeSliderVisibility: QSComponentVisibility,
+    onVolumeSliderVisibilityChanged: (QSComponentVisibility) -> Unit,
     orientation: Int,
     modifier: Modifier = Modifier,
 ) {
@@ -279,6 +294,9 @@ fun ComponentReorderList(
                     }
                     val hapticFeedback = LocalHapticFeedback.current
                     val isActive = activeComponent == component
+                    val hasVisibilityOptions =
+                        component == QSPanelComponent.BRIGHTNESS ||
+                            component == QSPanelComponent.VOLUME
 
                     if (component == QSPanelComponent.TILES) {
                         key(orientation) {
@@ -309,12 +327,12 @@ fun ComponentReorderList(
                                 )
                                 .combinedClickable(
                                     onClick = {
-                                        if (component == QSPanelComponent.BRIGHTNESS) {
+                                        if (hasVisibilityOptions) {
                                             activeComponent = if (isActive) null else component
                                         }
                                     },
                                     onLongClick = {
-                                        if (component == QSPanelComponent.BRIGHTNESS) {
+                                        if (hasVisibilityOptions) {
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                             activeComponent = component
                                         }
@@ -332,15 +350,27 @@ fun ComponentReorderList(
                                     when (component) {
                                         QSPanelComponent.BRIGHTNESS ->
                                             BrightnessSliderPreview()
+                                        QSPanelComponent.VOLUME -> VolumeSliderRowPreview()
                                         QSPanelComponent.MEDIA -> MediaPreview()
                                         else -> {}
                                     }
                                 }
-                                if (component == QSPanelComponent.BRIGHTNESS && isActive) {
-                                    BrightnessVisibilityRow(
-                                        state = brightnessSliderState,
-                                        onStateChanged = onBrightnessSliderStateChanged,
-                                    )
+                                if (isActive) {
+                                    when (component) {
+                                        QSPanelComponent.BRIGHTNESS ->
+                                            ComponentVisibilityRow(
+                                                visibility = brightnessSliderVisibility,
+                                                onVisibilityChanged =
+                                                    onBrightnessSliderVisibilityChanged,
+                                            )
+                                        QSPanelComponent.VOLUME ->
+                                            ComponentVisibilityRow(
+                                                visibility = volumeSliderVisibility,
+                                                onVisibilityChanged =
+                                                    onVolumeSliderVisibilityChanged,
+                                            )
+                                        else -> {}
+                                    }
                                 }
                             }
                         }
@@ -354,6 +384,7 @@ fun ComponentReorderList(
 @Composable
 private fun ComponentPreviewHeight(component: QSPanelComponent) = when (component) {
     QSPanelComponent.BRIGHTNESS -> 80.dp
+    QSPanelComponent.VOLUME -> 72.dp
     QSPanelComponent.TILES -> CommonTileDefaults.TileHeight + 24.dp
     QSPanelComponent.MEDIA -> dimensionResource(R.dimen.qs_media_session_height_expanded) + 16.dp
 }
@@ -391,36 +422,131 @@ private fun Modifier.componentDragSource(
 @Composable
 fun BrightnessSliderPreview(
     brightness: Float = 30f,
-    iconRes: Int = R.drawable.ic_qs_brightness_auto_on,
+    iconRes: Int = R.drawable.ic_brightness_full,
 ) {
-    val blurEnabled = LocalBlurEnabled.current
-    val trackColor = if (blurEnabled) {
-        LocalAndroidColorScheme.current.surfaceEffect1
-    } else {
-        MaterialTheme.colorScheme.surfaceBright
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SliderPreview(
+            progress = brightness / 100f,
+            icon = { tint ->
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(28.dp),
+                    tint = tint,
+                )
+            },
+            modifier = Modifier.weight(1f),
+        )
+        Box(
+            modifier =
+                Modifier.size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_qs_brightness_auto_on),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+            )
+        }
     }
+}
 
+@Composable
+fun VolumeSliderRowPreview(volume: Float = 60f) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SliderPreview(
+            progress = volume / 100f,
+            icon = { tint ->
+                Icon(
+                    imageVector = Icons.Rounded.VolumeUp,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = tint,
+                )
+            },
+            modifier = Modifier.weight(1f),
+        )
+        Box(
+            modifier =
+                Modifier.size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.horizontal_ellipsis),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun SliderPreview(
+    progress: Float,
+    icon: @Composable (Color) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = SystemSliderColors.colors()
+    val fraction = progress.coerceIn(0f, 1f)
+    val iconColor =
+        if (fraction >= SLIDER_PREVIEW_ACTIVE_ICON_THRESHOLD) {
+            SystemSliderColors.activeIconColor(colors, enabled = true)
+        } else {
+            SystemSliderColors.inactiveIconColor(colors, enabled = true)
+        }
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .clip(RoundedCornerShape(28.dp))
-            .background(trackColor),
-        contentAlignment = Alignment.CenterStart
+        modifier =
+            modifier.height(SLIDER_PREVIEW_HEIGHT),
+        contentAlignment = Alignment.CenterStart,
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth(brightness / 100f)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(28.dp))
-                .background(MaterialTheme.colorScheme.primary)
+            modifier =
+                Modifier.fillMaxWidth()
+                    .height(SLIDER_PREVIEW_TRACK_HEIGHT)
+                    .clip(RoundedCornerShape(SLIDER_PREVIEW_TRACK_CORNER))
+                    .background(colors.inactiveTrackColor)
         )
-        Icon(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            modifier = Modifier.padding(start = 12.dp).size(24.dp),
-            tint = MaterialTheme.colorScheme.onPrimary
+        Box(
+            modifier =
+                Modifier.fillMaxWidth(fraction)
+                    .height(SLIDER_PREVIEW_TRACK_HEIGHT)
+                    .clip(RoundedCornerShape(SLIDER_PREVIEW_TRACK_CORNER))
+                    .background(colors.activeTrackColor)
         )
+        Box(
+            modifier =
+                Modifier.fillMaxWidth()
+                    .height(SLIDER_PREVIEW_TRACK_HEIGHT)
+                    .padding(end = SLIDER_PREVIEW_ICON_PADDING),
+            contentAlignment = Alignment.CenterEnd,
+        ) {
+            icon(iconColor)
+        }
+        Box(
+            modifier =
+                Modifier.fillMaxWidth(fraction)
+                    .height(SLIDER_PREVIEW_THUMB_HEIGHT),
+            contentAlignment = Alignment.CenterEnd,
+        ) {
+            Box(
+                modifier =
+                    Modifier.width(SLIDER_PREVIEW_THUMB_WIDTH)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(SLIDER_PREVIEW_THUMB_WIDTH))
+                        .background(MaterialTheme.colorScheme.primary)
+            )
+        }
     }
 }
 
@@ -702,9 +828,9 @@ private fun MediaPreview() {
 }
 
 @Composable
-private fun BrightnessVisibilityRow(
-    state: Int,
-    onStateChanged: (Int) -> Unit,
+private fun ComponentVisibilityRow(
+    visibility: QSComponentVisibility,
+    onVisibilityChanged: (QSComponentVisibility) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -713,7 +839,7 @@ private fun BrightnessVisibilityRow(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text = "Visibility",
+            text = stringResource(R.string.qs_component_visibility_title),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -727,16 +853,8 @@ private fun BrightnessVisibilityRow(
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val options = remember {
-                listOf(
-                    2 to "Always",
-                    1 to "QS Only",
-                    0 to "Hidden",
-                )
-            }
-
-            options.forEach { (value, label) ->
-                val selected = state == value
+            QSComponentVisibility.entries.forEach { option ->
+                val selected = visibility == option
                 val backgroundColor = if (selected) {
                     MaterialTheme.colorScheme.primaryContainer
                 } else {
@@ -755,11 +873,11 @@ private fun BrightnessVisibilityRow(
                         .padding(2.dp)
                         .clip(RoundedCornerShape(18.dp))
                         .background(backgroundColor)
-                        .clickable { onStateChanged(value) },
+                        .clickable { onVisibilityChanged(option) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = label,
+                        text = stringResource(componentVisibilityLabelResId(option)),
                         style = MaterialTheme.typography.labelMedium,
                         color = contentColor,
                     )
@@ -769,3 +887,9 @@ private fun BrightnessVisibilityRow(
     }
 }
 
+private fun componentVisibilityLabelResId(visibility: QSComponentVisibility): Int =
+    when (visibility) {
+        QSComponentVisibility.ALWAYS -> R.string.qs_component_visibility_always
+        QSComponentVisibility.QS_ONLY -> R.string.qs_component_visibility_qs_only
+        QSComponentVisibility.HIDDEN -> R.string.qs_component_visibility_hidden
+    }

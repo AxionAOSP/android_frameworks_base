@@ -1,13 +1,14 @@
 package com.android.systemui.qs.panels.ui.viewmodel
 
+import android.content.res.Configuration
 import androidx.compose.runtime.getValue
 import com.android.systemui.lifecycle.ExclusiveActivatable
 import com.android.systemui.lifecycle.Hydrator
+import com.android.systemui.qs.composefragment.model.QSComponentVisibility
 import com.android.systemui.qs.composefragment.model.QSPanelComponent
 import com.android.systemui.qs.panels.domain.interactor.ComponentReorderInteractor
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
-import android.content.res.Configuration
 
 class ComponentReorderViewModel @AssistedInject constructor(
     private val interactor: ComponentReorderInteractor,
@@ -22,11 +23,18 @@ class ComponentReorderViewModel @AssistedInject constructor(
             initialValue = interactor.getCurrentComponentOrder(),
         )
 
-    val brightnessSliderState by
+    val brightnessSliderVisibility by
         hydrator.hydratedStateOf(
-            traceName = "brightnessSliderState",
-            source = interactor.brightnessSliderState,
-            initialValue = interactor.getBrightnessSliderState(),
+            traceName = "brightnessSliderVisibility",
+            source = interactor.brightnessSliderVisibility,
+            initialValue = interactor.getBrightnessSliderVisibility(),
+        )
+
+    val volumeSliderVisibility by
+        hydrator.hydratedStateOf(
+            traceName = "volumeSliderVisibility",
+            source = interactor.volumeSliderVisibility,
+            initialValue = interactor.getVolumeSliderVisibility(),
         )
 
     val orientation by
@@ -40,8 +48,12 @@ class ComponentReorderViewModel @AssistedInject constructor(
         interactor.saveComponentOrder(newOrder)
     }
 
-    fun updateBrightnessSliderState(state: Int) {
-        interactor.saveBrightnessSliderState(state)
+    fun updateBrightnessSliderVisibility(visibility: QSComponentVisibility) {
+        interactor.saveBrightnessSliderVisibility(visibility)
+    }
+
+    fun updateVolumeSliderVisibility(visibility: QSComponentVisibility) {
+        interactor.saveVolumeSliderVisibility(visibility)
     }
 
     override suspend fun onActivated(): Nothing {
@@ -53,4 +65,3 @@ class ComponentReorderViewModel @AssistedInject constructor(
         fun create(): ComponentReorderViewModel
     }
 }
-

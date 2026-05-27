@@ -101,6 +101,10 @@
     <!-- QS panel component reorder -->
     <string name="qs_reorder_components_title">Customize</string>
     <string name="qs_reorder_components_subtitle">Long press and drag to reorder</string>
+    <string name="qs_component_visibility_title">Visibility</string>
+    <string name="qs_component_visibility_always">Always</string>
+    <string name="qs_component_visibility_qs_only">QS only</string>
+    <string name="qs_component_visibility_hidden">Hidden</string>
 
     <!-- AOD Tile -->
     <string name="quick_settings_aod_label">AOD</string>

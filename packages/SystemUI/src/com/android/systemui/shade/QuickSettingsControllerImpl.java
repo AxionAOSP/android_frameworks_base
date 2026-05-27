@@ -1010,7 +1010,13 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     }
 
     void setBarState(int barState) {
+        if (mBarState == barState) {
+            return;
+        }
         mBarState = barState;
+        if (isQsFragmentCreated()) {
+            updateMinHeight();
+        }
     }
 
     /** */

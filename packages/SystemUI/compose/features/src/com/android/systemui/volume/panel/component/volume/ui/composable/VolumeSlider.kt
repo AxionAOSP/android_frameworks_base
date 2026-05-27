@@ -37,7 +37,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon as MaterialIcon
@@ -55,8 +54,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -70,7 +67,6 @@ import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.android.compose.PlatformSlider
 import com.android.compose.PlatformSliderColors
@@ -82,11 +78,10 @@ import com.android.systemui.haptics.slider.SliderHapticFeedbackFilter
 import com.android.systemui.haptics.slider.compose.ui.SliderHapticsViewModel
 import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.res.R
+import com.android.systemui.util.ui.compose.SystemSliderColors
 import com.android.systemui.volume.dialog.sliders.ui.compose.SliderTrack
 import com.android.systemui.volume.haptics.ui.VolumeHapticsConfigsProvider
 import com.android.systemui.volume.panel.component.volume.slider.ui.viewmodel.SliderState
-import com.android.axion.blur.AxBlurSurface
-import com.android.axion.blur.AxBlurSurfaceDefaults
 import com.android.systemui.volume.ui.compose.slider.AccessibilityParams
 import com.android.systemui.volume.ui.compose.slider.Haptics
 import com.android.systemui.volume.ui.compose.slider.Slider
@@ -140,18 +135,7 @@ fun VolumeSlider(
                 .padding(vertical = dimensions.verticalPadding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val surfaceColor = AxBlurSurfaceDefaults.surfaceColor()
-            val inactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f)
-            val disabledInactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
-            val materialSliderColors =
-                SliderDefaults.colors(
-                    activeTrackColor = Color.Transparent,
-                    activeTickColor = surfaceColor,
-                    inactiveTrackColor = inactiveTrackColor,
-                    disabledActiveTrackColor = Color.Transparent,
-                    disabledActiveTickColor = surfaceColor,
-                    disabledInactiveTrackColor = disabledInactiveTrackColor,
-                )
+            val materialSliderColors = SystemSliderColors.colors()
             if (state is SliderState.Empty) {
                 // reserve the space for the slider to avoid excess resizing
                 Spacer(modifier = Modifier
@@ -172,60 +156,52 @@ fun VolumeSlider(
                             stateDescription = state.a11yStateDescription,
                         ),
                     track = { sliderState ->
-                        Box {
-                            ActiveSliderTrackBlur(
-                                valueFraction = sliderState.coercedValueAsFraction,
-                                isEnabled = state.isEnabled,
-                                trackHeight = dimensions.trackHeight,
-                                modifier = Modifier.matchParentSize(),
-                            )
-                            SliderTrack(
-                                sliderState = sliderState,
-                                colors = materialSliderColors,
-                                isEnabled = state.isEnabled,
-                                trackSize = dimensions.trackHeight,
-                                activeTrackEndIcon =
-                                    state.icon?.let { icon ->
-                                        { iconsState ->
-                                            SliderIcon(
-                                                icon = {
-                                                    Icon(
-                                                        icon = icon,
-                                                        tint = null,
-                                                        modifier =
-                                                            Modifier.size(24.dp)
-                                                                .testTag(
-                                                                    VolumeSlidersMotionTestKeys
-                                                                        .ACTIVE_ICON_TAG
-                                                                ),
-                                                    )
-                                                },
-                                                isVisible = !iconsState.isInactiveTrackEndIconVisible,
-                                            )
-                                        }
-                                    },
-                                inactiveTrackEndIcon =
-                                    state.icon?.let { icon ->
-                                        { iconsState ->
-                                            SliderIcon(
-                                                icon = {
-                                                    Icon(
-                                                        icon = icon,
-                                                        tint = null,
-                                                        modifier =
-                                                            Modifier.size(24.dp)
-                                                                .testTag(
-                                                                    VolumeSlidersMotionTestKeys
-                                                                        .INACTIVE_ICON_TAG
-                                                                ),
-                                                    )
-                                                },
-                                                isVisible = iconsState.isInactiveTrackEndIconVisible,
-                                            )
-                                        }
-                                    },
-                            )
-                        }
+                        SliderTrack(
+                            sliderState = sliderState,
+                            colors = materialSliderColors,
+                            isEnabled = state.isEnabled,
+                            trackSize = dimensions.trackHeight,
+                            activeTrackEndIcon =
+                                state.icon?.let { icon ->
+                                    { iconsState ->
+                                        SliderIcon(
+                                            icon = {
+                                                Icon(
+                                                    icon = icon,
+                                                    tint = null,
+                                                    modifier =
+                                                        Modifier.size(24.dp)
+                                                            .testTag(
+                                                                VolumeSlidersMotionTestKeys
+                                                                    .ACTIVE_ICON_TAG
+                                                            ),
+                                                )
+                                            },
+                                            isVisible = !iconsState.isInactiveTrackEndIconVisible,
+                                        )
+                                    }
+                                },
+                            inactiveTrackEndIcon =
+                                state.icon?.let { icon ->
+                                    { iconsState ->
+                                        SliderIcon(
+                                            icon = {
+                                                Icon(
+                                                    icon = icon,
+                                                    tint = null,
+                                                    modifier =
+                                                        Modifier.size(24.dp)
+                                                            .testTag(
+                                                                VolumeSlidersMotionTestKeys
+                                                                    .INACTIVE_ICON_TAG
+                                                            ),
+                                                )
+                                            },
+                                            isVisible = iconsState.isInactiveTrackEndIconVisible,
+                                        )
+                                    }
+                                },
+                        )
                     },
                     thumb = { sliderState, interactionSource ->
                         SliderDefaults.Thumb(
@@ -281,52 +257,6 @@ fun VolumeSlider(
         }
     }
 }
-
-@Composable
-private fun ActiveSliderTrackBlur(
-    valueFraction: Float,
-    isEnabled: Boolean,
-    trackHeight: Dp,
-    modifier: Modifier = Modifier,
-) {
-    val fraction = valueFraction.coerceIn(0f, 1f)
-    if (fraction <= 0f) return
-    val alignment =
-        if (LocalLayoutDirection.current == LayoutDirection.Rtl) {
-            Alignment.CenterEnd
-        } else {
-            Alignment.CenterStart
-        }
-    Box(
-        modifier = modifier,
-        contentAlignment = alignment,
-    ) {
-        AxBlurSurface(
-            modifier = Modifier
-                .fillMaxWidth(fraction)
-                .height(trackHeight),
-            shape = activeSliderTrackShape(12.dp),
-            cornerRadius = 0.dp,
-            surfaceColor = activeSliderBlurColor(isEnabled),
-        )
-    }
-}
-
-private fun activeSliderTrackShape(radius: Dp): RoundedCornerShape =
-    RoundedCornerShape(
-        topStart = radius,
-        bottomStart = radius,
-        topEnd = 0.dp,
-        bottomEnd = 0.dp,
-    )
-
-@Composable
-private fun activeSliderBlurColor(isEnabled: Boolean): Color =
-    if (isEnabled) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-    }
 
 @Composable
 private fun LegacyVolumeSlider(
@@ -430,14 +360,6 @@ private fun LegacyVolumeSlider(
             }
         },
         interactionSource = interactionSource,
-        indicatorBackground = { indicatorModifier, indicatorRadius ->
-            AxBlurSurface(
-                modifier = indicatorModifier,
-                shape = activeSliderTrackShape(indicatorRadius),
-                cornerRadius = 0.dp,
-                surfaceColor = activeSliderBlurColor(state.isEnabled),
-            )
-        },
     )
 }
 
