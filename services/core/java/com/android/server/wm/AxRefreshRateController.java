@@ -15,32 +15,20 @@
  */
 package com.android.server.wm;
 
-import static android.view.WindowManager.LayoutParams.TYPE_NAVIGATION_BAR;
-import static android.view.WindowManager.LayoutParams.TYPE_STATUS_BAR;
-import static android.view.WindowManager.LayoutParams.TYPE_WALLPAPER;
-import static com.android.server.wm.AxAppRefreshRateProvider.DEFAULT_APP_CONFIGS;
-
-import android.app.AxBoostFwk;
 import android.content.Context;
 import android.database.ContentObserver;
 import android.hardware.display.DisplayManager;
 import android.net.Uri;
 import android.os.Handler;
-import android.os.HandlerThread;
-import android.os.Process;
 import android.os.SystemClock;
 import android.os.SystemProperties;
-import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.ArrayMap;
 import android.util.Slog;
 import android.view.Display;
-import android.view.WindowManager;
 
 import com.android.internal.annotations.GuardedBy;
-import com.android.server.AxExtServiceFactory;
-import com.android.server.wm.AxAppRefreshRateProvider.AppRefreshRateConfig;
-import com.android.server.wm.AxAppRefreshRateProvider.AppVoteInfo;
+import com.android.server.DisplayThread;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -63,13 +51,13 @@ public class AxRefreshRateController {
     private static final String SETTINGS_REFRESH_RATE_MODE = "display_refresh_rate_mode";
     private static final String LOCKSCREEN_LIMIT_REFRESH_RATE = "lockscreen_limit_refresh_rate";
     private static final String PER_APP_REFRESH_RATE = "per_app_refresh_rate";
-    private static final String GAMING_MODE_ACTIVE = "ax_gaming_mode_active";
 
     private static final int BOOST_TOUCH = 1;
     private static final int BOOST_FOCUS = 1 << 2;
     private static final int BOOST_FLING = 1 << 3;
 
     private static final long DISPLAY_CHANGE_REQUERY_DELAY_MS = 500;
+    private static final float PEAK_REFRESH_RATE_OFFSET = 1.0f;
 
     // ──────────────────────────────────────────────────────────────────────
     // Static fields
@@ -85,10 +73,9 @@ public class AxRefreshRateController {
     // ──────────────────────────────────────────────────────────────────────
 
     private Context mContext;
-    private Handler mBgHandler;
+    private Handler mHandler;
     private WindowManagerService mWmService;
-    private GameListManager mGameListManager;
-    private RefreshRateUpdateCallback mRateCallback;
+    private volatile RefreshRateUpdateCallback mRateCallback;
     private volatile boolean mInitialized = false;
 
     // ──────────────────────────────────────────────────────────────────────
@@ -109,8 +96,6 @@ public class AxRefreshRateController {
     private volatile boolean mAppOverrideActive = false;
     private volatile float mPerAppOverrideRate = 0f;
     private volatile String mFocusedPackage = "";
-    private volatile boolean mGamingActive = false;
-    private volatile boolean mFocusedGame = false;
 
     // ──────────────────────────────────────────────────────────────────────
     // Boost state
@@ -125,17 +110,9 @@ public class AxRefreshRateController {
     // Vote state — accessed on WM thread during traversal
     // ──────────────────────────────────────────────────────────────────────
 
-    private final AppVoteInfo mBestVote = new AppVoteInfo();
-    private final AppVoteInfo mBestUserVote = new AppVoteInfo();
-    private final AppVoteInfo mCurrentVote = new AppVoteInfo();
-    private boolean mDisableIdle = false;
-    private int mMaxWindowSize = 0;
-    private int mMaxUserWindowSize = 0;
-    private float mCachedResolvedMax = 60f;
-    private volatile boolean mHasUserAppRates = false;
-
-    private WindowState mLastWindowState = null;
-    private boolean mLastVoteDisplayOn = false;
+    private boolean mCurrentVoteActive = false;
+    private float mCurrentVoteMin = 0f;
+    private float mCurrentVoteMax = 0f;
 
     @GuardedBy("mUserAppRefreshRates")
     private final ArrayMap<String, Float> mUserAppRefreshRates = new ArrayMap<>();
@@ -147,9 +124,6 @@ public class AxRefreshRateController {
     private volatile float mLastSyncedPeak = -1f;
     private volatile float mLastSyncedMin = -1f;
     private volatile String mLastSrc = "";
-    private volatile boolean mDisplayVoteActive = false;
-    private volatile float mDisplayVoteMin = 0f;
-    private volatile float mDisplayVoteMax = 0f;
 
     // ──────────────────────────────────────────────────────────────────────
     // Runnables
@@ -157,8 +131,14 @@ public class AxRefreshRateController {
 
     private final Runnable mSyncRunnable = this::syncDisplaySettings;
 
+    private final Runnable mForceSyncRunnable = () -> {
+        invalidateLastSync();
+        syncDisplaySettings();
+    };
+
     private final Runnable mDisplayChangeRequeryRunnable = () -> {
         queryAndApplyDisplayModes();
+        invalidateLastSync();
         syncDisplaySettings();
     };
 
@@ -181,24 +161,14 @@ public class AxRefreshRateController {
         mContext = context;
         mWmService = wms;
 
-        HandlerThread thread = new HandlerThread("AxRefreshRateConfig",
-                Process.THREAD_PRIORITY_BACKGROUND);
-        thread.start();
-        mBgHandler = new Handler(thread.getLooper());
+        mHandler = DisplayThread.getHandler();
 
         mIdleTimeoutMs = SystemProperties.getLong(
                 "persist.sys.ax.idle_timeout_ms", 5000);
         mFocusBoostTimeoutMs = SystemProperties.getLong(
                 "persist.sys.ax.focus_boost_timeout_ms", 5000);
 
-        mGameListManager = new GameListManager(context);
-        mGameListManager.registerGameListObserver(mBgHandler);
-        mGameListManager.addListener(() -> mBgHandler.post(() -> {
-            syncDisplaySettings();
-            mWmService.requestTraversal();
-        }));
-
-        refreshDisplayModes();
+        queryAndApplyDisplayModes();
 
         loadRefreshRateSetting();
         loadPerAppRefreshRates();
@@ -209,7 +179,8 @@ public class AxRefreshRateController {
                 + " vrr=" + mVrrEnabled + " supportsVRR=" + sSupportsVrr
                 + " fixedRate=" + mFixedRefreshRate
                 + " idleTimeout=" + mIdleTimeoutMs);
-        mBgHandler.postDelayed(mDisplayChangeRequeryRunnable, DISPLAY_CHANGE_REQUERY_DELAY_MS);
+        forceResync();
+        mHandler.postDelayed(mDisplayChangeRequeryRunnable, DISPLAY_CHANGE_REQUERY_DELAY_MS);
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -218,8 +189,7 @@ public class AxRefreshRateController {
 
     public void setRefreshRateUpdateCallback(RefreshRateUpdateCallback callback) {
         mRateCallback = callback;
-        invalidateLastSync();
-        mBgHandler.post(this::syncDisplaySettings);
+        forceResync();
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -228,23 +198,23 @@ public class AxRefreshRateController {
 
     public void onPointerEvent() {
         if (!mInitialized || !mVrrEnabled) return;
-        if (mAppOverrideActive || isGameWorkload()) return;
+        if (mAppOverrideActive) return;
         if (mLockscreenLimitEnabled && !mKeyguardDone) return;
         boolean wasIdle = !hasBoost(BOOST_TOUCH);
         setBoost(BOOST_TOUCH);
         if (wasIdle) {
-            mBgHandler.post(this::syncDisplaySettings);
+            mHandler.post(this::syncDisplaySettings);
         }
     }
 
     public void setFlingBoost(long durationMillis) {
         if (!mInitialized || !mVrrEnabled) return;
-        mBgHandler.post(() -> setFlingBoostInternal(durationMillis));
+        mHandler.post(() -> setFlingBoostInternal(durationMillis));
     }
 
     private void setFlingBoostInternal(long durationMillis) {
-        mBgHandler.removeCallbacks(mFlingBoostTimeoutRunnable);
-        if (mAppOverrideActive || isGameWorkload()
+        mHandler.removeCallbacks(mFlingBoostTimeoutRunnable);
+        if (mAppOverrideActive
                 || (mLockscreenLimitEnabled && !mKeyguardDone)
                 || durationMillis <= 0) {
             if (hasBoost(BOOST_FLING)) {
@@ -259,7 +229,7 @@ public class AxRefreshRateController {
         if (!wasBoosted) {
             syncDisplaySettings();
         }
-        mBgHandler.postDelayed(mFlingBoostTimeoutRunnable, durationMillis);
+        mHandler.postDelayed(mFlingBoostTimeoutRunnable, durationMillis);
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -270,39 +240,20 @@ public class AxRefreshRateController {
         mKeyguardDone = done;
         if (mInitialized) {
             if (done && mVrrEnabled) {
-                if (!mAppOverrideActive && !isGameWorkload()) {
-                    clearDisplayVoteForSettings();
-                }
-                setBoost(BOOST_FOCUS);
+                if (!mAppOverrideActive) setBoost(BOOST_FOCUS);
             }
-            mBgHandler.post(this::syncDisplaySettings);
+            mHandler.post(this::syncDisplaySettings);
             mWmService.requestTraversal();
         }
     }
 
     public void updateFocusedApp(final ActivityRecord activityRecord) {
         if (!mInitialized) return;
-        String pkg = activityRecord.packageName;
-        Float userRate;
-        synchronized (mUserAppRefreshRates) {
-            userRate = mUserAppRefreshRates.get(pkg);
-        }
-        float resolvedUserRate = resolveUserRefreshRate(userRate);
-        if (resolvedUserRate > 0) {
-            mAppOverrideActive = true;
-            mPerAppOverrideRate = resolvedUserRate;
-        } else {
-            mAppOverrideActive = false;
-            mPerAppOverrideRate = 0f;
-        }
+        String pkg = activityRecord.packageName == null ? "" : activityRecord.packageName;
         mFocusedPackage = pkg;
-        mFocusedGame = AxExtServiceFactory.getAxBurstEngine().perfGetFeedback(
-                activityRecord.info.applicationInfo, pkg) == AxBoostFwk.WORKLOAD_GAME;
-        if (!mAppOverrideActive && !isGameWorkload()) {
-            clearDisplayVoteForSettings();
-        }
-        setBoost(BOOST_FOCUS);
-        mBgHandler.post(() -> {
+        updateFocusedAppOverride();
+        if (mVrrEnabled && !mAppOverrideActive) setBoost(BOOST_FOCUS);
+        mHandler.post(() -> {
             syncDisplaySettings();
             mWmService.requestTraversal();
         });
@@ -310,160 +261,34 @@ public class AxRefreshRateController {
 
     public void onDisplayChanged() {
         if (!mInitialized) return;
-        refreshDisplayModes();
-        mBgHandler.removeCallbacks(mDisplayChangeRequeryRunnable);
-        mBgHandler.post(this::syncDisplaySettings);
-        mBgHandler.postDelayed(mDisplayChangeRequeryRunnable, DISPLAY_CHANGE_REQUERY_DELAY_MS);
+        queryAndApplyDisplayModes();
+        invalidateLastSync();
+        mHandler.removeCallbacks(mDisplayChangeRequeryRunnable);
+        mHandler.post(this::syncDisplaySettings);
+        mHandler.postDelayed(mDisplayChangeRequeryRunnable, DISPLAY_CHANGE_REQUERY_DELAY_MS);
     }
 
     public void forceResync() {
         if (!mInitialized) return;
-        mBgHandler.post(this::syncDisplaySettings);
+        mHandler.post(mForceSyncRunnable);
     }
 
     // ──────────────────────────────────────────────────────────────────────
     // Public API — vote cycle (called on WM thread during traversal)
     // ──────────────────────────────────────────────────────────────────────
 
-    public void resetVoteResult() {
-        if (!mInitialized) return;
-        mBestVote.reset();
-        mBestUserVote.reset();
-        mMaxWindowSize = 0;
-        mMaxUserWindowSize = 0;
-        mDisableIdle = false;
-        mCachedResolvedMax = resolveMaxRate();
-        mLastWindowState = null;
-        mLastVoteDisplayOn = false;
-    }
-
-    public void votePreferredRate(WindowState ws, boolean displayOn) {
-        if (mLastWindowState == ws && mLastVoteDisplayOn == displayOn) {
-            return;
-        }
-
-        mLastWindowState = ws;
-        mLastVoteDisplayOn = displayOn;
-        votePreferredRateInternal(ws);
-    }
-
-    private void votePreferredRateInternal(WindowState ws) {
-        if (!mInitialized) return;
-
-        int type = ws.mAttrs.type;
-
-        if (isSystemWindowType(type)) {
-            return;
-        }
-
-        String pkg = ws.mAttrs.packageName;
-
-        float targetRate = 0f;
-        float minRate = 0f;
-        boolean userOverride = false;
-
-        if (mHasUserAppRates) {
-            synchronized (mUserAppRefreshRates) {
-                Float userRate = mUserAppRefreshRates.get(pkg);
-                float resolvedUserRate = resolveUserRefreshRate(userRate);
-                if (resolvedUserRate > 0) {
-                    targetRate = resolvedUserRate;
-                    minRate = resolvedUserRate;
-                    userOverride = true;
-                }
-            }
-        }
-
-        if (targetRate == 0f) {
-            AppRefreshRateConfig config = DEFAULT_APP_CONFIGS.get(pkg);
-            if (config != null) {
-                int configRate = config.refreshRates.valueAt(0);
-                if (configRate == -1) {
-                    targetRate = mCachedResolvedMax;
-                } else if (configRate == -2) {
-                    targetRate = mDefaultMinHz;
-                } else {
-                    targetRate = configRate;
-                }
-
-                if (config.disableIdle && pkg.equals(mFocusedPackage)) {
-                    mDisableIdle = true;
-                }
-
-                if (config.disableSV) {
-                    WindowManager.LayoutParams lp = ws.mAttrs;
-                    if (lp.preferredMinDisplayRefreshRate == (mDefaultMinHz - 1.0f) &&
-                        lp.preferredMaxDisplayRefreshRate == mDefaultMinHz) {
-                        lp.preferredMinDisplayRefreshRate = lp.preferredMaxDisplayRefreshRate = 0.0f;
-                    }
-                }
-            }
-        }
-
-        if (targetRate <= 0) {
-            return;
-        }
-
-        int windowSize = ws.mRequestedWidth * ws.mRequestedHeight;
-
-        if (!userOverride && isBoosted() && !isGameWorkload()) {
-            targetRate = mCachedResolvedMax;
-        }
-
-        if (isBetterVote(targetRate, mBestVote, windowSize, mMaxWindowSize)) {
-            mBestVote.updateVote(pkg, minRate, targetRate);
-            mMaxWindowSize = windowSize;
-        }
-
-        if (userOverride && isBetterVote(targetRate, mBestUserVote, windowSize,
-                mMaxUserWindowSize)) {
-            mBestUserVote.updateVote(pkg, minRate, targetRate);
-            mMaxUserWindowSize = windowSize;
-        }
-    }
-
-    private static boolean isBetterVote(float targetRate, AppVoteInfo vote, int windowSize,
-            int maxWindowSize) {
-        return targetRate > vote.maxRefreshRate
-                || (Math.abs(targetRate - vote.maxRefreshRate) < 1.0f
-                        && windowSize > maxWindowSize);
-    }
-
     public void updateVoteResult() {
         if (!mInitialized) return;
-        mCurrentVote.reset();
-
-        if (mAppOverrideActive && mPerAppOverrideRate > 0) {
-            mCurrentVote.updateVote("PerAppOverride", mPerAppOverrideRate, mPerAppOverrideRate);
-        } else if (mVrrEnabled && mBestUserVote.hasVote) {
-            mCurrentVote.copyFrom(mBestUserVote);
-        } else if (mVrrEnabled && isGameWorkload()) {
-            mCurrentVote.updateVote("Game", 0.0f, mCachedResolvedMax);
-        } else if (!mVrrEnabled && mBestVote.hasVote) {
-            mCurrentVote.copyFrom(mBestVote);
-        }
+        clearCurrentVote();
 
         if (mLockscreenLimitEnabled && !mKeyguardDone) {
-            if (mCurrentVote.hasVote) {
-                if (mCurrentVote.maxRefreshRate > mDefaultMinHz) {
-                    mCurrentVote.maxRefreshRate = mDefaultMinHz;
-                    mCurrentVote.minRefreshRate = Math.min(
-                            mCurrentVote.minRefreshRate, mCurrentVote.maxRefreshRate);
-                }
-            } else {
-                mCurrentVote.updateVote("LockscreenLimit", 0.0f, mDefaultMinHz);
-            }
+            setCurrentVote(0f, mDefaultMinHz);
+        } else if (mAppOverrideActive && mPerAppOverrideRate > 0f) {
+            setCurrentVote(mPerAppOverrideRate, mPerAppOverrideRate);
+        } else if (!mVrrEnabled) {
+            float rate = resolveLockedRefreshRate();
+            setCurrentVote(rate, rate);
         }
-
-        if (mDisableIdle && mCurrentVote.hasVote) {
-            mCurrentVote.minRefreshRate = mCurrentVote.maxRefreshRate;
-        }
-
-        if (!mCurrentVote.hasVote && !mVrrEnabled && mFixedRefreshRate > 0) {
-            mCurrentVote.updateVote("GlobalMode", (float) mFixedRefreshRate, mFixedRefreshRate);
-        }
-
-        updateDisplayVoteForSettings();
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -471,7 +296,7 @@ public class AxRefreshRateController {
     // ──────────────────────────────────────────────────────────────────────
 
     public boolean hasActiveVote() {
-        return mCurrentVote.hasVote;
+        return mCurrentVoteActive;
     }
 
     public boolean shouldSuppressAppRefreshRateRequests() {
@@ -479,15 +304,11 @@ public class AxRefreshRateController {
     }
 
     public float getMaxPreferredRate() {
-        return mCurrentVote.maxRefreshRate;
+        return mCurrentVoteMax;
     }
 
     public float getMinPreferredRate() {
-        return mCurrentVote.minRefreshRate;
-    }
-
-    public int getPreferredModeId() {
-        return 0;
+        return mCurrentVoteMin;
     }
 
     private long getVrrTimeOut() {
@@ -519,26 +340,16 @@ public class AxRefreshRateController {
         return mActiveBoosts.get() != 0;
     }
 
-    private boolean isGameWorkload() {
-        return mFocusedGame || mGamingActive || isFocusedPackageInGameList();
-    }
-
-    private boolean isFocusedPackageInGameList() {
-        final String packageName = mFocusedPackage;
-        return packageName != null && !packageName.isEmpty()
-                && mGameListManager != null && mGameListManager.isGame(packageName);
-    }
-
     private float resolveUserRefreshRate(Float rate) {
         if (rate == null || rate <= 0) {
             return 0f;
         }
-        return Math.min(rate, mMaxSupportedHz);
+        return Math.max(mDefaultMinHz, Math.min(rate, mMaxSupportedHz));
     }
 
     private void scheduleSyncDisplaySettings(long delayMillis) {
-        mBgHandler.removeCallbacks(mSyncRunnable);
-        mBgHandler.postDelayed(mSyncRunnable, delayMillis);
+        mHandler.removeCallbacks(mSyncRunnable);
+        mHandler.postDelayed(mSyncRunnable, delayMillis);
     }
 
     private void invalidateLastSync() {
@@ -547,35 +358,16 @@ public class AxRefreshRateController {
         mLastSrc = "";
     }
 
-    private void updateDisplayVoteForSettings() {
-        final boolean active = mCurrentVote.hasVote;
-        final float min = active ? mCurrentVote.minRefreshRate : 0f;
-        final float max = active ? mCurrentVote.maxRefreshRate : 0f;
-        if (active == mDisplayVoteActive && min == mDisplayVoteMin && max == mDisplayVoteMax) {
-            return;
-        }
-        mDisplayVoteActive = active;
-        mDisplayVoteMin = min;
-        mDisplayVoteMax = max;
-        mBgHandler.post(this::syncDisplaySettings);
+    private void setCurrentVote(float min, float max) {
+        mCurrentVoteActive = true;
+        mCurrentVoteMin = min;
+        mCurrentVoteMax = max;
     }
 
-    private void clearDisplayVoteForSettings() {
-        mDisplayVoteActive = false;
-        mDisplayVoteMin = 0f;
-        mDisplayVoteMax = 0f;
-    }
-
-    // ──────────────────────────────────────────────────────────────────────
-    // Private — display mode queries
-    // ──────────────────────────────────────────────────────────────────────
-
-    private float resolveMaxRate() {
-        return mVrrEnabled ? mMaxSupportedHz : mFixedRefreshRate;
-    }
-
-    private void refreshDisplayModes() {
-        queryAndApplyDisplayModes();
+    private void clearCurrentVote() {
+        mCurrentVoteActive = false;
+        mCurrentVoteMin = 0f;
+        mCurrentVoteMax = 0f;
     }
 
     private void queryAndApplyDisplayModes() {
@@ -632,7 +424,8 @@ public class AxRefreshRateController {
 
     private void syncDisplaySettings() {
         final boolean vrr = mVrrEnabled;
-        boolean boosted = isBoosted();
+        final boolean appOverrideActive = mAppOverrideActive && mPerAppOverrideRate > 0f;
+        boolean boosted = !appOverrideActive && isBoosted();
         final long vrrTimeout = getVrrTimeOut();
         long nextVrrIdleCheckDelay = -1;
 
@@ -648,44 +441,32 @@ public class AxRefreshRateController {
 
         final boolean lsLimit = mLockscreenLimitEnabled;
         final boolean kgDone = mKeyguardDone;
-        final boolean displayVoteActive = mDisplayVoteActive;
-        final float displayVoteMin = mDisplayVoteMin;
-        final float displayVoteMax = mDisplayVoteMax;
         final float maxHz = mMaxSupportedHz;
         final float minHz = mDefaultMinHz;
         float peak;
         float min;
         String src;
         if (lsLimit && !kgDone) {
-            peak = minHz + 1.0f;
+            peak = minHz + PEAK_REFRESH_RATE_OFFSET;
             min = 0f;
             src = "LS_LIMIT";
-        } else if (mAppOverrideActive && mPerAppOverrideRate > 0) {
-            peak = mPerAppOverrideRate + 1.0f;
+        } else if (appOverrideActive) {
+            peak = mPerAppOverrideRate + PEAK_REFRESH_RATE_OFFSET;
             min = mPerAppOverrideRate;
             src = "APP";
-        } else if (isGameWorkload()) {
-            float cap = vrr ? maxHz : mFixedRefreshRate;
-            peak = cap + 1.0f;
-            min = 0f;
-            src = "GAME";
-        } else if (vrr && boosted) {
-            peak = maxHz + 1.0f;
-            min = 0f;
-            src = "VRR_BOOST";
-        } else if (vrr && displayVoteActive && displayVoteMax > 0) {
-            peak = displayVoteMax + 1.0f;
-            min = displayVoteMin;
-            src = "VOTE";
-        } else if (vrr) {
-            peak = minHz + 1.0f;
-            min = 0f;
-            src = "VRR_IDLE";
-        } else {
-            float rate = mFixedRefreshRate > 0 ? mFixedRefreshRate : maxHz;
-            peak = rate + 1.0f;
+        } else if (!vrr) {
+            float rate = resolveLockedRefreshRate();
+            peak = rate + PEAK_REFRESH_RATE_OFFSET;
             min = rate;
             src = "FIXED";
+        } else if (vrr && boosted) {
+            peak = maxHz + PEAK_REFRESH_RATE_OFFSET;
+            min = maxHz;
+            src = "VRR_INTERACTIVE";
+        } else {
+            peak = minHz + PEAK_REFRESH_RATE_OFFSET;
+            min = 0f;
+            src = "VRR_IDLE";
         }
         final RefreshRateUpdateCallback callback = mRateCallback;
         if (callback == null) {
@@ -710,16 +491,6 @@ public class AxRefreshRateController {
         }
     }
 
-    private String boostString(int boosts) {
-        if (boosts == 0) return "NONE";
-        StringBuilder sb = new StringBuilder();
-        if ((boosts & BOOST_TOUCH) != 0) sb.append("TOUCH|");
-        if ((boosts & BOOST_FOCUS) != 0) sb.append("FOCUS|");
-        if ((boosts & BOOST_FLING) != 0) sb.append("FLING|");
-        sb.setLength(sb.length() - 1);
-        return sb.toString();
-    }
-
     // ──────────────────────────────────────────────────────────────────────
     // Private — settings loading
     // ──────────────────────────────────────────────────────────────────────
@@ -728,13 +499,14 @@ public class AxRefreshRateController {
         int value = Settings.Global.getInt(mContext.getContentResolver(),
                 SETTINGS_REFRESH_RATE_MODE, sSupportsVrr ? 0 : Math.round(mMaxSupportedHz));
         mVrrEnabled = (value == 0 && sSupportsVrr);
-        if (!mVrrEnabled) mFixedRefreshRate = value > 0 ? value : Math.round(mMaxSupportedHz);
+        mFixedRefreshRate = mVrrEnabled || value <= 0 ? Math.round(mMaxSupportedHz) : value;
         mLockscreenLimitEnabled = Settings.System.getInt(mContext.getContentResolver(),
                 LOCKSCREEN_LIMIT_REFRESH_RATE, 0) != 0;
     }
 
     private void loadPerAppRefreshRates() {
-        String config = Settings.System.getString(mContext.getContentResolver(), PER_APP_REFRESH_RATE);
+        String config = Settings.System.getString(mContext.getContentResolver(),
+                PER_APP_REFRESH_RATE);
         ArrayMap<String, Float> parsed = new ArrayMap<>();
         if (config != null && !config.isEmpty()) {
             String[] apps = config.split(",");
@@ -755,13 +527,23 @@ public class AxRefreshRateController {
         synchronized (mUserAppRefreshRates) {
             mUserAppRefreshRates.clear();
             mUserAppRefreshRates.putAll(parsed);
-            mHasUserAppRates = !mUserAppRefreshRates.isEmpty();
         }
     }
 
     private void refreshFocusedAppOverride() {
+        updateFocusedAppOverride();
+        if (mVrrEnabled && !mAppOverrideActive) setBoost(BOOST_FOCUS);
+        syncDisplaySettings();
+        mWmService.requestTraversal();
+    }
+
+    private void updateFocusedAppOverride() {
         String pkg = mFocusedPackage;
-        if (pkg == null || pkg.isEmpty()) return;
+        if (pkg == null || pkg.isEmpty()) {
+            mAppOverrideActive = false;
+            mPerAppOverrideRate = 0f;
+            return;
+        }
         Float userRate;
         synchronized (mUserAppRefreshRates) {
             userRate = mUserAppRefreshRates.get(pkg);
@@ -774,18 +556,12 @@ public class AxRefreshRateController {
             mAppOverrideActive = false;
             mPerAppOverrideRate = 0f;
         }
-        syncDisplaySettings();
-        mWmService.requestTraversal();
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // Private — window helpers
-    // ──────────────────────────────────────────────────────────────────────
-
-    private boolean isSystemWindowType(int type) {
-        return type == TYPE_STATUS_BAR
-                || type == TYPE_NAVIGATION_BAR
-                || type == TYPE_WALLPAPER;
+    private float resolveLockedRefreshRate() {
+        float rate = mFixedRefreshRate > 0 ? mFixedRefreshRate : mMaxSupportedHz;
+        if (rate < mDefaultMinHz) return mDefaultMinHz;
+        return Math.min(rate, mMaxSupportedHz);
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -799,38 +575,27 @@ public class AxRefreshRateController {
                 Settings.System.getUriFor(LOCKSCREEN_LIMIT_REFRESH_RATE);
         private final Uri mPerAppRefreshRateUri =
                 Settings.System.getUriFor(PER_APP_REFRESH_RATE);
-        private final Uri mGamingModeUri =
-                Settings.Secure.getUriFor(GAMING_MODE_ACTIVE);
-
         SettingsObserver() {
-            super(mBgHandler);
+            super(mHandler);
             mContext.getContentResolver().registerContentObserver(
                     mRefreshRateModeUri, false, this, -1);
             mContext.getContentResolver().registerContentObserver(
                     mLockscreenLimitUri, false, this, -1);
             mContext.getContentResolver().registerContentObserver(
                     mPerAppRefreshRateUri, false, this, -1);
-            mContext.getContentResolver().registerContentObserver(
-                    mGamingModeUri, false, this, -1);
         }
 
         @Override
         public void onChange(boolean selfChange, Uri uri) {
-            if (mGamingModeUri.equals(uri)) {
-                mGamingActive = Settings.Secure.getIntForUser(
-                        mContext.getContentResolver(), GAMING_MODE_ACTIVE,
-                        0, UserHandle.USER_CURRENT) == 1;
-                syncDisplaySettings();
-                mWmService.requestTraversal();
-                return;
-            }
-            loadRefreshRateSetting();
-            syncDisplaySettings();
             if (mPerAppRefreshRateUri.equals(uri)) {
                 loadPerAppRefreshRates();
                 refreshFocusedAppOverride();
                 return;
             }
+            boolean wasVrrEnabled = mVrrEnabled;
+            loadRefreshRateSetting();
+            if (mVrrEnabled && !wasVrrEnabled && !mAppOverrideActive) setBoost(BOOST_FOCUS);
+            syncDisplaySettings();
             mWmService.requestTraversal();
         }
     }

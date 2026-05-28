@@ -581,8 +581,6 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
     private final ApplySurfaceChangesTransactionState mTmpApplySurfaceChangesTransactionState =
             new ApplySurfaceChangesTransactionState();
 
-    private boolean mTmpScreenOnFully;
-
     // {@code false} if this display is in the processing of being created.
     private boolean mDisplayReady = false;
 
@@ -1050,10 +1048,6 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
             if (!mTmpApplySurfaceChangesTransactionState.displayHasContent
                     && !getDisplayPolicy().isWindowExcludedFromContent(w)) {
                 mTmpApplySurfaceChangesTransactionState.displayHasContent |= displayHasContent;
-            }
-
-            if (isDefaultDisplay && w.mHasSurface && w.isVisible()) {
-                AxRefreshRateController.getInstance().votePreferredRate(w, mTmpScreenOnFully);
             }
 
             if (w.mHasSurface && isDisplayed) {
@@ -5220,11 +5214,6 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
 
         mTmpApplySurfaceChangesTransactionState.reset();
 
-        if (isDefaultDisplay) {
-            AxRefreshRateController.getInstance().resetVoteResult();
-            mTmpScreenOnFully = getDisplayPolicy().isScreenOnFully();
-        }
-
         Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "applyWindowSurfaceChanges");
         try {
             forAllWindows(mApplySurfaceChangesTransaction, true /* traverseTopToBottom */);
@@ -5246,14 +5235,11 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
             if (axRrc.hasActiveVote()) {
                 float axMin = axRrc.getMinPreferredRate();
                 float axMax = axRrc.getMaxPreferredRate();
-                mTmpApplySurfaceChangesTransactionState.preferredModeId =
-                        axRrc.getPreferredModeId();
                 mTmpApplySurfaceChangesTransactionState.preferredMinRefreshRate = axMin;
                 mTmpApplySurfaceChangesTransactionState.preferredMaxRefreshRate = axMax;
                 if (axMin > 0 && Math.abs(axMin - axMax) < 1.0f) {
                     mTmpApplySurfaceChangesTransactionState.preferredRefreshRate = axMax;
                 }
-                Slog.d("AxRefreshRateController", "updateVote: axMin: " + axMin + " axMax: " + axMax);
             }
         }
         mWmService.mDisplayManagerInternal.setDisplayProperties(mDisplayId,
