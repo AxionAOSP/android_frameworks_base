@@ -184,6 +184,10 @@ public final class PowerManagerService extends SystemService
 
     private static final boolean DEBUG = false;
     private static final boolean DEBUG_SPEW = DEBUG && true;
+    private static final String DOZE_PULSE_ACTION = "com.android.systemui.doze.pulse";
+    private static final String SYSTEMUI_WAKE_DETAIL_PREFIX = "com.android.systemui:";
+    private static final String DOZE_WAKE_DETAIL_TAP = "NODOZE tap";
+    private static final String DOZE_WAKE_DETAIL_DOUBLE_TAP = "NODOZE doubletap";
 
     // Message: Sent when a user activity timeout occurs to update the power state.
     private static final int MSG_USER_ACTIVITY_TIMEOUT = 1;
@@ -6651,7 +6655,7 @@ public final class PowerManagerService extends SystemService
                 String opPackageName) {
             validateWakeupIsEligible(eventTime);
 
-            if (interceptGestureWakeAsPulse(reason)) return;
+            if (interceptGestureWakeAsPulse(reason, details)) return;
 
             final int uid = Binder.getCallingUid();
             final long ident = Binder.clearCallingIdentity();
@@ -7826,40 +7830,44 @@ public final class PowerManagerService extends SystemService
      * This will not wakeup the power groups if the device is in the quiescent mode or is still
      * booting up
      */
-    private boolean interceptGestureWakeAsPulse(@WakeReason int reason) {
+    private boolean interceptGestureWakeAsPulse(@WakeReason int reason, String details) {
         if (mWakefulnessRaw == WAKEFULNESS_AWAKE) return false;
-        ContentResolver resolver = mContext.getContentResolver();
-        boolean shouldIntercept;
         switch (reason) {
             case PowerManager.WAKE_REASON_WAKE_KEY:
-                shouldIntercept = SystemProperties.getBoolean(
-                        "persist.sys.ax_doze_double_tap_pulse_supported", false)
-                        && Settings.Secure.getIntForUser(resolver,
-                        "ax_doze_double_tap_pulse", 0, UserHandle.USER_CURRENT) != 0;
-                break;
+                return sendDozePulseIfNeeded(
+                        mAmbientDisplayConfiguration.doubleTapPulseMode(UserHandle.USER_CURRENT));
             case PowerManager.WAKE_REASON_TAP:
-                shouldIntercept = SystemProperties.getBoolean(
-                        "persist.sys.ax_doze_tap_pulse_supported", false)
-                        && Settings.Secure.getIntForUser(resolver,
-                        "ax_doze_tap_pulse", 0, UserHandle.USER_CURRENT) != 0;
-                break;
+                if (isDozeWakeDetail(details, DOZE_WAKE_DETAIL_DOUBLE_TAP)) {
+                    return sendDozePulseIfNeeded(
+                            mAmbientDisplayConfiguration.doubleTapPulseMode(
+                                    UserHandle.USER_CURRENT));
+                }
+                if (isDozeWakeDetail(details, DOZE_WAKE_DETAIL_TAP)) {
+                    return sendDozePulseIfNeeded(
+                            mAmbientDisplayConfiguration.tapPulseMode(UserHandle.USER_CURRENT));
+                }
+                if (details != null && details.startsWith(SYSTEMUI_WAKE_DETAIL_PREFIX)) {
+                    return false;
+                }
+                return sendDozePulseIfNeeded(
+                        mAmbientDisplayConfiguration.tapPulseMode(UserHandle.USER_CURRENT));
             case PowerManager.WAKE_REASON_GESTURE:
-                shouldIntercept =
-                        (SystemProperties.getBoolean(
-                                "persist.sys.ax_doze_pickup_pulse_supported", false)
-                        && Settings.Secure.getIntForUser(resolver,
-                                "ax_doze_pickup_pulse", 0, UserHandle.USER_CURRENT) != 0)
-                        || (SystemProperties.getBoolean(
-                                "persist.sys.ax_doze_double_tap_pulse_supported", false)
-                        && Settings.Secure.getIntForUser(resolver,
-                                "ax_doze_double_tap_pulse", 0, UserHandle.USER_CURRENT) != 0);
-                break;
+                return sendDozePulseIfNeeded(
+                        mAmbientDisplayConfiguration.pickupPulseMode(UserHandle.USER_CURRENT)
+                                || mAmbientDisplayConfiguration.doubleTapPulseMode(
+                                        UserHandle.USER_CURRENT));
             default:
                 return false;
         }
-        if (!shouldIntercept) return false;
-        mContext.sendBroadcastAsUser(
-                new Intent("com.android.systemui.doze.pulse"), UserHandle.CURRENT);
+    }
+
+    private boolean isDozeWakeDetail(String details, String wakeDetail) {
+        return details != null && details.contains(wakeDetail);
+    }
+
+    private boolean sendDozePulseIfNeeded(boolean enabled) {
+        if (!enabled) return false;
+        mContext.sendBroadcastAsUser(new Intent(DOZE_PULSE_ACTION), UserHandle.CURRENT);
         return true;
     }
 
