@@ -1873,17 +1873,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private boolean interceptWakeKeyAsDozePulse() {
         int userId = mCurrentUserId;
         ContentResolver resolver = mContext.getContentResolver();
-        boolean doubleTapPulse = SystemProperties.getBoolean(
-                "persist.sys.ax_doze_double_tap_pulse_supported", false)
-                && Settings.Secure.getIntForUser(
+        boolean doubleTapPulse = Settings.Secure.getIntForUser(
                         resolver, "ax_doze_double_tap_pulse", 0, userId) != 0;
-        boolean tapPulse = SystemProperties.getBoolean(
-                "persist.sys.ax_doze_tap_pulse_supported", false)
-                && Settings.Secure.getIntForUser(
+        boolean tapPulse = Settings.Secure.getIntForUser(
                         resolver, "ax_doze_tap_pulse", 0, userId) != 0;
-        boolean pickupPulse = SystemProperties.getBoolean(
-                "persist.sys.ax_doze_pickup_pulse_supported", false)
-                && Settings.Secure.getIntForUser(
+        boolean pickupPulse = Settings.Secure.getIntForUser(
                         resolver, "ax_doze_pickup_pulse", 0, userId) != 0;
         if (!doubleTapPulse && !tapPulse && !pickupPulse) return false;
         mContext.sendBroadcastAsUser(

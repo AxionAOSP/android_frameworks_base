@@ -25,7 +25,9 @@ import android.content.res.Resources;
 import android.hardware.biometrics.BiometricFaceConstants;
 import android.hardware.biometrics.BiometricFingerprintConstants;
 import android.hardware.biometrics.BiometricSourceType;
+import android.hardware.display.AmbientDisplayConfiguration;
 import android.hardware.fingerprint.FingerprintManager;
+import android.hardware.fingerprint.FingerprintSensorPropertiesInternal;
 import android.metrics.LogMaker;
 import android.os.Handler;
 import android.os.PowerManager;
@@ -79,6 +81,7 @@ import java.io.PrintWriter;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -185,6 +188,8 @@ public class BiometricUnlockController extends KeyguardUpdateMonitorCallback imp
     private final VibratorHelper mVibratorHelper;
     private final BiometricUnlockInteractor mBiometricUnlockInteractor;
     private final Lazy<SecureLockDeviceInteractor> mSecureLockDeviceInteractor;
+    private final AmbientDisplayConfiguration mAmbientDisplayConfiguration;
+    private final Lazy<DozeServiceHost> mDozeServiceHost;
 
     private final BiometricUnlockLogger mLogger;
     private final SystemClock mSystemClock;
@@ -302,7 +307,9 @@ public class BiometricUnlockController extends KeyguardUpdateMonitorCallback imp
             BiometricUnlockInteractor biometricUnlockInteractor,
             JavaAdapter javaAdapter,
             KeyguardTransitionInteractor keyguardTransitionInteractor,
-            Lazy<SecureLockDeviceInteractor> secureLockDeviceInteractor
+            Lazy<SecureLockDeviceInteractor> secureLockDeviceInteractor,
+            AmbientDisplayConfiguration ambientDisplayConfiguration,
+            Lazy<DozeServiceHost> dozeServiceHost
     ) {
         mPowerManager = powerManager;
         mUpdateMonitor = keyguardUpdateMonitor;
@@ -335,6 +342,8 @@ public class BiometricUnlockController extends KeyguardUpdateMonitorCallback imp
                 com.android.internal.R.bool.config_orderUnlockAndWake);
         mSelectedUserInteractor = selectedUserInteractor;
         mKeyguardTransitionInteractor = keyguardTransitionInteractor;
+        mAmbientDisplayConfiguration = ambientDisplayConfiguration;
+        mDozeServiceHost = dozeServiceHost;
         javaAdapter.alwaysCollectFlow(
                 keyguardTransitionInteractor.transition(
                         /* edge */ Edge.create(Scenes.Gone, null),
@@ -478,7 +487,16 @@ public class BiometricUnlockController extends KeyguardUpdateMonitorCallback imp
      */
     public void startWakeAndUnlock(BiometricSourceType biometricSourceType,
                                    boolean isStrongBiometric) {
+        BiometricUnlockSource biometricUnlockSource =
+                BiometricUnlockSource.Companion.fromBiometricSourceType(biometricSourceType);
         int mode = calculateMode(biometricSourceType, isStrongBiometric);
+        if ((mode == MODE_WAKE_AND_UNLOCK || mode == MODE_WAKE_AND_UNLOCK_PULSING)
+                && shouldPulseSideFpsInsteadOfWakeAndUnlock(biometricSourceType)) {
+            mDozeServiceHost.get().fireSideFpsAcquisitionStarted();
+            releaseBiometricWakeLock();
+            startWakeAndUnlock(MODE_NONE, biometricUnlockSource);
+            return;
+        }
         if (mode == MODE_WAKE_AND_UNLOCK
                 || mode == MODE_WAKE_AND_UNLOCK_PULSING || mode == MODE_UNLOCK_COLLAPSING
                 || mode == MODE_WAKE_AND_UNLOCK_FROM_DREAM || mode == MODE_DISMISS_BOUNCER) {
@@ -486,7 +504,7 @@ public class BiometricUnlockController extends KeyguardUpdateMonitorCallback imp
         }
         startWakeAndUnlock(
                 mode,
-                BiometricUnlockSource.Companion.fromBiometricSourceType(biometricSourceType)
+                biometricUnlockSource
         );
     }
 
@@ -658,6 +676,19 @@ public class BiometricUnlockController extends KeyguardUpdateMonitorCallback imp
             }
         }
         return MODE_NONE;
+    }
+
+    private boolean shouldPulseSideFpsInsteadOfWakeAndUnlock(
+            BiometricSourceType biometricSourceType) {
+        if (biometricSourceType != BiometricSourceType.FINGERPRINT
+                || mUpdateMonitor.isDeviceInteractive()
+                || !mKeyguardStateController.isShowing()) {
+            return false;
+        }
+        List<FingerprintSensorPropertiesInternal> sfpsProps = mAuthController.getSfpsProps();
+        return sfpsProps != null && !sfpsProps.isEmpty()
+                && mAmbientDisplayConfiguration.sideFpsPulseMode(
+                        mSelectedUserInteractor.get().getSelectedUserId());
     }
 
     private void logCalculateModeForFingerprint(boolean unlockingAllowed, boolean deviceInteractive,

@@ -55,10 +55,10 @@ public class AmbientDisplayConfiguration {
     private static final String AX_DOZE_SIDE_FPS_PULSE = "ax_doze_side_fps_pulse";
     private static final String AX_DOZE_NOTIFICATION_PULSE = "ax_doze_notification_pulse";
 
-    private static final String PROP_AX_DOZE_TAP_PULSE = "persist.sys.ax_doze_tap_pulse_supported";
-    private static final String PROP_AX_DOZE_DOUBLE_TAP_PULSE = "persist.sys.ax_doze_double_tap_pulse_supported";
-    private static final String PROP_AX_DOZE_PICKUP_PULSE = "persist.sys.ax_doze_pickup_pulse_supported";
-    private static final String PROP_AX_DOZE_SIDE_FPS_PULSE = "persist.sys.ax_doze_side_fps_pulse_supported";
+    private static final String PROP_AX_DOZE_TAP_PULSE = "persist.sys.ax_doze_tap";
+    private static final String PROP_AX_DOZE_DOUBLE_TAP_PULSE = "persist.sys.ax_doze_dt2p";
+    private static final String PROP_AX_DOZE_PICKUP_PULSE = "persist.sys.ax_doze_pickup";
+    private static final String PROP_AX_DOZE_SIDE_FPS_PULSE = "persist.sys.ax_doze_fps";
 
     /** Copied from android.provider.Settings.Secure since these keys are hidden. */
     private static final String[] DOZE_SETTINGS = {
