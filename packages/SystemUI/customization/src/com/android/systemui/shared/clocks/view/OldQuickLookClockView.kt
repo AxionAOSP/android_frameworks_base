@@ -58,6 +58,8 @@ class OldQuickLookClockView @JvmOverloads constructor(
     defStyleRes: Int = 0
 ) : AxClockView(context, attrs, defStyleAttr, defStyleRes) {
 
+    override val animationSpec: AxClockAnimationSpec = AxClockAnimationSpecs.OldQuickLook
+
     override fun getTag(): String = "OLDQuickLookClockView"
 
     private val primaryTextSize = 80.sp

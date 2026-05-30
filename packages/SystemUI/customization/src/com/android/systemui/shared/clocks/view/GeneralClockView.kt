@@ -71,6 +71,8 @@ class GeneralClockView @JvmOverloads constructor(
     defStyleRes: Int = 0
 ) : AxClockView(context, attrs, defStyleAttr, defStyleRes) {
 
+    override val animationSpec: AxClockAnimationSpec = AxClockAnimationSpecs.General
+
     override fun getTag(): String =
         if (isLargeClock) "GeneralLargeClockView" else "GeneralClockView"
 

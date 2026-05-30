@@ -64,7 +64,7 @@ class AxionAgeClockView @JvmOverloads constructor(
     defStyleRes: Int = 0
 ) : AxClockView(context, attrs, defStyleAttr, defStyleRes) {
 
-    override val useGlitchInteraction: Boolean = true
+    override val animationSpec: AxClockAnimationSpec = AxClockAnimationSpecs.AxionAge
 
     override val clockHeightBase: Int
         get() {

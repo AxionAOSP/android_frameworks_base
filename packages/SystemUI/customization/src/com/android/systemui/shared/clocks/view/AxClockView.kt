@@ -163,7 +163,7 @@ abstract class AxClockView @JvmOverloads constructor(
     @Composable
     protected abstract fun Content()
 
-    internal open val useGlitchInteraction: Boolean = false
+    open val animationSpec: AxClockAnimationSpec = AxClockAnimationSpecs.Default
 
     open fun onAlarmDataChanged(data: AlarmData) { interactor.onAlarmDataChanged(data) }
     open fun onClockDataChanged(data: ClockData) { interactor.onClockDataChanged(data) }
@@ -176,6 +176,7 @@ abstract class AxClockView @JvmOverloads constructor(
     fun onDepthEffectVisibilityChanged(visible: Boolean) { depthController.setDepthVisible(visible) }
     fun setMessageBuffer(buffer: MessageBuffer) {}
     open fun onDozeChanged(doze: Boolean) { interactor.onDozeChanged(doze) }
+    open fun onFidgetAnimation() {}
     open fun onChargeAnimation() {}
     open fun onPulsingChanged(doze: Boolean) {}
     open fun onScreenOff(screenOff: Boolean) { interactor.onScreenOff(screenOff) }

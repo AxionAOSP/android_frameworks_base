@@ -278,6 +278,8 @@ open class OplusClassicClockView @JvmOverloads constructor(
     largeHeightDp: Float = 400f,
 ) : OplusComposeClockView(context, attrs, defStyleAttr, defStyleRes, smallHeightDp, largeHeightDp) {
 
+    override val animationSpec: AxClockAnimationSpec = AxClockAnimationSpecs.OplusClassic
+
     var previewClassicFace: String? = null
 
     override fun getTag(): String =
@@ -521,6 +523,8 @@ class OplusBigClockView @JvmOverloads constructor(
     defStyleAttr: Int = 0,
     defStyleRes: Int = 0,
 ) : OplusComposeClockView(context, attrs, defStyleAttr, defStyleRes, 166f, 430f) {
+
+    override val animationSpec: AxClockAnimationSpec = AxClockAnimationSpecs.OplusBig
 
     var previewBigFace: String? = null
     var previewBigDualTone: Boolean? = null
@@ -885,6 +889,8 @@ open class OplusGraffitiClockView @JvmOverloads constructor(
     defStyleRes: Int = 0,
 ) : OplusComposeClockView(context, attrs, defStyleAttr, defStyleRes, 166f, 360f) {
 
+    override val animationSpec: AxClockAnimationSpec = AxClockAnimationSpecs.OplusGraffiti
+
     var previewGraffitiFace: String? = null
     var previewGraffitiAngle: String? = null
 
@@ -1140,20 +1146,30 @@ private fun OplusBigCanvasLine(
         }
         val baseline = (heightPx - metrics.height) / 2f - metrics.top
         drawIntoCanvas { canvas ->
+            val nativeCanvas = canvas.nativeCanvas
             if (splitIndex in 1 until text.length && secondaryTint != tint) {
-                val primary = text.take(splitIndex)
-                val secondary = text.drop(splitIndex)
+                val splitX =
+                    x + paint.getRunAdvance(
+                        text,
+                        0,
+                        text.length,
+                        0,
+                        text.length,
+                        false,
+                        splitIndex,
+                    )
                 paint.color = tint.toArgb()
-                canvas.nativeCanvas.drawText(primary, x, baseline, paint)
+                nativeCanvas.save()
+                nativeCanvas.clipRect(0f, 0f, splitX, size.height)
+                nativeCanvas.drawText(text, x, baseline, paint)
+                nativeCanvas.restore()
                 paint.color = secondaryTint.toArgb()
-                canvas.nativeCanvas.drawText(
-                    secondary,
-                    x + paint.measureText(primary),
-                    baseline,
-                    paint,
-                )
+                nativeCanvas.save()
+                nativeCanvas.clipRect(splitX, 0f, size.width, size.height)
+                nativeCanvas.drawText(text, x, baseline, paint)
+                nativeCanvas.restore()
             } else {
-                canvas.nativeCanvas.drawText(text, x, baseline, paint)
+                nativeCanvas.drawText(text, x, baseline, paint)
             }
         }
     }

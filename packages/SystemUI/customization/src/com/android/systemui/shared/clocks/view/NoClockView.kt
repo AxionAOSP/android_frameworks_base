@@ -29,6 +29,8 @@ class NoClockView @JvmOverloads constructor(
     defStyleRes: Int = 0
 ) : AxClockView(context, attrs, defStyleAttr, defStyleRes) {
 
+    override val animationSpec: AxClockAnimationSpec = AxClockAnimationSpecs.None
+
     init {
         touchEnabled = false
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS

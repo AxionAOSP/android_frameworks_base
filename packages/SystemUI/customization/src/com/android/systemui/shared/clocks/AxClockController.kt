@@ -16,13 +16,14 @@ package com.android.systemui.shared.clocks
 
 import android.content.Context
 import android.content.res.Resources
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import android.util.Log
 import android.widget.FrameLayout
 import com.android.systemui.plugins.keyguard.ui.clocks.*
-import com.android.systemui.shared.clocks.view.BitmapDigitComposeClockView
 import com.android.systemui.shared.clocks.view.AxClockView
+import com.android.systemui.shared.clocks.view.BitmapDigitComposeClockView
+import com.android.systemui.shared.clocks.view.setAodFraction
 import java.io.PrintWriter
 
 class AxClockController @JvmOverloads constructor(
@@ -91,6 +92,8 @@ class AxClockController @JvmOverloads constructor(
     override fun initialize(isDarkTheme: Boolean, dozeFraction: Float, foldFraction: Float) {
         smallClock.animations = AxClockAnimations(smallClock.view, dozeFraction, foldFraction)
         largeClock.animations = AxClockAnimations(largeClock.view, dozeFraction, foldFraction)
+        smallClock.view.setAodFraction(dozeFraction)
+        largeClock.view.setAodFraction(dozeFraction)
 
         events.onUiModeChanged(isDarkTheme)
 

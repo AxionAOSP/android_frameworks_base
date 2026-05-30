@@ -16,8 +16,6 @@
 
 package com.android.systemui.shared.clocks.view
 
-import androidx.compose.animation.core.CubicBezierEasing
-
 internal const val FONT_FAMILY_BODY = "variable-title-small"
 internal const val FONT_FAMILY_DATE = "variable-title-medium-emphasized"
 
@@ -31,21 +29,9 @@ internal const val CLOCK_PATTERN_24 = "HHmm"
 internal const val CLOCK_PATTERN_24_STANDARD = "HH:mm"
 internal const val CLOCK_PATTERN_ALL = "hhmmss"
 
-internal const val APPEAR_DURATION = 400L
-
 const val PREVIEW_TIME_12 = "1008"
 const val PREVIEW_TIME_12_STANDARD = "10:08"
 const val PREVIEW_TIME_24 = "1008"
 const val PREVIEW_TIME_24_STANDARD = "10:08"
 const val PREVIEW_TIME_ALL = "100830"
 const val PREVIEW_DATE = "Wed, 12 Mar"
-
-internal const val COMPOSE_FIDGET_SQUEEZE = 0.95f
-internal const val COMPOSE_FIDGET_EXPAND = 1.03f
-internal const val COMPOSE_FIDGET_PHASE_MS = 120
-internal const val COMPOSE_FIDGET_SETTLE_MS = 150
-internal val COMPOSE_FIDGET_EASING = CubicBezierEasing(0.26873f, 0f, 0.45042f, 1f)
-
-internal const val DOZE_WAKE_START = 0.96f
-internal const val DOZE_WAKE_MS = 600
-internal val DOZE_EASING = CubicBezierEasing(0.2f, 0f, 0f, 1f)

@@ -101,6 +101,9 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
     defStyleRes: Int = 0
 ) : AxClockView(context, attrs, defStyleAttr, defStyleRes) {
 
+    override val animationSpec: AxClockAnimationSpec
+        get() = AxClockAnimationSpecs.forFaceStyle(faceStyle)
+
     var faceStyle: ClockFaceStyle = ClockFaceStyle.DEFAULT
         set(value) {
             field = value
@@ -954,7 +957,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         tapPos = pos
     }
 
-    override fun onChargeAnimation() {
+    override fun onFidgetAnimation() {
         animateWeightPulse()
     }
 
