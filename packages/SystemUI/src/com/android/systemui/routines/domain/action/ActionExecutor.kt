@@ -64,6 +64,7 @@ import java.net.Socket
 import java.net.URL
 import java.security.cert.X509Certificate
 import java.util.Locale
+import kotlin.math.roundToInt
 import javax.net.ssl.SNIHostName
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
@@ -136,13 +137,23 @@ class ActionExecutor @Inject constructor(
     }
 
     private fun setVolume(action: Action.SetVolume) {
-        val maxVolume = audioManager?.getStreamMaxVolume(action.streamType) ?: return
-        val targetVolume = (action.level * maxVolume / 100).coerceIn(0, maxVolume)
-        audioManager?.setStreamVolume(
+        val audio = audioManager ?: return
+        val minVolume = audio.getStreamMinVolume(action.streamType)
+        val maxVolume = audio.getStreamMaxVolume(action.streamType)
+        val targetVolume = streamLevelForVolumePercent(action.level, minVolume, maxVolume)
+        audio.setStreamVolume(
             action.streamType,
             targetVolume,
             0,
         )
+    }
+
+    private fun streamLevelForVolumePercent(percent: Int, minVolume: Int, maxVolume: Int): Int {
+        if (maxVolume <= minVolume) return minVolume
+        val fraction = percent.coerceIn(0, 100) / 100f
+        return (minVolume + fraction * (maxVolume - minVolume))
+            .roundToInt()
+            .coerceIn(minVolume, maxVolume)
     }
 
     private fun setBrightness(action: Action.SetBrightness) {
