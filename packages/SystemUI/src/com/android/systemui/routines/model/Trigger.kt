@@ -69,6 +69,15 @@ sealed interface Trigger {
         val mode: Int,
     ) : Trigger
 
+    data class IncomingCall(
+        val phoneNumbers: Set<String> = emptySet(),
+    ) : Trigger
+
+    data class SmsMessage(
+        val text: String,
+        val senderNumbers: Set<String> = emptySet(),
+    ) : Trigger
+
     data class AppLaunch(
         val packageName: String,
     ) : Trigger
@@ -110,6 +119,8 @@ sealed interface Trigger {
         const val TYPE_FEATURE_STATE = "feature_state"
         const val TYPE_HEADPHONES_STATE = "headphones_state"
         const val TYPE_RINGER_MODE = "ringer_mode"
+        const val TYPE_INCOMING_CALL = "incoming_call"
+        const val TYPE_SMS_MESSAGE = "sms_message"
         const val TYPE_APP_LAUNCH = "app_launch"
         const val TYPE_APP_CLOSE = "app_close"
         const val TYPE_SENSOR_PRIVACY_STATE = "sensor_privacy_state"

@@ -25,6 +25,8 @@ import android.content.Context
 import android.content.Intent
 import android.hardware.SensorPrivacyManager
 import android.hardware.display.DisplayManager
+import android.location.Location
+import android.location.LocationManager
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.Ringtone
@@ -36,14 +38,23 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.Uri
+import android.os.Binder
 import android.os.Handler
 import android.os.UserHandle
 import android.provider.Settings
+import android.telephony.SmsManager
+import android.util.Log
 import android.view.Display
 import com.android.settingslib.display.BrightnessUtils
-import android.os.Binder
-import android.util.Log
 import com.android.systemui.ax.AxPlatformFeatureController
+import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.dagger.qualifiers.Application
+import com.android.systemui.dagger.qualifiers.Background
+import com.android.systemui.dagger.qualifiers.Main
+import com.android.systemui.res.R
+import com.android.systemui.routines.model.Action
+import com.android.systemui.routines.model.Trigger
+import com.android.systemui.statusbar.policy.IndividualSensorPrivacyController
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
@@ -51,24 +62,18 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URL
+import java.security.cert.X509Certificate
+import java.util.Locale
 import javax.net.ssl.SNIHostName
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.X509TrustManager
-import java.security.cert.X509Certificate
-import org.json.JSONObject
-import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.dagger.qualifiers.Application
-import com.android.systemui.dagger.qualifiers.Background
-import com.android.systemui.dagger.qualifiers.Main
-import com.android.systemui.res.R
-import com.android.systemui.routines.model.Action
-import com.android.systemui.statusbar.policy.IndividualSensorPrivacyController
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONObject
 import javax.inject.Inject
 
 @SysUISingleton
@@ -80,6 +85,7 @@ class ActionExecutor @Inject constructor(
     @Background private val bgDispatcher: CoroutineDispatcher,
     private val connectivityManager: ConnectivityManager,
     private val displayManager: DisplayManager,
+    private val locationManager: LocationManager,
 ) {
 
     private val audioManager by lazy {
@@ -96,17 +102,21 @@ class ActionExecutor @Inject constructor(
     @Volatile
     private var channelCreated = false
 
-    suspend fun executeActions(actions: List<Action>, routineName: String) {
+    suspend fun executeActions(
+        actions: List<Action>,
+        routineName: String,
+        sourceTrigger: Trigger? = null,
+    ) {
         for (action in actions) {
             runCatching {
-                execute(action, routineName)
+                execute(action, routineName, sourceTrigger)
             }.onFailure { e ->
                 Log.e(TAG, "Failed to execute action: $action [${e.javaClass.simpleName}: ${e.message}]", e)
             }
         }
     }
 
-    private suspend fun execute(action: Action, routineName: String) {
+    private suspend fun execute(action: Action, routineName: String, sourceTrigger: Trigger?) {
         when (action) {
             is Action.SetFeature -> featureController.setEnabled(action.feature, action.enabled)
             is Action.ToggleFeature -> featureController.toggle(action.feature)
@@ -120,6 +130,7 @@ class ActionExecutor @Inject constructor(
             is Action.SetSetting -> setSetting(action)
             is Action.SetSensorPrivacy -> setSensorPrivacy(action)
             is Action.PlaySound -> playSound(action)
+            is Action.SendLocationSms -> sendLocationSms(action, sourceTrigger)
             is Action.HttpRequest -> executeHttpRequest(action)
         }
     }
@@ -273,6 +284,36 @@ class ActionExecutor @Inject constructor(
             if (activeRingtone === ringtone) activeRingtone = null
         }, SOUND_MAX_DURATION_MS)
     }
+
+    private fun sendLocationSms(action: Action.SendLocationSms, sourceTrigger: Trigger?) {
+        val target = action.phoneNumber?.takeIf { it.isNotBlank() }
+            ?: sourcePhoneNumber(sourceTrigger)
+        if (target.isNullOrBlank()) {
+            Log.w(TAG, "SendLocationSms missing target phone number")
+            return
+        }
+        val location = getLastKnownLocation()
+        val message = location?.let {
+            context.getString(R.string.ax_routines_sms_location_reply, formatLocationUrl(it))
+        } ?: context.getString(R.string.ax_routines_sms_location_unavailable)
+        SmsManager.getDefault().sendTextMessage(target, null, message, null, null)
+    }
+
+    private fun sourcePhoneNumber(sourceTrigger: Trigger?): String? = when (sourceTrigger) {
+        is Trigger.SmsMessage -> sourceTrigger.senderNumbers.firstOrNull()
+        is Trigger.IncomingCall -> sourceTrigger.phoneNumbers.firstOrNull()
+        else -> null
+    }
+
+    private fun getLastKnownLocation(): Location? =
+        runCatching {
+            locationManager.getLastKnownLocation(LocationManager.FUSED_PROVIDER)
+                ?: locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        }.getOrNull()
+
+    private fun formatLocationUrl(location: Location): String =
+        String.format(Locale.US, MAP_URL_FORMAT, location.latitude, location.longitude)
 
     private suspend fun resolveHost(network: Network, host: String): List<InetAddress>? =
         withTimeoutOrNull(DNS_TIMEOUT_MS) {
@@ -458,6 +499,7 @@ class ActionExecutor @Inject constructor(
         private const val SOUND_MAX_DURATION_MS = 5000L
         private const val NETWORK_WAIT_TIMEOUT_MS = 30_000L
         private const val DNS_TIMEOUT_MS = 10_000L
+        private const val MAP_URL_FORMAT = "https://maps.google.com/?q=%.6f,%.6f"
 
         private val TRUST_ALL_CERTS = object : X509TrustManager {
             override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit

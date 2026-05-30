@@ -16,6 +16,7 @@
 
 package com.android.systemui.routines.domain.trigger
 
+import android.telephony.PhoneNumberUtils
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.routines.model.Routine
 import com.android.systemui.routines.model.Trigger
@@ -48,6 +49,12 @@ class TriggerEvaluator @Inject constructor() {
 
         trigger is Trigger.RingerMode && event is Trigger.RingerMode ->
             trigger.mode == event.mode
+
+        trigger is Trigger.IncomingCall && event is Trigger.IncomingCall ->
+            matchesPhoneNumbers(trigger.phoneNumbers, event.phoneNumbers)
+
+        trigger is Trigger.SmsMessage && event is Trigger.SmsMessage ->
+            matchesSmsMessage(trigger, event)
 
         trigger is Trigger.AppLaunch && event is Trigger.AppLaunch ->
             trigger.packageName == event.packageName
@@ -105,6 +112,21 @@ class TriggerEvaluator @Inject constructor() {
         if (trigger.deviceAddress != null && trigger.deviceAddress != event.deviceAddress) return false
         return true
     }
+
+    private fun matchesSmsMessage(trigger: Trigger.SmsMessage, event: Trigger.SmsMessage): Boolean {
+        val phrase = trigger.text.trim()
+        return phrase.isNotEmpty() &&
+            event.text.contains(phrase, ignoreCase = true) &&
+            matchesPhoneNumbers(trigger.senderNumbers, event.senderNumbers)
+    }
+
+    private fun matchesPhoneNumbers(expected: Set<String>, actual: Set<String>): Boolean =
+        expected.isEmpty() ||
+            actual.any { actualNumber ->
+                expected.any { expectedNumber ->
+                    PhoneNumberUtils.compare(expectedNumber, actualNumber)
+                }
+            }
 
     private fun matchesLocation(trigger: Trigger.Location, event: Trigger.Location): Boolean {
         if (trigger.entering != event.entering) return false

@@ -122,6 +122,15 @@ class RoutineSerializer @Inject constructor() {
                 put(KEY_TYPE, Trigger.TYPE_RINGER_MODE)
                 put(KEY_MODE, trigger.mode)
             }
+            is Trigger.IncomingCall -> {
+                put(KEY_TYPE, Trigger.TYPE_INCOMING_CALL)
+                put(KEY_PHONE_NUMBERS, JSONArray(trigger.phoneNumbers.toList()))
+            }
+            is Trigger.SmsMessage -> {
+                put(KEY_TYPE, Trigger.TYPE_SMS_MESSAGE)
+                put(KEY_TEXT, trigger.text)
+                put(KEY_SENDER_NUMBERS, JSONArray(trigger.senderNumbers.toList()))
+            }
             is Trigger.AppLaunch -> {
                 put(KEY_TYPE, Trigger.TYPE_APP_LAUNCH)
                 put(KEY_PACKAGE_NAME, trigger.packageName)
@@ -187,6 +196,13 @@ class RoutineSerializer @Inject constructor() {
             )
             Trigger.TYPE_RINGER_MODE -> Trigger.RingerMode(
                 mode = json.getInt(KEY_MODE),
+            )
+            Trigger.TYPE_INCOMING_CALL -> Trigger.IncomingCall(
+                phoneNumbers = deserializeStringSet(json.optJSONArray(KEY_PHONE_NUMBERS)),
+            )
+            Trigger.TYPE_SMS_MESSAGE -> Trigger.SmsMessage(
+                text = json.optString(KEY_TEXT, ""),
+                senderNumbers = deserializeStringSet(json.optJSONArray(KEY_SENDER_NUMBERS)),
             )
             Trigger.TYPE_APP_LAUNCH -> Trigger.AppLaunch(
                 packageName = json.getString(KEY_PACKAGE_NAME),
@@ -385,6 +401,10 @@ class RoutineSerializer @Inject constructor() {
                 put(KEY_SOUND_TYPE, action.soundType)
                 action.uri?.let { put(KEY_URI, it) }
             }
+            is Action.SendLocationSms -> {
+                put(KEY_TYPE, Action.TYPE_SEND_LOCATION_SMS)
+                action.phoneNumber?.let { put(KEY_PHONE_NUMBER, it) }
+            }
             is Action.HttpRequest -> {
                 put(KEY_TYPE, Action.TYPE_HTTP_REQUEST)
                 put(KEY_URL, action.url)
@@ -453,6 +473,9 @@ class RoutineSerializer @Inject constructor() {
                 soundType = json.getInt(KEY_SOUND_TYPE),
                 uri = json.optString(KEY_URI, null),
             )
+            Action.TYPE_SEND_LOCATION_SMS -> Action.SendLocationSms(
+                phoneNumber = json.optString(KEY_PHONE_NUMBER, null),
+            )
             Action.TYPE_HTTP_REQUEST -> Action.HttpRequest(
                 url = json.getString(KEY_URL),
                 method = json.optString(KEY_METHOD, Action.METHOD_GET),
@@ -475,6 +498,15 @@ class RoutineSerializer @Inject constructor() {
     private fun deserializeIntSet(array: JSONArray?): Set<Int> {
         if (array == null || array.length() == 0) return Trigger.ALL_DAYS
         return (0 until array.length()).map { array.getInt(it) }.toSet()
+    }
+
+    private fun deserializeStringSet(array: JSONArray?): Set<String> {
+        if (array == null) return emptySet()
+        return (0 until array.length())
+            .mapNotNull { index ->
+                array.optString(index).trim().takeIf { value -> value.isNotBlank() }
+            }
+            .toSet()
     }
 
     private fun deserializeStringMap(json: JSONObject?): Map<String, String> {
@@ -537,6 +569,9 @@ class RoutineSerializer @Inject constructor() {
         private const val KEY_CONNECTED = "connected"
         private const val KEY_SSID = "ssid"
         private const val KEY_SSID_PATTERN = "ssid_pattern"
+        private const val KEY_PHONE_NUMBER = "phone_number"
+        private const val KEY_PHONE_NUMBERS = "phone_numbers"
+        private const val KEY_SENDER_NUMBERS = "sender_numbers"
         private const val KEY_DEVICE_ADDRESS = "device_address"
         private const val KEY_ON = "on"
         private const val KEY_FEATURE = "feature"

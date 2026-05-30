@@ -181,12 +181,12 @@ class RoutinesInteractor @Inject constructor(
         val matching = triggerEvaluator.findMatchingRoutines(routines, event)
         for (routine in matching) {
             if (conditionEvaluator.evaluateAll(routine.conditions)) {
-                executeRoutine(routine)
+                executeRoutine(routine, event)
             }
         }
     }
 
-    private suspend fun executeRoutine(routine: Routine) {
+    private suspend fun executeRoutine(routine: Routine, sourceTrigger: Trigger? = null) {
         if (!checkExecutionGuard(routine.id)) return
         Log.d(TAG, "Executing routine: ${routine.name} (${routine.id})")
         mainHandler.post {
@@ -197,7 +197,7 @@ class RoutinesInteractor @Inject constructor(
             ).show()
         }
         runCatching {
-            actionExecutor.executeActions(routine.actions, routine.name)
+            actionExecutor.executeActions(routine.actions, routine.name, sourceTrigger)
             repository.markTriggered(routine.id)
         }.onFailure { e ->
             Log.e(TAG, "Failed to execute routine: ${routine.name}", e)

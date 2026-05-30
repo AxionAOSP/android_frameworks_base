@@ -16,6 +16,7 @@
 
 package com.android.systemui.routines.domain.trigger
 
+import android.Manifest
 import android.app.ActivityManager
 import android.bluetooth.BluetoothDevice
 import android.content.BroadcastReceiver
@@ -29,17 +30,22 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkInfo
 import android.net.wifi.WifiManager
+import android.provider.Telephony
+import android.telephony.PhoneStateListener
+import android.telephony.TelephonyManager
 import android.util.Log
 import com.android.axion.platform.IAxPlatformCallback
 import com.android.systemui.ax.AxPlatformStateManager
 import com.android.systemui.broadcast.BroadcastDispatcher
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
+import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.routines.model.Trigger
 import com.android.systemui.shared.system.TaskStackChangeListener
 import com.android.systemui.shared.system.TaskStackChangeListeners
 import com.android.systemui.statusbar.policy.BatteryController
 import com.android.systemui.statusbar.policy.IndividualSensorPrivacyController
+import java.util.concurrent.Executor
 import javax.inject.Inject
 
 @SysUISingleton
@@ -50,6 +56,8 @@ class EventTriggerMonitor @Inject constructor(
     private val stateManager: AxPlatformStateManager,
     private val sensorPrivacyController: IndividualSensorPrivacyController,
     private val connectivityManager: ConnectivityManager,
+    private val telephonyManager: TelephonyManager,
+    @Main private val mainExecutor: Executor,
 ) {
 
     private var callback: ((trigger: Trigger) -> Unit)? = null
@@ -68,6 +76,8 @@ class EventTriggerMonitor @Inject constructor(
         BLUETOOTH,
         HEADPHONES,
         RINGER,
+        PHONE,
+        SMS,
         APP_LIFECYCLE,
         FEATURE_STATE,
         SENSOR_PRIVACY,
@@ -257,6 +267,18 @@ class EventTriggerMonitor @Inject constructor(
                     filter = IntentFilter(AudioManager.RINGER_MODE_CHANGED_ACTION),
                 )
             }
+            ListenerGroup.PHONE -> {
+                registerPhoneListener()
+            }
+            ListenerGroup.SMS -> {
+                context.registerReceiver(
+                    smsReceiver,
+                    IntentFilter(Telephony.Sms.Intents.SMS_RECEIVED_ACTION),
+                    Manifest.permission.BROADCAST_SMS,
+                    null,
+                    Context.RECEIVER_EXPORTED,
+                )
+            }
             ListenerGroup.APP_LIFECYCLE -> {
                 launcherPackage = resolveLauncherPackage()
                 TaskStackChangeListeners.getInstance()
@@ -297,6 +319,12 @@ class EventTriggerMonitor @Inject constructor(
             }
             ListenerGroup.RINGER -> {
                 broadcastDispatcher.unregisterReceiver(ringerReceiver)
+            }
+            ListenerGroup.PHONE -> {
+                unregisterPhoneListener()
+            }
+            ListenerGroup.SMS -> {
+                runCatching { context.unregisterReceiver(smsReceiver) }
             }
             ListenerGroup.APP_LIFECYCLE -> {
                 TaskStackChangeListeners.getInstance()
@@ -368,6 +396,46 @@ class EventTriggerMonitor @Inject constructor(
         }
     }
 
+    @Suppress("DEPRECATION")
+    private val phoneStateListener = object : PhoneStateListener(mainExecutor) {
+        override fun onCallStateChanged(state: Int, phoneNumber: String?) {
+            if (state != TelephonyManager.CALL_STATE_RINGING) return
+            val number = phoneNumber?.takeIf { it.isNotBlank() }
+            this@EventTriggerMonitor.callback?.invoke(
+                Trigger.IncomingCall(
+                    phoneNumbers = number?.let { setOf(it) } ?: emptySet(),
+                )
+            )
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun registerPhoneListener() {
+        telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun unregisterPhoneListener() {
+        telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_NONE)
+    }
+
+    private val smsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(ctx: Context, intent: Intent) {
+            val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
+            val text = messages.joinToString(separator = "") { it.messageBody ?: "" }
+            if (text.isBlank()) return
+            val sender = messages.firstNotNullOfOrNull {
+                it.originatingAddress?.takeIf { value -> value.isNotBlank() }
+            }
+            callback?.invoke(
+                Trigger.SmsMessage(
+                    text = text,
+                    senderNumbers = sender?.let { setOf(it) } ?: emptySet(),
+                )
+            )
+        }
+    }
+
     private fun resolveLauncherPackage(): String? = runCatching {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         context.packageManager
@@ -385,6 +453,8 @@ class EventTriggerMonitor @Inject constructor(
             is Trigger.BluetoothState -> ListenerGroup.BLUETOOTH
             is Trigger.HeadphonesState -> ListenerGroup.HEADPHONES
             is Trigger.RingerMode -> ListenerGroup.RINGER
+            is Trigger.IncomingCall -> ListenerGroup.PHONE
+            is Trigger.SmsMessage -> ListenerGroup.SMS
             is Trigger.AppLaunch, is Trigger.AppClose -> ListenerGroup.APP_LIFECYCLE
             is Trigger.FeatureState -> ListenerGroup.FEATURE_STATE
             is Trigger.SensorPrivacyState -> ListenerGroup.SENSOR_PRIVACY
