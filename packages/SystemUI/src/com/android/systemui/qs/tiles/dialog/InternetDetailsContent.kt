@@ -159,21 +159,21 @@ private fun InternetTileExtras(
             )
         }
 
-        if (showFiveG) {
-            ToggleRow(
-                iconRes = R.drawable.ic_5g_toggle,
-                label = "5G",
-                checked = fiveGEnabled,
-                onToggle = { viewModel.toggleFiveG() },
-            )
-        }
-
         if (showHotspot) {
             ToggleRow(
                 iconRes = R.drawable.ic_hotspot,
                 label = stringResource(R.string.quick_settings_hotspot_label),
                 checked = hotspotEnabled,
                 onToggle = { viewModel.toggleHotspot() },
+            )
+        }
+
+        if (showFiveG) {
+            ToggleRow(
+                iconRes = R.drawable.ic_5g_toggle,
+                label = "5G",
+                checked = fiveGEnabled,
+                onToggle = { viewModel.toggleFiveG() },
             )
         }
     }
@@ -289,6 +289,8 @@ private fun ToggleRow(
                     imageVector = if (checked) Icons.Filled.Check else Icons.Filled.Clear,
                     contentDescription = null,
                     modifier = Modifier.size(SwitchDefaults.IconSize),
+                    tint = if (checked) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.surfaceContainerHighest
                 )
             }
         )
