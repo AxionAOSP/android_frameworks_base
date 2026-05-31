@@ -147,7 +147,11 @@ fun BundleHeader(viewModel: BundleHeaderViewModel, modifier: Modifier = Modifier
         modifier =
             modifier.heightIn(min = dimensionResource(R.dimen.notification_bundle_header_height))
     ) {
-        Background(background = viewModel.backgroundDrawable, modifier = Modifier.matchParentSize())
+        Background(
+            background = viewModel.backgroundDrawable,
+            useBlurBackground = viewModel.useBlurBackground,
+            modifier = Modifier.matchParentSize(),
+        )
         SceneTransitionLayout(
             state = state,
             // The BundleHeader is clickable, but clicks are handled at the level of the
@@ -166,8 +170,12 @@ fun BundleHeader(viewModel: BundleHeaderViewModel, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun Background(background: Drawable?, modifier: Modifier = Modifier) {
-    if (background != null) {
+private fun Background(
+    background: Drawable?,
+    useBlurBackground: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    if (background != null && !useBlurBackground) {
         val painter = rememberDrawablePainter(drawable = background)
         Image(
             painter = painter,

@@ -54,6 +54,8 @@ class BundleHeaderViewModel @AssistedInject constructor(private val interactor: 
 
     var backgroundDrawable by mutableStateOf<Drawable?>(null)
 
+    var useBlurBackground by mutableStateOf(false)
+
     val numberOfChildrenContentDescription: String
         get() = interactor.numberOfChildrenContentDescription
 

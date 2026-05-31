@@ -1283,10 +1283,12 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
         updateClickAndFocus();
         if (mNotificationParent != null) {
             setOverrideTintColor(NO_COLOR, 0.0f);
+            setDozing(mNotificationParent.isNotificationDozing());
             mNotificationParent.updateBackgroundForGroupState();
         }
         updateBackgroundClipping();
         updateBaseRoundness();
+        updateAxBlurEnabled();
     }
 
     @Override
@@ -1826,6 +1828,30 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
         if (view != null) {
             view.setBackgroundTintColor(color);
         }
+    }
+
+    @Override
+    protected boolean shouldUseAxBlurBackground() {
+        return super.shouldUseAxBlurBackground() && !isColorizedNotification();
+    }
+
+    @Override
+    protected boolean isAxBlurKeyguardVisible() {
+        return super.isAxBlurKeyguardVisible()
+                || (mBackgroundNormal != null
+                        && isChildInGroup()
+                        && mNotificationParent != null
+                        && mNotificationParent.isOnKeyguard());
+    }
+
+    private boolean isColorizedNotification() {
+        if (NotificationBundleUi.isEnabled()) {
+            return mEntryAdapter != null && mEntryAdapter.isColorized();
+        }
+        NotificationEntry entry = getEntryLegacy();
+        return entry != null
+                && entry.getSbn() != null
+                && entry.getSbn().getNotification().isColorized();
     }
 
     public void closeRemoteInput() {
@@ -2484,11 +2510,15 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
     protected void setEntryLegacy(NotificationEntry entry) {
         NotificationBundleUi.assertInLegacyMode();
         mEntry = entry;
+        updateAxBlurEnabled();
+        updateBundleHeaderBlurEnabled();
     }
 
     @VisibleForTesting
     protected void setEntryAdapter(EntryAdapter entry) {
         mEntryAdapter = entry;
+        updateAxBlurEnabled();
+        updateBundleHeaderBlurEnabled();
     }
 
     private final Runnable mExpireRecentlyAlertedFlag = () -> applyAudiblyAlertedRecently(false);
@@ -3324,6 +3354,7 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
 
         super.setOnKeyguard(onKeyguard);
 
+        updateBundleHeaderBlurEnabled();
         onExpansionChanged(false /* userAction */, wasExpanded);
         if (wasExpanded != isExpanded()) {
             if (mIsSummaryWithChildren) {
@@ -3338,7 +3369,40 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
             if (mIsSummaryWithChildren) {
                 mChildrenContainer.setOnKeyguard(onKeyguard);
             }
+        } else {
+            updateChildrenAxBlurEnabled();
         }
+    }
+
+    private void updateBundleHeaderBlurEnabled() {
+        if (isBundle() && mChildrenContainer != null) {
+            mChildrenContainer.setBundleHeaderBlurEnabled(shouldUseBundleHeaderBlurBackground());
+        }
+    }
+
+    private void updateChildrenAxBlurEnabled() {
+        if (mIsSummaryWithChildren && mChildrenContainer != null) {
+            List<ExpandableNotificationRow> children = mChildrenContainer.getAttachedChildren();
+            for (int i = 0; i < children.size(); i++) {
+                children.get(i).updateAxBlurEnabled();
+            }
+        }
+    }
+
+    @Override
+    public void setDozing(boolean dozing) {
+        super.setDozing(dozing);
+        updateBundleHeaderBlurEnabled();
+        if (mIsSummaryWithChildren && mChildrenContainer != null) {
+            List<ExpandableNotificationRow> children = mChildrenContainer.getAttachedChildren();
+            for (int i = 0; i < children.size(); i++) {
+                children.get(i).setDozing(dozing);
+            }
+        }
+    }
+
+    public boolean shouldUseBundleHeaderBlurBackground() {
+        return mOnKeyguard && !mIsDozing && !isColorizedNotification();
     }
 
     @Override
@@ -4265,14 +4329,12 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
             // notificationRowTransparency() introduced transparency.
             mShowNoBackground = true;
             mChildrenContainer.updateHeaderForExpansion(mShowNoBackground);
+            updateChildrenBackgroundForGroupState();
         } else if (mIsSummaryWithChildren) {
             mShowNoBackground = !mShowGroupBackgroundWhenExpanded && isGroupExpanded()
                     && !isGroupExpansionChanging() && !isUserLocked();
             mChildrenContainer.updateHeaderForExpansion(mShowNoBackground);
-            List<ExpandableNotificationRow> children = mChildrenContainer.getAttachedChildren();
-            for (int i = 0; i < children.size(); i++) {
-                children.get(i).updateBackgroundForGroupState();
-            }
+            updateChildrenBackgroundForGroupState();
         } else if (isChildInGroup()) {
             final int childColor = getShowingLayout().getBackgroundColorForExpansionState();
             if ((Flags.notificationRowTransparency() || notificationsRedesignTemplates())
@@ -4294,6 +4356,13 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
         }
         updateOutline();
         updateBackground();
+    }
+
+    private void updateChildrenBackgroundForGroupState() {
+        List<ExpandableNotificationRow> children = mChildrenContainer.getAttachedChildren();
+        for (int i = 0; i < children.size(); i++) {
+            children.get(i).updateBackgroundForGroupState();
+        }
     }
 
     @Override
