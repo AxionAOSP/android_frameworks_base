@@ -21,10 +21,10 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.UserHandle;
 import android.provider.Settings;
+import android.util.ArrayMap;
 
 import com.android.server.NtServiceInjector;
 
-import java.util.HashMap;
 import java.util.function.Consumer;
 
 public class BoostSettingsRepository {
@@ -50,7 +50,7 @@ public class BoostSettingsRepository {
     private static final String MAX_FREQ_BIG = "axion_max_freq_big";
     private static final String MAX_FREQ_PRIME = "axion_max_freq_prime";
     
-    private static final HashMap<String, Number> DEFAULTS = new HashMap<>();
+    private static final ArrayMap<String, Integer> DEFAULTS = new ArrayMap<>();
     static {
         DEFAULTS.put(MIN_FREQ, 0);
         DEFAULTS.put(MIN_FREQ_BIG, 0);
@@ -78,11 +78,11 @@ public class BoostSettingsRepository {
     }
 
     private int getInt(String key) {
-        Number def = DEFAULTS.get(key);
+        Integer def = DEFAULTS.get(key);
         return Settings.Secure.getIntForUser(
                 mContext.getContentResolver(),
                 key,
-                def != null ? def.intValue() : 0,
+                def != null ? def : 0,
                 UserHandle.USER_CURRENT
         );
     }
@@ -104,7 +104,7 @@ public class BoostSettingsRepository {
     public void setOnSettingsChangeListener(Consumer<DeviceData.BoostData> listener) {
         mListener = listener;
         registerObserver();
-        notifyListener();
+        mHandler.post(this::notifyListener);
     }
 
     private void notifyListener() {

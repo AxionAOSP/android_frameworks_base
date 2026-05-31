@@ -21,13 +21,12 @@ import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.app.AxBoostFwk;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.Parcel;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
 
+import com.android.internal.os.BackgroundThread;
 import com.android.server.AxExtServiceFactory;
 import com.android.server.LocalServices;
 import com.android.server.NtServiceInjector;
@@ -68,7 +67,8 @@ public class AxBurstEngine implements IAxBurstEngine {
 
     public void systemReady() {
         mDeviceData = new DeviceData();
-        BoostSettingsRepository repo = new BoostSettingsRepository(mDeviceData, new Handler(Looper.getMainLooper()));
+        BoostSettingsRepository repo =
+                new BoostSettingsRepository(mDeviceData, BackgroundThread.getHandler());
 
         repo.setOnSettingsChangeListener(this::updateConfigs);
 
@@ -206,16 +206,10 @@ public class AxBurstEngine implements IAxBurstEngine {
 
         mInstallBoostActive = boost;
 
-        String allCores = joinRanges(mData.sCores, mData.bCores);
-        if (!mData.pCores.isEmpty()) {
-            allCores = joinRanges(allCores, mData.pCores);
-        }
-
-        allCores = allCores.replace("-", ",");
-
-        int threadCount = boost ? Runtime.getRuntime().availableProcessors() : 1;
-
-        String cpuSet = boost ? allCores : mData.bgCpus.replace("-", ",");
+        boolean limitBackground = !boost && mBackgroundLimited;
+        int availableThreads = Runtime.getRuntime().availableProcessors();
+        int threadCount = limitBackground ? 1 : availableThreads;
+        String cpuSet = limitBackground ? expandRanges(mData.bgCpus) : expandRanges(mData.allCores);
 
         acquireHint(AxBoostFwk.OP_PACKAGE_INSTALL_BOOST, boost ? -1L : 0L);
 

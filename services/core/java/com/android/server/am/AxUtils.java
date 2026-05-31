@@ -207,6 +207,24 @@ public class AxUtils {
         return a + "," + b;
     }
 
+    public static String expandRanges(String ranges) {
+        if (ranges == null || ranges.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (String part : ranges.split(",")) {
+            int dash = part.indexOf('-');
+            if (dash > 0) {
+                int start = Integer.parseInt(part.substring(0, dash));
+                int end = Integer.parseInt(part.substring(dash + 1));
+                for (int i = start; i <= end; i++) {
+                    appendCpu(sb, i);
+                }
+            } else {
+                appendCpu(sb, Integer.parseInt(part));
+            }
+        }
+        return sb.toString();
+    }
+
     public static String toRange(String cores) {
         if (cores == null || cores.isEmpty()) return "";
         String[] parts = cores.split(",");
@@ -313,6 +331,15 @@ public class AxUtils {
             logger("writeInternal write: " + path + " value: " + value);
         } catch (Exception e) {
             logger("writeInternal failed: " + path + " : " + e.getMessage());
+        }
+    }
+
+    public static void writeUncached(String path, String value) {
+        try {
+            FileUtils.stringToFile(path, value);
+            logger("writeUncached write: " + path + " value: " + value);
+        } catch (Exception e) {
+            logger("writeUncached failed: " + path + " : " + e.getMessage());
         }
     }
 

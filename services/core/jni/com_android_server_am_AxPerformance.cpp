@@ -16,40 +16,50 @@
 
 #define LOG_TAG "AxPerformance"
 
+#include <android-base/file.h>
+#include <android-base/parseint.h>
+#include <android-base/unique_fd.h>
 #include <jni.h>
 #include <nativehelper/JNIHelp.h>
+#include <nativehelper/ScopedLocalRef.h>
 #include <nativehelper/ScopedUtfChars.h>
 
+#include <utils/AndroidThreads.h>
 #include <utils/Log.h>
 
 #include <fcntl.h>
-#include <linux/time.h>
 #include <pthread.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cerrno>
-#include <cstdlib>
+#include <cstdint>
 #include <condition_variable>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <mutex>
-#include <sstream>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <processgroup/processgroup.h>
 
 namespace android {
 
+using base::ParseInt;
+using base::unique_fd;
+using base::WriteStringToFd;
+
 struct NodeAction {
     std::string path;
     std::string upValue;
-    std::string downValue;
 };
 
 struct HintEntry {
@@ -66,6 +76,12 @@ struct HandleEntry {
     int cgroupTid;
     uint64_t sequence;
     std::vector<std::pair<std::string, std::string>> applied;
+};
+
+struct ActiveValue {
+    int handle;
+    std::string value;
+    uint64_t sequence;
 };
 
 enum BoostOpcode {
@@ -87,18 +103,213 @@ enum BoostOpcode {
     OP_ROTATION_ANIM_BOOST = 40,
     OP_SHADE = 46,
     OP_FIRST_DRAW = 48,
+    OP_BOOST_RENDERTHREAD = 63,
+    OP_MISC_LAUNCHER_LOAD = 66,
     OP_GAME_LAUNCH_BOOST = 69,
+};
+
+class AxNodeLooper {
+public:
+    AxNodeLooper()
+            : mRunning(true),
+              mThread(&AxNodeLooper::threadLoop, this) {
+        pthread_setname_np(mThread.native_handle(), "AxNodeLooper");
+        pid_t threadTid = pthread_gettid_np(mThread.native_handle());
+        androidSetThreadPriority(threadTid, PRIORITY_HIGHEST);
+        SetTaskProfiles(threadTid, {"PreferIdleSet"});
+    }
+
+    AxNodeLooper(const AxNodeLooper&) = delete;
+    AxNodeLooper& operator=(const AxNodeLooper&) = delete;
+
+    ~AxNodeLooper() {
+        stop();
+    }
+
+    void setValue(const std::string& path, const std::string& value) {
+        if (path.empty()) return;
+        std::lock_guard<std::mutex> lock(mMutex);
+        uint64_t sequence = nextSequenceLocked();
+        mLatestSequences[path] = sequence;
+        enqueueSetLocked(&mPendingWrites, &mPendingSetIndexes, path, value, sequence);
+        mCond.notify_one();
+    }
+
+    void writeValue(const std::string& path, const std::string& value) {
+        if (path.empty()) return;
+        std::lock_guard<std::mutex> lock(mMutex);
+        mPendingWrites.push_back({path, value, false, 0});
+        mCond.notify_one();
+    }
+
+    void stop() {
+        bool expected = true;
+        if (!mRunning.compare_exchange_strong(expected, false)) return;
+        mCond.notify_all();
+        if (mThread.joinable()) mThread.join();
+        mFdCache.clear();
+    }
+
+private:
+    struct NodeWrite {
+        std::string path;
+        std::string value;
+        bool coalesced;
+        uint64_t sequence;
+    };
+
+    using TimePoint = std::chrono::steady_clock::time_point;
+
+    void threadLoop() {
+        while (mRunning) {
+            std::vector<NodeWrite> writes;
+            {
+                std::unique_lock<std::mutex> lock(mMutex);
+                while (mRunning && mPendingWrites.empty()) {
+                    if (mRetryWrites.empty()) {
+                        mCond.wait(lock);
+                    } else {
+                        mCond.wait_until(lock, mRetryTime);
+                    }
+                    if (!mRunning) return;
+                    if (isRetryDueLocked()) mergeRetryLocked();
+                }
+                if (!mRunning) return;
+                if (isRetryDueLocked()) mergeRetryLocked();
+                if (mPendingWrites.empty()) continue;
+                writes.swap(mPendingWrites);
+                mPendingSetIndexes.clear();
+            }
+            processWrites(writes);
+        }
+    }
+
+    bool isRetryDueLocked() const {
+        return !mRetryWrites.empty() && std::chrono::steady_clock::now() >= mRetryTime;
+    }
+
+    void mergeRetryLocked() {
+        for (const NodeWrite& write : mRetryWrites) {
+            auto it = mLatestSequences.find(write.path);
+            if (it != mLatestSequences.end() && it->second == write.sequence) {
+                enqueueSetLocked(&mPendingWrites, &mPendingSetIndexes,
+                        write.path, write.value, write.sequence);
+            }
+        }
+        mRetryWrites.clear();
+        mRetrySetIndexes.clear();
+        mRetryTime = TimePoint::max();
+    }
+
+    void processWrites(const std::vector<NodeWrite>& writes) {
+        std::vector<NodeWrite> setWrites;
+        setWrites.reserve(writes.size());
+        for (const NodeWrite& write : writes) {
+            if (write.coalesced) {
+                setWrites.push_back(write);
+            } else {
+                writeNode(write.path, write.value);
+            }
+        }
+        std::vector<NodeWrite> remaining = std::move(setWrites);
+        for (int pass = 0; pass < 2 && !remaining.empty(); pass++) {
+            std::vector<NodeWrite> failed;
+            failed.reserve(remaining.size());
+            for (const NodeWrite& write : remaining) {
+                auto current = mWrittenValues.find(write.path);
+                if (current != mWrittenValues.end() && current->second == write.value) continue;
+                if (writeNode(write.path, write.value)) {
+                    mWrittenValues[write.path] = write.value;
+                } else {
+                    failed.push_back(write);
+                }
+            }
+            remaining.swap(failed);
+        }
+        scheduleRetry(remaining);
+    }
+
+    void scheduleRetry(const std::vector<NodeWrite>& writes) {
+        if (writes.empty()) return;
+        std::lock_guard<std::mutex> lock(mMutex);
+        bool added = false;
+        for (const NodeWrite& write : writes) {
+            auto it = mLatestSequences.find(write.path);
+            if (it != mLatestSequences.end() && it->second == write.sequence
+                    && mPendingSetIndexes.find(write.path) == mPendingSetIndexes.end()) {
+                enqueueSetLocked(&mRetryWrites, &mRetrySetIndexes,
+                        write.path, write.value, write.sequence);
+                added = true;
+            }
+        }
+        if (added) {
+            TimePoint retryTime =
+                    std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+            if (mRetryTime == TimePoint::max() || retryTime < mRetryTime) mRetryTime = retryTime;
+            mCond.notify_one();
+        }
+    }
+
+    void enqueueSetLocked(std::vector<NodeWrite>* writes,
+            std::unordered_map<std::string, size_t>* indexes,
+            const std::string& path, const std::string& value, uint64_t sequence) {
+        auto it = indexes->find(path);
+        if (it != indexes->end()) {
+            NodeWrite& write = (*writes)[it->second];
+            write.value = value;
+            write.sequence = sequence;
+            return;
+        }
+        (*indexes)[path] = writes->size();
+        writes->push_back({path, value, true, sequence});
+    }
+
+    uint64_t nextSequenceLocked() {
+        if (mNextSequence == 0) mNextSequence = 1;
+        return mNextSequence++;
+    }
+
+    bool writeNode(const std::string& path, const std::string& value) {
+        auto it = mFdCache.find(path);
+        if (it == mFdCache.end()) {
+            unique_fd fd(TEMP_FAILURE_RETRY(open(path.c_str(), O_WRONLY | O_CLOEXEC)));
+            if (fd < 0) return false;
+            it = mFdCache.emplace(path, std::move(fd)).first;
+        }
+        if (WriteStringToFd(value, it->second)) return true;
+        if (errno != EBADF && errno != EIO) return false;
+        mFdCache.erase(it);
+        unique_fd fd(TEMP_FAILURE_RETRY(open(path.c_str(), O_WRONLY | O_CLOEXEC)));
+        if (fd < 0) return false;
+        const bool written = WriteStringToFd(value, fd);
+        mFdCache.emplace(path, std::move(fd));
+        return written;
+    }
+
+    std::mutex mMutex;
+    std::condition_variable mCond;
+    std::atomic<bool> mRunning;
+    uint64_t mNextSequence = 1;
+    std::vector<NodeWrite> mPendingWrites;
+    std::unordered_map<std::string, size_t> mPendingSetIndexes;
+    std::vector<NodeWrite> mRetryWrites;
+    std::unordered_map<std::string, size_t> mRetrySetIndexes;
+    std::unordered_map<std::string, uint64_t> mLatestSequences;
+    std::unordered_map<std::string, std::string> mWrittenValues;
+    std::unordered_map<std::string, unique_fd> mFdCache;
+    TimePoint mRetryTime = TimePoint::max();
+    std::thread mThread;
 };
 
 class AxHintManager {
 public:
-    int mRtPid = 0;
-    int mRtTid = 0;
-
     static AxHintManager* getInstance() {
         static AxHintManager instance;
         return &instance;
     }
+
+    AxHintManager(const AxHintManager&) = delete;
+    AxHintManager& operator=(const AxHintManager&) = delete;
 
     void setBoostData(const std::string& path, const std::string& value) {
         std::lock_guard<std::mutex> lock(mMutex);
@@ -153,15 +364,14 @@ public:
     void setThermalCeiling(const std::string& path, int ceiling) {
         std::lock_guard<std::mutex> lock(mMutex);
         mThermalCeilings[path] = ceiling;
-        std::string value = std::to_string(ceiling);
-        if (writeSysfs(path, value)) mCurrentValues[path] = value;
+        writeClamped(path, std::to_string(ceiling));
     }
 
     void removeThermalCeiling(const std::string& path) {
         std::lock_guard<std::mutex> lock(mMutex);
         mThermalCeilings.erase(path);
         if (mResourceRefs.find(path) != mResourceRefs.end()) {
-            restoreLatestValueLocked(path, -1);
+            restoreEffectiveValueLocked(path);
             return;
         }
         auto bit = mRestoreValues.find(path);
@@ -183,7 +393,32 @@ public:
         mRtTid = rTid;
     }
 
+    int createHandle(int opcode, int64_t durMs) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        return createHandleLocked(opcode, durMs);
+    }
+
+    void releaseHandle(int handle) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        releaseHandleLocked(handle);
+    }
+
+    void setUiBoostActive(bool active) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        mUiBoostActive = active;
+    }
+
+private:
     void releaseOpcodeLocked(int opcode) {
+        if (opcode >= 0 && opcode < mHintCount) {
+            int handle = mOpcodeHandles[opcode];
+            auto hit = mHandles.find(handle);
+            if (handle > 0 && hit != mHandles.end() && hit->second.opcode == opcode) {
+                releaseHandleLocked(handle);
+                return;
+            }
+            mOpcodeHandles[opcode] = 0;
+        }
         for (auto it = mHandles.begin(); it != mHandles.end(); ) {
             if (it->second.opcode == opcode) {
                 int h = it->first;
@@ -195,18 +430,14 @@ public:
         }
     }
 
-    int createHandle(int opcode, int64_t durMs) {
-        std::lock_guard<std::mutex> lock(mMutex);
-        return createHandleLocked(opcode, durMs);
-    }
-
     int createHandleLocked(int opcode, int64_t durMs) {
-        if (opcode <= 0 || opcode >= mHintCount || mHints[opcode].nodes.empty()) return -1;
+        if (opcode <= 0 || opcode >= mHintCount) return -1;
         if (durMs == 0) {
             releaseOpcodeLocked(opcode);
             return -1;
         }
         HintEntry& entry = mHints[opcode];
+        if (entry.nodes.empty() && entry.upCgroup.empty()) return -1;
         int64_t now = nowMs();
         int64_t timeoutMs = (durMs == -2) ? entry.defaultTimeoutMs : (durMs > 0 ? durMs : 0);
         int64_t expiry = (timeoutMs > 0) ? now + timeoutMs : 0;
@@ -214,17 +445,31 @@ public:
             int handle = mOpcodeHandles[opcode];
             auto hit = mHandles.find(handle);
             if (hit != mHandles.end()) {
-                releaseHandleLocked(handle);
-                mLastHintMs[opcode] = 0;
+                uint64_t sequence = nextSequenceLocked();
+                if (expiry == 0 || (hit->second.expiry > 0 && expiry > hit->second.expiry)) {
+                    hit->second.expiry = expiry;
+                }
+                hit->second.sequence = sequence;
+                std::vector<std::string> paths;
+                paths.reserve(hit->second.applied.size());
+                for (const auto& [path, _] : hit->second.applied) {
+                    refreshActiveValueLocked(path, handle, sequence);
+                    addUniquePath(&paths, path);
+                }
+                restoreEffectiveValuesLocked(paths);
+                mLastHintMs[opcode] = now;
+                if (shouldNotifyTimerLocked(hit->second.expiry, handle)) mCond.notify_one();
+                return handle;
             } else {
                 mOpcodeHandles[opcode] = 0;
             }
         }
-        int64_t cooldown = (entry.defaultTimeoutMs > 0) ? entry.defaultTimeoutMs / 2 : kCoalesceMs;
-        if (now < mLastHintMs[opcode] + cooldown) return -1;
         int handle = nextHandleLocked();
         if (handle < 0) return -1;
+        uint64_t sequence = nextSequenceLocked();
         std::vector<std::pair<std::string, std::string>> applied;
+        std::vector<std::string> paths;
+        paths.reserve(entry.nodes.size());
         for (auto& node : entry.nodes) {
             auto rit = mResourceRefs.find(node.path);
             if (rit == mResourceRefs.end()
@@ -233,9 +478,11 @@ public:
                 if (!orig.empty()) mOriginalValues[node.path] = orig;
             }
             mResourceRefs[node.path]++;
-            writeClamped(node.path, node.upValue);
+            mActiveValues[node.path].push_back({handle, node.upValue, sequence});
+            addUniquePath(&paths, node.path);
             applied.push_back({node.path, node.upValue});
         }
+        restoreEffectiveValuesLocked(paths);
         int cgroupTid = 0;
         int cgroupPid = 0;
         if (!entry.upCgroup.empty() && !isUiBoostActive()) {
@@ -246,23 +493,17 @@ public:
         }
         mLastHintMs[opcode] = now;
         mHandles[handle] = {
-                opcode, expiry, cgroupPid, cgroupTid, nextSequenceLocked(), std::move(applied)};
+                opcode, expiry, cgroupPid, cgroupTid, sequence, std::move(applied)};
         mOpcodeHandles[opcode] = handle;
-        if (expiry > 0) mExpiries[opcode] = expiry;
         if (shouldNotifyTimerLocked(expiry, handle)) mCond.notify_one();
         return handle;
-    }
-
-    void releaseHandle(int handle) {
-        std::lock_guard<std::mutex> lock(mMutex);
-        releaseHandleLocked(handle);
     }
 
     void releaseHandleLocked(int handle) {
         auto hit = mHandles.find(handle);
         if (hit == mHandles.end()) return;
         if (hit->second.opcode >= 0 && hit->second.opcode < mHintCount
-                && hit->second.cgroupTid > 0) {
+                && (hit->second.cgroupPid > 0 || hit->second.cgroupTid > 0)) {
             HintEntry& entry = mHints[hit->second.opcode];
             if (!entry.upCgroup.empty()) {
                 releaseTaskProfileLocked(hit->second.cgroupPid, entry.upCgroup,
@@ -271,29 +512,36 @@ public:
                         entry.downCgroup, handle);
             }
         }
+        std::vector<std::string> activeRestorePaths;
+        std::vector<std::pair<std::string, std::string>> baseRestores;
+        activeRestorePaths.reserve(hit->second.applied.size());
+        baseRestores.reserve(hit->second.applied.size());
         for (auto& [path, val] : hit->second.applied) {
             auto rit = mResourceRefs.find(path);
             if (rit != mResourceRefs.end()) {
+                removeActiveValueLocked(path, handle);
                 rit->second--;
                 if (rit->second <= 0) {
                     mResourceRefs.erase(rit);
+                    mActiveValues.erase(path);
                     auto bit = mRestoreValues.find(path);
                     if (bit != mRestoreValues.end()) {
-                        writeClamped(path, bit->second);
+                        baseRestores.push_back({path, bit->second});
                     } else {
                         auto oit = mOriginalValues.find(path);
                         if (oit != mOriginalValues.end()) {
-                            writeClamped(path, oit->second);
+                            baseRestores.push_back({path, oit->second});
                         }
                     }
                     mOriginalValues.erase(path);
                 } else {
-                    restoreLatestValueLocked(path, handle);
+                    addUniquePath(&activeRestorePaths, path);
                 }
             }
         }
+        writeBaseValuesLocked(baseRestores);
+        restoreEffectiveValuesLocked(activeRestorePaths);
         if (hit->second.opcode >= 0 && hit->second.opcode < mHintCount) {
-            mExpiries[hit->second.opcode] = 0;
             if (mOpcodeHandles[hit->second.opcode] == handle) {
                 mOpcodeHandles[hit->second.opcode] = 0;
             }
@@ -301,73 +549,39 @@ public:
         mHandles.erase(hit);
     }
 
-    int createPerfLockHandle(
-            int64_t durMs, std::vector<std::pair<std::string, std::string>>&& requested) {
-        std::lock_guard<std::mutex> lock(mMutex);
-        int handle = nextHandleLocked();
-        if (handle < 0) return -1;
-        std::vector<std::pair<std::string, std::string>> applied;
-        applied.reserve(requested.size());
-        for (const auto& [path, value] : requested) {
-            auto rit = mResourceRefs.find(path);
-            if (rit == mResourceRefs.end()
-                    && mRestoreValues.find(path) == mRestoreValues.end()) {
-                std::string orig = readSysfs(path);
-                if (!orig.empty()) mOriginalValues[path] = orig;
-            }
-            mResourceRefs[path]++;
-            writeClamped(path, value);
-            applied.push_back({path, value});
-        }
-        int64_t expiry = (durMs > 0) ? nowMs() + durMs : 0;
-        mHandles[handle] = {-1, expiry, 0, 0, nextSequenceLocked(), std::move(applied)};
-        if (shouldNotifyTimerLocked(expiry, handle)) mCond.notify_one();
-        return handle;
-    }
-
-    void releaseAllHandles() {
-        std::lock_guard<std::mutex> lock(mMutex);
-        std::vector<int> handles;
-        handles.reserve(mHandles.size());
-        for (const auto& [handle, _] : mHandles) {
-            handles.push_back(handle);
-        }
-        for (int handle : handles) {
-            releaseHandleLocked(handle);
-        }
-    }
-
-    void setUiBoostActive(bool active) {
-        std::lock_guard<std::mutex> lock(mMutex);
-        mUiBoostActive = active;
-    }
     bool isUiBoostActive() const { return mUiBoostActive; }
 
     void writeClamped(const std::string& path, const std::string& value) {
+        auto ceilingIt = mThermalCeilings.find(path);
+        auto boundIt = mBounds.find(path);
+        auto cur = mCurrentValues.find(path);
+        if (ceilingIt == mThermalCeilings.end() && boundIt == mBounds.end()) {
+            if (cur != mCurrentValues.end() && cur->second == value) return;
+            mCurrentValues[path] = value;
+            mNodeLooper.setValue(path, value);
+            return;
+        }
         std::string clamped = value;
-        char* end = nullptr;
-        int val = strtol(value.c_str(), &end, 10);
-        bool validInt = (end != value.c_str() && *end == '\0');
+        int val = 0;
+        bool validInt = ParseInt(value, &val);
         if (validInt) {
-            auto it = mThermalCeilings.find(path);
-            if (it != mThermalCeilings.end() && val > it->second) {
-                val = it->second;
+            if (ceilingIt != mThermalCeilings.end() && val > ceilingIt->second) {
+                val = ceilingIt->second;
                 clamped = std::to_string(val);
             }
-            auto bit = mBounds.find(path);
-            if (bit != mBounds.end()) {
-                if (bit->second.isFloor && val < bit->second.value) {
-                    val = bit->second.value;
+            if (boundIt != mBounds.end()) {
+                if (boundIt->second.isFloor && val < boundIt->second.value) {
+                    val = boundIt->second.value;
                     clamped = std::to_string(val);
-                } else if (!bit->second.isFloor && val > bit->second.value) {
-                    val = bit->second.value;
+                } else if (!boundIt->second.isFloor && val > boundIt->second.value) {
+                    val = boundIt->second.value;
                     clamped = std::to_string(val);
                 }
             }
         }
-        auto cur = mCurrentValues.find(path);
         if (cur != mCurrentValues.end() && cur->second == clamped) return;
-        if (writeSysfs(path, clamped)) mCurrentValues[path] = clamped;
+        mCurrentValues[path] = clamped;
+        mNodeLooper.setValue(path, clamped);
     }
 
     AxHintManager()
@@ -381,7 +595,6 @@ public:
         if (mHints.empty()) loadBoosts("/system/etc/ax_perf_boosts.xml", resMap);
         mHintCount = mHints.size();
         mLastHintMs.resize(mHintCount, 0);
-        mExpiries.resize(mHintCount, 0);
         mOpcodeHandles.resize(mHintCount, 0);
         pthread_setname_np(mTimerThread.native_handle(), "AxTimerLoop");
         pid_t timerTid = pthread_gettid_np(mTimerThread.native_handle());
@@ -392,10 +605,7 @@ public:
         mRunning = false;
         mCond.notify_all();
         if (mTimerThread.joinable()) mTimerThread.join();
-        for (auto& kv : mFdCache) {
-            if (kv.second >= 0) close(kv.second);
-        }
-        mFdCache.clear();
+        mNodeLooper.stop();
     }
 
     void timerLoop() {
@@ -436,34 +646,11 @@ public:
         return ts.tv_sec * 1000LL + ts.tv_nsec / 1000000;
     }
 
-    bool writeSysfs(const std::string& path, const std::string& value) {
-        int fd = -1;
-        auto it = mFdCache.find(path);
-        if (it != mFdCache.end()) {
-            fd = it->second;
-        } else {
-            fd = open(path.c_str(), O_WRONLY | O_CLOEXEC);
-            if (fd < 0) return false;
-            mFdCache[path] = fd;
-        }
-        ssize_t n = write(fd, value.c_str(), value.size());
-        if (n < 0 && (errno == EBADF || errno == EIO)) {
-            mFdCache.erase(path);
-            close(fd);
-            fd = open(path.c_str(), O_WRONLY | O_CLOEXEC);
-            if (fd < 0) return false;
-            mFdCache[path] = fd;
-            n = write(fd, value.c_str(), value.size());
-        }
-        return n == static_cast<ssize_t>(value.size());
-    }
-
     static std::string readSysfs(const std::string& path) {
-        int fd = open(path.c_str(), O_RDONLY);
+        unique_fd fd(TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_CLOEXEC)));
         if (fd < 0) return "";
         char buf[256] = {};
-        ssize_t n = read(fd, buf, sizeof(buf) - 1);
-        close(fd);
+        ssize_t n = TEMP_FAILURE_RETRY(read(fd.get(), buf, sizeof(buf) - 1));
         if (n > 0) {
             while (n > 0 && (buf[n-1] == '\n' || buf[n-1] == ' ')) n--;
             buf[n] = '\0';
@@ -494,7 +681,9 @@ public:
             pos = end + 2;
             std::string idStr = attr(chunk, "id");
             if (idStr.empty()) continue;
-            actions.push_back({std::stoi(idStr, nullptr, 16), attr(chunk, "value")});
+            int id = 0;
+            if (!ParseInt(idStr, &id)) continue;
+            actions.push_back({id, attr(chunk, "value")});
         }
         return actions;
     }
@@ -513,7 +702,8 @@ public:
             std::string rpath = normalizeResourcePath(attr(chunk, "path"));
             std::string def = attr(chunk, "default");
             if (idStr.empty() || rpath.empty()) continue;
-            int id = std::stoi(idStr, nullptr, 16);
+            int id = 0;
+            if (!ParseInt(idStr, &id)) continue;
             resMap[id] = {rpath, def.empty() ? "0" : def};
         }
     }
@@ -542,7 +732,8 @@ public:
             }
             std::string idStr = attr(header, "id");
             if (idStr.empty()) continue;
-            int brId = std::stoi(idStr, nullptr, 16);
+            int brId = 0;
+            if (!ParseInt(idStr, &brId)) continue;
             brMap[brId] = parseSetActions(body);
         }
 
@@ -562,8 +753,12 @@ public:
                 pos = ct + 8;
             }
 
-            int opcode = std::stoi(attr(header, "opcode"));
-            int64_t timeout = std::stoll(attr(header, "timeout_ms"));
+            int opcode = 0;
+            int64_t timeout = 0;
+            if (!ParseInt(attr(header, "opcode"), &opcode)
+                    || !ParseInt(attr(header, "timeout_ms"), &timeout)) {
+                continue;
+            }
             std::string upCgroup = attr(header, "uc");
             std::string downCgroup = attr(header, "dc");
             std::vector<NodeAction> nodes;
@@ -572,7 +767,7 @@ public:
                 auto rit = resMap.find(rid);
                 if (rit != resMap.end()) {
                     std::string val = parsedValue.empty() ? rit->second.defaultVal : parsedValue;
-                    nodes.push_back({rit->second.path, val, rit->second.defaultVal});
+                    nodes.push_back({rit->second.path, val});
                 } else if (parsedValue.empty()) {
                     auto brIt = brMap.find(rid);
                     if (brIt != brMap.end()) {
@@ -580,14 +775,14 @@ public:
                             auto subRit = resMap.find(subId);
                             if (subRit != resMap.end()) {
                                 std::string sv = subVal.empty() ? subRit->second.defaultVal : subVal;
-                                nodes.push_back({subRit->second.path, sv, subRit->second.defaultVal});
+                                nodes.push_back({subRit->second.path, sv});
                             }
                         }
                     }
                 }
             }
 
-            if (opcode > 0 && !nodes.empty()) {
+            if (opcode > 0 && (!nodes.empty() || !upCgroup.empty())) {
                 hintsNew[opcode] = {nodes, timeout, upCgroup, downCgroup};
                 if (opcode > maxOpcode) maxOpcode = opcode;
             }
@@ -596,7 +791,6 @@ public:
         if (!hintsNew.empty()) {
             mHints.resize(maxOpcode + 1);
             mLastHintMs.resize(maxOpcode + 1, 0);
-            mExpiries.resize(maxOpcode + 1, 0);
             for (auto& kv : hintsNew) {
                 mHints[kv.first] = kv.second;
             }
@@ -605,10 +799,8 @@ public:
         }
     }
 
-public:
     std::vector<HintEntry> mHints;
     std::vector<int64_t> mLastHintMs;
-    std::vector<int64_t> mExpiries;
     std::vector<int> mOpcodeHandles;
     std::unordered_map<std::string, std::string> mRestoreValues;
     std::unordered_map<std::string, int> mThermalCeilings;
@@ -621,18 +813,19 @@ public:
     std::unordered_map<int, std::string> mTaskProfiles;
     std::unordered_map<std::string, int> mTaskProfileRefs;
     std::unordered_map<std::string, int> mResourceRefs;
+    std::unordered_map<std::string, std::vector<ActiveValue>> mActiveValues;
     std::unordered_map<std::string, std::string> mOriginalValues;
     std::unordered_map<std::string, std::string> mCurrentValues;
-    std::unordered_map<std::string, int> mFdCache;
-    bool mUseStune;
+    const bool mUseStune;
+    AxNodeLooper mNodeLooper;
+    int mRtPid = 0;
+    int mRtTid = 0;
     mutable std::mutex mMutex;
     std::condition_variable mCond;
     std::atomic<bool> mRunning;
     std::thread mTimerThread;
-    static constexpr int64_t kCoalesceMs = 50;
     static constexpr int64_t kProcessPssDeferMs = 2500;
 
-private:
     int nextHandleLocked() {
         if (mHandles.size() >= static_cast<size_t>(std::numeric_limits<int>::max() - 1)) {
             return -1;
@@ -664,7 +857,8 @@ private:
         if (taskId <= 0 || profile.empty()) return;
         auto it = mTaskProfiles.find(taskId);
         if (it != mTaskProfiles.end() && it->second == profile) return;
-        SetTaskProfiles(taskId, std::vector<std::string>{profile}, true);
+        const std::string_view profileView(profile);
+        SetTaskProfiles(taskId, {profileView}, true);
         applyStuneProfileLocked(taskId, profile);
         mTaskProfiles[taskId] = profile;
     }
@@ -675,7 +869,7 @@ private:
         if (group.empty()) return;
         std::string taskPath = "/dev/stune/" + group + "/tasks";
         if (!pathExists(taskPath)) return;
-        writeSysfs(taskPath, std::to_string(taskId));
+        mNodeLooper.writeValue(taskPath, std::to_string(taskId));
         if (profile == "SvpPolicy") {
             writeStuneValue(group, "schedtune.boost", "100");
             writeStuneValue(group, "schedtune.prefer_idle", "1");
@@ -730,7 +924,7 @@ private:
     }
 
     static bool pathExists(const std::string& path) {
-        return access(path.c_str(), F_OK) == 0;
+        return TEMP_FAILURE_RETRY(access(path.c_str(), F_OK)) == 0;
     }
 
     static bool detectStuneBackend() {
@@ -843,50 +1037,111 @@ private:
                 || opcode == OP_DRAG_START || opcode == OP_DRAG_END
                 || (opcode >= OP_FRAME_INPUT_END && opcode <= OP_ROTATION_ANIM_BOOST)
                 || opcode == OP_SHADE || opcode == OP_FIRST_DRAW
+                || opcode == OP_BOOST_RENDERTHREAD || opcode == OP_MISC_LAUNCHER_LOAD
                 || opcode == OP_GAME_LAUNCH_BOOST;
     }
 
-    void restoreLatestValueLocked(const std::string& path, int releasedHandle) {
-        uint64_t latestSequence = 0;
-        std::string latestValue;
-        for (const auto& [handle, entry] : mHandles) {
-            if (handle == releasedHandle) continue;
-            for (const auto& [appliedPath, appliedValue] : entry.applied) {
-                if (appliedPath == path && entry.sequence >= latestSequence) {
-                    latestSequence = entry.sequence;
-                    latestValue = appliedValue;
-                }
+    void removeActiveValueLocked(const std::string& path, int handle) {
+        auto vit = mActiveValues.find(path);
+        if (vit == mActiveValues.end()) return;
+        auto& values = vit->second;
+        for (auto it = values.end(); it != values.begin(); ) {
+            --it;
+            if (it->handle == handle) {
+                values.erase(it);
+                if (values.empty()) mActiveValues.erase(vit);
+                return;
             }
         }
-        if (latestSequence > 0) writeClamped(path, latestValue);
+    }
+
+    void refreshActiveValueLocked(const std::string& path, int handle, uint64_t sequence) {
+        auto vit = mActiveValues.find(path);
+        if (vit == mActiveValues.end()) return;
+        for (ActiveValue& value : vit->second) {
+            if (value.handle == handle) value.sequence = sequence;
+        }
+    }
+
+    static void addUniquePath(std::vector<std::string>* paths, const std::string& path) {
+        if (std::find(paths->begin(), paths->end(), path) == paths->end()) {
+            paths->push_back(path);
+        }
+    }
+
+    void restoreEffectiveValuesLocked(const std::vector<std::string>& paths) {
+        for (const std::string& path : paths) {
+            restoreEffectiveValueLocked(path);
+        }
+    }
+
+    void writeBaseValuesLocked(const std::vector<std::pair<std::string, std::string>>& values) {
+        for (const auto& [path, value] : values) {
+            writeClamped(path, value);
+        }
+    }
+
+    void restoreEffectiveValueLocked(const std::string& path) {
+        const ActiveValue* value = effectiveValueLocked(path);
+        if (value == nullptr) return;
+        writeClamped(path, value->value);
+    }
+
+    const ActiveValue* effectiveValueLocked(const std::string& path) const {
+        auto vit = mActiveValues.find(path);
+        if (vit == mActiveValues.end() || vit->second.empty()) return nullptr;
+        const ActiveValue* best = &vit->second.front();
+        for (const ActiveValue& value : vit->second) {
+            if (isStrongerValue(path, value, *best)) best = &value;
+        }
+        return best;
+    }
+
+    static bool isStrongerValue(
+            const std::string& path, const ActiveValue& candidate, const ActiveValue& current) {
+        int candidateValue = 0;
+        int currentValue = 0;
+        if (ParseInt(candidate.value, &candidateValue) && ParseInt(current.value, &currentValue)
+                && candidateValue != currentValue) {
+            return lowerValueIsStronger(path)
+                    ? candidateValue < currentValue : candidateValue > currentValue;
+        }
+        return candidate.sequence >= current.sequence;
+    }
+
+    static bool lowerValueIsStronger(const std::string& path) {
+        return path.find("cpu_dma_latency") != std::string::npos
+                || path.find("pm_qos") != std::string::npos
+                || path.find("pmqos") != std::string::npos;
     }
 };
 
 static jlong native_perf_hint(JNIEnv*, jclass, jint opcode, jlong durMs) {
-    auto* hm = AxHintManager::getInstance();
-    if (opcode < 0 || opcode >= hm->mHintCount) return -1;
-    return (jlong)hm->createHandle(opcode, durMs);
+    return static_cast<jlong>(AxHintManager::getInstance()->createHandle(opcode, durMs));
 }
 
 static void native_perf_hint_rel(JNIEnv*, jclass, jlong handle) {
-    AxHintManager::getInstance()->releaseHandle((int)handle);
+    AxHintManager::getInstance()->releaseHandle(static_cast<int>(handle));
 }
 
 static void native_set_boost_data(JNIEnv* env, jclass,
         jobjectArray paths, jobjectArray values) {
+    if (paths == nullptr || values == nullptr) return;
     jsize len = env->GetArrayLength(paths);
     if (len != env->GetArrayLength(values)) return;
     auto* hm = AxHintManager::getInstance();
     for (jsize i = 0; i < len; i++) {
-        jstring p = (jstring)env->GetObjectArrayElement(paths, i);
-        jstring v = (jstring)env->GetObjectArrayElement(values, i);
-        if (p != nullptr && v != nullptr) {
-            ScopedUtfChars path(env, p);
-            ScopedUtfChars val(env, v);
-            hm->setBoostData(path.c_str(), val.c_str());
+        ScopedLocalRef<jstring> p(env,
+                reinterpret_cast<jstring>(env->GetObjectArrayElement(paths, i)));
+        ScopedLocalRef<jstring> v(env,
+                reinterpret_cast<jstring>(env->GetObjectArrayElement(values, i)));
+        if (p.get() != nullptr && v.get() != nullptr) {
+            ScopedUtfChars path(env, p.get());
+            ScopedUtfChars val(env, v.get());
+            if (path.c_str() != nullptr && val.c_str() != nullptr) {
+                hm->setBoostData(path.c_str(), val.c_str());
+            }
         }
-        if (p != nullptr) env->DeleteLocalRef(p);
-        if (v != nullptr) env->DeleteLocalRef(v);
     }
 }
 
@@ -912,7 +1167,8 @@ static void native_remove_thermal_ceiling(JNIEnv* env, jclass, jstring path) {
     AxHintManager::getInstance()->removeThermalCeiling(p.c_str());
 }
 
-static void native_set_cpu_freq_bound(JNIEnv* env, jclass, jstring path, jint boundValue, jboolean isFloor) {
+static void native_set_cpu_freq_bound(
+        JNIEnv* env, jclass, jstring path, jint boundValue, jboolean isFloor) {
     if (path == nullptr) return;
     ScopedUtfChars p(env, path);
     if (p.c_str() == nullptr) return;
@@ -932,17 +1188,24 @@ static void native_update_top_app(JNIEnv*, jclass, jint pid, jint tid) {
 }
 
 static const JNINativeMethod sMethods[] = {
-    {"native_perf_hint", "(IJ)J", (void*)native_perf_hint},
-    {"native_perf_hint_rel", "(J)V", (void*)native_perf_hint_rel},
-    {"native_set_boost_data", "([Ljava/lang/String;[Ljava/lang/String;)V", (void*)native_set_boost_data},
-    {"native_is_composition_boosting", "()Z", (void*)native_is_composition_boosting},
-    {"native_should_defer_pss", "()Z", (void*)native_should_defer_pss},
-    {"native_set_thermal_ceiling", "(Ljava/lang/String;I)V", (void*)native_set_thermal_ceiling},
-    {"native_remove_thermal_ceiling", "(Ljava/lang/String;)V", (void*)native_remove_thermal_ceiling},
-    {"native_set_ui_boost_active", "(Z)V", (void*)native_set_ui_boost_active},
-    {"native_set_cpu_freq_bound", "(Ljava/lang/String;IZ)V", (void*)native_set_cpu_freq_bound},
-    {"native_remove_cpu_freq_bounds", "()V", (void*)native_remove_cpu_freq_bounds},
-    {"native_update_top_app", "(II)V", (void*)native_update_top_app},
+        {"native_perf_hint", "(IJ)J", reinterpret_cast<void*>(native_perf_hint)},
+        {"native_perf_hint_rel", "(J)V", reinterpret_cast<void*>(native_perf_hint_rel)},
+        {"native_set_boost_data", "([Ljava/lang/String;[Ljava/lang/String;)V",
+                reinterpret_cast<void*>(native_set_boost_data)},
+        {"native_is_composition_boosting", "()Z",
+                reinterpret_cast<void*>(native_is_composition_boosting)},
+        {"native_should_defer_pss", "()Z", reinterpret_cast<void*>(native_should_defer_pss)},
+        {"native_set_thermal_ceiling", "(Ljava/lang/String;I)V",
+                reinterpret_cast<void*>(native_set_thermal_ceiling)},
+        {"native_remove_thermal_ceiling", "(Ljava/lang/String;)V",
+                reinterpret_cast<void*>(native_remove_thermal_ceiling)},
+        {"native_set_ui_boost_active", "(Z)V",
+                reinterpret_cast<void*>(native_set_ui_boost_active)},
+        {"native_set_cpu_freq_bound", "(Ljava/lang/String;IZ)V",
+                reinterpret_cast<void*>(native_set_cpu_freq_bound)},
+        {"native_remove_cpu_freq_bounds", "()V",
+                reinterpret_cast<void*>(native_remove_cpu_freq_bounds)},
+        {"native_update_top_app", "(II)V", reinterpret_cast<void*>(native_update_top_app)},
 };
 
 int register_android_server_am_AxPerformance(JNIEnv* env) {
