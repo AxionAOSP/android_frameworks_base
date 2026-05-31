@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlin.math.roundToInt
 
 data class AxDynamicBarChipState(
     val event: IslandEvent,
@@ -37,6 +38,22 @@ data class KeyguardBatteryInfo(
     val isWireless: Boolean,
     val timeRemaining: String?,
 )
+
+data class AxDynamicBarChipBounds(
+    val left: Int,
+    val top: Int,
+    val right: Int,
+    val bottom: Int,
+    val screenWidth: Int,
+) {
+    val centerXFraction: Float
+        get() =
+            if (screenWidth > 0) {
+                (((left + right) / 2f) / screenWidth).coerceIn(0f, 1f)
+            } else {
+                0.5f
+            }
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @SysUISingleton
@@ -134,8 +151,26 @@ constructor(
     private val _chipCenterXFraction = MutableStateFlow(0.5f)
     val chipCenterXFraction: StateFlow<Float> = _chipCenterXFraction.asStateFlow()
 
+    private val _chipBounds = MutableStateFlow<AxDynamicBarChipBounds?>(null)
+    val chipBounds: StateFlow<AxDynamicBarChipBounds?> = _chipBounds.asStateFlow()
+
     fun updateChipCenterX(fraction: Float) {
         _chipCenterXFraction.value = fraction
+    }
+
+    fun updateChipBounds(left: Float, top: Float, right: Float, bottom: Float, screenWidth: Float) {
+        val bounds =
+            AxDynamicBarChipBounds(
+                left = left.roundToInt(),
+                top = top.roundToInt(),
+                right = right.roundToInt(),
+                bottom = bottom.roundToInt(),
+                screenWidth = screenWidth.roundToInt(),
+            )
+        if (_chipBounds.value != bounds) {
+            _chipBounds.value = bounds
+            _chipCenterXFraction.value = bounds.centerXFraction
+        }
     }
 
     val isExpanded: StateFlow<Boolean> = statusBarExpansion.isExpanded

@@ -5,7 +5,6 @@ package com.android.systemui.axdynamicbar.ui.compose
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -46,11 +45,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.android.compose.animation.Expandable
+import com.android.compose.animation.rememberExpandableController
 import com.android.systemui.axdynamicbar.shared.IslandActions
 import com.android.systemui.axdynamicbar.model.IslandEvent
 import com.android.systemui.axdynamicbar.shared.*
@@ -72,62 +74,58 @@ internal fun MediaCard(event: IslandEvent.Media, interactor: IslandActions) {
         color = CardBg,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        interactor.openMediaApp()
-                        interactor.collapseIsland()
+            MediaLaunchExpandable(interactor, ShapeCard) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(SpaceXxl),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(SpaceXxl),
+                ) {
+                    event.albumArt?.let { art ->
+                        Image(
+                            bitmap = art.toScaledBitmap(AlbumArtSize),
+                            contentDescription = null,
+                            modifier = Modifier.size(AlbumArtSize).clip(ShapeLg),
+                            contentScale = ContentScale.Crop,
+                        )
+                    } ?: Box(
+                        modifier = Modifier
+                            .size(AlbumArtSize)
+                            .clip(ShapeLg)
+                            .background(accent.copy(alpha = AlphaFaint)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Filled.MusicNote, null, tint = accent, modifier = Modifier.size(36.dp))
                     }
-                    .padding(SpaceXxl),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(SpaceXxl),
-            ) {
-                event.albumArt?.let { art ->
-                    Image(
-                        bitmap = art.toScaledBitmap(AlbumArtSize),
-                        contentDescription = null,
-                        modifier = Modifier.size(AlbumArtSize).clip(ShapeLg),
-                        contentScale = ContentScale.Crop,
-                    )
-                } ?: Box(
-                    modifier = Modifier
-                        .size(AlbumArtSize)
-                        .clip(ShapeLg)
-                        .background(accent.copy(alpha = AlphaFaint)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Filled.MusicNote, null, tint = accent, modifier = Modifier.size(36.dp))
-                }
 
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(SpaceXs),
-                ) {
-                    Text(
-                        event.track.ifEmpty { stringResource(R.string.ax_dynamic_bar_now_playing) },
-                        color = OnCardText,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (event.artist.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(SpaceXs),
+                    ) {
                         Text(
-                            event.artist,
-                            color = accent,
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1,
+                            event.track.ifEmpty { stringResource(R.string.ax_dynamic_bar_now_playing) },
+                            color = OnCardText,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        if (event.artist.isNotEmpty()) {
+                            Text(
+                                event.artist,
+                                color = accent,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
-                }
-                event.appIcon?.let { icon ->
-                    Image(
-                        bitmap = icon.toScaledBitmap(SizeIconSm),
-                        contentDescription = null,
-                        modifier = Modifier.size(SizeIconSm).clip(ShapeXs),
-                        colorFilter = ColorFilter.tint(OnCardText),
-                    )
+                    event.appIcon?.let { icon ->
+                        Image(
+                            bitmap = icon.toScaledBitmap(SizeIconSm),
+                            contentDescription = null,
+                            modifier = Modifier.size(SizeIconSm).clip(ShapeXs),
+                            colorFilter = ColorFilter.tint(OnCardText),
+                        )
+                    }
                 }
             }
 
@@ -157,64 +155,63 @@ internal fun MediaExpanded(
     val accent = colors.accent
 
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SpaceXxl)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable {
-                interactor.openMediaApp()
-                interactor.collapseIsland()
-            },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(SpaceXxl),
-        ) {
-            event.albumArt?.let { art ->
-                Image(
-                    bitmap = art.toScaledBitmap(SizeAlbumSm),
-                    contentDescription = null,
-                    modifier = Modifier.size(SizeAlbumSm).clip(ShapeLg),
-                    contentScale = ContentScale.Crop,
-                )
-            } ?: Surface(
-                modifier = Modifier.size(SizeAlbumSm),
-                shape = ShapeLg,
-                color = accent.copy(alpha = AlphaSubtle),
+        MediaLaunchExpandable(interactor, ShapeLg, Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(SpaceXxl),
             ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(
-                        Icons.Filled.MusicNote, null,
-                        tint = accent,
-                        modifier = Modifier.size(SpacePanel),
+                event.albumArt?.let { art ->
+                    Image(
+                        bitmap = art.toScaledBitmap(SizeAlbumSm),
+                        contentDescription = null,
+                        modifier = Modifier.size(SizeAlbumSm).clip(ShapeLg),
+                        contentScale = ContentScale.Crop,
                     )
+                } ?: Surface(
+                    modifier = Modifier.size(SizeAlbumSm),
+                    shape = ShapeLg,
+                    color = accent.copy(alpha = AlphaSubtle),
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            Icons.Filled.MusicNote, null,
+                            tint = accent,
+                            modifier = Modifier.size(SpacePanel),
+                        )
+                    }
                 }
-            }
 
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(SpaceXs),
-            ) {
-                Text(
-                    event.track.ifEmpty { stringResource(R.string.ax_dynamic_bar_now_playing) },
-                    color = OnCardText,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (event.artist.isNotEmpty()) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(SpaceXs),
+                ) {
                     Text(
-                        event.artist,
-                        color = accent,
-                        style = MaterialTheme.typography.bodySmall,
+                        event.track.ifEmpty { stringResource(R.string.ax_dynamic_bar_now_playing) },
+                        color = OnCardText,
+                        style = MaterialTheme.typography.titleSmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    if (event.artist.isNotEmpty()) {
+                        Text(
+                            event.artist,
+                            color = accent,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
-            }
 
-            event.appIcon?.let { icon ->
-                Image(
-                    bitmap = icon.toScaledBitmap(SizeIconSm),
-                    contentDescription = null,
-                    modifier = Modifier.size(SizeIconSm).clip(ShapeXs),
-                    colorFilter = ColorFilter.tint(OnCardText),
-                )
+                event.appIcon?.let { icon ->
+                    Image(
+                        bitmap = icon.toScaledBitmap(SizeIconSm),
+                        contentDescription = null,
+                        modifier = Modifier.size(SizeIconSm).clip(ShapeXs),
+                        colorFilter = ColorFilter.tint(OnCardText),
+                    )
+                }
             }
         }
 
@@ -222,6 +219,27 @@ internal fun MediaExpanded(
         if (event.duration > 0L) {
             MediaSeekBar(event, interactor, accent)
         }
+    }
+}
+
+@Composable
+private fun MediaLaunchExpandable(
+    interactor: IslandActions,
+    shape: Shape,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val controller = rememberExpandableController(CardBg, shape)
+    Expandable(
+        controller = controller,
+        modifier = modifier,
+        onClick = { expandable ->
+            interactor.openMediaApp(expandable)
+            interactor.collapseIsland()
+        },
+        defaultMinSize = false,
+    ) {
+        content()
     }
 }
 

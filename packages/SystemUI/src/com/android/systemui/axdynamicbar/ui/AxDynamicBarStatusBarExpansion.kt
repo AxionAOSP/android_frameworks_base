@@ -16,6 +16,7 @@
 
 package com.android.systemui.axdynamicbar.ui
 
+import com.android.systemui.animation.Expandable
 import com.android.systemui.axdynamicbar.domain.AxDynamicBarInteractor
 import com.android.systemui.axdynamicbar.model.IslandEvent
 import com.android.systemui.dagger.SysUISingleton
@@ -25,6 +26,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
@@ -40,6 +42,9 @@ constructor(
     private val interactor: AxDynamicBarInteractor,
 ) {
     private val _intent = MutableStateFlow(false)
+    private val _expandable = MutableStateFlow<Expandable?>(null)
+
+    val expandable: StateFlow<Expandable?> = _expandable.asStateFlow()
 
     val isExpanded: StateFlow<Boolean> =
         combine(_intent, interactor.isOnKeyguard) { intent, onKg -> intent && !onKg }
@@ -71,17 +76,19 @@ constructor(
             .launchIn(applicationScope)
     }
 
-    fun expand() {
+    fun expand(source: Expandable? = null) {
         val state = interactor.uiState.value
         if (state.events.isEmpty() || state.events.all { it is IslandEvent.AospChip }) return
+        _expandable.value = source
         _intent.value = true
     }
 
     fun collapse() {
         _intent.value = false
+        _expandable.value = null
     }
 
-    fun toggle() {
-        if (_intent.value) collapse() else expand()
+    fun toggle(source: Expandable? = null) {
+        if (_intent.value) collapse() else expand(source)
     }
 }

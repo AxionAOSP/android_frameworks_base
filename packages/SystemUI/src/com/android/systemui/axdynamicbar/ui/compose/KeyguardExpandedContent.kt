@@ -268,15 +268,16 @@ private fun KeyguardMediaPanel(event: IslandEvent.Media, interactor: IslandActio
             contentAlignment = Alignment.Center,
         ) {
             AnimatedContent(
-                targetState = event.albumArt,
+                targetState = event,
                 transitionSpec = {
                     fadeIn(motionScheme.defaultEffectsSpec()) togetherWith
                         fadeOut(motionScheme.fastEffectsSpec()) using
                         SizeTransform(clip = false)
                 },
-                contentKey = { it?.hashCode() ?: 0 },
+                contentKey = { iconKeyFor(it) },
                 label = "kg_media_album_art",
-            ) { art ->
+            ) { media ->
+                val art = media.albumArt
                 if (art != null) {
                     Image(
                         bitmap = art.toScaledBitmap(SizeAlbumLg),
@@ -610,7 +611,7 @@ private fun KeyguardTimerPanel(event: IslandEvent.Timer, interactor: IslandActio
                 eventStyleFor(event).icon?.let { Icon(it, null, tint = colors.accent, modifier = Modifier.size(18.dp)) }
             }
             Text(
-                event.label.ifEmpty { stringResource(R.string.ax_dynamic_bar_timer) }.uppercase(),
+                event.label.ifEmpty { stringResource(R.string.ax_dynamic_bar_timer) },
                 color = colors.accent,
                 style = MaterialTheme.typography.labelMedium,
             )
@@ -697,7 +698,7 @@ private fun KeyguardStopwatchPanel(event: IslandEvent.Stopwatch, interactor: Isl
                 Icon(Icons.Filled.AvTimer, null, tint = colors.accent, modifier = Modifier.size(18.dp))
             }
             Text(
-                event.label.ifEmpty { stringResource(R.string.ax_dynamic_bar_stopwatch) }.uppercase(),
+                event.label.ifEmpty { stringResource(R.string.ax_dynamic_bar_stopwatch) },
                 color = colors.accent,
                 style = MaterialTheme.typography.labelMedium,
             )
@@ -779,7 +780,7 @@ private fun KeyguardAudioRecordingPanel(event: IslandEvent.AudioRecording, inter
                     RecordingState.RECORDING -> stringResource(R.string.ax_dynamic_bar_recording)
                     RecordingState.PAUSED -> stringResource(R.string.ax_dynamic_bar_paused)
                     RecordingState.SAVED -> stringResource(R.string.ax_dynamic_bar_saved)
-                }.uppercase(),
+                },
                 color = colors.accent,
                 style = MaterialTheme.typography.labelMedium,
             )

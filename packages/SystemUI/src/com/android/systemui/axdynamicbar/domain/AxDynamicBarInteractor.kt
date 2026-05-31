@@ -1,12 +1,15 @@
 package com.android.systemui.axdynamicbar.domain
 
 import android.net.Uri
+import com.android.internal.jank.Cuj
+import com.android.systemui.animation.Expandable
 import com.android.systemui.axdynamicbar.data.IslandEventRepository
 import com.android.systemui.axdynamicbar.model.IslandEvent
 import com.android.systemui.axdynamicbar.model.IslandState
 import com.android.systemui.axdynamicbar.model.IslandUiState
 import com.android.systemui.axdynamicbar.model.RecordingState
 import com.android.systemui.axdynamicbar.shared.IslandActions
+import com.android.systemui.axdynamicbar.shared.isVisibleOnDynamicBarSurface
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.haptics.slider.compose.ui.SliderHapticsViewModel
@@ -224,14 +227,7 @@ constructor(
                 dismissedEventIds.removeAll { id -> rawEvents.none { it.id == id } }
                 val events = rawEvents.filter { e ->
                     e.id !in dismissedEventIds &&
-                        
-                        !(onKeyguard && e is IslandEvent.Notification) &&
-                        
-                        !(onKeyguard && e is IslandEvent.Charging) &&
-                        
-                        !(onKeyguard && e is IslandEvent.AppSwitch) &&
-                        
-                        !(!onKeyguard && e is IslandEvent.KeyguardIndication)
+                        e.isVisibleOnDynamicBarSurface(onKeyguard)
                 }
 
                 val current = _uiState.value
@@ -405,7 +401,14 @@ constructor(
 
     override fun openUrl(url: String) = repository.system.openUrl(url)
 
-    override fun openMediaApp() = repository.media.openMediaApp()
+    override fun openMediaApp(expandable: Expandable?) {
+        val intent = repository.media.getMediaAppIntent() ?: return
+        activityStarter.postStartActivityDismissingKeyguard(
+            intent,
+            0,
+            expandable?.activityTransitionController(Cuj.CUJ_SHADE_APP_LAUNCH_FROM_MEDIA_PLAYER),
+        )
+    }
 
     override fun seekTo(position: Long) = repository.media.seekTo(position)
 

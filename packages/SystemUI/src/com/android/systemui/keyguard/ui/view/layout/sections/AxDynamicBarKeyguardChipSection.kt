@@ -28,10 +28,13 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 private const val CHIP_ABOVE_LOCK_MARGIN_DP = 12f
+private const val EXPANDED_TOP_PROTECTION_DP = 48f
 private const val EXPANDED_BOTTOM_PROTECTION_DP = 16f
 private const val UNSET = -1
 
 private val HIDDEN_VIEW_IDS = listOf(
+    ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL,
+    ClockViewIds.LOCKSCREEN_CLOCK_VIEW_LARGE,
     R.id.shared_notification_container,
     R.id.keyguard_widgets_area,
     R.id.notificationShelf,
@@ -54,6 +57,7 @@ constructor(
     private var bindHandle: DisposableHandle? = null
     private var expansionHandle: DisposableHandle? = null
     private var enforceAction: Runnable? = null
+    private val hiddenOriginalVisibility = mutableMapOf<Int, Int>()
 
     override fun addViews(constraintLayout: ConstraintLayout) {
         val composeView = AxComposeView(context).apply { id = chipViewId }
@@ -88,7 +92,7 @@ constructor(
                     viewModel.keyguardExpansion.collapseSettled.collect {
                         if (!viewModel.keyguardExpansion.isExpanded.value) {
                             applyCollapsedLp(composeView, viewModel.isLowUdfps.value)
-                            setHiddenViewsVisibility(constraintLayout, View.VISIBLE)
+                            restoreTargets(constraintLayout)
                         }
                     }
                 }
@@ -121,7 +125,7 @@ constructor(
         rebindPreDrawAction(constraintLayout, expanded)
         TransitionManager.endTransitions(constraintLayout)
         if (expanded) {
-            setHiddenViewsVisibility(constraintLayout, View.INVISIBLE)
+            hideTargets(constraintLayout)
             applyExpandedLp(composeView)
         }
     }
@@ -138,11 +142,22 @@ constructor(
     private fun hiddenTargets(constraintLayout: ConstraintLayout): List<View> =
         HIDDEN_VIEW_IDS.mapNotNull { constraintLayout.rootView.findViewById<View>(it) }
 
-    private fun setHiddenViewsVisibility(constraintLayout: ConstraintLayout, visibility: Int) {
+    private fun hideTargets(constraintLayout: ConstraintLayout) {
+        hiddenTargets(constraintLayout).forEach { v ->
+            hiddenOriginalVisibility.putIfAbsent(v.id, v.visibility)
+            v.alpha = 1f
+            if (v.visibility != View.INVISIBLE) v.visibility = View.INVISIBLE
+        }
+    }
+
+    private fun restoreTargets(constraintLayout: ConstraintLayout) {
+        if (hiddenOriginalVisibility.isEmpty()) return
         hiddenTargets(constraintLayout).forEach { v ->
             v.alpha = 1f
+            val visibility = hiddenOriginalVisibility[v.id] ?: View.VISIBLE
             if (v.visibility != visibility) v.visibility = visibility
         }
+        hiddenOriginalVisibility.clear()
     }
 
     private fun enforceHidden(constraintLayout: ConstraintLayout) {
@@ -154,15 +169,20 @@ constructor(
     override fun applyConstraints(constraintSet: ConstraintSet) {
         val expanded = viewModel.isKeyguardExpanded.value
         val lowUdfps = viewModel.isLowUdfps.value
+        val topProtectionPx = EXPANDED_TOP_PROTECTION_DP.dpToPx(context)
         val bottomProtectionPx = EXPANDED_BOTTOM_PROTECTION_DP.dpToPx(context)
         val chipAboveLockPx = CHIP_ABOVE_LOCK_MARGIN_DP.dpToPx(context)
         val wrap = ViewGroup.LayoutParams.WRAP_CONTENT
         constraintSet.apply {
+            clear(chipViewId, ConstraintSet.TOP)
+            clear(chipViewId, ConstraintSet.BOTTOM)
+            clear(chipViewId, ConstraintSet.START)
+            clear(chipViewId, ConstraintSet.END)
             when {
                 expanded -> {
                     constrainWidth(chipViewId, ConstraintSet.MATCH_CONSTRAINT)
                     constrainHeight(chipViewId, ConstraintSet.MATCH_CONSTRAINT)
-                    connect(chipViewId, ConstraintSet.TOP, ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL, ConstraintSet.BOTTOM)
+                    connect(chipViewId, ConstraintSet.TOP, ConstraintSet.PARENT_ID, ConstraintSet.TOP, topProtectionPx)
                     connect(chipViewId, ConstraintSet.BOTTOM, R.id.device_entry_icon_view, ConstraintSet.TOP, bottomProtectionPx)
                     connect(chipViewId, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
                     connect(chipViewId, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
@@ -187,16 +207,17 @@ constructor(
 
     private fun applyExpandedLp(composeView: View) {
         val lp = composeView.layoutParams as ConstraintLayout.LayoutParams
+        val topProtectionPx = EXPANDED_TOP_PROTECTION_DP.dpToPx(context)
         val bottomProtectionPx = EXPANDED_BOTTOM_PROTECTION_DP.dpToPx(context)
         lp.width = ConstraintLayout.LayoutParams.MATCH_PARENT
         lp.height = 0
-        lp.topToBottom = ClockViewIds.LOCKSCREEN_CLOCK_VIEW_SMALL
+        lp.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+        lp.topToBottom = UNSET
         lp.bottomToTop = R.id.device_entry_icon_view
         lp.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
         lp.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-        lp.topMargin = 0
+        lp.topMargin = topProtectionPx
         lp.bottomMargin = bottomProtectionPx
-        lp.topToTop = UNSET
         lp.bottomToBottom = UNSET
         lp.startToEnd = UNSET
         lp.endToStart = UNSET
@@ -234,6 +255,7 @@ constructor(
         TransitionManager.endTransitions(constraintLayout)
         enforceAction?.let { ScrimUtils.get().removeKeyguardPreDrawAction(it) }
         enforceAction = null
+        restoreTargets(constraintLayout)
         expansionHandle?.dispose()
         expansionHandle = null
         bindHandle?.dispose()

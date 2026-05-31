@@ -2,7 +2,12 @@ package com.android.systemui.axdynamicbar.ui.compose
 
 import android.graphics.drawable.Drawable
 import android.media.AudioManager
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.OnBackPressedDispatcherOwner
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import com.android.internal.R as InternalR
 import com.android.systemui.common.shared.model.Icon as SysUISharedIcon
 import com.android.systemui.common.ui.compose.Icon as SysUIIcon
@@ -41,6 +46,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -65,6 +71,18 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.android.compose.animation.scene.ContentKey
+import com.android.compose.animation.scene.ElementKey
+import com.android.compose.animation.scene.ElementMatcher
+import com.android.compose.animation.scene.MutableSceneTransitionLayoutState
+import com.android.compose.animation.scene.SceneKey
+import com.android.compose.animation.scene.SceneTransitionLayout
+import com.android.compose.animation.scene.SceneTransitions
+import com.android.compose.animation.scene.TransitionBuilder
+import com.android.compose.animation.scene.rememberMutableSceneTransitionLayoutState
+import com.android.compose.animation.scene.transitions
 import com.android.systemui.axdynamicbar.model.IslandEvent
 import com.android.systemui.axdynamicbar.model.RecordingState
 import com.android.systemui.axdynamicbar.shared.*
@@ -879,7 +897,14 @@ private fun SportsText(event: IslandEvent.Sports, modifier: Modifier, overrideCo
         else -> "vs"
     }
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        Text(scoreText, color = color, style = PillAccent, maxLines = 1)
+        Text(
+            scoreText,
+            color = color,
+            style = PillAccent,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Clip,
+        )
         event.team2Icon?.let { icon ->
             Box(modifier = Modifier.padding(start = 4.dp)) {
                 Image(
@@ -1134,12 +1159,7 @@ private fun AospChipText(event: IslandEvent.AospChip, modifier: Modifier, overri
         is OngoingActivityChipModel.Content.Timer -> AospChipTimerText(c, color, modifier)
         is OngoingActivityChipModel.Content.ShortTimeDelta -> AospChipDeltaText(c, color, modifier)
         is OngoingActivityChipModel.Content.Countdown ->
-            Text(
-                formatCountdownLong(c.secondsUntilStarted * 1000L),
-                color = color,
-                style = PillMono,
-                modifier = modifier,
-            )
+            PillMonoLabel(formatCountdownLong(c.secondsUntilStarted * 1000L), color, modifier)
         is OngoingActivityChipModel.Content.IconOnly -> {}
     }
 }
@@ -1155,7 +1175,7 @@ private fun AospChipTimerText(content: OngoingActivityChipModel.Content.Timer, c
             delay(1000L - abs(content.startTimeMs - content.timeSource.getCurrentTime()) % 1000L)
         }
     }
-    Text(formatCountdownLong(elapsedMs), color = color, style = PillMono, modifier = modifier)
+    PillMonoLabel(formatCountdownLong(elapsedMs), color, modifier)
 }
 
 private fun aospTimerElapsedMs(content: OngoingActivityChipModel.Content.Timer): Long {
@@ -1199,10 +1219,94 @@ private fun MarqueeLabel(text: String, color: Color, modifier: Modifier = Modifi
         color = color,
         style = PillPrimary,
         maxLines = 1,
+        softWrap = false,
         overflow = TextOverflow.Clip,
         modifier = modifier.basicMarquee(iterations = 1),
     )
 }
+
+internal class DynamicBarEventSceneState(
+    val layoutState: MutableSceneTransitionLayoutState,
+    private val currentScene: SceneKey,
+    private val currentEvent: IslandEvent,
+    private val previousScene: SceneKey?,
+    private val previousEvent: IslandEvent?,
+) {
+    fun eventFor(scene: SceneKey): IslandEvent? =
+        when (scene) {
+            currentScene -> currentEvent
+            previousScene -> previousEvent
+            else -> null
+        }
+}
+
+@Composable
+internal fun rememberDynamicBarEventSceneState(
+    targetScene: SceneKey,
+    targetEvent: IslandEvent,
+    transitions: SceneTransitions,
+): DynamicBarEventSceneState {
+    var currentScene by remember { mutableStateOf(targetScene) }
+    var currentEvent by remember { mutableStateOf(targetEvent) }
+    var previousScene by remember { mutableStateOf<SceneKey?>(null) }
+    var previousEvent by remember { mutableStateOf<IslandEvent?>(null) }
+    val layoutState = rememberMutableSceneTransitionLayoutState(targetScene, transitions)
+    val effectiveCurrentEvent = if (targetScene == currentScene) targetEvent else currentEvent
+
+    LaunchedEffect(targetScene) {
+        if (targetScene != currentScene) {
+            previousScene = currentScene
+            previousEvent = effectiveCurrentEvent
+            currentScene = targetScene
+            currentEvent = targetEvent
+            layoutState.setTargetScene(targetScene, animationScope = this)
+        }
+    }
+
+    return DynamicBarEventSceneState(
+        layoutState,
+        currentScene,
+        effectiveCurrentEvent,
+        previousScene,
+        previousEvent,
+    )
+}
+
+private object MediaTextScenes {
+    val Primary = SceneKey("ax_dynamic_bar_media_text_primary")
+    val Secondary = SceneKey("ax_dynamic_bar_media_text_secondary")
+}
+
+private object MediaTextElements {
+    val PrimaryLabel = ElementKey("ax_dynamic_bar_media_text_primary_label")
+    val SecondaryLabel = ElementKey("ax_dynamic_bar_media_text_secondary_label")
+    val Labels =
+        object : ElementMatcher {
+            override fun matches(key: ElementKey, content: ContentKey): Boolean =
+                key == PrimaryLabel || key == SecondaryLabel
+        }
+}
+
+private val MediaTextTransitions = transitions {
+    from(MediaTextScenes.Primary, to = MediaTextScenes.Secondary) {
+        mediaTextTransition()
+    }
+}
+
+private fun TransitionBuilder.mediaTextTransition() {
+    spec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
+    fade(MediaTextElements.Labels)
+}
+
+@Immutable
+internal data class MediaTextState(
+    val track: String,
+    val artist: String,
+    val isPlaying: Boolean,
+)
+
+internal fun mediaTextStateFor(event: IslandEvent.Media) =
+    MediaTextState(event.track, event.artist, event.isPlaying)
 
 @Composable
 private fun AudioRecordingPillIcon(event: IslandEvent.AudioRecording, tint: Color? = null) {
@@ -1255,19 +1359,92 @@ private fun AudioRecText(event: IslandEvent.AudioRecording, modifier: Modifier, 
                 }
             }
             val color = overrideColor ?: eventStyleFor(event).accent
-            Text(formatCountdownLong(elapsedMs), color = color, style = PillMono, modifier = modifier)
+            PillMonoLabel(formatCountdownLong(elapsedMs), color, modifier)
         }
         RecordingState.SAVED -> MarqueeLabel(stringResource(R.string.ax_dynamic_bar_saved), overrideColor ?: GreenAccent, modifier)
     }
 }
 
 @Composable
-private fun MediaText(event: IslandEvent.Media, modifier: Modifier, overrideColor: Color? = null) {
+internal fun MediaText(state: MediaTextState, modifier: Modifier, overrideColor: Color? = null) {
     val baseColor = overrideColor ?: OrangeAccent
-    val alpha = if (event.isPlaying) 1f else AlphaHint
+    val alpha = if (state.isPlaying) 1f else AlphaHint
     val color = baseColor.copy(alpha = alpha)
-    val text = if (event.artist.isNotBlank()) "${event.track} - ${event.artist}" else event.track
-    MarqueeLabel(text, color, modifier.widthIn(max = 66.dp))
+    var primary by remember { mutableStateOf(state) }
+    var secondary by remember { mutableStateOf(state) }
+    val layoutState =
+        rememberMutableSceneTransitionLayoutState(
+            initialScene = MediaTextScenes.Primary,
+            transitions = MediaTextTransitions,
+        )
+    LaunchedEffect(state) {
+        val target =
+            if (layoutState.transitionState.currentScene == MediaTextScenes.Primary) {
+                if (primary == state) return@LaunchedEffect
+                secondary = state
+                MediaTextScenes.Secondary
+            } else {
+                if (secondary == state) return@LaunchedEffect
+                primary = state
+                MediaTextScenes.Primary
+            }
+        layoutState.setTargetScene(target, animationScope = this)
+    }
+    NoOpBackDispatcherOwner {
+        SceneTransitionLayout(state = layoutState, modifier = modifier.widthIn(max = 66.dp)) {
+            scene(MediaTextScenes.Primary) {
+                MediaTextScene(primary, color, Modifier.element(MediaTextElements.PrimaryLabel))
+            }
+            scene(MediaTextScenes.Secondary) {
+                MediaTextScene(secondary, color, Modifier.element(MediaTextElements.SecondaryLabel))
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaText(event: IslandEvent.Media, modifier: Modifier, overrideColor: Color? = null) =
+    MediaText(mediaTextStateFor(event), modifier, overrideColor)
+
+@Composable
+private fun MediaTextScene(state: MediaTextState, color: Color, modifier: Modifier) {
+    val text = if (state.artist.isNotBlank()) "${state.track} - ${state.artist}" else state.track
+    Text(
+        text,
+        color = color,
+        style = PillPrimary,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Clip,
+        modifier = modifier.basicMarquee(iterations = 1),
+    )
+}
+
+@Composable
+internal fun NoOpBackDispatcherOwner(content: @Composable () -> Unit) {
+    val existingOwner = LocalOnBackPressedDispatcherOwner.current
+    if (existingOwner != null) {
+        content()
+        return
+    }
+    val view = LocalView.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val owner =
+        remember(view, lifecycle) {
+            object : OnBackPressedDispatcherOwner {
+                override val onBackPressedDispatcher =
+                    OnBackPressedDispatcher().apply {
+                        view.viewRootImpl?.onBackInvokedDispatcher?.let {
+                            setOnBackInvokedDispatcher(it)
+                        }
+                    }
+
+                override val lifecycle: Lifecycle = lifecycle
+            }
+        }
+    CompositionLocalProvider(LocalOnBackPressedDispatcherOwner provides owner) {
+        content()
+    }
 }
 
 @Composable
@@ -1279,6 +1456,7 @@ private fun BtText(event: IslandEvent.Bluetooth, modifier: Modifier, overrideCol
             color = color,
             style = MaterialTheme.typography.labelSmall,
             maxLines = 1,
+            softWrap = false,
             overflow = TextOverflow.Clip,
             modifier = modifier.basicMarquee(iterations = 1),
         )
@@ -1292,7 +1470,7 @@ private fun TimerText(event: IslandEvent.Timer, modifier: Modifier, overrideColo
     if (event.endTimeMs > 0L) {
         val color = overrideColor ?: if (event.isPaused) SubtleGray else BlueAccent
         if (event.isPaused) {
-            Text(stringResource(R.string.ax_dynamic_bar_paused), color = color, style = PillMono, modifier = modifier)
+            PillMonoLabel(stringResource(R.string.ax_dynamic_bar_paused), color, modifier)
         } else {
             var remainingMs by
                 remember(event.endTimeMs) {
@@ -1304,7 +1482,7 @@ private fun TimerText(event: IslandEvent.Timer, modifier: Modifier, overrideColo
                     remainingMs = (event.endTimeMs - System.currentTimeMillis()).coerceAtLeast(0L)
                 }
             }
-            Text(formatCountdownLong(remainingMs), color = color, style = PillMono, modifier = modifier)
+            PillMonoLabel(formatCountdownLong(remainingMs), color, modifier)
         }
     } else {
         MarqueeLabel(event.label.ifEmpty { stringResource(R.string.ax_dynamic_bar_timer) }, overrideColor ?: BlueAccent, modifier)
@@ -1315,7 +1493,7 @@ private fun TimerText(event: IslandEvent.Timer, modifier: Modifier, overrideColo
 private fun StopwatchText(event: IslandEvent.Stopwatch, modifier: Modifier, overrideColor: Color? = null) {
     val color = overrideColor ?: if (event.isRunning) MintAccent else SubtleGray
     if (!event.isRunning) {
-        Text(stringResource(R.string.ax_dynamic_bar_paused), color = color, style = PillMono, modifier = modifier)
+        PillMonoLabel(stringResource(R.string.ax_dynamic_bar_paused), color, modifier)
     } else {
         var elapsedMs by
             remember(event.startTimeMs) {
@@ -1327,7 +1505,7 @@ private fun StopwatchText(event: IslandEvent.Stopwatch, modifier: Modifier, over
                 elapsedMs = (System.currentTimeMillis() - event.startTimeMs).coerceAtLeast(0L)
             }
         }
-        Text(formatStopwatch(elapsedMs), color = color, style = PillMono, modifier = modifier)
+        PillMonoLabel(formatStopwatch(elapsedMs), color, modifier)
     }
 }
 
@@ -1351,6 +1529,7 @@ private fun NotifBellBadge(modifier: Modifier, count: Int) {
                     style = TsBadge,
                     lineHeight = SpaceLg.value.sp,
                     maxLines = 1,
+                    softWrap = false,
                 )
             }
         }
