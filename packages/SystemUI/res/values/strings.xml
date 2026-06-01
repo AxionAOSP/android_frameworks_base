@@ -2061,7 +2061,8 @@
     <string name="volume_panel_spatial_audio_tracking">Head Tracking</string>
 
     <string name="volume_ringer_change">Tap to change ringer mode</string>
-    <string name="volume_ringer_mode">ringer mode</string>
+    <string name="volume_ringer_mode">Ringer mode</string>
+    <string name="quick_settings_media_volume_label">Media volume</string>
     <string name="volume_ringer_drawer_closed_content_description"><xliff:g id="volume ringer status" example="Ring">%1$s</xliff:g>, tap to change ringer mode </string>
 
     <!-- Hint for accessibility. For example: double tap to mute [CHAR_LIMIT=NONE] -->
