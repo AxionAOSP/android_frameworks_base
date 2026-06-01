@@ -50,6 +50,9 @@
 
     <!-- DataSwitch Tile -->
     <string name="qs_data_switch_label">Switch data card</string>
+    <string name="qs_data_switch_sim_label">SIM %d</string>
+    <string name="qs_data_switch_sim_desc">SIM %d is the preferred mobile data SIM</string>
+    <string name="qs_data_switch_sim_transient">Switching\u2026</string>
 
     <!-- Internet -->
     <string name="status_bar_settings_network_speed">Internet speed</string>
