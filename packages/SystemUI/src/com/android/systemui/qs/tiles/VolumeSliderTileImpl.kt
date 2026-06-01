@@ -66,7 +66,7 @@ constructor(
     ) {
 
     override fun getTileLabel(): CharSequence =
-        mContext.getString(R.string.stream_music)
+        mContext.getString(R.string.quick_settings_media_volume_label)
 
     override fun newTileState(): QSTile.BooleanState = QSTile.BooleanState()
 
@@ -80,7 +80,7 @@ constructor(
     }
 
     override fun handleUpdateState(state: QSTile.BooleanState, arg: Any?) {
-        state.label = mContext.getString(R.string.stream_music)
+        state.label = mContext.getString(R.string.quick_settings_media_volume_label)
         state.icon = ResourceIcon.get(R.drawable.ic_volume_media)
         state.state = Tile.STATE_ACTIVE
         state.contentDescription = state.label

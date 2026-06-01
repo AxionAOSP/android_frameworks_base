@@ -335,7 +335,7 @@ interface LineageModule {
                 uiConfig =
                     QSTileUIConfig.Resource(
                         iconRes = R.drawable.ic_volume_media,
-                        labelRes = R.string.stream_music
+                        labelRes = R.string.quick_settings_media_volume_label
                     ),
                 instanceId = uiEventLogger.getNewInstanceId(),
                 category = TileCategory.UTILITIES,
