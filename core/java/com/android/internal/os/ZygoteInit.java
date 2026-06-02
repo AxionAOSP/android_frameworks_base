@@ -417,11 +417,21 @@ public class ZygoteInit {
                 null /*declaringPackage*/, null /*dependentPackages*/, null /*dependencies*/,
                 false /*isNative*/));
 
-        libs.add(new SharedLibraryInfo(
-                "/system/framework/android.test.base.jar", null /*packageName*/,
-                null /*codePaths*/, null /*name*/, 0 /*version*/, SharedLibraryInfo.TYPE_BUILTIN,
-                null /*declaringPackage*/, null /*dependentPackages*/, null /*dependencies*/,
-                false /*isNative*/));
+        final SharedLibraryInfo androidTestBase =
+                newBuiltinLibrary("/system/framework/android.test.base.jar", "android.test.base");
+        libs.add(androidTestBase);
+
+        final SharedLibraryInfo androidTestMock =
+                newBuiltinLibrary("/system/framework/android.test.mock.jar", "android.test.mock");
+        if (addLibraryIfExists(libs, androidTestMock)) {
+            final ArrayList<SharedLibraryInfo> androidTestRunnerDependencies = new ArrayList<>(2);
+            androidTestRunnerDependencies.add(androidTestBase);
+            androidTestRunnerDependencies.add(androidTestMock);
+            addLibraryIfExists(libs, newBuiltinLibrary(
+                    "/system/framework/android.test.runner.jar",
+                    "android.test.runner",
+                    androidTestRunnerDependencies));
+        }
 
         libs.add(new SharedLibraryInfo(
                 "/system/framework/org.apache.http.legacy.jar", null /*packageName*/,
@@ -448,6 +458,11 @@ public class ZygoteInit {
                     null /*dependentPackages*/, null /*dependencies*/, false /*isNative*/));
         }
 
+        addSystemFrameworkLibraryIfExists(libs, "com.android.future.usb.accessory");
+        addSystemFrameworkLibraryIfExists(libs, "com.android.mediadrm.signer");
+        addSystemFrameworkLibraryIfExists(libs, "com.android.nfc_extras");
+        addSystemFrameworkLibraryIfExists(libs, "javax.obex");
+
         // WindowManager Extensions is an optional shared library that is required for WindowManager
         // Jetpack to fully function. Since it is a widely used library, preload it to improve apps
         // startup performance.
@@ -469,6 +484,28 @@ public class ZygoteInit {
         }
 
         ApplicationLoaders.getDefault().createAndCacheNonBootclasspathSystemClassLoaders(libs);
+    }
+
+    private static void addSystemFrameworkLibraryIfExists(List<SharedLibraryInfo> libs, String name) {
+        addLibraryIfExists(libs, newBuiltinLibrary("/system/framework/" + name + ".jar", name));
+    }
+
+    private static boolean addLibraryIfExists(List<SharedLibraryInfo> libs, SharedLibraryInfo lib) {
+        if (!new File(lib.getPath()).exists()) {
+            return false;
+        }
+        libs.add(lib);
+        return true;
+    }
+
+    private static SharedLibraryInfo newBuiltinLibrary(String path, String name) {
+        return newBuiltinLibrary(path, name, null);
+    }
+
+    private static SharedLibraryInfo newBuiltinLibrary(String path, String name,
+            List<SharedLibraryInfo> dependencies) {
+        return new SharedLibraryInfo(path, name, null, name, SharedLibraryInfo.VERSION_UNDEFINED,
+                SharedLibraryInfo.TYPE_BUILTIN, null, null, dependencies, false);
     }
 
     /**
