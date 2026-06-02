@@ -80,7 +80,9 @@ import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -90,6 +92,7 @@ import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -283,24 +286,22 @@ fun BrightnessSlider(
             key2 = context,
         ) {
             val icon: Icon.Loaded? = imageLoader(iconRes, context)
-            if (icon != null) {
-                val bitmap = icon.drawable.toBitmap()?.asImageBitmap()
-                if (bitmap != null) {
-                    this@produceState.value = BitmapPainter(bitmap)
-                }
+            val bitmap = icon?.drawable.toBitmap()?.asImageBitmap()
+            if (bitmap != null) {
+                this@produceState.value = BitmapPainter(bitmap)
             }
         }
     val activeIconColor = SystemSliderColors.activeIconColor(colors, enabled)
     val inactiveIconColor = SystemSliderColors.inactiveIconColor(colors, enabled)
     // Offset from the right
-    val trackIcon: DrawScope.(Offset, Color, Float) -> Unit = remember {
-        { offset, color, alpha ->
+    val trackIcon: DrawScope.(Offset, Color, Float, Float, Size) -> Unit = remember(painter) {
+        { offset, color, alpha, iconPaddingPx, iconSizePx ->
             val rtl = layoutDirection == LayoutDirection.Rtl
             scale(if (rtl) -1f else 1f, 1f) {
-                translate(offset.x - IconPadding.toPx() - IconSize.toSize().width, offset.y) {
+                translate(offset.x - iconPaddingPx - iconSizePx.width, offset.y) {
                     with(painter) {
                         draw(
-                            IconSize.toSize(),
+                            iconSizePx,
                             colorFilter = ColorFilter.tint(color),
                             alpha = alpha,
                         )
@@ -386,6 +387,24 @@ fun BrightnessSlider(
                         label = "iconInactiveAlpha",
                     )
                 }
+                var trackSize by remember { mutableStateOf(IntSize.Zero) }
+                val density = LocalDensity.current
+                val iconWidthPx = with(density) { IconSize.width.toPx() }
+                val iconHeightPx = with(density) { IconSize.height.toPx() }
+                val iconPaddingPx = with(density) { IconPadding.toPx() }
+                val thumbTrackGapPx = with(density) { ThumbTrackGapSize.toPx() }
+                val iconSizePx = Size(iconWidthPx, iconHeightPx)
+                val sliderFraction = sliderState.coercedValueAsFraction
+                val activeTrackEnd = trackSize.width * sliderFraction - thumbTrackGapPx
+                val inactiveTrackStart = activeTrackEnd + thumbTrackGapPx * 2
+                val activeTrackWidth = activeTrackEnd
+                val inactiveTrackWidth = trackSize.width - inactiveTrackStart
+                val iconTargetActive =
+                    when {
+                        iconWidthPx < inactiveTrackWidth - iconPaddingPx * 2 -> false
+                        iconWidthPx < activeTrackWidth - iconPaddingPx * 2 -> true
+                        else -> null
+                    }
 
                 LaunchedEffect(iconActiveAlphaAnimatable, iconInactiveAlphaAnimatable, showIconActive) {
                     if (showIconActive) {
@@ -394,6 +413,11 @@ fun BrightnessSlider(
                     } else {
                         launch { iconActiveAlphaAnimatable.disappear() }
                         launch { iconInactiveAlphaAnimatable.appear() }
+                    }
+                }
+                LaunchedEffect(iconTargetActive) {
+                    if (iconTargetActive != null) {
+                        showIconActive = iconTargetActive
                     }
                 }
 
@@ -411,43 +435,43 @@ fun BrightnessSlider(
                                     BrightnessSliderMotionTestKeys.InactiveIconAlpha
                             }
                             .height(TrackHeight)
+                            .onSizeChanged { trackSize = it }
                             .drawWithContent {
                                 drawContent()
 
-                                val yOffset = size.height / 2 - IconSize.toSize().height / 2
-                                val activeTrackStart = 0f
-                                val activeTrackEnd =
-                                    size.width * sliderState.coercedValueAsFraction -
-                                        ThumbTrackGapSize.toPx()
-                                val inactiveTrackStart = activeTrackEnd + ThumbTrackGapSize.toPx() * 2
+                                val yOffset = size.height / 2 - iconHeightPx / 2
+                                val activeTrackEnd = size.width * sliderFraction - thumbTrackGapPx
+                                val inactiveTrackStart = activeTrackEnd + thumbTrackGapPx * 2
                                 val inactiveTrackEnd = size.width
 
-                                val activeTrackWidth = activeTrackEnd - activeTrackStart
+                                val activeTrackWidth = activeTrackEnd
                                 val inactiveTrackWidth = inactiveTrackEnd - inactiveTrackStart
 
                                 if (
-                                    IconSize.toSize().width <
-                                        inactiveTrackWidth - IconPadding.toPx() * 2
+                                    iconWidthPx <
+                                        inactiveTrackWidth - iconPaddingPx * 2
                                 ) {
-                                    showIconActive = false
                                     trackIcon(
                                         Offset(inactiveTrackEnd, yOffset),
                                         inactiveIconColor,
                                         iconInactiveAlphaAnimatable.value,
+                                        iconPaddingPx,
+                                        iconSizePx,
                                     )
                                 } else if (
-                                    IconSize.toSize().width < activeTrackWidth - IconPadding.toPx() * 2
+                                    iconWidthPx < activeTrackWidth - iconPaddingPx * 2
                                 ) {
-                                    showIconActive = true
                                     trackIcon(
                                         Offset(activeTrackEnd, yOffset),
                                         activeIconColor,
                                         iconActiveAlphaAnimatable.value,
+                                        iconPaddingPx,
+                                        iconSizePx,
                                     )
                                 }
                             },
                     trackCornerSize = SliderTrackRoundedCorner,
-                    trackInsideCornerSize = 2.dp,
+                    trackInsideCornerSize = 0.dp,
                     drawStopIndicator = null,
                     thumbTrackGapSize = ThumbTrackGapSize,
                     colors = colors,
