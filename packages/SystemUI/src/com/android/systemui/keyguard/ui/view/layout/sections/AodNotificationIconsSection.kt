@@ -25,6 +25,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.constraintlayout.widget.ConstraintSet.BOTTOM
 import androidx.constraintlayout.widget.ConstraintSet.END
+import androidx.constraintlayout.widget.ConstraintSet.MATCH_CONSTRAINT
 import androidx.constraintlayout.widget.ConstraintSet.PARENT_ID
 import androidx.constraintlayout.widget.ConstraintSet.START
 import androidx.constraintlayout.widget.ConstraintSet.TOP
@@ -135,6 +136,10 @@ constructor(
         val height = context.resources.getDimensionPixelSize(R.dimen.notification_shelf_height)
         val isVisible = rootViewModel.isNotifIconContainerVisible.value
         val isFullWidthShade = shadeModeInteractor.isFullWidthShade.value
+        val keepPromotedViewEndAligned =
+            PromotedNotificationUi.isEnabled &&
+                !isFullWidthShade &&
+                clockAlignment != ClockSettingsRepository.ALIGNMENT_RIGHT
 
         constraintSet.apply {
             if (PromotedNotificationUi.isEnabled) {
@@ -148,21 +153,25 @@ constructor(
 
             clear(nicId, START)
             clear(nicId, END)
-            constrainWidth(nicId, WRAP_CONTENT)
-            when {
-                PromotedNotificationUi.isEnabled && !isFullWidthShade -> {
-                    connect(nicId, END, PARENT_ID, END, horizontalMargin)
-                }
-                clockAlignment == ClockSettingsRepository.ALIGNMENT_LEFT -> {
-                    connect(nicId, START, PARENT_ID, START, horizontalMargin)
-                }
-                clockAlignment == ClockSettingsRepository.ALIGNMENT_RIGHT -> {
-                    connect(nicId, END, PARENT_ID, END, horizontalMargin)
-                }
-                else -> {
-                    connect(nicId, START, PARENT_ID, START)
-                    connect(nicId, END, PARENT_ID, END)
-                }
+            if (keepPromotedViewEndAligned) {
+                constrainWidth(nicId, WRAP_CONTENT)
+                connect(nicId, END, PARENT_ID, END, horizontalMargin)
+            } else {
+                val startMargin =
+                    if (clockAlignment == ClockSettingsRepository.ALIGNMENT_LEFT) {
+                        horizontalMargin
+                    } else {
+                        0
+                    }
+                val endMargin =
+                    if (clockAlignment == ClockSettingsRepository.ALIGNMENT_RIGHT) {
+                        horizontalMargin
+                    } else {
+                        0
+                    }
+                constrainWidth(nicId, MATCH_CONSTRAINT)
+                connect(nicId, START, PARENT_ID, START, startMargin)
+                connect(nicId, END, PARENT_ID, END, endMargin)
             }
 
             constrainHeight(nicId, height)
