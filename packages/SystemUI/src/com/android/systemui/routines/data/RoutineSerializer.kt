@@ -16,7 +16,7 @@
 
 package com.android.systemui.routines.data
 
-import com.android.axion.platform.AxPlatformClient
+import com.android.axion.platform.AxPlatformFeature
 import com.android.systemui.routines.model.Action
 import com.android.systemui.routines.model.Condition
 import com.android.systemui.routines.model.Routine
@@ -540,15 +540,15 @@ class RoutineSerializer @Inject constructor() {
     }
 
     private fun resolveFeature(name: String): String =
-        AxPlatformClient.resolveFeature(name)
+        AxPlatformFeature.resolve(name)
             ?: GUI_TO_FEATURE[name]
             ?: name
 
     companion object {
 
         private val GUI_TO_FEATURE = mapOf(
-            "do_not_disturb" to AxPlatformClient.FEATURE_ZEN,
-            "auto_rotate" to AxPlatformClient.FEATURE_ROTATION,
+            "do_not_disturb" to AxPlatformFeature.ZEN,
+            "auto_rotate" to AxPlatformFeature.ROTATION,
         )
         private const val KEY_ID = "id"
         private const val KEY_NAME = "name"

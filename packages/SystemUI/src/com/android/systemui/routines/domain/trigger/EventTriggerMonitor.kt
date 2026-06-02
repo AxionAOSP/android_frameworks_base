@@ -34,7 +34,6 @@ import android.provider.Telephony
 import android.telephony.PhoneStateListener
 import android.telephony.TelephonyManager
 import android.util.Log
-import com.android.axion.platform.IAxPlatformCallback
 import com.android.systemui.ax.AxPlatformStateManager
 import com.android.systemui.broadcast.BroadcastDispatcher
 import com.android.systemui.dagger.SysUISingleton
@@ -163,11 +162,8 @@ class EventTriggerMonitor @Inject constructor(
         }
     }
 
-    private val platformCallback = object : IAxPlatformCallback.Stub() {
-        override fun onStateChanged(feature: String, state: android.os.Bundle) {
-            val active = state.getBoolean("active", false)
-            callback?.invoke(Trigger.FeatureState(feature, active))
-        }
+    private val platformCallback = AxPlatformStateManager.StateListener { feature, state ->
+        callback?.invoke(Trigger.FeatureState(feature, state.isActive))
     }
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
@@ -285,7 +281,7 @@ class EventTriggerMonitor @Inject constructor(
                     .registerTaskStackListener(taskStackListener)
             }
             ListenerGroup.FEATURE_STATE -> {
-                stateManager.registerCallback(platformCallback)
+                stateManager.addListener(mainExecutor, platformCallback)
             }
             ListenerGroup.SENSOR_PRIVACY -> {
                 sensorPrivacyController.addCallback(sensorPrivacyCallback)
@@ -332,7 +328,7 @@ class EventTriggerMonitor @Inject constructor(
                 currentForegroundPkg = null
             }
             ListenerGroup.FEATURE_STATE -> {
-                stateManager.unregisterCallback(platformCallback)
+                stateManager.removeListener(platformCallback)
             }
             ListenerGroup.SENSOR_PRIVACY -> {
                 sensorPrivacyController.removeCallback(sensorPrivacyCallback)
