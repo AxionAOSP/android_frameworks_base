@@ -24,25 +24,28 @@ import android.content.res.Configuration
 import android.hardware.SensorPrivacyManager
 import android.hardware.display.ColorDisplayManager
 import android.media.AudioManager
-import android.os.Handler
-import android.os.Looper
-import android.os.Vibrator
-import android.view.WindowManager
-import com.android.internal.util.ScreenshotHelper
 import android.media.projection.StopReason
 import android.net.TetheringManager
 import android.nfc.NfcAdapter
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.os.RemoteException
 import android.os.ServiceManager
 import android.os.UserHandle
+import android.os.Vibrator
 import android.provider.Settings
 import android.service.dreams.IDreamManager
 import android.util.Log
+import android.view.WindowManager
+import com.android.axion.platform.AxFeatureState
 import com.android.axion.platform.AxPlatformClient
+import com.android.axion.platform.AxPlatformFeature
+import com.android.internal.util.ScreenshotHelper
 import com.android.settingslib.bluetooth.CachedBluetoothDevice
 import com.android.settingslib.bluetooth.LocalBluetoothManager
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.screenrecord.ScreenRecordUxController
 import com.android.systemui.statusbar.connectivity.AccessPointController
 import com.android.systemui.statusbar.connectivity.NetworkController
 import com.android.systemui.statusbar.phone.ManagedProfileController
@@ -55,14 +58,13 @@ import com.android.systemui.statusbar.policy.HotspotController
 import com.android.systemui.statusbar.policy.IndividualSensorPrivacyController
 import com.android.systemui.statusbar.policy.LocationController
 import com.android.systemui.statusbar.policy.RotationLockController
-import com.android.systemui.screenrecord.ScreenRecordUxController
 import com.android.systemui.statusbar.policy.SecurityController
 import com.android.systemui.statusbar.policy.ZenModeController
 import com.android.wifitrackerlib.WifiEntry
+import javax.inject.Inject
 import lineageos.app.ProfileManager
 import lineageos.hardware.LineageHardwareManager
 import lineageos.providers.LineageSettings
-import javax.inject.Inject
 
 @SysUISingleton
 class AxPlatformFeatureController @Inject constructor(
@@ -84,15 +86,24 @@ class AxPlatformFeatureController @Inject constructor(
     private val securityController: SecurityController,
     private val castController: CastController,
     private val screenRecordUxController: ScreenRecordUxController,
-    powerManager: PowerManager
+    powerManager: PowerManager,
 ) {
 
     internal val wakeLock: PowerManager.WakeLock =
         powerManager.newWakeLock(PowerManager.FULL_WAKE_LOCK, "AxPlatform:Caffeine")
+    internal val dreamManager: IDreamManager? =
+        IDreamManager.Stub.asInterface(ServiceManager.getService("dreams"))
+    internal val lineageHardware: LineageHardwareManager? = try {
+        LineageHardwareManager.getInstance(context)
+    } catch (_: Exception) {
+        null
+    }
+
     private val profileManager: ProfileManager? = try {
         ProfileManager.getInstance(context)
-    } catch (e: Exception) { null }
-
+    } catch (_: Exception) {
+        null
+    }
     private val nfcAdapter: NfcAdapter? = NfcAdapter.getDefaultAdapter(context)
     private val audioManager: AudioManager? = context.getSystemService(AudioManager::class.java)
     private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
@@ -101,327 +112,222 @@ class AxPlatformFeatureController @Inject constructor(
         context.getSystemService(ColorDisplayManager::class.java)
     private val tetheringManager: TetheringManager? =
         context.getSystemService(TetheringManager::class.java)
-    internal val dreamManager: IDreamManager? = try {
-        IDreamManager.Stub.asInterface(ServiceManager.getService("dreams"))
-    } catch (e: Exception) { null }
-    internal val lineageHardware: LineageHardwareManager? = try {
-        LineageHardwareManager.getInstance(context)
-    } catch (e: Exception) { null }
-
     private val screenshotHelper = ScreenshotHelper(context)
     private val screenshotHandler = Handler(Looper.getMainLooper())
 
-    var latestAccessPoints: List<WifiEntry> = emptyList()
+    private data class FeatureHandler(
+        val feature: String,
+        val isSupported: () -> Boolean = { true },
+        val toggle: (() -> Unit)? = null,
+        val setEnabled: ((Boolean) -> Unit)? = null,
+        val setValue: ((Int) -> Unit)? = null,
+    )
 
-    val supportedFeatures: Array<String> by lazy {
-        buildList {
-            addAll(BASE_FEATURES)
-            if (nfcAdapter != null)
-                add(AxPlatformClient.FEATURE_NFC)
-            if (sensorPrivacyController.supportsSensorToggle(SensorPrivacyManager.Sensors.CAMERA))
-                add(AxPlatformClient.FEATURE_CAMERA_PRIVACY)
-            if (sensorPrivacyController.supportsSensorToggle(SensorPrivacyManager.Sensors.MICROPHONE))
-                add(AxPlatformClient.FEATURE_MIC_PRIVACY)
-            add(AxPlatformClient.FEATURE_WORK_PROFILE)
-            if (tetheringManager?.isTetheringSupported == true)
-                add(AxPlatformClient.FEATURE_USB_TETHER)
-            if (dreamManager != null)
-                add(AxPlatformClient.FEATURE_DREAM)
-            if (lineageHardware?.isSupported(LineageHardwareManager.FEATURE_READING_ENHANCEMENT) == true)
-                add(AxPlatformClient.FEATURE_READING_MODE)
-            if (batteryController.isReverseSupported)
-                add(AxPlatformClient.FEATURE_POWER_SHARE)
-            add(AxPlatformClient.FEATURE_CAFFEINE)
-            add(AxPlatformClient.FEATURE_VPN)
-            add(AxPlatformClient.FEATURE_CAST)
-            add(AxPlatformClient.FEATURE_SMART_PIXELS)
-            if (audioManager != null)
-                add(AxPlatformClient.FEATURE_RINGER_MODE)
-            if (profileManager != null)
-                add(AxPlatformClient.FEATURE_PROFILES)
-            add(AxPlatformClient.FEATURE_SCREEN_RECORD)
-            add(AxPlatformClient.FEATURE_SCREENSHOT)
-        }.toTypedArray()
+    private val handlers: Map<String, FeatureHandler> by lazy {
+        listOf(
+            FeatureHandler(
+                AxPlatformFeature.WIFI,
+                toggle = { networkController.setWifiEnabled(!featureState(AxPlatformFeature.WIFI).isEnabled) },
+                setEnabled = networkController::setWifiEnabled,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.MOBILE_DATA,
+                toggle = { networkController.mobileDataController?.let { it.isMobileDataEnabled = !it.isMobileDataEnabled } },
+                setEnabled = { enabled -> networkController.mobileDataController?.let { it.isMobileDataEnabled = enabled } },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.BLUETOOTH,
+                toggle = { bluetoothController.setBluetoothEnabled(!bluetoothController.isBluetoothEnabled) },
+                setEnabled = bluetoothController::setBluetoothEnabled,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.HOTSPOT,
+                toggle = { hotspotController.setHotspotEnabled(!featureState(AxPlatformFeature.HOTSPOT).isEnabled) },
+                setEnabled = hotspotController::setHotspotEnabled,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.FLASHLIGHT,
+                toggle = { setFlashlightEnabled(!flashlightController.isEnabled) },
+                setEnabled = ::setFlashlightEnabled,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.LOCATION,
+                toggle = { locationController.setLocationEnabled(!locationController.isLocationEnabled) },
+                setEnabled = locationController::setLocationEnabled,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.ROTATION,
+                toggle = { rotationLockController.setRotationLocked(!rotationLockController.isRotationLocked, TAG) },
+                setEnabled = { enabled -> rotationLockController.setRotationLocked(!enabled, TAG) },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.BATTERY_SAVER,
+                toggle = { batteryController.setPowerSaveMode(!batteryController.isPowerSave) },
+                setEnabled = batteryController::setPowerSaveMode,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.ZEN,
+                toggle = { setZenMode(if (zenModeController.zen == 0) 1 else 0) },
+                setEnabled = { enabled -> setZenMode(if (enabled) 1 else 0) },
+                setValue = ::setZenMode,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.AOD,
+                toggle = { stateManager.toggleSecure(Settings.Secure.DOZE_ALWAYS_ON) },
+                setEnabled = { enabled -> stateManager.setSecureBool(Settings.Secure.DOZE_ALWAYS_ON, enabled) },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.AMBIENT_DISPLAY,
+                toggle = { stateManager.toggleSecure(Settings.Secure.DOZE_ENABLED) },
+                setEnabled = { enabled -> stateManager.setSecureBool(Settings.Secure.DOZE_ENABLED, enabled) },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.DATA_SAVER,
+                toggle = { dataSaverController.setDataSaverEnabled(!dataSaverController.isDataSaverEnabled) },
+                setEnabled = dataSaverController::setDataSaverEnabled,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.AIRPLANE_MODE,
+                toggle = { setAirplaneModeEnabled(!stateManager.getGlobalBool(Settings.Global.AIRPLANE_MODE_ON)) },
+                setEnabled = ::setAirplaneModeEnabled,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.DARK_MODE,
+                toggle = { uiModeManager.setNightModeActivated(!isDarkMode(context.resources.configuration)) },
+                setEnabled = { enabled -> uiModeManager.setNightModeActivated(enabled) },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.NIGHT_LIGHT,
+                toggle = { colorDisplayManager.setNightDisplayActivated(!colorDisplayManager.isNightDisplayActivated) },
+                setEnabled = { enabled -> colorDisplayManager.setNightDisplayActivated(enabled) },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.COLOR_INVERSION,
+                toggle = { stateManager.toggleSecure(Settings.Secure.ACCESSIBILITY_DISPLAY_INVERSION_ENABLED) },
+                setEnabled = { enabled -> stateManager.setSecureBool(Settings.Secure.ACCESSIBILITY_DISPLAY_INVERSION_ENABLED, enabled) },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.COLOR_CORRECTION,
+                toggle = { stateManager.toggleSecure(Settings.Secure.ACCESSIBILITY_DISPLAY_DALTONIZER_ENABLED) },
+                setEnabled = { enabled -> stateManager.setSecureBool(Settings.Secure.ACCESSIBILITY_DISPLAY_DALTONIZER_ENABLED, enabled) },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.REDUCE_BRIGHTNESS,
+                toggle = { stateManager.toggleSecure(SETTING_REDUCE_BRIGHT) },
+                setEnabled = { enabled -> stateManager.setSecureBool(SETTING_REDUCE_BRIGHT, enabled) },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.ONE_HANDED_MODE,
+                toggle = { stateManager.toggleSecure(SETTING_ONE_HANDED) },
+                setEnabled = { enabled -> stateManager.setSecureBool(SETTING_ONE_HANDED, enabled) },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.HEADS_UP,
+                toggle = { stateManager.toggleGlobal(Settings.Global.HEADS_UP_NOTIFICATIONS_ENABLED) },
+                setEnabled = { enabled -> stateManager.setGlobalBool(Settings.Global.HEADS_UP_NOTIFICATIONS_ENABLED, enabled) },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.AUTO_SYNC,
+                toggle = { ContentResolver.setMasterSyncAutomatically(!ContentResolver.getMasterSyncAutomatically()) },
+                setEnabled = { enabled -> ContentResolver.setMasterSyncAutomatically(enabled) },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.NFC,
+                isSupported = { nfcAdapter != null },
+                toggle = { nfcAdapter?.let { if (it.isEnabled) it.disable() else it.enable() } },
+                setEnabled = { enabled -> nfcAdapter?.let { if (enabled) it.enable() else it.disable() } },
+            ),
+            sensorPrivacyHandler(AxPlatformFeature.CAMERA_PRIVACY, SensorPrivacyManager.Sensors.CAMERA),
+            sensorPrivacyHandler(AxPlatformFeature.MIC_PRIVACY, SensorPrivacyManager.Sensors.MICROPHONE),
+            FeatureHandler(
+                AxPlatformFeature.WORK_PROFILE,
+                toggle = { managedProfileController.setWorkModeEnabled(!managedProfileController.isWorkModeEnabled) },
+                setEnabled = managedProfileController::setWorkModeEnabled,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.USB_TETHER,
+                isSupported = { tetheringManager?.isTetheringSupported == true },
+                toggle = { tetheringManager?.setUsbTethering(!featureState(AxPlatformFeature.USB_TETHER).isActive) },
+                setEnabled = { enabled -> tetheringManager?.setUsbTethering(enabled) },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.DREAM,
+                isSupported = { dreamManager != null },
+                toggle = ::toggleDream,
+                setEnabled = ::setDreamEnabled,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.READING_MODE,
+                isSupported = { lineageHardware?.isSupported(LineageHardwareManager.FEATURE_READING_ENHANCEMENT) == true },
+                toggle = ::toggleReadingMode,
+                setEnabled = ::setReadingModeEnabled,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.POWER_SHARE,
+                isSupported = { batteryController.isReverseSupported },
+                toggle = { batteryController.setReverseState(!batteryController.isReverseOn) },
+                setEnabled = batteryController::setReverseState,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.CAFFEINE,
+                toggle = { setCaffeineEnabled(!wakeLock.isHeld) },
+                setEnabled = ::setCaffeineEnabled,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.VPN,
+                toggle = ::disconnectVpn,
+                setEnabled = { enabled -> if (!enabled) disconnectVpn() },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.CAST,
+                toggle = ::stopCasting,
+                setEnabled = { enabled -> if (!enabled) stopCasting() },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.PROFILES,
+                isSupported = { profileManager != null },
+                toggle = ::toggleProfiles,
+                setEnabled = ::setProfilesFeatureEnabled,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.SMART_PIXELS,
+                toggle = { stateManager.toggleSecure(SETTING_SMART_PIXELS) },
+                setEnabled = { enabled -> stateManager.setSecureBool(SETTING_SMART_PIXELS, enabled) },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.RINGER_MODE,
+                isSupported = { audioManager != null },
+                toggle = ::toggleRingerMode,
+                setEnabled = { enabled -> setRingerMode(if (enabled) AudioManager.RINGER_MODE_NORMAL else AudioManager.RINGER_MODE_SILENT) },
+                setValue = ::setRingerMode,
+            ),
+            FeatureHandler(
+                AxPlatformFeature.SCREEN_RECORD,
+                toggle = ::toggleScreenRecord,
+                setEnabled = { enabled -> if (!enabled && screenRecordUxController.isRecording) screenRecordUxController.stopRecording(StopReason.STOP_QS_TILE) },
+            ),
+            FeatureHandler(
+                AxPlatformFeature.SCREENSHOT,
+                toggle = ::takeScreenshot,
+                setEnabled = { enabled -> if (enabled) takeScreenshot() },
+            ),
+        ).filter { it.isSupported() }.associateBy { it.feature }
     }
 
+    var latestAccessPoints: List<WifiEntry> = emptyList()
+
+    val supportedFeatures: Array<String> by lazy { handlers.keys.toTypedArray() }
+
     fun toggle(feature: String) {
-        when (feature) {
-            AxPlatformClient.FEATURE_WIFI -> {
-                val current = stateManager.getState(feature).getBoolean("enabled", false)
-                networkController.setWifiEnabled(!current)
-            }
-            AxPlatformClient.FEATURE_MOBILE_DATA -> {
-                val ctrl = networkController.mobileDataController ?: return
-                ctrl.isMobileDataEnabled = !ctrl.isMobileDataEnabled
-            }
-            AxPlatformClient.FEATURE_BLUETOOTH ->
-                bluetoothController.setBluetoothEnabled(!bluetoothController.isBluetoothEnabled)
-            AxPlatformClient.FEATURE_HOTSPOT -> {
-                val current = stateManager.getState(feature).getBoolean("enabled", false)
-                hotspotController.setHotspotEnabled(!current)
-            }
-            AxPlatformClient.FEATURE_FLASHLIGHT -> {
-                if (flashlightController.hasFlashlight())
-                    flashlightController.setFlashlight(!flashlightController.isEnabled)
-            }
-            AxPlatformClient.FEATURE_LOCATION ->
-                locationController.setLocationEnabled(!locationController.isLocationEnabled)
-            AxPlatformClient.FEATURE_ROTATION ->
-                rotationLockController.setRotationLocked(
-                    !rotationLockController.isRotationLocked, TAG
-                )
-            AxPlatformClient.FEATURE_BATTERY_SAVER ->
-                batteryController.setPowerSaveMode(!batteryController.isPowerSave)
-            AxPlatformClient.FEATURE_ZEN -> {
-                val current = zenModeController.zen
-                zenModeController.setZen(if (current == 0) 1 else 0, null, TAG)
-            }
-            AxPlatformClient.FEATURE_RINGER_MODE -> toggleRingerMode()
-            AxPlatformClient.FEATURE_DATA_SAVER ->
-                dataSaverController.setDataSaverEnabled(!dataSaverController.isDataSaverEnabled)
-            AxPlatformClient.FEATURE_AOD ->
-                stateManager.toggleSecure(Settings.Secure.DOZE_ALWAYS_ON)
-            AxPlatformClient.FEATURE_AIRPLANE_MODE -> {
-                val enabled = !stateManager.getGlobalBool(Settings.Global.AIRPLANE_MODE_ON)
-                stateManager.setGlobalBool(Settings.Global.AIRPLANE_MODE_ON, enabled)
-                context.sendBroadcastAsUser(
-                    Intent(Intent.ACTION_AIRPLANE_MODE_CHANGED).putExtra("state", enabled),
-                    UserHandle.ALL
-                )
-            }
-            AxPlatformClient.FEATURE_NFC -> nfcAdapter?.let {
-                if (it.isEnabled) it.disable() else it.enable()
-            }
-            AxPlatformClient.FEATURE_DARK_MODE ->
-                uiModeManager.setNightModeActivated(
-                    !isDarkMode(context.resources.configuration)
-                )
-            AxPlatformClient.FEATURE_NIGHT_LIGHT ->
-                colorDisplayManager.setNightDisplayActivated(
-                    !colorDisplayManager.isNightDisplayActivated
-                )
-            AxPlatformClient.FEATURE_COLOR_INVERSION ->
-                stateManager.toggleSecure(Settings.Secure.ACCESSIBILITY_DISPLAY_INVERSION_ENABLED)
-            AxPlatformClient.FEATURE_COLOR_CORRECTION ->
-                stateManager.toggleSecure(Settings.Secure.ACCESSIBILITY_DISPLAY_DALTONIZER_ENABLED)
-            AxPlatformClient.FEATURE_REDUCE_BRIGHTNESS ->
-                stateManager.toggleSecure(SETTING_REDUCE_BRIGHT)
-            AxPlatformClient.FEATURE_ONE_HANDED_MODE ->
-                stateManager.toggleSecure(SETTING_ONE_HANDED)
-            AxPlatformClient.FEATURE_HEADS_UP ->
-                stateManager.toggleGlobal(Settings.Global.HEADS_UP_NOTIFICATIONS_ENABLED)
-            AxPlatformClient.FEATURE_AUTO_SYNC ->
-                ContentResolver.setMasterSyncAutomatically(
-                    !ContentResolver.getMasterSyncAutomatically()
-                )
-            AxPlatformClient.FEATURE_CAMERA_PRIVACY ->
-                sensorPrivacyController.setSensorBlocked(
-                    SensorPrivacyManager.Sources.QS_TILE,
-                    SensorPrivacyManager.Sensors.CAMERA,
-                    !sensorPrivacyController.isSensorBlocked(SensorPrivacyManager.Sensors.CAMERA)
-                )
-            AxPlatformClient.FEATURE_MIC_PRIVACY ->
-                sensorPrivacyController.setSensorBlocked(
-                    SensorPrivacyManager.Sources.QS_TILE,
-                    SensorPrivacyManager.Sensors.MICROPHONE,
-                    !sensorPrivacyController.isSensorBlocked(
-                        SensorPrivacyManager.Sensors.MICROPHONE
-                    )
-                )
-            AxPlatformClient.FEATURE_WORK_PROFILE ->
-                managedProfileController.setWorkModeEnabled(
-                    !managedProfileController.isWorkModeEnabled
-                )
-            AxPlatformClient.FEATURE_USB_TETHER -> {
-                val current = stateManager.getState(feature).getBoolean("active", false)
-                tetheringManager?.setUsbTethering(!current)
-            }
-            AxPlatformClient.FEATURE_DREAM -> try {
-                dreamManager?.let { if (it.isDreaming) it.awaken() else it.dream() }
-            } catch (e: RemoteException) {
-                Log.w(TAG, "Dream toggle failed", e)
-            }
-            AxPlatformClient.FEATURE_READING_MODE -> lineageHardware?.let {
-                val current = it.get(LineageHardwareManager.FEATURE_READING_ENHANCEMENT)
-                it.set(LineageHardwareManager.FEATURE_READING_ENHANCEMENT, !current)
-                stateManager.broadcastBool(feature, !current)
-            }
-            AxPlatformClient.FEATURE_POWER_SHARE ->
-                batteryController.setReverseState(!batteryController.isReverseOn)
-            AxPlatformClient.FEATURE_CAFFEINE -> {
-                if (wakeLock.isHeld) {
-                    wakeLock.release()
-                } else {
-                    wakeLock.acquire(CAFFEINE_DURATION_MS)
-                }
-                stateManager.broadcastBool(feature, wakeLock.isHeld)
-            }
-            AxPlatformClient.FEATURE_VPN -> {
-                if (securityController.isVpnEnabled) {
-                    securityController.disconnectPrimaryVpn()
-                }
-            }
-            AxPlatformClient.FEATURE_CAST -> {
-                val active = castController.castDevices.firstOrNull { it.isCasting }
-                active?.let { castController.stopCasting(it, StopReason.STOP_QS_TILE) }
-            }
-            AxPlatformClient.FEATURE_PROFILES -> {
-                val current = profilesEnabled()
-                setProfilesEnabled(!current)
-                stateManager.broadcastBool(feature, !current)
-            }
-            AxPlatformClient.FEATURE_SMART_PIXELS ->
-                stateManager.toggleSecure(SETTING_SMART_PIXELS)
-            AxPlatformClient.FEATURE_SCREEN_RECORD -> {
-                if (screenRecordUxController.isStarting) {
-                    screenRecordUxController.cancelCountdown()
-                } else if (screenRecordUxController.isRecording) {
-                    screenRecordUxController.stopRecording(StopReason.STOP_QS_TILE)
-                } else {
-                    screenRecordUxController.createScreenRecordDialog(null).show()
-                }
-            }
-            AxPlatformClient.FEATURE_SCREENSHOT -> {
-                screenshotHandler.postDelayed({
-                    screenshotHelper.takeScreenshot(
-                        WindowManager.TAKE_SCREENSHOT_FULLSCREEN,
-                        WindowManager.ScreenshotSource.SCREENSHOT_OTHER,
-                        screenshotHandler,
-                        null
-                    )
-                }, SCREENSHOT_DELAY_MS)
-            }
-            else -> Log.w(TAG, "Unknown toggle: $feature")
-        }
+        handlers[feature]?.toggle?.invoke() ?: Log.w(TAG, "Unknown toggle: $feature")
     }
 
     fun setEnabled(feature: String, enabled: Boolean) {
-        when (feature) {
-            AxPlatformClient.FEATURE_WIFI -> networkController.setWifiEnabled(enabled)
-            AxPlatformClient.FEATURE_MOBILE_DATA ->
-                networkController.mobileDataController?.let { it.isMobileDataEnabled = enabled }
-            AxPlatformClient.FEATURE_BLUETOOTH -> bluetoothController.setBluetoothEnabled(enabled)
-            AxPlatformClient.FEATURE_HOTSPOT -> hotspotController.setHotspotEnabled(enabled)
-            AxPlatformClient.FEATURE_FLASHLIGHT -> {
-                if (flashlightController.hasFlashlight()) flashlightController.setFlashlight(enabled)
-            }
-            AxPlatformClient.FEATURE_LOCATION -> locationController.setLocationEnabled(enabled)
-            AxPlatformClient.FEATURE_ROTATION ->
-                rotationLockController.setRotationLocked(!enabled, TAG)
-            AxPlatformClient.FEATURE_BATTERY_SAVER -> batteryController.setPowerSaveMode(enabled)
-            AxPlatformClient.FEATURE_ZEN ->
-                zenModeController.setZen(if (enabled) 1 else 0, null, TAG)
-            AxPlatformClient.FEATURE_RINGER_MODE ->
-                setRingerMode(
-                    if (enabled) AudioManager.RINGER_MODE_NORMAL
-                    else AudioManager.RINGER_MODE_SILENT
-                )
-            AxPlatformClient.FEATURE_DATA_SAVER -> dataSaverController.setDataSaverEnabled(enabled)
-            AxPlatformClient.FEATURE_AOD ->
-                stateManager.setSecureBool(Settings.Secure.DOZE_ALWAYS_ON, enabled)
-            AxPlatformClient.FEATURE_AIRPLANE_MODE -> {
-                stateManager.setGlobalBool(Settings.Global.AIRPLANE_MODE_ON, enabled)
-                context.sendBroadcastAsUser(
-                    Intent(Intent.ACTION_AIRPLANE_MODE_CHANGED).putExtra("state", enabled),
-                    UserHandle.ALL
-                )
-            }
-            AxPlatformClient.FEATURE_NFC -> nfcAdapter?.let {
-                if (enabled) it.enable() else it.disable()
-            }
-            AxPlatformClient.FEATURE_DARK_MODE -> uiModeManager.setNightModeActivated(enabled)
-            AxPlatformClient.FEATURE_NIGHT_LIGHT ->
-                colorDisplayManager.setNightDisplayActivated(enabled)
-            AxPlatformClient.FEATURE_COLOR_INVERSION ->
-                stateManager.setSecureBool(
-                    Settings.Secure.ACCESSIBILITY_DISPLAY_INVERSION_ENABLED, enabled
-                )
-            AxPlatformClient.FEATURE_COLOR_CORRECTION ->
-                stateManager.setSecureBool(
-                    Settings.Secure.ACCESSIBILITY_DISPLAY_DALTONIZER_ENABLED, enabled
-                )
-            AxPlatformClient.FEATURE_REDUCE_BRIGHTNESS ->
-                stateManager.setSecureBool(SETTING_REDUCE_BRIGHT, enabled)
-            AxPlatformClient.FEATURE_ONE_HANDED_MODE ->
-                stateManager.setSecureBool(SETTING_ONE_HANDED, enabled)
-            AxPlatformClient.FEATURE_HEADS_UP ->
-                stateManager.setGlobalBool(
-                    Settings.Global.HEADS_UP_NOTIFICATIONS_ENABLED, enabled
-                )
-            AxPlatformClient.FEATURE_AUTO_SYNC ->
-                ContentResolver.setMasterSyncAutomatically(enabled)
-            AxPlatformClient.FEATURE_CAMERA_PRIVACY ->
-                sensorPrivacyController.setSensorBlocked(
-                    SensorPrivacyManager.Sources.QS_TILE,
-                    SensorPrivacyManager.Sensors.CAMERA,
-                    enabled
-                )
-            AxPlatformClient.FEATURE_MIC_PRIVACY ->
-                sensorPrivacyController.setSensorBlocked(
-                    SensorPrivacyManager.Sources.QS_TILE,
-                    SensorPrivacyManager.Sensors.MICROPHONE,
-                    enabled
-                )
-            AxPlatformClient.FEATURE_WORK_PROFILE ->
-                managedProfileController.setWorkModeEnabled(enabled)
-            AxPlatformClient.FEATURE_USB_TETHER -> tetheringManager?.setUsbTethering(enabled)
-            AxPlatformClient.FEATURE_DREAM -> try {
-                dreamManager?.let { if (enabled) it.dream() else it.awaken() }
-            } catch (e: RemoteException) {
-                Log.w(TAG, "Dream setEnabled failed", e)
-            }
-            AxPlatformClient.FEATURE_READING_MODE -> lineageHardware?.let {
-                it.set(LineageHardwareManager.FEATURE_READING_ENHANCEMENT, enabled)
-                stateManager.broadcastBool(feature, enabled)
-            }
-            AxPlatformClient.FEATURE_POWER_SHARE ->
-                batteryController.setReverseState(enabled)
-            AxPlatformClient.FEATURE_CAFFEINE -> {
-                if (enabled && !wakeLock.isHeld) {
-                    wakeLock.acquire(CAFFEINE_DURATION_MS)
-                } else if (!enabled && wakeLock.isHeld) {
-                    wakeLock.release()
-                }
-                stateManager.broadcastBool(feature, wakeLock.isHeld)
-            }
-            AxPlatformClient.FEATURE_VPN -> {
-                if (!enabled && securityController.isVpnEnabled) {
-                    securityController.disconnectPrimaryVpn()
-                }
-            }
-            AxPlatformClient.FEATURE_CAST -> {
-                if (!enabled) {
-                    castController.castDevices.firstOrNull { it.isCasting }
-                        ?.let { castController.stopCasting(it, StopReason.STOP_QS_TILE) }
-                }
-            }
-            AxPlatformClient.FEATURE_PROFILES -> {
-                setProfilesEnabled(enabled)
-                stateManager.broadcastBool(feature, enabled)
-            }
-            AxPlatformClient.FEATURE_SMART_PIXELS ->
-                stateManager.setSecureBool(SETTING_SMART_PIXELS, enabled)
-            AxPlatformClient.FEATURE_SCREEN_RECORD -> {
-                if (!enabled && screenRecordUxController.isRecording) {
-                    screenRecordUxController.stopRecording(StopReason.STOP_QS_TILE)
-                }
-            }
-            AxPlatformClient.FEATURE_SCREENSHOT -> {
-                if (enabled) toggle(feature)
-            }
-            else -> Log.w(TAG, "Unknown setEnabled: $feature")
-        }
+        handlers[feature]?.setEnabled?.invoke(enabled) ?: Log.w(TAG, "Unknown setEnabled: $feature")
     }
 
     fun setValue(feature: String, value: Int) {
-        when (feature) {
-            AxPlatformClient.FEATURE_ZEN -> {
-                if (zenModeController.zen != value)
-                    zenModeController.setZen(value, null, TAG)
-            }
-            AxPlatformClient.FEATURE_RINGER_MODE -> setRingerMode(value)
-            else -> Log.w(TAG, "Unknown setValue: $feature")
-        }
+        handlers[feature]?.setValue?.invoke(value) ?: Log.w(TAG, "Unknown setValue: $feature")
     }
 
     fun performAction(feature: String, param: String) {
@@ -442,17 +348,129 @@ class AxPlatformFeatureController @Inject constructor(
         localBluetoothManager?.cachedDeviceManager?.cachedDevicesCopy
             ?: bluetoothController.connectedDevices
 
+    private fun sensorPrivacyHandler(feature: String, sensor: Int) =
+        FeatureHandler(
+            feature,
+            isSupported = { sensorPrivacyController.supportsSensorToggle(sensor) },
+            toggle = {
+                sensorPrivacyController.setSensorBlocked(
+                    SensorPrivacyManager.Sources.QS_TILE,
+                    sensor,
+                    !sensorPrivacyController.isSensorBlocked(sensor),
+                )
+            },
+            setEnabled = { enabled ->
+                sensorPrivacyController.setSensorBlocked(
+                    SensorPrivacyManager.Sources.QS_TILE,
+                    sensor,
+                    enabled,
+                )
+            },
+        )
+
+    private fun featureState(feature: String): AxFeatureState =
+        AxFeatureState.fromBundle(stateManager.getState(feature))
+
+    private fun setFlashlightEnabled(enabled: Boolean) {
+        if (flashlightController.hasFlashlight()) flashlightController.setFlashlight(enabled)
+    }
+
+    private fun setZenMode(mode: Int) {
+        if (zenModeController.zen != mode) zenModeController.setZen(mode, null, TAG)
+    }
+
+    private fun setAirplaneModeEnabled(enabled: Boolean) {
+        stateManager.setGlobalBool(Settings.Global.AIRPLANE_MODE_ON, enabled)
+        context.sendBroadcastAsUser(
+            Intent(Intent.ACTION_AIRPLANE_MODE_CHANGED).putExtra("state", enabled),
+            UserHandle.ALL,
+        )
+    }
+
+    private fun toggleDream() {
+        try {
+            dreamManager?.let { if (it.isDreaming) it.awaken() else it.dream() }
+        } catch (e: RemoteException) {
+            Log.w(TAG, "Dream toggle failed", e)
+        }
+    }
+
+    private fun setDreamEnabled(enabled: Boolean) {
+        try {
+            dreamManager?.let { if (enabled) it.dream() else it.awaken() }
+        } catch (e: RemoteException) {
+            Log.w(TAG, "Dream setEnabled failed", e)
+        }
+    }
+
+    private fun toggleReadingMode() {
+        val manager = lineageHardware ?: return
+        val current = manager.get(LineageHardwareManager.FEATURE_READING_ENHANCEMENT)
+        manager.set(LineageHardwareManager.FEATURE_READING_ENHANCEMENT, !current)
+        stateManager.broadcastBool(AxPlatformFeature.READING_MODE, !current)
+    }
+
+    private fun setReadingModeEnabled(enabled: Boolean) {
+        lineageHardware?.set(LineageHardwareManager.FEATURE_READING_ENHANCEMENT, enabled)
+        stateManager.broadcastBool(AxPlatformFeature.READING_MODE, enabled)
+    }
+
+    private fun setCaffeineEnabled(enabled: Boolean) {
+        if (enabled && !wakeLock.isHeld) {
+            wakeLock.acquire(CAFFEINE_DURATION_MS)
+        } else if (!enabled && wakeLock.isHeld) {
+            wakeLock.release()
+        }
+        stateManager.broadcastBool(AxPlatformFeature.CAFFEINE, wakeLock.isHeld)
+    }
+
+    private fun disconnectVpn() {
+        if (securityController.isVpnEnabled) securityController.disconnectPrimaryVpn()
+    }
+
+    private fun stopCasting() {
+        castController.castDevices.firstOrNull { it.isCasting }
+            ?.let { castController.stopCasting(it, StopReason.STOP_QS_TILE) }
+    }
+
+    private fun setProfilesFeatureEnabled(enabled: Boolean) {
+        setProfilesEnabled(enabled)
+        stateManager.broadcastBool(AxPlatformFeature.PROFILES, enabled)
+    }
+
+    private fun toggleProfiles() {
+        setProfilesFeatureEnabled(!profilesEnabled())
+    }
+
+    private fun toggleScreenRecord() {
+        when {
+            screenRecordUxController.isStarting -> screenRecordUxController.cancelCountdown()
+            screenRecordUxController.isRecording ->
+                screenRecordUxController.stopRecording(StopReason.STOP_QS_TILE)
+            else -> screenRecordUxController.createScreenRecordDialog(null).show()
+        }
+    }
+
+    private fun takeScreenshot() {
+        screenshotHandler.postDelayed({
+            screenshotHelper.takeScreenshot(
+                WindowManager.TAKE_SCREENSHOT_FULLSCREEN,
+                WindowManager.ScreenshotSource.SCREENSHOT_OTHER,
+                screenshotHandler,
+                null,
+            )
+        }, SCREENSHOT_DELAY_MS)
+    }
+
     private fun toggleRingerMode() {
         val manager = audioManager ?: return
         val modes = availableRingerModes()
         val currentIndex = modes.indexOf(manager.ringerModeInternal)
-        val nextIndex = if (currentIndex >= 0) (currentIndex + 1) % modes.size else 0
-        manager.ringerModeInternal = modes[nextIndex]
+        manager.ringerModeInternal = modes[if (currentIndex >= 0) (currentIndex + 1) % modes.size else 0]
     }
 
     private fun setRingerMode(mode: Int) {
-        if (mode !in availableRingerModes()) return
-        audioManager?.ringerModeInternal = mode
+        if (mode in availableRingerModes()) audioManager?.ringerModeInternal = mode
     }
 
     private fun availableRingerModes(): IntArray =
@@ -460,12 +478,12 @@ class AxPlatformFeatureController @Inject constructor(
             intArrayOf(
                 AudioManager.RINGER_MODE_NORMAL,
                 AudioManager.RINGER_MODE_VIBRATE,
-                AudioManager.RINGER_MODE_SILENT
+                AudioManager.RINGER_MODE_SILENT,
             )
         } else {
             intArrayOf(
                 AudioManager.RINGER_MODE_NORMAL,
-                AudioManager.RINGER_MODE_SILENT
+                AudioManager.RINGER_MODE_SILENT,
             )
         }
 
@@ -473,14 +491,16 @@ class AxPlatformFeatureController @Inject constructor(
         LineageSettings.System.getIntForUser(
             context.contentResolver,
             LineageSettings.System.SYSTEM_PROFILES_ENABLED,
-            1, UserHandle.USER_CURRENT
+            1,
+            UserHandle.USER_CURRENT,
         ) == 1
 
     private fun setProfilesEnabled(enabled: Boolean) {
         LineageSettings.System.putIntForUser(
             context.contentResolver,
             LineageSettings.System.SYSTEM_PROFILES_ENABLED,
-            if (enabled) 1 else 0, UserHandle.USER_CURRENT
+            if (enabled) 1 else 0,
+            UserHandle.USER_CURRENT,
         )
     }
 
@@ -495,28 +515,5 @@ class AxPlatformFeatureController @Inject constructor(
 
         fun isDarkMode(config: Configuration): Boolean =
             (config.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-
-        private val BASE_FEATURES = arrayOf(
-            AxPlatformClient.FEATURE_WIFI,
-            AxPlatformClient.FEATURE_MOBILE_DATA,
-            AxPlatformClient.FEATURE_BLUETOOTH,
-            AxPlatformClient.FEATURE_HOTSPOT,
-            AxPlatformClient.FEATURE_FLASHLIGHT,
-            AxPlatformClient.FEATURE_LOCATION,
-            AxPlatformClient.FEATURE_ROTATION,
-            AxPlatformClient.FEATURE_BATTERY_SAVER,
-            AxPlatformClient.FEATURE_ZEN,
-            AxPlatformClient.FEATURE_AOD,
-            AxPlatformClient.FEATURE_DATA_SAVER,
-            AxPlatformClient.FEATURE_AIRPLANE_MODE,
-            AxPlatformClient.FEATURE_DARK_MODE,
-            AxPlatformClient.FEATURE_NIGHT_LIGHT,
-            AxPlatformClient.FEATURE_COLOR_INVERSION,
-            AxPlatformClient.FEATURE_COLOR_CORRECTION,
-            AxPlatformClient.FEATURE_REDUCE_BRIGHTNESS,
-            AxPlatformClient.FEATURE_ONE_HANDED_MODE,
-            AxPlatformClient.FEATURE_HEADS_UP,
-            AxPlatformClient.FEATURE_AUTO_SYNC
-        )
     }
 }

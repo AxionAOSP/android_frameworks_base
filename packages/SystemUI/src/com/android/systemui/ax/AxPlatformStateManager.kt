@@ -23,7 +23,8 @@ import android.os.RemoteCallbackList
 import android.os.RemoteException
 import android.os.UserHandle
 import android.util.Log
-import com.android.axion.platform.AxPlatformClient
+import com.android.axion.platform.AxFeatureState
+import com.android.axion.platform.AxPlatformFeature
 import com.android.axion.platform.IAxPlatformCallback
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Main
@@ -45,24 +46,34 @@ class AxPlatformStateManager @Inject constructor(
         fun getSecondaryLabel(feature: String, state: Bundle): String?
     }
 
+    fun interface StateListener {
+        fun onStateChanged(key: String, state: AxFeatureState)
+    }
+
     private val callbacks = RemoteCallbackList<IAxPlatformCallback>()
+    private val listeners = ConcurrentHashMap<StateListener, Executor>()
     private val stateCache = ConcurrentHashMap<String, Bundle>()
 
     var labelProvider: LabelProvider? = null
     var supportedFeatures: Array<String> = emptyArray()
         internal set
 
-    fun getState(feature: String): Bundle = stateCache[feature] ?: Bundle.EMPTY
+    fun getState(feature: String): Bundle =
+        stateCache[feature]
+            ?: if (feature in supportedFeatures) normalizeState(feature, Bundle()).toBundle()
+            else Bundle.EMPTY
 
     fun getAllStates(): Bundle = Bundle().also { result ->
+        supportedFeatures.forEach { result.putBundle(it, getState(it)) }
         stateCache.forEach { (key, bundle) -> result.putBundle(key, bundle) }
     }
 
     fun registerCallback(callback: IAxPlatformCallback) {
         callbacks.register(callback)
-        stateCache.forEach { (key, bundle) ->
+        val states = getAllStates()
+        states.keySet().forEach { key ->
             try {
-                callback.onStateChanged(key, bundle)
+                callback.onStateChanged(key, states.getBundle(key) ?: Bundle.EMPTY)
             } catch (e: RemoteException) {
                 Log.w(TAG, "Failed to send initial state for key=$key", e)
             }
@@ -73,53 +84,100 @@ class AxPlatformStateManager @Inject constructor(
         callbacks.unregister(callback)
     }
 
+    fun addListener(executor: Executor, listener: StateListener) {
+        listeners[listener] = executor
+        val states = getAllStates()
+        states.keySet().forEach { key ->
+            executor.execute {
+                listener.onStateChanged(key, AxFeatureState.fromBundle(states.getBundle(key)))
+            }
+        }
+    }
+
+    fun removeListener(listener: StateListener) {
+        listeners.remove(listener)
+    }
+
     fun broadcastState(key: String, state: Bundle) {
-        val normalizedState = Bundle(state)
-        enrichBundle(key, normalizedState)
+        val normalizedState = normalizeState(key, state)
+        val normalizedBundle = normalizedState.toBundle()
         val oldState = stateCache[key]
-        if (oldState != null && bundlesEqual(oldState, normalizedState)) {
+        if (oldState != null && bundlesEqual(oldState, normalizedBundle)) {
             return
         }
-        stateCache[key] = normalizedState
+        stateCache[key] = normalizedBundle
+        listeners.forEach { (listener, executor) ->
+            executor.execute { listener.onStateChanged(key, normalizedState) }
+        }
         synchronized(callbacks) {
             val count = callbacks.beginBroadcast()
-            for (i in 0 until count) {
-                try {
-                    callbacks.getBroadcastItem(i).onStateChanged(key, normalizedState)
-                } catch (e: RemoteException) {
-                    Log.w(TAG, "Callback failed for key=$key", e)
+            try {
+                for (i in 0 until count) {
+                    try {
+                        callbacks.getBroadcastItem(i).onStateChanged(key, normalizedBundle)
+                    } catch (e: RemoteException) {
+                        Log.w(TAG, "Callback failed for key=$key", e)
+                    }
                 }
+            } finally {
+                callbacks.finishBroadcast()
             }
-            callbacks.finishBroadcast()
         }
+    }
+
+    fun broadcastFeatureState(key: String, state: AxFeatureState) {
+        broadcastState(key, state.toBundle())
     }
 
     fun broadcastBool(feature: String, active: Boolean) {
-        broadcastState(feature, Bundle().apply {
-            putBoolean("enabled", active)
-            putBoolean("active", active)
-        })
+        broadcastFeatureState(
+            feature,
+            AxFeatureState.newBuilder()
+                .setEnabled(active)
+                .setActive(active)
+                .build()
+        )
     }
 
-    private fun enrichBundle(key: String, state: Bundle) {
-        if (state === Bundle.EMPTY) return
-        if (!state.containsKey("tileState")) {
-            state.putInt("tileState", when {
-                !state.getBoolean("available", true) -> AxPlatformClient.TILE_STATE_UNAVAILABLE
-                state.getBoolean("active", false) -> AxPlatformClient.TILE_STATE_ACTIVE
-                else -> AxPlatformClient.TILE_STATE_INACTIVE
-            })
-        }
-        labelProvider?.let { provider ->
-            if (!state.containsKey("label")) {
-                provider.getLabel(key)?.let { state.putString("label", it) }
+    private fun normalizeState(key: String, state: Bundle): AxFeatureState {
+        val normalized = Bundle(state)
+        if (AxPlatformFeature.isKnownFeature(key)) {
+            if (!normalized.containsKey(AxFeatureState.KEY_FEATURE)) {
+                normalized.putString(AxFeatureState.KEY_FEATURE, key)
             }
-            if (!state.containsKey("secondaryLabel")) {
-                provider.getSecondaryLabel(key, state)?.let {
-                    state.putString("secondaryLabel", it)
+            if (!normalized.containsKey(AxFeatureState.KEY_TILE_SPEC)) {
+                AxPlatformFeature.getPrimaryTileSpec(key)?.let {
+                    normalized.putString(AxFeatureState.KEY_TILE_SPEC, it)
+                }
+            }
+            if (!normalized.containsKey(AxFeatureState.KEY_CATEGORY)) {
+                AxPlatformFeature.getCategory(key)?.let {
+                    normalized.putString(AxFeatureState.KEY_CATEGORY, it)
                 }
             }
         }
+        if (!normalized.containsKey(AxFeatureState.KEY_TILE_STATE)) {
+            val tileState =
+                when {
+                    !normalized.getBoolean(AxFeatureState.KEY_AVAILABLE, true) ->
+                        AxFeatureState.TILE_STATE_UNAVAILABLE
+                    normalized.getBoolean(AxFeatureState.KEY_ACTIVE, false) ->
+                        AxFeatureState.TILE_STATE_ACTIVE
+                    else -> AxFeatureState.TILE_STATE_INACTIVE
+                }
+            normalized.putInt(AxFeatureState.KEY_TILE_STATE, tileState)
+        }
+        labelProvider?.let { provider ->
+            if (!normalized.containsKey(AxFeatureState.KEY_LABEL)) {
+                provider.getLabel(key)?.let { normalized.putString(AxFeatureState.KEY_LABEL, it) }
+            }
+            if (!normalized.containsKey(AxFeatureState.KEY_SECONDARY_LABEL)) {
+                provider.getSecondaryLabel(key, normalized)?.let {
+                    normalized.putString(AxFeatureState.KEY_SECONDARY_LABEL, it)
+                }
+            }
+        }
+        return AxFeatureState.fromBundle(normalized)
     }
 
     private fun bundlesEqual(first: Bundle, second: Bundle): Boolean {
