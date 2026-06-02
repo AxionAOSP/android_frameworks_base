@@ -286,7 +286,14 @@ public final class Choreographer {
      * @hide
      */
     public void onWaitForBufferRelease(long durationNanos) {
-        if (durationNanos > mLastFrameIntervalNanos / 2) {
+        final long frameIntervalNanos = mLastFrameIntervalNanos > 0
+                ? mLastFrameIntervalNanos : mFrameIntervalNanos;
+        if (frameIntervalNanos <= 0) {
+            return;
+        }
+        final long thresholdNanos = Math.max(2 * TimeUtils.NANOS_PER_MS,
+                Math.min(frameIntervalNanos / 2, 4 * TimeUtils.NANOS_PER_MS));
+        if (durationNanos >= thresholdNanos) {
             mBufferStuffingState.isStuffed.set(true);
         }
     }
