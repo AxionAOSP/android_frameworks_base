@@ -23,21 +23,29 @@ import com.android.systemui.qs.tileimpl.QSTileImpl
 import com.android.systemui.qs.tiles.AmbientDisplayTile
 import com.android.systemui.qs.tiles.AODTile
 import com.android.systemui.qs.tiles.CaffeineTile
+import com.android.systemui.qs.tiles.DataSwitchTile
 import com.android.systemui.qs.tiles.DnsTile
 import com.android.systemui.qs.tiles.HeadsUpTile
 import com.android.systemui.qs.tiles.PowerShareTile
 import com.android.systemui.qs.tiles.ProfilesTile
 import com.android.systemui.qs.tiles.ReadingModeTile
 import com.android.systemui.qs.tiles.RingerModeTileImpl
+import com.android.systemui.qs.tiles.ScreenshotTile
 import com.android.systemui.qs.tiles.SyncTile
 import com.android.systemui.qs.tiles.UsbTetherTile
 import com.android.systemui.qs.tiles.VolumeSliderTileImpl
-import com.android.systemui.qs.tiles.ScreenshotTile
 import com.android.systemui.qs.tiles.VpnTile
-import com.android.systemui.routines.ui.qs.RoutinesTile
+import com.android.systemui.qs.tiles.base.domain.interactor.QSTileAvailabilityInteractor
 import com.android.systemui.qs.tiles.base.shared.model.QSTileConfig
 import com.android.systemui.qs.tiles.base.shared.model.QSTileUIConfig
+import com.android.systemui.qs.tiles.base.ui.viewmodel.QSTileViewModel
+import com.android.systemui.qs.tiles.base.ui.viewmodel.QSTileViewModelFactory
+import com.android.systemui.qs.tiles.impl.dataswitch.domain.interactor.DataSwitchTileDataInteractor
+import com.android.systemui.qs.tiles.impl.dataswitch.domain.interactor.DataSwitchTileUserActionInteractor
+import com.android.systemui.qs.tiles.impl.dataswitch.domain.model.DataSwitchTileModel
+import com.android.systemui.qs.tiles.impl.dataswitch.ui.mapper.DataSwitchTileMapper
 import com.android.systemui.res.R
+import com.android.systemui.routines.ui.qs.RoutinesTile
 
 import dagger.Binds
 import dagger.Module
@@ -69,6 +77,11 @@ interface LineageModule {
     @IntoMap
     @StringKey(DnsTile.TILE_SPEC)
     fun bindDnsTile(dnsTile: DnsTile): QSTileImpl<*>
+
+    @Binds
+    @IntoMap
+    @StringKey(DataSwitchTile.TILE_SPEC)
+    fun bindDataSwitchTile(tile: DataSwitchTile): QSTileImpl<*>
 
     /** Inject HeadsUpTile into tileMap in QSModule */
     @Binds
@@ -131,6 +144,13 @@ interface LineageModule {
     @IntoMap
     @StringKey(RoutinesTile.TILE_SPEC)
     fun bindRoutinesTile(tile: RoutinesTile): QSTileImpl<*>
+
+    @Binds
+    @IntoMap
+    @StringKey(DataSwitchTile.TILE_SPEC)
+    fun provideDataSwitchAvailabilityInteractor(
+        impl: DataSwitchTileDataInteractor
+    ): QSTileAvailabilityInteractor
 
     companion object {
         const val AMBIENT_DISPLAY_TILE_SPEC = "ambient_display"
@@ -204,6 +224,37 @@ interface LineageModule {
                     ),
                 instanceId = uiEventLogger.getNewInstanceId(),
                 category = TileCategory.CONNECTIVITY,
+            )
+
+        @Provides
+        @IntoMap
+        @StringKey(DataSwitchTile.TILE_SPEC)
+        fun provideDataSwitchTileConfig(uiEventLogger: QsEventLogger): QSTileConfig =
+            QSTileConfig(
+                tileSpec = TileSpec.create(DataSwitchTile.TILE_SPEC),
+                uiConfig =
+                    QSTileUIConfig.Resource(
+                        iconRes = R.drawable.ic_qs_data_switch,
+                        labelRes = R.string.quick_settings_data_switch_label
+                    ),
+                instanceId = uiEventLogger.getNewInstanceId(),
+                category = TileCategory.CONNECTIVITY,
+            )
+
+        @Provides
+        @IntoMap
+        @StringKey(DataSwitchTile.TILE_SPEC)
+        fun provideDataSwitchTileViewModel(
+            factory: QSTileViewModelFactory.Static<DataSwitchTileModel>,
+            mapper: DataSwitchTileMapper,
+            stateInteractor: DataSwitchTileDataInteractor,
+            userActionInteractor: DataSwitchTileUserActionInteractor,
+        ): QSTileViewModel =
+            factory.create(
+                TileSpec.create(DataSwitchTile.TILE_SPEC),
+                userActionInteractor,
+                stateInteractor,
+                mapper,
             )
 
         @Provides
