@@ -17,20 +17,25 @@
 package com.android.systemui.ax
 
 import android.content.Context
+import android.content.res.Resources
 import android.media.AudioManager
 import android.os.Bundle
-import com.android.axion.platform.AxPlatformClient
+import com.android.axion.platform.AxFeatureState
+import com.android.axion.platform.AxPlatformFeature
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.qs.tiles.base.shared.model.QSTileConfigProvider
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.policy.BatteryController
 import com.android.systemui.statusbar.policy.ConfigurationController
+import com.android.systemui.util.icuMessageFormat
 import javax.inject.Inject
 
 @SysUISingleton
 class AxPlatformFeatureMapper @Inject constructor(
     private val context: Context,
     private val batteryController: BatteryController,
-    configurationController: ConfigurationController
+    private val qsTileConfigProvider: QSTileConfigProvider,
+    configurationController: ConfigurationController,
 ) : AxPlatformStateManager.LabelProvider {
 
     private val labelCache = mutableMapOf<String, String>()
@@ -45,41 +50,42 @@ class AxPlatformFeatureMapper @Inject constructor(
 
     override fun getLabel(feature: String): String? {
         labelCache[feature]?.let { return it }
-        val label = when {
-            FEATURE_LABEL_RES.containsKey(feature) -> context.getString(FEATURE_LABEL_RES[feature]!!)
-            feature == AxPlatformClient.FEATURE_SMART_PIXELS -> LABEL_SMART_PIXELS
-            else -> return null
-        }
-        labelCache[feature] = label
-        return label
+        val tileSpec = AxPlatformFeature.getPrimaryTileSpec(feature) ?: return null
+        if (!qsTileConfigProvider.hasConfig(tileSpec)) return null
+        val labelRes = qsTileConfigProvider.getConfig(tileSpec).uiConfig.labelRes
+        if (labelRes == Resources.ID_NULL) return null
+        return context.getString(labelRes).also { labelCache[feature] = it }
     }
 
     override fun getSecondaryLabel(feature: String, state: Bundle): String? = when (feature) {
-        AxPlatformClient.FEATURE_WIFI -> {
+        AxPlatformFeature.WIFI -> {
             val ssid = state.getString("ssid")
-            when {
-                state.getBoolean("connected") && !ssid.isNullOrEmpty() -> ssid
-                else -> null
-            }
+            if (state.getBoolean("connected") && !ssid.isNullOrEmpty()) ssid else null
         }
-        AxPlatformClient.FEATURE_BLUETOOTH -> {
+        AxPlatformFeature.BLUETOOTH -> {
             @Suppress("DEPRECATION")
             val devices = state.getParcelableArrayList<Bundle>("devices")
             devices?.firstOrNull { it.getBoolean("isConnected") }?.getString("name")
         }
-        AxPlatformClient.FEATURE_HOTSPOT -> {
-            val num = state.getInt("numDevices", 0)
-            if (num > 0) "$num ${if (num == 1) "device" else "devices"}" else null
+        AxPlatformFeature.HOTSPOT -> {
+            val numDevices = state.getInt("numDevices", 0)
+            if (numDevices > 0) {
+                icuMessageFormat(
+                    context.resources,
+                    R.string.quick_settings_hotspot_secondary_label_num_devices,
+                    numDevices,
+                )
+            } else {
+                null
+            }
         }
-        AxPlatformClient.FEATURE_MOBILE_DATA -> {
-            state.getString("description")?.takeIf { it.isNotEmpty() }
-        }
-        AxPlatformClient.FEATURE_ZEN -> {
+        AxPlatformFeature.MOBILE_DATA -> state.getString("description")?.takeIf { it.isNotEmpty() }
+        AxPlatformFeature.ZEN -> {
             val mode = state.getInt("mode", 0)
             if (mode != 0) context.getString(R.string.zen_mode_on) else null
         }
-        AxPlatformClient.FEATURE_RINGER_MODE -> {
-            when (state.getInt("ringerMode", AudioManager.RINGER_MODE_NORMAL)) {
+        AxPlatformFeature.RINGER_MODE -> {
+            when (AxFeatureState.fromBundle(state).getRingerMode(AudioManager.RINGER_MODE_NORMAL)) {
                 AudioManager.RINGER_MODE_VIBRATE ->
                     context.getString(R.string.volume_ringer_status_vibrate)
                 AudioManager.RINGER_MODE_SILENT ->
@@ -87,69 +93,24 @@ class AxPlatformFeatureMapper @Inject constructor(
                 else -> context.getString(R.string.volume_ringer_status_normal)
             }
         }
-        AxPlatformClient.FEATURE_POWER_SHARE -> {
-            if (batteryController.isAodPowerSave)
+        AxPlatformFeature.POWER_SHARE -> {
+            if (batteryController.isAodPowerSave) {
                 context.getString(R.string.quick_settings_powershare_off_powersave_label)
-            else null
+            } else {
+                null
+            }
         }
-        AxPlatformClient.FEATURE_VPN -> {
-            state.getString("name")?.takeIf { it.isNotEmpty() }
-        }
-        AxPlatformClient.FEATURE_CAST -> {
-            state.getString("deviceName")?.takeIf { it.isNotEmpty() }
-        }
-        AxPlatformClient.FEATURE_PROFILES -> {
-            state.getString("profileName")?.takeIf { it.isNotEmpty() }
-        }
-        AxPlatformClient.FEATURE_SCREEN_RECORD -> {
+        AxPlatformFeature.VPN -> state.getString("name")?.takeIf { it.isNotEmpty() }
+        AxPlatformFeature.CAST -> state.getString("deviceName")?.takeIf { it.isNotEmpty() }
+        AxPlatformFeature.PROFILES -> state.getString("profileName")?.takeIf { it.isNotEmpty() }
+        AxPlatformFeature.SCREEN_RECORD -> {
+            val featureState = AxFeatureState.fromBundle(state)
             when {
-                state.getBoolean("active") -> context.getString(R.string.quick_settings_screen_record_stop)
-                state.getBoolean("starting") -> context.getString(R.string.quick_settings_screen_record_start)
+                featureState.isActive() -> context.getString(R.string.quick_settings_screen_record_stop)
+                featureState.isStarting() -> context.getString(R.string.quick_settings_screen_record_start)
                 else -> null
             }
         }
         else -> null
-    }
-
-    companion object {
-        private const val LABEL_SMART_PIXELS = "Smart Pixels"
-
-        private val FEATURE_LABEL_RES = mapOf(
-            AxPlatformClient.FEATURE_WIFI to R.string.quick_settings_wifi_label,
-            AxPlatformClient.FEATURE_MOBILE_DATA to R.string.quick_settings_internet_label,
-            AxPlatformClient.FEATURE_BLUETOOTH to R.string.quick_settings_bluetooth_label,
-            AxPlatformClient.FEATURE_HOTSPOT to R.string.quick_settings_hotspot_label,
-            AxPlatformClient.FEATURE_FLASHLIGHT to R.string.quick_settings_flashlight_label,
-            AxPlatformClient.FEATURE_LOCATION to R.string.quick_settings_location_label,
-            AxPlatformClient.FEATURE_ROTATION to R.string.quick_settings_rotation_unlocked_label,
-            AxPlatformClient.FEATURE_BATTERY_SAVER to R.string.battery_detail_switch_title,
-            AxPlatformClient.FEATURE_ZEN to R.string.quick_settings_dnd_label,
-            AxPlatformClient.FEATURE_AOD to R.string.quick_settings_aod_label,
-            AxPlatformClient.FEATURE_DATA_SAVER to R.string.data_saver,
-            AxPlatformClient.FEATURE_AIRPLANE_MODE to R.string.airplane_mode,
-            AxPlatformClient.FEATURE_NFC to R.string.quick_settings_nfc_label,
-            AxPlatformClient.FEATURE_DARK_MODE to R.string.quick_settings_ui_mode_night_label,
-            AxPlatformClient.FEATURE_NIGHT_LIGHT to R.string.quick_settings_night_display_label,
-            AxPlatformClient.FEATURE_COLOR_INVERSION to R.string.quick_settings_inversion_label,
-            AxPlatformClient.FEATURE_COLOR_CORRECTION to R.string.quick_settings_color_correction_label,
-            AxPlatformClient.FEATURE_REDUCE_BRIGHTNESS to com.android.internal.R.string.reduce_bright_colors_feature_name,
-            AxPlatformClient.FEATURE_ONE_HANDED_MODE to R.string.quick_settings_onehanded_label,
-            AxPlatformClient.FEATURE_HEADS_UP to R.string.quick_settings_heads_up_label,
-            AxPlatformClient.FEATURE_AUTO_SYNC to R.string.quick_settings_sync_label,
-            AxPlatformClient.FEATURE_CAMERA_PRIVACY to R.string.quick_settings_camera_label,
-            AxPlatformClient.FEATURE_MIC_PRIVACY to R.string.quick_settings_mic_label,
-            AxPlatformClient.FEATURE_WORK_PROFILE to R.string.quick_settings_work_mode_label,
-            AxPlatformClient.FEATURE_USB_TETHER to R.string.quick_settings_usb_tether_label,
-            AxPlatformClient.FEATURE_DREAM to R.string.quick_settings_screensaver_label,
-            AxPlatformClient.FEATURE_READING_MODE to R.string.quick_settings_reading_mode,
-            AxPlatformClient.FEATURE_POWER_SHARE to R.string.quick_settings_powershare_label,
-            AxPlatformClient.FEATURE_CAFFEINE to R.string.quick_settings_caffeine_label,
-            AxPlatformClient.FEATURE_VPN to R.string.quick_settings_vpn_label,
-            AxPlatformClient.FEATURE_CAST to R.string.quick_settings_cast_title,
-            AxPlatformClient.FEATURE_PROFILES to R.string.quick_settings_profiles_label,
-            AxPlatformClient.FEATURE_SCREEN_RECORD to R.string.quick_settings_screen_record_label,
-            AxPlatformClient.FEATURE_SCREENSHOT to R.string.quick_settings_screenshot_label,
-            AxPlatformClient.FEATURE_RINGER_MODE to R.string.quick_settings_sound_mode_label
-        )
     }
 }

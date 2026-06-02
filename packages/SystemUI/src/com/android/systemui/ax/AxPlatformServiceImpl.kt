@@ -70,18 +70,28 @@ class AxPlatformServiceImpl @Inject constructor(
             scope.launch(mainDispatcher) { featureController.performAction(feature, param) }
         }
 
-        override fun getState(feature: String?): Bundle =
-            if (feature != null) stateManager.getState(feature) else Bundle.EMPTY
+        override fun getState(feature: String?): Bundle {
+            enforceSystemCaller()
+            return if (feature != null) stateManager.getState(feature) else Bundle.EMPTY
+        }
 
-        override fun getAllStates(): Bundle = stateManager.getAllStates()
+        override fun getAllStates(): Bundle {
+            enforceSystemCaller()
+            return stateManager.getAllStates()
+        }
 
-        override fun getSupportedFeatures(): Array<String> = featureController.supportedFeatures
+        override fun getSupportedFeatures(): Array<String> {
+            enforceSystemCaller()
+            return featureController.supportedFeatures
+        }
 
         override fun registerCallback(callback: IAxPlatformCallback?) {
+            enforceSystemCaller()
             callback?.let { stateManager.registerCallback(it) }
         }
 
         override fun unregisterCallback(callback: IAxPlatformCallback?) {
+            enforceSystemCaller()
             callback?.let { stateManager.unregisterCallback(it) }
         }
     }

@@ -17,7 +17,7 @@
 package com.android.systemui.dagger
 
 import com.android.systemui.CoreStartable
-import com.android.systemui.ax.AxPlatformServiceImpl
+import com.android.systemui.ax.StartAxPlatformModule
 import com.android.systemui.axdynamicbar.domain.AxDynamicBarChipsRefiner
 import com.android.systemui.axdynamicbar.ui.AxDynamicBarManager
 import com.android.systemui.axsmartpixel.ui.AxSmartPixelManager
@@ -46,16 +46,12 @@ import dagger.multibindings.IntoMap
 import dagger.multibindings.IntoSet
 import dagger.multibindings.StringKey
 
-@Module(includes = [StartMistouchPreventionModule::class])
+@Module(includes = [StartAxPlatformModule::class, StartMistouchPreventionModule::class])
 abstract class AxionStartableModule {
     @Binds
     @IntoMap
     @ClassKey(AodScheduleController::class)
     abstract fun bindAodScheduleController(impl: AodScheduleController): CoreStartable
-    @Binds
-    @IntoMap
-    @ClassKey(AxPlatformServiceImpl::class)
-    abstract fun bindAxPlatformService(impl: AxPlatformServiceImpl): CoreStartable
     @Binds
     @IntoMap
     @ClassKey(AxDynamicBarManager::class)
