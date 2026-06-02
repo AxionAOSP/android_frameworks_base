@@ -56,7 +56,7 @@ sealed interface RenderMode {
         val aodFontWeight: Int,
         val largeScale: Float = 1.85f,
         val lineSpacing: Float = 16f,
-        val normalizeDigitOneHeight: Boolean = false,
+        val normalizedDigits: Set<Char> = emptySet(),
     ) : RenderMode
     data object AnalogClock : RenderMode
 }
@@ -208,7 +208,7 @@ object BitmapFaceConfigs {
                 aodFontWeight = 100,
                 largeScale = 1.85f,
                 lineSpacing = 16f,
-                normalizeDigitOneHeight = true,
+                normalizedDigits = ('0'..'9').toSet(),
             ),
             dateSpacingDp = 0f,
             topPaddingDp = 16f,

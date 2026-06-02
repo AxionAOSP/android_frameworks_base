@@ -418,7 +418,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
 
                     val charRect = Rect()
                     fontPaint.getTextBounds(displayTime[i].toString(), 0, 1, charRect)
-                    if (shouldNormalizeDigitOneHeight(mode, displayTime[i])) {
+                    if (shouldNormalizeDigitHeight(mode, displayTime[i])) {
                         val visualBounds = getFontDigitVisualBounds(fontPaint)
                         charRect.top = visualBounds.top.toInt()
                         charRect.bottom = visualBounds.bottom.toInt()
@@ -830,7 +830,7 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         mode: RenderMode.FontDigit,
     ) {
         val digitText = digit.toString()
-        if (!shouldNormalizeDigitOneHeight(mode, digit)) {
+        if (!shouldNormalizeDigitHeight(mode, digit)) {
             canvas.drawText(digitText, x, baselineY, fontPaint)
             return
         }
@@ -855,8 +855,8 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         canvas.restore()
     }
 
-    private fun shouldNormalizeDigitOneHeight(mode: RenderMode.FontDigit, digit: Char): Boolean =
-        mode.normalizeDigitOneHeight && digit == NORMALIZED_DIGIT_ONE
+    private fun shouldNormalizeDigitHeight(mode: RenderMode.FontDigit, digit: Char): Boolean =
+        digit in mode.normalizedDigits
 
     private fun getFontDigitVisualBounds(paint: Paint): FontDigitVisualBounds {
         val bounds = Rect()
@@ -1011,7 +1011,6 @@ class BitmapDigitComposeClockView @JvmOverloads constructor(
         private const val FORCE_RESET_DELAY_MS = 800L
         private const val FIDGET_THIN_WEIGHT = 300
         private const val FIDGET_WEIGHT_DURATION = 250L
-        private const val NORMALIZED_DIGIT_ONE = '1'
         private val RIPPLE_INTERPOLATOR = PathInterpolator(0.6f, 0f, 0.2f, 1f)
         private val FIDGET_INTERPOLATOR = PathInterpolator(0.26873f, 0f, 0.45042f, 1f)
     }
