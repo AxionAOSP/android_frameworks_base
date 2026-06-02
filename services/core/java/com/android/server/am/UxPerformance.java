@@ -20,36 +20,25 @@ import static com.android.server.am.AxUtils.logger;
 
 import android.app.ActivityManagerInternal;
 import android.app.AppGlobals;
+import android.app.AxBoostFwk;
 import android.content.Context;
-import android.content.pm.ActivityInfo;
 import android.content.pm.IPackageManager;
-import android.content.pm.PackageManager;
-import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.os.StrictMode;
 import android.os.SystemClock;
 import android.provider.Settings;
-import android.app.AxBoostFwk;
 import android.util.Log;
 
-import com.android.server.AxExtServiceFactory;
 import com.android.server.LocalServices;
 import com.android.server.NtServiceInjector;
-import com.android.server.pm.*;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileDescriptor;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
-import java.lang.ref.WeakReference;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -62,14 +51,17 @@ public class UxPerformance implements IUxPerformance {
     private static final String LAST_FULL_RUN_KEY = "ux_dexopt_last_full_run";
     private static final long FULL_RUN_INTERVAL_MS = 30L * 24 * 60 * 60 * 1000; 
 
-    private static final String[] OAT_DIRS = {"/oat/arm64/", "/oat/arm/"};
-    private static final String[] FILE_SUFFIXES = {".art", ".odex", ".vdex"};
+    private static final int POSIX_FADV_WILLNEED = 3;
+    private static final int MAX_PREFETCH_FILES = 4;
+    private static final long PREFETCH_DEDUPE_MS = 1500;
+    private static final long MAX_PREFETCH_BYTES = 64L * 1024 * 1024;
+
+    private static final String[] OAT_DIRS = {"oat/arm64", "oat/arm"};
+    private static final String[] FILE_SUFFIXES = {".odex", ".vdex", ".art"};
 
     private static final int MAX_GRAPH_APPS = 100;
     private static final int MAX_TARGETS_PER_APP = 20;
     private static final long DECAY_INTERVAL_MS = 24L * 60 * 60 * 1000;
-
-    private final ConcurrentHashMap<File, WeakReference<MappedByteBuffer>> mappedDexBuffers = new ConcurrentHashMap<>();
 
     private volatile boolean screenOff;
     private volatile boolean isDexoptRunning = false;
@@ -82,12 +74,14 @@ public class UxPerformance implements IUxPerformance {
     private Handler pAppsHandler;
     private Handler mPredictorHandler;
 
-    private final Object preloadLock = new Object();
+    private final Object mPrefetchLock = new Object();
     private final Object mPredictorLock = new Object();
 
     private ExecutorService prefetchExecutor;
 
     private final Map<String, Map<String, Integer>> mTransitionGraph = new LinkedHashMap<>();
+    private String mLastPrefetchSourceDir = null;
+    private long mLastPrefetchUptime = 0;
     private String mLastAppPkg = null;
     private String mLastPredictedPkg = null;
     private long mLastDecayTime = 0;
@@ -101,8 +95,8 @@ public class UxPerformance implements IUxPerformance {
         pAppsHandler = createHandler("PAppsSpeedHandlerThread");
         mPredictorHandler = createHandler("UxPredictorHandlerThread");
 
-        prefetchExecutor = Executors.newFixedThreadPool(
-                Runtime.getRuntime().availableProcessors(), r -> {
+        prefetchExecutor = Executors.newSingleThreadExecutor(
+                r -> {
                     Thread t = new Thread(r, "DexPrefetchWorker");
                     t.setDaemon(true);
                     return t;
@@ -118,21 +112,32 @@ public class UxPerformance implements IUxPerformance {
         return new Handler(thread.getLooper());
     }
 
-    public void perfIOPrefetchStart(int pid, String packageName, String codePath) {
-        if (!systemReady || codePath == null) return;
+    public void perfIOPrefetchStart(int pid, String packageName, String sourceDir) {
+        if (!systemReady || sourceDir == null) return;
+        if (shouldSkipPrefetch(sourceDir)) return;
 
         dexPreloadHandler.post(() -> {
             try {
-                dexPrefetch(codePath);
-                ioPrefetch(codePath);
+                prefetchFiles(sourceDir);
             } catch (Exception e) {
                 logger(TAG + "dexPreload failed: " + e);
             }
         });
     }
 
-    public void perfIOPrefetchStop() {
-        mappedDexBuffers.clear();
+    public void perfIOPrefetchStop() {}
+
+    private boolean shouldSkipPrefetch(String sourceDir) {
+        long now = SystemClock.uptimeMillis();
+        synchronized (mPrefetchLock) {
+            if (sourceDir.equals(mLastPrefetchSourceDir)
+                    && now - mLastPrefetchUptime < PREFETCH_DEDUPE_MS) {
+                return true;
+            }
+            mLastPrefetchSourceDir = sourceDir;
+            mLastPrefetchUptime = now;
+            return false;
+        }
     }
 
     public void uxEngineEvent(int opcode, int pid, String pkgName, int lat) {
@@ -289,82 +294,66 @@ public class UxPerformance implements IUxPerformance {
         }
     }
 
-    private void fadviseFile(File file) {
+    private void fadviseFile(File file, long bytes) {
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            nativePosixFadvise(raf.getFD(), 0, file.length(), 0);
+            nativePosixFadvise(raf.getFD(), 0, bytes, POSIX_FADV_WILLNEED);
         } catch (Exception e) {
             logger(TAG + "fadvise failed: " + file.getAbsolutePath() + " - " + e);
         }
     }
 
-    private void dexPrefetch(String codePath) {
+    private void prefetchFiles(String sourceDir) {
+        List<File> filesToLoad = collectPrefetchFiles(sourceDir);
+        long remainingBytes = MAX_PREFETCH_BYTES;
+        int remainingFiles = MAX_PREFETCH_FILES;
+        for (File file : filesToLoad) {
+            if (remainingBytes <= 0 || remainingFiles <= 0) {
+                return;
+            }
+            final long bytes = Math.min(file.length(), remainingBytes);
+            if (bytes <= 0) {
+                continue;
+            }
+            prefetchExecutor.submit(() -> fadviseFile(file, bytes));
+            remainingBytes -= bytes;
+            remainingFiles--;
+        }
+    }
+
+    private List<File> collectPrefetchFiles(String sourceDir) {
         List<File> filesToLoad = new ArrayList<>();
-
-        for (String dirSuffix : OAT_DIRS) {
-            File dir = new File(codePath + dirSuffix);
-            if (!dir.exists()) continue;
-
-            String baseName = codePath.startsWith("/data")
-                    ? "base"
-                    : codePath.substring(codePath.lastIndexOf('/') + 1);
-
+        File apkFile = new File(sourceDir);
+        File codeDir = apkFile.isFile() ? apkFile.getParentFile() : apkFile;
+        if (codeDir == null) {
+            return filesToLoad;
+        }
+        String baseName = getOatBaseName(apkFile);
+        for (String oatDir : OAT_DIRS) {
+            File dir = new File(codeDir, oatDir);
+            if (!dir.exists()) {
+                continue;
+            }
             for (String suffix : FILE_SUFFIXES) {
-                File f = new File(dir, baseName + suffix);
-                if (f.exists()) filesToLoad.add(f);
+                addIfUsable(filesToLoad, new File(dir, baseName + suffix));
             }
             break;
         }
-
-        for (File f : filesToLoad) {
-            prefetchExecutor.submit(() -> preloadFile(f));
-        }
+        addIfUsable(filesToLoad, apkFile);
+        return filesToLoad;
     }
 
-    private void ioPrefetch(String codePath) {
-        List<File> filesToLoad = new ArrayList<>();
-
-        File apkFile = new File(codePath + ".apk");
-        if (apkFile.exists()) {
-            filesToLoad.add(apkFile);
+    private String getOatBaseName(File apkFile) {
+        if (!apkFile.isFile() || apkFile.getPath().startsWith("/data/")) {
+            return "base";
         }
-
-        File libDir = new File(codePath, "lib/arm64");
-        if (!libDir.exists()) {
-            libDir = new File(codePath, "lib/arm");
-        }
-        if (libDir.exists()) {
-            File[] soFiles = libDir.listFiles((dir, name) -> name.endsWith(".so"));
-            if (soFiles != null) {
-                filesToLoad.addAll(Arrays.asList(soFiles));
-            }
-        }
-
-        for (File f : filesToLoad) {
-            prefetchExecutor.submit(() -> preloadFile(f));
-            prefetchExecutor.submit(() -> fadviseFile(f));
-        }
+        String name = apkFile.getName();
+        int extension = name.lastIndexOf('.');
+        return extension > 0 ? name.substring(0, extension) : name;
     }
 
-    private void preloadFile(File file) {
-        try {
-            WeakReference<MappedByteBuffer> ref = mappedDexBuffers.get(file);
-            MappedByteBuffer buffer = ref != null ? ref.get() : null;
-
-            if (buffer != null) {
-                logger(TAG + "Dex already mapped in memory: " + file.getAbsolutePath());
-                return;
-            }
-
-            try (FileChannel channel = new RandomAccessFile(file, "r").getChannel()) {
-                buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
-                buffer.load();
-            }
-
-            mappedDexBuffers.put(file, new WeakReference<>(buffer));
-
-            logger(TAG + "Dex prefetch completed: " + file.getAbsolutePath());
-        } catch (IOException e) {
-            logger(TAG + "Dex prefetch failed: " + file.getAbsolutePath() + " - " + e);
+    private void addIfUsable(List<File> files, File file) {
+        if (file.isFile() && file.canRead()) {
+            files.add(file);
         }
     }
 

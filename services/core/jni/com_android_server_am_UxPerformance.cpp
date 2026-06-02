@@ -33,7 +33,7 @@ static jint posixFadvise(JNIEnv* env, jclass, jobject fileDescriptor, jlong offs
     int ret = posix_fadvise(fd, static_cast<off_t>(offset),
             static_cast<off_t>(len), advice);
     if (ret != 0) {
-        jniThrowException(env, "java/io/IOException", strerror(errno));
+        jniThrowException(env, "java/io/IOException", strerror(ret));
     }
     return ret;
 }

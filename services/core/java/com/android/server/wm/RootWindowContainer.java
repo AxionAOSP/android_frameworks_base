@@ -2527,7 +2527,7 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
 
         if (appInfo != null && appInfo.sourceDir != null) {
             AxExtServiceFactory.getUxPerformance().perfIOPrefetchStart(-1, r.packageName,
-                    appInfo.sourceDir.substring(0, appInfo.sourceDir.lastIndexOf('/')));
+                    appInfo.sourceDir);
         }
     }
 
