@@ -32,11 +32,23 @@ class KeyguardAppWidgetHostView(
 ) : AppWidgetHostView(context, interactionHandler) {
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        if (!ScrimUtils.get().isKeyguardShowing()) return false
-        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+        val action = event.actionMasked
+        val releaseParent =
+            action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL
+        if (!ScrimUtils.get().isKeyguardShowing()) {
+            if (releaseParent) {
+                parent?.requestDisallowInterceptTouchEvent(false)
+            }
+            return false
+        }
+        if (action == MotionEvent.ACTION_DOWN) {
             parent?.requestDisallowInterceptTouchEvent(true)
         }
-        return super.dispatchTouchEvent(event)
+        super.dispatchTouchEvent(event)
+        if (releaseParent) {
+            parent?.requestDisallowInterceptTouchEvent(false)
+        }
+        return true
     }
 
     var cornerRadius: Float = 0f
@@ -74,4 +86,3 @@ class KeyguardAppWidgetHostView(
         super.setPadding(0, 0, 0, 0)
     }
 }
-
