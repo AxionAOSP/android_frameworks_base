@@ -65,6 +65,9 @@ constructor(
     private val dozing: Boolean
         get() = ScrimUtils.get().isDozing()
 
+    private val scrimPulsing: Boolean
+        get() = ScrimUtils.get().isPulsing()
+
     @Volatile private var lastNotificationKey: String? = null
     @Volatile private var lastNotificationText: CharSequence? = null
     @Volatile private var lastNotificationTime: Long = 0L
@@ -114,7 +117,9 @@ constructor(
     private fun startPulse(color: Int) {
         pulseJob?.cancel()
         pulseJob = scope.launch {
-            _uiState.update { it.copy(isVisible = true, isPulsing = true, color = color) }
+            _uiState.update {
+                it.copy(isVisible = true, isPulsing = true, color = color, pulseAlpha = 0f)
+            }
 
             val startTime = System.currentTimeMillis()
             while (isActive) {
@@ -159,7 +164,12 @@ constructor(
         lastNotificationKey = currentKey
         lastNotificationText = currentText
         lastNotificationTime = now
-        pendingNotification = sbn
+        if (scrimPulsing) {
+            pendingNotification = null
+            startPulse(getColor(sbn))
+        } else {
+            pendingNotification = sbn
+        }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification, rankingMap: RankingMap) {}
