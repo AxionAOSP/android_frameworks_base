@@ -363,10 +363,6 @@ constructor(
         when {
             !isQsVisibleAndAnyShadeExpanded -> QSExpansionState(0f)
             forceQs -> QSExpansionState(1f)
-            !isInSplitShade &&
-                qsExpansion >= 1f &&
-                (!isQsExpanded || panelExpansionFraction < 1f) ->
-                QSExpansionState(0f)
             else ->
                 QSExpansionState(
                     if (Flags.noExpansionOnOverscroll() && isStackScrollerOverscrolling) 0f

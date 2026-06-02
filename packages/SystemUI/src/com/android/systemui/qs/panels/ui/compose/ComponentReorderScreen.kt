@@ -426,6 +426,7 @@ fun BrightnessSliderPreview(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SliderPreview(
@@ -460,6 +461,7 @@ fun BrightnessSliderPreview(
 fun VolumeSliderRowPreview(volume: Float = 60f) {
     Row(
         modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SliderPreview(
@@ -521,7 +523,14 @@ private fun SliderPreview(
             modifier =
                 Modifier.fillMaxWidth(fraction)
                     .height(SLIDER_PREVIEW_TRACK_HEIGHT)
-                    .clip(RoundedCornerShape(SLIDER_PREVIEW_TRACK_CORNER))
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = SLIDER_PREVIEW_TRACK_CORNER,
+                            topEnd = 0.dp,
+                            bottomEnd = 0.dp,
+                            bottomStart = SLIDER_PREVIEW_TRACK_CORNER,
+                        )
+                    )
                     .background(colors.activeTrackColor)
         )
         Box(

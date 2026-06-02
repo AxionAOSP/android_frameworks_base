@@ -579,11 +579,14 @@ constructor(
 
     override fun setPanelExpanded(panelExpanded: Boolean) {
         viewModel.isPanelExpanded = panelExpanded
+        if (!panelExpanded && !viewModel.isInSplitShade) {
+            viewModel.resetCollapsedExpansionState()
+        }
     }
 
     override fun setExpanded(qsExpanded: Boolean) {
         viewModel.isQsExpanded = qsExpanded
-        if (!qsExpanded && !viewModel.isInSplitShade) {
+        if (!qsExpanded && !viewModel.isInSplitShade && !viewModel.isPanelExpanded) {
             viewModel.resetCollapsedExpansionState()
         }
     }

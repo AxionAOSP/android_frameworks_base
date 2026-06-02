@@ -219,6 +219,20 @@ constructor(
         }
     }
 
+    fun onBatteryClicked() {
+        activityStarter.postStartActivityDismissingKeyguard(
+            Intent(Intent.ACTION_POWER_USAGE_SUMMARY),
+            0,
+        )
+    }
+
+    fun onDateClicked() {
+        activityStarter.postStartActivityDismissingKeyguard(
+            Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALENDAR),
+            0,
+        )
+    }
+
     /** Notifies that the notification icons container was clicked. */
     fun onNotificationIconChipClicked() {
         if (!shadeModeInteractor.isDualShade) {
