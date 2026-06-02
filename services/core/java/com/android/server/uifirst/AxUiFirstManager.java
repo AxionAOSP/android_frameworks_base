@@ -212,7 +212,7 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
             info.remoteAnimation = isRemoteAnimation;
             if ("com.android.systemui".equals(packageName)) {
                 mOnTopSystemUi = status == STATUS_TOP ? info : null;
-            } else if ("com.android.launcher".equals(packageName)) {
+            } else if ("com.android.launcher3".equals(packageName)) {
                 mOnTopLauncher = status == STATUS_TOP ? info : null;
             } else if (packageName != null && packageName.equals(mRealInputMethodPackage)) {
                 mInputMethod = status == STATUS_TOP ? info : mInputMethod;
@@ -782,12 +782,12 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
 
     private static void applyUclampWithStuneGroup(int tid, int min, int max, String group) {
         applyUclamp(tid, min, max);
-        moveToStuneGroup(tid, group);
+        moveToBoostGroup(tid, group);
     }
 
     private static void moveToBoostGroup(int tid, String group) {
         if (tid <= 0) return;
-        AxUtils.write("/dev/cpuctl/" + group + "/tasks", String.valueOf(tid));
+        AxUtils.writeUncached("/dev/cpuctl/" + group + "/tasks", String.valueOf(tid));
         moveToStuneGroup(tid, group);
     }
 
@@ -795,7 +795,7 @@ public final class AxUiFirstManager implements IAxUiFirstManager {
         if (tid <= 0 || !useStuneFallback()) return;
         File taskFile = new File("/dev/stune/" + group + "/tasks");
         if (taskFile.exists()) {
-            AxUtils.write(taskFile.getPath(), String.valueOf(tid));
+            AxUtils.writeUncached(taskFile.getPath(), String.valueOf(tid));
         }
     }
 
