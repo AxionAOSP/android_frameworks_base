@@ -2239,7 +2239,9 @@ public abstract class OomAdjuster {
             int processGroup;
             switch (curSchedGroup) {
                 case SCHED_GROUP_BACKGROUND:
-                    if (state.getCurAdj() >= ProcessList.CACHED_APP_MIN_ADJ) {
+                    if (state.getCurAdj() >= ProcessList.CACHED_APP_MIN_ADJ
+                            || mService.getPulseEngine().shouldDemoteBackgroundProcess(state.uid,
+                                    state.processName)) {
                         processGroup = THREAD_GROUP_L_BACKGROUND;
                     } else {
                         processGroup = THREAD_GROUP_H_BACKGROUND;

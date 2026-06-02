@@ -6882,6 +6882,9 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
 
         if (blockedReasons != BLOCKED_REASON_NONE) {
             return true;
+        } else if (mActivityManagerInternal != null
+                && mActivityManagerInternal.isPulseEngineNetworkingBlocked(uid)) {
+            return true;
         } else {
             synchronized (mDisallowedUidsDenylist) {
                 return mDisallowedUidsDenylist.contains(uid);

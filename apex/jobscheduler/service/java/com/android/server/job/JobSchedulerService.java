@@ -374,6 +374,7 @@ public class JobSchedulerService extends com.android.server.SystemService
 
     PackageManagerInternal mLocalPM;
     ActivityManagerInternal mActivityManagerInternal;
+    private long mPulseEngineJobDeferralStartTime;
     DeviceIdleInternal mLocalDeviceIdleController;
     @VisibleForTesting
     AppStateTrackerImpl mAppStateTracker;
@@ -4271,8 +4272,87 @@ public class JobSchedulerService extends com.android.server.SystemService
         if (DEBUG) {
             Slog.d(TAG, "pending queue: " + mPendingJobQueue.size() + " jobs.");
         }
+        if (shouldDeferPendingJobsForPulseEngineLocked(sElapsedRealtimeClock.millis())) {
+            mHandler.removeMessages(MSG_CHECK_JOB);
+            mHandler.sendEmptyMessageDelayed(MSG_CHECK_JOB,
+                    mActivityManagerInternal.getPulseEngineElasticWorkDelayMillis());
+            return;
+        }
         mConcurrencyManager.assignJobsToContextsLocked();
         reportActiveLocked();
+    }
+
+    @GuardedBy("mLock")
+    private boolean shouldDeferPendingJobsForPulseEngineLocked(long nowElapsed) {
+        if (mActivityManagerInternal == null || mPendingJobQueue.size() == 0) {
+            mPulseEngineJobDeferralStartTime = 0L;
+            return false;
+        }
+        final long delayMs = mActivityManagerInternal.getPulseEngineElasticWorkDelayMillis();
+        boolean maintenanceOnly = true;
+        boolean shouldDefer = true;
+        mPendingJobQueue.resetIterator();
+        JobStatus job;
+        while ((job = mPendingJobQueue.next()) != null) {
+            if (!isPulseEngineDeferrableJobLocked(job, nowElapsed, delayMs)) {
+                mPendingJobQueue.resetIterator();
+                mPulseEngineJobDeferralStartTime = 0L;
+                return false;
+            }
+            if (!isPulseEngineMaintenanceJob(job)) {
+                maintenanceOnly = false;
+                if (!mActivityManagerInternal.shouldDeferPulseEngineJob(job.getSourceUid(),
+                        job.getSourcePackageName())) {
+                    mPendingJobQueue.resetIterator();
+                    mPulseEngineJobDeferralStartTime = 0L;
+                    return false;
+                }
+            }
+        }
+        mPendingJobQueue.resetIterator();
+        if (maintenanceOnly) {
+            shouldDefer = mActivityManagerInternal.shouldDeferPulseEngineMaintenance();
+        }
+        if (!shouldDefer) {
+            mPulseEngineJobDeferralStartTime = 0L;
+            return false;
+        }
+        if (mPulseEngineJobDeferralStartTime == 0L) {
+            mPulseEngineJobDeferralStartTime = nowElapsed;
+        }
+        if (nowElapsed - mPulseEngineJobDeferralStartTime
+                >= mActivityManagerInternal.getPulseEngineMaxElasticWorkDeferralMillis()) {
+            mPulseEngineJobDeferralStartTime = 0L;
+            return false;
+        }
+        return true;
+    }
+
+    @GuardedBy("mLock")
+    private boolean isPulseEngineDeferrableJobLocked(JobStatus job, long nowElapsed,
+            long delayMs) {
+        if (job.overrideState > JobStatus.OVERRIDE_NONE
+                || job.shouldTreatAsUserInitiatedJob()
+                || job.startedAsUserInitiatedJob
+                || job.isRequestedExpeditedJob()
+                || job.shouldTreatAsExpeditedJob()
+                || job.startedAsExpeditedJob
+                || job.startedWithForegroundFlag
+                || job.startedWithImmediacyPrivilege) {
+            return false;
+        }
+        if (evaluateJobBiasLocked(job) >= JobInfo.BIAS_FOREGROUND_SERVICE
+                || job.getEffectivePriority() >= JobInfo.PRIORITY_HIGH) {
+            return false;
+        }
+        return !job.hasDeadlineConstraint()
+                || job.getLatestRunTimeElapsed() - nowElapsed > delayMs;
+    }
+
+    private static boolean isPulseEngineMaintenanceJob(JobStatus job) {
+        return job.getUid() == Process.SYSTEM_UID
+                && job.hasIdleConstraint()
+                && (job.hasChargingConstraint() || job.hasBatteryNotLowConstraint());
     }
 
     private int adjustJobBias(int curBias, JobStatus job) {

@@ -2468,6 +2468,7 @@ public class AlarmManagerService extends SystemService {
             return alarm.setPolicyElapsed(APP_STANDBY_POLICY_INDEX, nowElapsed);
         }
 
+        final long pulseEngineElapsed = getPulseEngineAlarmPolicyElapsed(alarm, nowElapsed);
         final String sourcePackage = alarm.sourcePackage;
         final int sourceUserId = UserHandle.getUserId(alarm.creatorUid);
         final int standbyBucket = mUsageStatsManagerInternal.getAppStandbyBucket(
@@ -2483,8 +2484,9 @@ public class AlarmManagerService extends SystemService {
                 final long lastWakeupTime = mAppWakeupHistory.getNthLastWakeupForPackage(
                         sourcePackage, sourceUserId, mConstants.APP_STANDBY_RESTRICTED_QUOTA);
                 if ((nowElapsed - lastWakeupTime) < mConstants.APP_STANDBY_RESTRICTED_WINDOW) {
-                    return alarm.setPolicyElapsed(APP_STANDBY_POLICY_INDEX,
-                            lastWakeupTime + mConstants.APP_STANDBY_RESTRICTED_WINDOW);
+                    return alarm.setPolicyElapsed(APP_STANDBY_POLICY_INDEX, Math.max(
+                            lastWakeupTime + mConstants.APP_STANDBY_RESTRICTED_WINDOW,
+                            pulseEngineElapsed));
                 }
             }
         } else {
@@ -2495,7 +2497,7 @@ public class AlarmManagerService extends SystemService {
                     // We will let this alarm go out as usual, but mark it so it consumes the quota
                     // at the time of delivery.
                     alarm.mUsingReserveQuota = true;
-                    return alarm.setPolicyElapsed(APP_STANDBY_POLICY_INDEX, nowElapsed);
+                    return alarm.setPolicyElapsed(APP_STANDBY_POLICY_INDEX, pulseEngineElapsed);
                 }
                 if (quotaForBucket <= 0) {
                     // Just keep deferring indefinitely till the quota changes.
@@ -2507,12 +2509,34 @@ public class AlarmManagerService extends SystemService {
                             sourcePackage, sourceUserId, quotaForBucket);
                     minElapsed = t + mConstants.APP_STANDBY_WINDOW;
                 }
-                return alarm.setPolicyElapsed(APP_STANDBY_POLICY_INDEX, minElapsed);
+                return alarm.setPolicyElapsed(APP_STANDBY_POLICY_INDEX,
+                        Math.max(minElapsed, pulseEngineElapsed));
             }
         }
         // wakeupsInWindow are less than the permitted quota, hence no deferring is needed.
         alarm.mUsingReserveQuota = false;
-        return alarm.setPolicyElapsed(APP_STANDBY_POLICY_INDEX, nowElapsed);
+        return alarm.setPolicyElapsed(APP_STANDBY_POLICY_INDEX, pulseEngineElapsed);
+    }
+
+    private long getPulseEngineAlarmPolicyElapsed(Alarm alarm, long nowElapsed) {
+        if (mActivityManagerInternal == null || !isPulseEngineDeferrableAlarm(alarm)) {
+            return nowElapsed;
+        }
+        if (!mActivityManagerInternal.shouldDeferPulseEngineAlarm(alarm.creatorUid,
+                alarm.sourcePackage)) {
+            return nowElapsed;
+        }
+        return Math.max(nowElapsed + mActivityManagerInternal.getPulseEngineAlarmDelayMillis(),
+                alarm.getRequestedElapsed());
+    }
+
+    private static boolean isPulseEngineDeferrableAlarm(Alarm alarm) {
+        return alarm.alarmClock == null
+                && alarm.windowLength > 0L
+                && alarm.exactAllowReason == EXACT_ALLOW_REASON_NOT_APPLICABLE
+                && (alarm.flags & (FLAG_ALLOW_WHILE_IDLE | FLAG_ALLOW_WHILE_IDLE_COMPAT
+                        | FLAG_ALLOW_WHILE_IDLE_UNRESTRICTED | FLAG_IDLE_UNTIL
+                        | FLAG_PRIORITIZE | FLAG_WAKE_FROM_IDLE)) == 0;
     }
 
     @GuardedBy("mLock")

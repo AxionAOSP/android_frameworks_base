@@ -2295,6 +2295,24 @@ public final class AppRestrictionController {
         }
     }
 
+
+    boolean restrictAppForPulseEngine(@Nullable String pkgName, int uid) {
+        if (pkgName == null) {
+            return false;
+        }
+        final AppStandbyInternal appStandbyInternal = mInjector.getAppStandbyInternal();
+        final int userId = UserHandle.getUserId(uid);
+        final long now = SystemClock.elapsedRealtime();
+        final int curBucket = appStandbyInternal.getAppStandbyBucket(pkgName, userId, now, false);
+        if (getRestrictionLevel(uid, pkgName) >= RESTRICTION_LEVEL_RESTRICTED_BUCKET) {
+            return false;
+        }
+        applyRestrictionLevel(pkgName, uid, RESTRICTION_LEVEL_RESTRICTED_BUCKET,
+                mEmptyTrackerInfo, curBucket, true, REASON_MAIN_FORCED_BY_SYSTEM,
+                REASON_SUB_FORCED_SYSTEM_FLAG_UNDEFINED);
+        return true;
+    }
+
     private void dispatchAppRestrictionLevelChanges(int uid, String pkgName,
             @RestrictionLevel int newLevel) {
         mRestrictionListeners.forEach(

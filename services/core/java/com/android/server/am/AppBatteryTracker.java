@@ -464,6 +464,13 @@ final class AppBatteryTracker extends BaseAppStateTracker<AppBatteryPolicy>
                             actualUsage.toString(),
                             TimeUtils.formatDuration(bgPolicy.mBgCurrentDrainWindowMs)));
                 }
+                final double[] percentages = bgUsage.getPercentage();
+                mAppRestrictionController.mActivityManagerService.getPulseEngine()
+                        .onUidBatteryUsageSample(uid,
+                                bgUsage.getUsagePowerMah(BatteryConsumer.PROCESS_STATE_BACKGROUND),
+                                bgUsage.getUsagePowerMah(BatteryConsumer.PROCESS_STATE_CACHED),
+                                percentages[BatteryUsage.BATTERY_USAGE_INDEX_BACKGROUND],
+                                percentages[BatteryUsage.BATTERY_USAGE_INDEX_CACHED], now);
                 bgPolicy.handleUidBatteryUsage(uid, bgUsage);
             }
             // For debugging only.

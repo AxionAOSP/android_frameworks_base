@@ -16,7 +16,9 @@
 package com.android.server;
 
 import android.content.Context;
+
 import com.android.server.am.ActivityManagerService;
+import com.android.server.am.PulseEngine;
 import com.android.server.pm.PackageManagerService;
 import com.android.server.wm.ActivityTaskManagerService;
 import com.android.server.wm.WindowManagerService;
@@ -27,6 +29,7 @@ public class NtServiceInjector {
     private Context ctx;
     private WindowManagerService mWindowService;
     private PackageManagerService mPackageService;
+    private PulseEngine mPulseEngine;
 
     private NtServiceInjector() {
     }
@@ -54,6 +57,10 @@ public class NtServiceInjector {
         mPackageService = pm;
     }
 
+    void setPulseEngine(PulseEngine pulseEngine) {
+        mPulseEngine = pulseEngine;
+    }
+
     public WindowManagerService getWindowManagerService() {
         return mWindowService;
     }
@@ -68,6 +75,10 @@ public class NtServiceInjector {
 
     public PackageManagerService getPackageManagerService() {
         return mPackageService;
+    }
+
+    public PulseEngine getPulseEngine() {
+        return mPulseEngine;
     }
 
     public Context getContext() {

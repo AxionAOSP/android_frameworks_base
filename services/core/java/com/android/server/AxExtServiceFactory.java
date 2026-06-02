@@ -17,6 +17,7 @@ package com.android.server;
 
 import android.content.Context;
 
+import com.android.internal.os.BackgroundThread;
 import com.android.server.am.*;
 import com.android.server.pm.*;
 import com.android.server.spoof.AxSpoofManager;
@@ -34,9 +35,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AxExtServiceFactory {
     private static AxExtServiceFactory sInstance = null;
 
-    private static final int MAX_SERVICE_COUNT = 8;
     private static final ConcurrentHashMap<IAxExtServiceFactory.ExtType, Object> sCache =
-            new ConcurrentHashMap<>(MAX_SERVICE_COUNT);
+            new ConcurrentHashMap<>(IAxExtServiceFactory.ExtType.values().length);
 
     private AxExtServiceFactory(Context context) {
         NtServiceInjector.get().setCtx(context);
@@ -70,12 +70,7 @@ public class AxExtServiceFactory {
 
     @SuppressWarnings("unchecked")
     public static <T> T getOrCreate(IAxExtServiceFactory.ExtType type) {
-        Object obj = sCache.get(type);
-        if (obj == null) {
-            obj = create(type);
-            sCache.put(type, obj);
-        }
-        return (T) obj;
+        return (T) sCache.computeIfAbsent(type, AxExtServiceFactory::create);
     }
 
     private static Object create(IAxExtServiceFactory.ExtType type) {
@@ -96,11 +91,19 @@ public class AxExtServiceFactory {
                 return new AxBackgroundManager();
             case AX_FREEZE_MANAGER:
                 return new AxFreezeManager();
+            case PULSE_ENGINE:
+                return createPulseEngine();
             case AX_ADVANCED_THERMAL_MITIGATION:
                 return new AxAdvancedThermalMitigationService();
             default:
                 throw new IllegalArgumentException("Unknown ExtType: " + type);
         }
+    }
+
+    private static PulseEngine createPulseEngine() {
+        final PulseEngine pulseEngine = new PulseEngine(BackgroundThread.getHandler());
+        NtServiceInjector.get().setPulseEngine(pulseEngine);
+        return pulseEngine;
     }
 
     public static void systemReady() {
@@ -154,5 +157,9 @@ public class AxExtServiceFactory {
     
     public static AxFreezeManager getAxFreezeManager() {
         return getOrCreate(IAxExtServiceFactory.ExtType.AX_FREEZE_MANAGER);
+    }
+
+    public static PulseEngine getPulseEngine() {
+        return getOrCreate(IAxExtServiceFactory.ExtType.PULSE_ENGINE);
     }
 }

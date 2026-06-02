@@ -704,6 +704,24 @@ public abstract class ActivityManagerInternal {
      */
     public abstract boolean canScheduleUserInitiatedJobs(int uid, int pid, String pkgName);
 
+    public abstract boolean shouldDeferPulseEngineJobs();
+
+    public abstract boolean shouldDeferPulseEngineJob(int uid, @Nullable String packageName);
+
+    public abstract boolean shouldDeferPulseEngineBroadcast(int uid, @Nullable String packageName);
+
+    public abstract boolean shouldDeferPulseEngineAlarm(int uid, @Nullable String packageName);
+
+    public abstract boolean isPulseEngineNetworkingBlocked(int uid);
+
+    public abstract boolean shouldDeferPulseEngineMaintenance();
+
+    public abstract long getPulseEngineElasticWorkDelayMillis();
+
+    public abstract long getPulseEngineAlarmDelayMillis();
+
+    public abstract long getPulseEngineMaxElasticWorkDeferralMillis();
+
     /** @see com.android.server.am.ActivityManagerService#monitor */
     public abstract void monitor();
 

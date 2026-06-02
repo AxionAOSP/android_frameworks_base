@@ -1870,6 +1870,18 @@ public class CachedAppOptimizer {
                                 compactSource, name);
                         return;
                     }
+                    if (!forceCompaction && mAm.getPulseEngine().shouldDeferCompaction()) {
+                        synchronized (mProcLock) {
+                            if (!opt.hasPendingCompact()) {
+                                opt.setHasPendingCompact(true);
+                                opt.setForceCompact(false);
+                                mPendingCompactionProcesses.add(proc);
+                            }
+                        }
+                        sendMessageDelayed(obtainMessage(COMPACT_PROCESS_MSG, newOomAdj,
+                                procState), mAm.getPulseEngine().getElasticWorkDelayMillis());
+                        return;
+                    }
 
                     try {
                         Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER,
@@ -1944,6 +1956,11 @@ public class CachedAppOptimizer {
                     break;
                 }
                 case COMPACT_SYSTEM_MSG: {
+                    if (mAm.getPulseEngine().shouldDeferCompaction()) {
+                        sendEmptyMessageDelayed(COMPACT_SYSTEM_MSG,
+                                mAm.getPulseEngine().getElasticWorkDelayMillis());
+                        break;
+                    }
                     Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "compactSystem");
                     long memFreedBefore = getMemoryFreedCompaction();
                     compactSystem();
@@ -1956,6 +1973,11 @@ public class CachedAppOptimizer {
                 case COMPACT_NATIVE_MSG: {
                     int pid = msg.arg1;
                     CompactProfile compactProfile = CompactProfile.values()[msg.arg2];
+                    if (mAm.getPulseEngine().shouldDeferCompaction()) {
+                        sendMessageDelayed(obtainMessage(COMPACT_NATIVE_MSG, pid, msg.arg2),
+                                mAm.getPulseEngine().getElasticWorkDelayMillis());
+                        break;
+                    }
                     Slog.d(TAG_AM,
                             "Performing native compaction for pid=" + pid
                                     + " type=" + compactProfile.name());
@@ -1974,6 +1996,11 @@ public class CachedAppOptimizer {
                 }
                 case COMPACT_APP_SWITCH_MSG: {
                     ProcessRecord proc = (ProcessRecord) msg.obj;
+                    if (mAm.getPulseEngine().shouldDeferCompaction()) {
+                        sendMessageDelayed(obtainMessage(COMPACT_APP_SWITCH_MSG, proc),
+                                mAm.getPulseEngine().getElasticWorkDelayMillis());
+                        break;
+                    }
                     if (isSystemUnderHighLoad()) {
                         if (DEBUG_COMPACTION) {
                             Slog.d(TAG_AM, "Skipping app-switch compaction for "
@@ -2031,7 +2058,8 @@ public class CachedAppOptimizer {
             switch (msg.what) {
                 case SET_FROZEN_PROCESS_MSG: {
                     ProcessRecord proc = (ProcessRecord) msg.obj;
-                    if (AxExtServiceFactory.getAxBurstEngine().shouldDeferProcessPss()) {
+                    if (AxExtServiceFactory.getAxBurstEngine().shouldDeferProcessPss()
+                            || mAm.getPulseEngine().shouldDeferFreezer()) {
                         sendMessageDelayed(obtainMessage(SET_FROZEN_PROCESS_MSG, msg.arg1,
                                 msg.arg2, proc), FREEZE_LAUNCH_DEFER_DURATION_MS);
                         return;

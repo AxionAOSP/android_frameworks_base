@@ -30,7 +30,8 @@ public interface IAxExtServiceFactory {
         AX_UI_FIRST_MANAGER(IAxUiFirstManager.class),
         AX_ADVANCED_THERMAL_MITIGATION(IAxAdvancedThermalMitigationService.class),
         AX_BACKGROUND_MANAGER(AxBackgroundManager.class),
-        AX_FREEZE_MANAGER(AxFreezeManager.class);
+        AX_FREEZE_MANAGER(AxFreezeManager.class),
+        PULSE_ENGINE(PulseEngine.class);
         private final Class<?> clazz;
 
         ExtType(Class<?> clazz) {
