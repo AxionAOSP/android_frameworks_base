@@ -46,6 +46,7 @@ class WaveformSeekBar @JvmOverloads constructor(
     private val density = resources.displayMetrics.density
 
     private val backgroundRect = RectF()
+    private val thumbRect = RectF()
     private val genericPath = Path()
     private var waveLinePoints = FloatArray(0)
 
@@ -66,6 +67,8 @@ class WaveformSeekBar @JvmOverloads constructor(
     private var trackHeight = 6f * density
     private var cornerRadius = 8f * density
     private var thumbRadius = 8f * density
+    private val stockThumbWidth = 4f * density
+    private val stockThumbHeight = 16f * density
 
     private var waveLut: IntArray? = null
     private var waveHeight = 12f * density
@@ -79,7 +82,7 @@ class WaveformSeekBar @JvmOverloads constructor(
     private var waveAmplitudeMultiplier = 0f
     private var waveAnimator: ValueAnimator? = null
     private var fadeAnimator: ValueAnimator? = null
-    private var mediaColor = Color.TRANSPARENT
+    private var mediaColor = context.getColor(R.color.media_on_background)
     private var shouldAnimateWaveform = false
     private var isAggregatedVisible = false
 
@@ -144,7 +147,7 @@ class WaveformSeekBar @JvmOverloads constructor(
     }
 
     private fun restoreStockSeekBar() {
-        thumb = context.getDrawable(R.drawable.media_seekbar_thumb)?.mutate()
+        thumb = transparentThumb
         progressDrawable =
             context.getDrawable(R.drawable.media_squiggly_progress)?.mutate()?.apply {
                 alpha = 255
@@ -154,6 +157,7 @@ class WaveformSeekBar @JvmOverloads constructor(
         progressTintList = context.getColorStateList(R.color.media_on_background)
         progressBackgroundTintList = context.getColorStateList(AndroidR.color.system_primary_dark)
         splitTrack = false
+        thumbPaint.color = mediaColor
     }
 
     private fun SquigglyProgress.configureStockSquiggly() {
@@ -170,7 +174,11 @@ class WaveformSeekBar @JvmOverloads constructor(
 
     fun setMediaColor(color: Int) {
         mediaColor = color
-        if (!customWaveformEnabled) return
+        if (!customWaveformEnabled) {
+            thumbPaint.color = color
+            invalidate()
+            return
+        }
         applyMediaColor()
         invalidate()
     }
@@ -279,6 +287,7 @@ class WaveformSeekBar @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         if (!customWaveformEnabled) {
             super.onDraw(canvas)
+            drawStockThumb(canvas)
             return
         }
 
@@ -289,8 +298,7 @@ class WaveformSeekBar @JvmOverloads constructor(
         val centerY = height / 2f
         val trackTop = centerY - trackHeight / 2f
         val trackBottom = centerY + trackHeight / 2f
-        val ratio = if (max > 0) progress.toFloat() / max else 0f
-        val progressX = pLeft + drawWidth * ratio
+        val progressX = pLeft + drawWidth * progressRatio()
 
         drawBackground(canvas, pLeft, drawWidth, trackTop, trackBottom)
         if (progressX > pLeft) {
@@ -310,6 +318,29 @@ class WaveformSeekBar @JvmOverloads constructor(
             canvas.drawCircle(progressX, centerY, thumbRadius, thumbPaint)
         }
     }
+
+    private fun drawStockThumb(canvas: Canvas) {
+        if (!isEnabled || transparentThumb.alphaValue <= 0) return
+        val pLeft = paddingLeft.toFloat()
+        val drawWidth = width.toFloat() - pLeft - paddingRight
+        if (drawWidth <= 0f) return
+        val progressX = pLeft + drawWidth * progressRatio()
+        val centerY = height / 2f
+        val halfWidth = stockThumbWidth / 2f
+        val halfHeight = stockThumbHeight / 2f
+        thumbRect.set(
+            progressX - halfWidth,
+            centerY - halfHeight,
+            progressX + halfWidth,
+            centerY + halfHeight,
+        )
+        val originalAlpha = thumbPaint.alpha
+        thumbPaint.alpha = originalAlpha * transparentThumb.alphaValue / 255
+        canvas.drawRoundRect(thumbRect, halfWidth, halfWidth, thumbPaint)
+        thumbPaint.alpha = originalAlpha
+    }
+
+    private fun progressRatio(): Float = if (max > 0) progress.toFloat() / max else 0f
 
     private fun drawBackground(
         canvas: Canvas,
@@ -487,8 +518,15 @@ class WaveformSeekBar @JvmOverloads constructor(
     }
 
     private class TransparentDrawable : Drawable() {
+        var alphaValue = 255
+            private set
+
         override fun draw(canvas: Canvas) {}
-        override fun setAlpha(alpha: Int) {}
+        override fun setAlpha(alpha: Int) {
+            alphaValue = alpha
+            invalidateSelf()
+        }
+        override fun getAlpha(): Int = alphaValue
         override fun setColorFilter(colorFilter: ColorFilter?) {}
         override fun getOpacity(): Int = PixelFormat.TRANSPARENT
     }
