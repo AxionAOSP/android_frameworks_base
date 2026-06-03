@@ -28,8 +28,6 @@ import android.util.Log;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.lang.ref.WeakReference;
-import java.lang.reflect.Method;
 import java.util.Locale;
 
 public class ScrollOptimizer {
@@ -58,6 +56,7 @@ public class ScrollOptimizer {
     private static final long OPTIMIZED_FRAME_DELAY_MS = 3L;
     private static final long FLING_END_TIMEOUT_MS = 3000L;
     private static final long TIME_BACKWARD_THRESHOLD_NS = 500_000L;
+    private static final long DEBUG_LOG_INTERVAL_MS = 250L;
 
     private static int sInitialUndequeued = 4;
     private static int sFallbackUndequeued = 3;
@@ -93,6 +92,7 @@ public class ScrollOptimizer {
     private static long sLastFrameTimeNs = 0L;
     private static long sOriginalFrameTimeNs = 0L;
     private static long sAdjustedFrameTimeNs = 0L;
+    private static long sLastDebugLogMs = 0L;
     private static long sDriftAccumulator;
     private static float sVelocity;
     private static boolean sIsTimeBackward = false;
@@ -125,8 +125,6 @@ public class ScrollOptimizer {
     private static int sExpectedUndequeued = 0;
     
     private static BLASTBufferQueue sBlastQueue = null;
-    private static Method sSetUndequeuedMethod = null;
-    private static Method sGetUndequeuedMethod = null;
 
     private static FileOutputStream sTimerSlackStream = null;
 
@@ -136,10 +134,25 @@ public class ScrollOptimizer {
     private static boolean sTemporarilyDisabled = false;
     private static boolean sLastUseVsync = true;
     private static boolean sFrameInsertEnabled = false;
+
+    private static boolean shouldLogDebug() {
+        if (!sDebugEnabled) return false;
+        long now = SystemClock.uptimeMillis();
+        if (now - sLastDebugLogMs < DEBUG_LOG_INTERVAL_MS) return false;
+        sLastDebugLogMs = now;
+        return true;
+    }
+
     private static void logger(String msg) {
-        if (sDebugEnabled) {
-            Log.d(TAG, msg);
-        }
+        if (shouldLogDebug()) Log.d(TAG, msg);
+    }
+
+    private static void logger(String prefix, int value) {
+        if (shouldLogDebug()) Log.d(TAG, prefix + value);
+    }
+
+    private static void logger(String prefix, long value) {
+        if (shouldLogDebug()) Log.d(TAG, prefix + value);
     }
 
     private static int getUndequeuedBufferCount() {
@@ -150,9 +163,7 @@ public class ScrollOptimizer {
             return 0;
         }
         try {
-            Object res = sGetUndequeuedMethod.invoke(sBlastQueue);
-            undequeued = res instanceof Integer ? (Integer) res : 0;
-            logger("undequeuedBufferCount: " + undequeued);
+            undequeued = sBlastQueue.getUndequeuedBufferCount();
         } catch (Exception e) {
             undequeued = 0;
         }
@@ -168,10 +179,6 @@ public class ScrollOptimizer {
             sDebugEnabled = SystemProperties.getBoolean(PROP_DEBUG, false);
             sFrameInsertEnabled = SystemProperties.getBoolean(PROP_FRAME_INSERT, true);
             sPreAnimationEnable = SystemProperties.getBoolean(PROP_PRE_ANIM, true);
-
-            Class<?> clazz = Class.forName("android.graphics.BLASTBufferQueue");
-            sSetUndequeuedMethod = clazz.getMethod("setUndequeuedBufferCount", Integer.TYPE);
-            sGetUndequeuedMethod = clazz.getMethod("getUndequeuedBufferCount");
 
             sPid = Process.myPid();
             sTimerSlackStream = new FileOutputStream(
@@ -190,10 +197,6 @@ public class ScrollOptimizer {
 
         if (sHeavyApp == 1) {
             logger("Heavy app detection is enabled.");
-        }
-        if (sSetUndequeuedMethod == null || sGetUndequeuedMethod == null) {
-            Log.e(TAG, "Couldn't find UndequeuedBufferCount functions");
-            sFeatureEnabled = false;
         }
     }
 
@@ -283,8 +286,7 @@ public class ScrollOptimizer {
             return;
         }
         try {
-            sSetUndequeuedMethod.invoke(sBlastQueue, count);
-            logger("setUndequeuedBufferCount: " + count);
+            sBlastQueue.setUndequeuedBufferCount(count);
         } catch (Exception e) {
             e.printStackTrace();
             sFeatureEnabled = false;
@@ -352,7 +354,7 @@ public class ScrollOptimizer {
 
     public static void setFlingFlag(int flingFlg) {
         if (sFeatureEnabled && Process.myTid() == sPid) {
-            logger("setFlingFlag: " + flingFlg);
+            logger("setFlingFlag: ", flingFlg);
             if (flingFlg != 1) {
                 if (flingFlg < 0) {
                     logger("Fling quit for unknown.");
@@ -406,7 +408,7 @@ public class ScrollOptimizer {
         if (!sInitCalled) {
             initIfNeeded();
         }
-        logger("frameIntervalNanos: " + nanos);
+        logger("frameIntervalNanos: ", nanos);
         sFrameIntervalNs = nanos;
         sFrameIntervalMs = nanos / 1_000_000;
         sLastFrameRate = toFps(nanos);
@@ -471,7 +473,7 @@ public class ScrollOptimizer {
                 }
             }
             sMotionType = motion;
-            logger("setMotionType: " + motion);
+            logger("setMotionType: ", motion);
         }
     }
 
@@ -563,14 +565,14 @@ public class ScrollOptimizer {
                     logger("App type: heavy app");
                 }
             }
-            logger("UI duration: " + uiDurationNs);
+            logger("UI duration: ", uiDurationNs);
         }
     }
 
     public static void setVsyncTime(long vsyncTimeNs) {
         if (sFeatureEnabled) {
             sLastVsyncTimeNs = vsyncTimeNs;
-            logger("setVsyncTime: " + sLastVsyncTimeNs);
+            logger("setVsyncTime: ", sLastVsyncTimeNs);
         }
     }
 
@@ -639,7 +641,10 @@ public class ScrollOptimizer {
             sActualUndequeued = undequeued;
             int expected = sExpectedUndequeued;
             if (undequeued > expected) {
-                logger("align undequeued: " + sActualUndequeued + " with expected: " + sExpectedUndequeued);
+                if (shouldLogDebug()) {
+                    Log.d(TAG, "align undequeued: " + sActualUndequeued
+                            + " with expected: " + sExpectedUndequeued);
+                }
                 sActualUndequeued = expected;
             } else if (undequeued < 1 && expected > 0) {
                 sActualUndequeued = 1;
@@ -881,7 +886,7 @@ public class ScrollOptimizer {
             logger("frameInsert: no buffer slots available");
             return false;
         }
-        logger("frameInsert: eligible, buffers=" + buffers);
+        logger("frameInsert: eligible, buffers=", buffers);
         return true;
     }
 }
