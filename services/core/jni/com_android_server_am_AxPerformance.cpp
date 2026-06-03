@@ -57,6 +57,16 @@ using base::ParseInt;
 using base::unique_fd;
 using base::WriteStringToFd;
 
+static bool isCpusetCpuPath(const std::string& path) {
+    constexpr char prefix[] = "/dev/cpuset/";
+    constexpr char suffix[] = "/cpus";
+    constexpr size_t prefixSize = sizeof(prefix) - 1;
+    constexpr size_t suffixSize = sizeof(suffix) - 1;
+    return path.size() >= prefixSize + suffixSize
+            && path.compare(0, prefixSize, prefix, prefixSize) == 0
+            && path.compare(path.size() - suffixSize, suffixSize, suffix, suffixSize) == 0;
+}
+
 struct NodeAction {
     std::string path;
     std::string upValue;
@@ -82,6 +92,9 @@ struct ActiveValue {
     int handle;
     std::string value;
     uint64_t sequence;
+    int parsedValue;
+    bool parsedValueValid;
+    bool lowerValueStrong;
 };
 
 enum BoostOpcode {
@@ -218,6 +231,11 @@ private:
             for (const NodeWrite& write : remaining) {
                 auto current = mWrittenValues.find(write.path);
                 if (current != mWrittenValues.end() && current->second == write.value) continue;
+                if ((current == mWrittenValues.end() || shouldVerifyBeforeWrite(write.path))
+                        && nodeHasValue(write.path, write.value)) {
+                    mWrittenValues[write.path] = write.value;
+                    continue;
+                }
                 if (writeNode(write.path, write.value)) {
                     mWrittenValues[write.path] = write.value;
                 } else {
@@ -262,6 +280,25 @@ private:
         }
         (*indexes)[path] = writes->size();
         writes->push_back({path, value, true, sequence});
+    }
+
+    static bool nodeHasValue(const std::string& path, const std::string& value) {
+        std::string current = readNode(path);
+        return !current.empty() && current == value;
+    }
+
+    static bool shouldVerifyBeforeWrite(const std::string& path) {
+        return isCpusetCpuPath(path);
+    }
+
+    static std::string readNode(const std::string& path) {
+        unique_fd fd(TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_CLOEXEC)));
+        if (fd < 0) return "";
+        char buf[256] = {};
+        ssize_t n = TEMP_FAILURE_RETRY(read(fd.get(), buf, sizeof(buf) - 1));
+        if (n <= 0) return "";
+        while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == ' ')) n--;
+        return std::string(buf, static_cast<size_t>(n));
     }
 
     uint64_t nextSequenceLocked() {
@@ -340,6 +377,11 @@ public:
     struct PathBound {
         int value;
         bool isFloor;
+    };
+
+    struct DeferredRestore {
+        std::string value;
+        int64_t deadlineMs;
     };
 
     void setCpuFreqBound(const std::string& path, int boundValue, bool isFloor) {
@@ -450,13 +492,16 @@ private:
                     hit->second.expiry = expiry;
                 }
                 hit->second.sequence = sequence;
-                std::vector<std::string> paths;
-                paths.reserve(hit->second.applied.size());
-                for (const auto& [path, _] : hit->second.applied) {
-                    refreshActiveValueLocked(path, handle, sequence);
-                    addUniquePath(&paths, path);
+                mPathScratch.clear();
+                if (mPathScratch.capacity() < hit->second.applied.size()) {
+                    mPathScratch.reserve(hit->second.applied.size());
                 }
-                restoreEffectiveValuesLocked(paths);
+                for (const auto& [path, _] : hit->second.applied) {
+                    if (refreshActiveValueLocked(path, handle, sequence)) {
+                        addUniquePath(&mPathScratch, path);
+                    }
+                }
+                restoreEffectiveValuesLocked(mPathScratch);
                 mLastHintMs[opcode] = now;
                 if (shouldNotifyTimerLocked(hit->second.expiry, handle)) mCond.notify_one();
                 return handle;
@@ -468,8 +513,11 @@ private:
         if (handle < 0) return -1;
         uint64_t sequence = nextSequenceLocked();
         std::vector<std::pair<std::string, std::string>> applied;
-        std::vector<std::string> paths;
-        paths.reserve(entry.nodes.size());
+        applied.reserve(entry.nodes.size());
+        mPathScratch.clear();
+        if (mPathScratch.capacity() < entry.nodes.size()) {
+            mPathScratch.reserve(entry.nodes.size());
+        }
         for (auto& node : entry.nodes) {
             auto rit = mResourceRefs.find(node.path);
             if (rit == mResourceRefs.end()
@@ -478,11 +526,13 @@ private:
                 if (!orig.empty()) mOriginalValues[node.path] = orig;
             }
             mResourceRefs[node.path]++;
-            mActiveValues[node.path].push_back({handle, node.upValue, sequence});
-            addUniquePath(&paths, node.path);
+            mActiveValues[node.path].push_back(
+                    makeActiveValue(handle, node.upValue, sequence,
+                            lowerValueIsStronger(node.path)));
+            addUniquePath(&mPathScratch, node.path);
             applied.push_back({node.path, node.upValue});
         }
-        restoreEffectiveValuesLocked(paths);
+        restoreEffectiveValuesLocked(mPathScratch);
         int cgroupTid = 0;
         int cgroupPid = 0;
         if (!entry.upCgroup.empty() && !isUiBoostActive()) {
@@ -552,15 +602,24 @@ private:
     bool isUiBoostActive() const { return mUiBoostActive; }
 
     void writeClamped(const std::string& path, const std::string& value) {
-        auto ceilingIt = mThermalCeilings.find(path);
-        auto boundIt = mBounds.find(path);
+        if (!mDeferredRestores.empty()) {
+            auto deferredIt = mDeferredRestores.find(path);
+            if (deferredIt != mDeferredRestores.end()) {
+                mDeferredRestores.erase(deferredIt);
+                updateDeferredRestoreDeadlineLocked();
+            }
+        }
         auto cur = mCurrentValues.find(path);
-        if (ceilingIt == mThermalCeilings.end() && boundIt == mBounds.end()) {
+        if (mThermalCeilings.empty() && mBounds.empty()) {
             if (cur != mCurrentValues.end() && cur->second == value) return;
             mCurrentValues[path] = value;
             mNodeLooper.setValue(path, value);
             return;
         }
+        auto ceilingIt = mThermalCeilings.empty()
+                ? mThermalCeilings.end()
+                : mThermalCeilings.find(path);
+        auto boundIt = mBounds.empty() ? mBounds.end() : mBounds.find(path);
         std::string clamped = value;
         int val = 0;
         bool validInt = ParseInt(value, &val);
@@ -616,6 +675,11 @@ private:
                 if (entry.expiry <= 0) continue;
                 nextExpiry = nextExpiry == 0 ? entry.expiry : std::min(nextExpiry, entry.expiry);
             }
+            if (mDeferredRestoreDeadlineMs > 0) {
+                nextExpiry = nextExpiry == 0
+                        ? mDeferredRestoreDeadlineMs
+                        : std::min(nextExpiry, mDeferredRestoreDeadlineMs);
+            }
             if (nextExpiry == 0) {
                 mCond.wait(lock);
                 if (!mRunning) return;
@@ -637,6 +701,7 @@ private:
                     ++it;
                 }
             }
+            processDeferredRestoresLocked(now);
         }
     }
 
@@ -816,15 +881,19 @@ private:
     std::unordered_map<std::string, std::vector<ActiveValue>> mActiveValues;
     std::unordered_map<std::string, std::string> mOriginalValues;
     std::unordered_map<std::string, std::string> mCurrentValues;
+    std::unordered_map<std::string, DeferredRestore> mDeferredRestores;
+    std::vector<const std::string*> mPathScratch;
     const bool mUseStune;
     AxNodeLooper mNodeLooper;
     int mRtPid = 0;
     int mRtTid = 0;
+    int64_t mDeferredRestoreDeadlineMs = 0;
     mutable std::mutex mMutex;
     std::condition_variable mCond;
     std::atomic<bool> mRunning;
     std::thread mTimerThread;
     static constexpr int64_t kProcessPssDeferMs = 2500;
+    static constexpr int64_t kCpusetRestoreDeferMs = 250;
 
     int nextHandleLocked() {
         if (mHandles.size() >= static_cast<size_t>(std::numeric_limits<int>::max() - 1)) {
@@ -1055,18 +1124,17 @@ private:
         }
     }
 
-    void refreshActiveValueLocked(const std::string& path, int handle, uint64_t sequence) {
-        auto vit = mActiveValues.find(path);
-        if (vit == mActiveValues.end()) return;
-        for (ActiveValue& value : vit->second) {
-            if (value.handle == handle) value.sequence = sequence;
-        }
-    }
-
     static void addUniquePath(std::vector<std::string>* paths, const std::string& path) {
         if (std::find(paths->begin(), paths->end(), path) == paths->end()) {
             paths->push_back(path);
         }
+    }
+
+    static void addUniquePath(std::vector<const std::string*>* paths, const std::string& path) {
+        for (const std::string* existing : *paths) {
+            if (*existing == path) return;
+        }
+        paths->push_back(&path);
     }
 
     void restoreEffectiveValuesLocked(const std::vector<std::string>& paths) {
@@ -1075,9 +1143,60 @@ private:
         }
     }
 
+    void restoreEffectiveValuesLocked(const std::vector<const std::string*>& paths) {
+        for (const std::string* path : paths) {
+            restoreEffectiveValueLocked(*path);
+        }
+    }
+
     void writeBaseValuesLocked(const std::vector<std::pair<std::string, std::string>>& values) {
         for (const auto& [path, value] : values) {
+            if (shouldDeferRestoreLocked(path, value)) {
+                scheduleDeferredRestoreLocked(path, value);
+            } else {
+                writeClamped(path, value);
+            }
+        }
+    }
+
+    bool shouldDeferRestoreLocked(const std::string& path, const std::string& value) const {
+        if (!isCpusetCpuPath(path)) return false;
+        auto cur = mCurrentValues.find(path);
+        if (cur == mCurrentValues.end()) return false;
+        int currentWeight = cpusetMaskWeight(cur->second);
+        int restoreWeight = cpusetMaskWeight(value);
+        return currentWeight >= 0 && restoreWeight > currentWeight;
+    }
+
+    void scheduleDeferredRestoreLocked(const std::string& path, const std::string& value) {
+        mDeferredRestores[path] = {value, nowMs() + kCpusetRestoreDeferMs};
+        updateDeferredRestoreDeadlineLocked();
+        mCond.notify_one();
+    }
+
+    void processDeferredRestoresLocked(int64_t now) {
+        if (mDeferredRestoreDeadlineMs <= 0 || now < mDeferredRestoreDeadlineMs) return;
+        std::vector<std::pair<std::string, std::string>> due;
+        for (auto it = mDeferredRestores.begin(); it != mDeferredRestores.end(); ) {
+            if (it->second.deadlineMs <= now) {
+                due.push_back({it->first, it->second.value});
+                it = mDeferredRestores.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        updateDeferredRestoreDeadlineLocked();
+        for (const auto& [path, value] : due) {
             writeClamped(path, value);
+        }
+    }
+
+    void updateDeferredRestoreDeadlineLocked() {
+        mDeferredRestoreDeadlineMs = 0;
+        for (const auto& [_, restore] : mDeferredRestores) {
+            mDeferredRestoreDeadlineMs = mDeferredRestoreDeadlineMs == 0
+                    ? restore.deadlineMs
+                    : std::min(mDeferredRestoreDeadlineMs, restore.deadlineMs);
         }
     }
 
@@ -1091,28 +1210,90 @@ private:
         auto vit = mActiveValues.find(path);
         if (vit == mActiveValues.end() || vit->second.empty()) return nullptr;
         const ActiveValue* best = &vit->second.front();
+        const bool lowerValueStrong = best->lowerValueStrong;
         for (const ActiveValue& value : vit->second) {
-            if (isStrongerValue(path, value, *best)) best = &value;
+            if (isStrongerValue(lowerValueStrong, value, *best)) best = &value;
         }
         return best;
     }
 
+    static ActiveValue makeActiveValue(
+            int handle, const std::string& value, uint64_t sequence, bool lowerValueStrong) {
+        ActiveValue active = {handle, value, sequence, 0, false, lowerValueStrong};
+        active.parsedValueValid = ParseInt(active.value, &active.parsedValue);
+        return active;
+    }
+
     static bool isStrongerValue(
-            const std::string& path, const ActiveValue& candidate, const ActiveValue& current) {
-        int candidateValue = 0;
-        int currentValue = 0;
-        if (ParseInt(candidate.value, &candidateValue) && ParseInt(current.value, &currentValue)
-                && candidateValue != currentValue) {
-            return lowerValueIsStronger(path)
-                    ? candidateValue < currentValue : candidateValue > currentValue;
+            bool lowerValueStrong, const ActiveValue& candidate, const ActiveValue& current) {
+        if (candidate.parsedValueValid && current.parsedValueValid
+                && candidate.parsedValue != current.parsedValue) {
+            return lowerValueStrong
+                    ? candidate.parsedValue < current.parsedValue
+                    : candidate.parsedValue > current.parsedValue;
         }
         return candidate.sequence >= current.sequence;
+    }
+
+    bool refreshActiveValueLocked(const std::string& path, int handle, uint64_t sequence) {
+        auto vit = mActiveValues.find(path);
+        if (vit == mActiveValues.end()) return false;
+        std::vector<ActiveValue>& values = vit->second;
+        if (values.size() == 1 && values.front().handle == handle) {
+            values.front().sequence = sequence;
+            return !currentValueMatchesLocked(path, values.front().value);
+        }
+        for (ActiveValue& value : values) {
+            if (value.handle == handle) value.sequence = sequence;
+        }
+        const ActiveValue* value = effectiveValueLocked(path);
+        return value != nullptr && value->handle == handle
+                && !currentValueMatchesLocked(path, value->value);
+    }
+
+    bool currentValueMatchesLocked(const std::string& path, const std::string& value) const {
+        auto cur = mCurrentValues.find(path);
+        return cur != mCurrentValues.end() && cur->second == value;
     }
 
     static bool lowerValueIsStronger(const std::string& path) {
         return path.find("cpu_dma_latency") != std::string::npos
                 || path.find("pm_qos") != std::string::npos
                 || path.find("pmqos") != std::string::npos;
+    }
+
+    static int cpusetMaskWeight(const std::string& value) {
+        int total = 0;
+        size_t pos = 0;
+        while (pos < value.size()) {
+            int start = 0;
+            if (!parseCpusetIndex(value, &pos, &start)) return -1;
+            int end = start;
+            if (pos < value.size() && value[pos] == '-') {
+                pos++;
+                if (!parseCpusetIndex(value, &pos, &end) || end < start) return -1;
+            }
+            total += end - start + 1;
+            if (pos == value.size()) break;
+            if (value[pos] != ',') return -1;
+            pos++;
+        }
+        return total > 0 ? total : -1;
+    }
+
+    static bool parseCpusetIndex(const std::string& value, size_t* pos, int* index) {
+        if (*pos >= value.size()) return false;
+        int result = 0;
+        size_t start = *pos;
+        while (*pos < value.size()) {
+            char c = value[*pos];
+            if (c < '0' || c > '9') break;
+            result = result * 10 + c - '0';
+            (*pos)++;
+        }
+        if (*pos == start) return false;
+        *index = result;
+        return true;
     }
 };
 

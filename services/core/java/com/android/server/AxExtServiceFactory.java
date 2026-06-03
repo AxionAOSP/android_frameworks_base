@@ -34,6 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class AxExtServiceFactory {
     private static AxExtServiceFactory sInstance = null;
+    private static volatile IAxBurstEngine sAxBurstEngine;
 
     private static final ConcurrentHashMap<IAxExtServiceFactory.ExtType, Object> sCache =
             new ConcurrentHashMap<>(IAxExtServiceFactory.ExtType.values().length);
@@ -124,7 +125,12 @@ public class AxExtServiceFactory {
     }
 
     public static IAxBurstEngine getAxBurstEngine() {
-        return getOrCreate(IAxExtServiceFactory.ExtType.AX_BURST_ENGINE);
+        IAxBurstEngine engine = sAxBurstEngine;
+        if (engine == null) {
+            engine = getOrCreate(IAxExtServiceFactory.ExtType.AX_BURST_ENGINE);
+            sAxBurstEngine = engine;
+        }
+        return engine;
     }
 
     public static IAxMemoryManager getMemoryManager() {

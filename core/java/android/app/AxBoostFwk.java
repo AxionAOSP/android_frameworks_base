@@ -98,41 +98,14 @@ public final class AxBoostFwk {
 
     public static final int FEEDBACK_WORKLOAD_TYPE = 0x15FF;
 
-    private static final long FRAME_HINT_COOLDOWN_MS = 50L;
-    private static final long INTERACTIVE_HINT_COOLDOWN_MS = 80L;
     private static final long FRAME_RESCUE_MIN_NS = 5_000_000L;
     private static final long FRAME_RESCUE_STALE_NS = 16_000_000L;
-    private static final long[] sLastHintUptimeMs = new long[OP_GAME_LAUNCH_BOOST + 1];
-    private static final boolean[] sActiveHints = new boolean[OP_GAME_LAUNCH_BOOST + 1];
-    private static long sLastFrameStageHintUptimeMs;
     private static volatile long sFrameDrawNs;
 
     /** @hide */
     public static void acquireHint(int opcode, long durMs) {
-        final boolean trackedOpcode = opcode > 0 && opcode < sLastHintUptimeMs.length;
-        boolean releaseTrackedHint = false;
-        boolean activateTrackedHint = false;
-        if (trackedOpcode) {
-            if (durMs == 0L) {
-                if (!sActiveHints[opcode]) {
-                    return;
-                }
-                releaseTrackedHint = true;
-            } else if (shouldSkipHint(opcode)) {
-                return;
-            } else {
-                activateTrackedHint = true;
-            }
-        } else if (durMs != 0L && shouldSkipHint(opcode)) {
-            return;
-        }
         try {
             ActivityManager.getService().acquireHint(opcode, durMs);
-            if (releaseTrackedHint) {
-                sActiveHints[opcode] = false;
-            } else if (activateTrackedHint) {
-                sActiveHints[opcode] = true;
-            }
         } catch (Exception e) {
             Log.w(TAG, "acquireHint failed", e);
         }
@@ -182,63 +155,6 @@ public final class AxBoostFwk {
         } catch (Exception e) {
             Log.w(TAG, "uxEngineEvent failed", e);
         }
-    }
-
-    private static boolean shouldSkipHint(int opcode) {
-        if (opcode <= 0 || opcode >= sLastHintUptimeMs.length) {
-            return false;
-        }
-        final boolean frameStageHint = isFrameStageHint(opcode);
-        final boolean frameRescueHint = isFrameRescueHint(opcode);
-        if (!frameStageHint && !frameRescueHint && !isInteractiveHint(opcode)) return false;
-        final long now = SystemClock.uptimeMillis();
-        if (frameStageHint) {
-            if (sLastFrameStageHintUptimeMs != 0L
-                    && now - sLastFrameStageHintUptimeMs < FRAME_HINT_COOLDOWN_MS) {
-                return true;
-            }
-            sLastFrameStageHintUptimeMs = now;
-            sLastHintUptimeMs[opcode] = now;
-            return false;
-        }
-        final long cooldown = frameRescueHint ? FRAME_HINT_COOLDOWN_MS : INTERACTIVE_HINT_COOLDOWN_MS;
-        final long last = sLastHintUptimeMs[opcode];
-        if (last != 0L && now - last < cooldown) {
-            return true;
-        }
-        sLastHintUptimeMs[opcode] = now;
-        return false;
-    }
-
-    private static boolean isFrameStageHint(int opcode) {
-        return opcode == OP_FRAME_INPUT_END
-                || opcode == OP_FRAME_DRAW_STEP
-                || opcode == OP_FRAME_PREFETCHER
-                || opcode == OP_FRAME_OBTAIN_VIEW
-                || opcode == OP_FRAME_PRE_ANIM
-                || opcode == OP_FRAME_VSYNC;
-    }
-
-    private static boolean isFrameRescueHint(int opcode) {
-        return opcode == OP_FRAME_RESCUE_LIGHT
-                || opcode == OP_FRAME_RESCUE_HEAVY
-                || opcode == OP_FRAME_RESCUE_CROSS;
-    }
-
-    private static boolean isInteractiveHint(int opcode) {
-        return opcode == OP_SCROLL_BOOST
-                || opcode == OP_SCROLL_INPUT
-                || opcode == OP_SCROLL_VERTICAL
-                || opcode == OP_SCROLL_SCROLLER
-                || opcode == OP_TOUCH_BOOST
-                || opcode == OP_DRAG_BOOST
-                || opcode == OP_DRAG_START
-                || opcode == OP_DRAG_END
-                || opcode == OP_RENDER_EARLY_WAKEUP
-                || opcode == OP_RENDER_TRANSITION
-                || opcode == OP_RENDER_ANIMATION
-                || opcode == OP_SCENARIO_GPU
-                || opcode == OP_SHADE;
     }
 
     private AxBoostFwk() {}

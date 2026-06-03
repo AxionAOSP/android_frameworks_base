@@ -148,6 +148,7 @@ import com.android.internal.view.AppearanceRegion;
 import com.android.internal.widget.PointerLocationView;
 import com.android.server.AxExtServiceFactory;
 import com.android.server.am.AxWorkloadDetector;
+import com.android.server.am.IAxBurstEngine;
 import com.android.server.LocalServices;
 import com.android.server.UiModeManagerInternal;
 import com.android.server.UiThread;
@@ -489,6 +490,9 @@ public class DisplayPolicy {
                 private Runnable mOnSwipeFromTop = this::onSwipeFromTop;
                 private Runnable mOnSwipeFromRight = this::onSwipeFromRight;
                 private Runnable mOnSwipeFromBottom = this::onSwipeFromBottom;
+                private boolean mGestureWorkloadResolved;
+                private boolean mGestureIsGame;
+                private IAxBurstEngine mAxBurstEngine;
 
                 private Insets getControllableInsets(WindowState win) {
                     if (win == null) {
@@ -501,6 +505,30 @@ public class DisplayPolicy {
                     final Rect bounds = win.getBounds();
                     return provider.getSource().calculateInsets(bounds, bounds,
                             true /* ignoreVisibility */);
+                }
+
+                private void resetGestureWorkload() {
+                    mGestureWorkloadResolved = false;
+                    mGestureIsGame = false;
+                }
+
+                private boolean isGestureGame() {
+                    if (!mGestureWorkloadResolved) {
+                        final ActivityRecord top = mDisplayContent.topRunningActivity();
+                        mGestureIsGame = top != null
+                                && getAxBurstEngine().perfGetFeedback(
+                                        top.info.applicationInfo, top.packageName)
+                                        == AxBoostFwk.WORKLOAD_GAME;
+                        mGestureWorkloadResolved = true;
+                    }
+                    return mGestureIsGame;
+                }
+
+                private IAxBurstEngine getAxBurstEngine() {
+                    if (mAxBurstEngine == null) {
+                        mAxBurstEngine = AxExtServiceFactory.getAxBurstEngine();
+                    }
+                    return mAxBurstEngine;
                 }
 
                 @Override
@@ -575,30 +603,30 @@ public class DisplayPolicy {
                         mService.mPowerManagerInternal.setPowerBoost(
                                 Boost.INTERACTION, duration);
                     }
-                    final ActivityRecord top = mDisplayContent.topRunningActivity();
-                    final boolean isGame = top != null && AxExtServiceFactory.getAxBurstEngine().perfGetFeedback(
-                            top.info.applicationInfo, top.packageName) == AxBoostFwk.WORKLOAD_GAME;
                     final long boostDurationMillis = duration + 160L;
                     AxRefreshRateController.getInstance().setFlingBoost(boostDurationMillis);
-                    if (mNotificationShade != null && mNotificationShade.isVisible() || isGame) {
-                        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_SCENARIO_GPU, boostDurationMillis);
+                    if ((mNotificationShade != null && mNotificationShade.isVisible())
+                            || isGestureGame()) {
+                        getAxBurstEngine().acquireHint(
+                                AxBoostFwk.OP_SCENARIO_GPU, boostDurationMillis);
                     }
-                    AxExtServiceFactory.getAxBurstEngine().acquireHint(
+                    getAxBurstEngine().acquireHint(
                             AxBoostFwk.OP_SCROLL_BOOST, boostDurationMillis + 100L);
                 }
 
                 @Override
                 public void onScroll(boolean started) {
-                    final ActivityRecord top = mDisplayContent.topRunningActivity();
-                    final boolean isGame = top != null && AxExtServiceFactory.getAxBurstEngine().perfGetFeedback(
-                            top.info.applicationInfo, top.packageName) == AxBoostFwk.WORKLOAD_GAME;
-                    if (started) {
-                        if (isGame) {
-                            AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_SCENARIO_GPU, -2L);
-                        }
-                        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_DRAG_BOOST, -2L);
-                        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_DRAG_START, -2L);
+                    if (!started) {
+                        return;
                     }
+                    if (isGestureGame()) {
+                        getAxBurstEngine().acquireHint(
+                                AxBoostFwk.OP_SCENARIO_GPU, -2L);
+                    }
+                    getAxBurstEngine().acquireHint(
+                            AxBoostFwk.OP_DRAG_BOOST, -2L);
+                    getAxBurstEngine().acquireHint(
+                            AxBoostFwk.OP_DRAG_START, -2L);
                 }
 
                 @Override
@@ -613,17 +641,18 @@ public class DisplayPolicy {
 
                 @Override
                 public void onDown() {
-                    final ActivityRecord top = mDisplayContent.topRunningActivity();
-                    final boolean isGame = top != null && AxExtServiceFactory.getAxBurstEngine().perfGetFeedback(
-                            top.info.applicationInfo, top.packageName) == AxBoostFwk.WORKLOAD_GAME;
+                    resetGestureWorkload();
                     final WindowOrientationListener listener = getOrientationListener();
                     if (listener != null) {
                         listener.onTouchStart();
                     }
-                    AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_SCROLL_INPUT, -2L);
-                    AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_TOUCH_BOOST, -2L);
-                    if (isGame) {
-                        AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_SCENARIO_GPU, -2L);
+                    getAxBurstEngine().acquireHint(
+                            AxBoostFwk.OP_SCROLL_INPUT, -2L);
+                    getAxBurstEngine().acquireHint(
+                            AxBoostFwk.OP_TOUCH_BOOST, -2L);
+                    if (isGestureGame()) {
+                        getAxBurstEngine().acquireHint(
+                                AxBoostFwk.OP_SCENARIO_GPU, -2L);
                     }
                 }
 
@@ -633,6 +662,7 @@ public class DisplayPolicy {
                     if (listener != null) {
                         listener.onTouchEnd();
                     }
+                    resetGestureWorkload();
                 }
 
                 @Override

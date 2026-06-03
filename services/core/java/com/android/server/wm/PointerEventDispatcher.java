@@ -26,12 +26,16 @@ import android.view.WindowManagerPolicyConstants.PointerEventListener;
 
 import com.android.server.AxExtServiceFactory;
 import com.android.server.UiThread;
+import com.android.server.am.IAxBurstEngine;
 
 import java.util.ArrayList;
 
 public class PointerEventDispatcher extends InputEventReceiver {
     private final ArrayList<PointerEventListener> mListeners = new ArrayList<>();
     private PointerEventListener[] mListenersArray = new PointerEventListener[0];
+    private final AxRefreshRateController mRefreshRateController =
+            AxRefreshRateController.getInstance();
+    private IAxBurstEngine mAxBurstEngine;
 
     public PointerEventDispatcher(InputChannel inputChannel) {
         super(inputChannel, UiThread.getHandler().getLooper());
@@ -40,11 +44,16 @@ public class PointerEventDispatcher extends InputEventReceiver {
     @Override
     public void onInputEvent(InputEvent event) {
         try {
-            AxExtServiceFactory.getAxBurstEngine().acquireHint(AxBoostFwk.OP_TOUCH_BOOST, -2L);
-            AxRefreshRateController.getInstance().onPointerEvent();
             if (event instanceof MotionEvent
                     && (event.getSource() & InputDevice.SOURCE_CLASS_POINTER) != 0) {
                 MotionEvent motionEvent = (MotionEvent) event;
+                IAxBurstEngine axBurstEngine = mAxBurstEngine;
+                if (axBurstEngine == null) {
+                    axBurstEngine = AxExtServiceFactory.getAxBurstEngine();
+                    mAxBurstEngine = axBurstEngine;
+                }
+                axBurstEngine.acquireHint(AxBoostFwk.OP_TOUCH_BOOST, -2L);
+                mRefreshRateController.onPointerEvent();
                 PointerEventListener[] listeners;
                 synchronized (mListeners) {
                     if (mListenersArray == null) {

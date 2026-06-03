@@ -26,6 +26,7 @@
 #include <aidl/android/system/suspend/IWakeLock.h>
 #include <android/keycodes.h>
 #include <android-base/chrono_utils.h>
+#include <android-base/properties.h>
 #include <android/binder_manager.h>
 #include <android/system/suspend/ISuspendControlService.h>
 #include <android/system/suspend/internal/ISuspendControlServiceInternal.h>
@@ -69,6 +70,12 @@ static power::PowerHalController gPowerHalController;
 
 // ----------------------------------------------------------------------------
 
+static constexpr char kAxBurstEngineStatusProperty[] = "persist.sys.ax_burst_engine_status";
+
+static bool shouldBlockPowerHalBoosts() {
+    return android::base::GetBoolProperty(kAxBurstEngineStatusProperty, false);
+}
+
 static bool checkAndClearExceptionFromCallback(JNIEnv* env, const char* methodName) {
     if (env->ExceptionCheck()) {
         ALOGE("An exception was thrown by callback '%s'.", methodName);
@@ -80,6 +87,7 @@ static bool checkAndClearExceptionFromCallback(JNIEnv* env, const char* methodNa
 }
 
 static void setPowerBoost(Boost boost, int32_t durationMs) {
+    if (shouldBlockPowerHalBoosts()) return;
     gPowerHalController.setBoost(boost, durationMs);
     SurfaceComposerClient::notifyPowerBoost(static_cast<int32_t>(boost));
 }

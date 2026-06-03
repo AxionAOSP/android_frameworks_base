@@ -49,32 +49,18 @@ public final class AxBoostManager {
     private static final long FRAME_RESCUE_ABSOLUTE_NS = 1_000_000_000L;
     private static final long FRAME_RESCUE_MIN_MS = 16L;
     private static final long FRAME_RESCUE_MAX_MS = 80L;
-    private static final long FRAME_HINT_COOLDOWN_MS = 50L;
-    private static final long INTERACTIVE_HINT_COOLDOWN_MS = 80L;
-    private final long[] mLastHintUptimeMs = new long[AxBoostFwk.OP_GAME_LAUNCH_BOOST + 1];
-    private final boolean[] mActiveHints = new boolean[AxBoostFwk.OP_GAME_LAUNCH_BOOST + 1];
-    private long mLastFrameStageHintUptimeMs;
 
     AxBoostManager(AxBurstEngine engine) {
         mEngine = engine;
     }
 
     public long acquireHint(int opcode, long durMs) {
-        if (opcode <= 0 || opcode >= mLastHintUptimeMs.length) return native_perf_hint(opcode, durMs);
-        if (durMs == 0L) {
-            if (!mActiveHints[opcode]) return -1L;
-            mActiveHints[opcode] = false;
-            return native_perf_hint(opcode, 0L);
-        }
-        if (shouldSkipHint(opcode)) return -1L;
-        if (opcode == AxBoostFwk.OP_SCROLL_BOOST
-                || opcode == AxBoostFwk.OP_SCROLL_SCROLLER) {
+        if (durMs != 0L && (opcode == AxBoostFwk.OP_SCROLL_BOOST
+                || opcode == AxBoostFwk.OP_SCROLL_SCROLLER)) {
             Runnable cb = mCancelCompactionCallback;
             if (cb != null) cb.run();
         }
-        long handle = native_perf_hint(opcode, durMs);
-        if (handle >= 0L) mActiveHints[opcode] = true;
-        return handle;
+        return native_perf_hint(opcode, durMs);
     }
 
     void onFrameDraw() {
@@ -169,55 +155,4 @@ public final class AxBoostManager {
         native_perf_hint_rel(handle);
     }
 
-    private boolean shouldSkipHint(int opcode) {
-        final boolean frameStageHint = isFrameStageHint(opcode);
-        final boolean frameRescueHint = isFrameRescueHint(opcode);
-        if (!frameStageHint && !frameRescueHint && !isInteractiveHint(opcode)) return false;
-        final long now = SystemClock.uptimeMillis();
-        if (frameStageHint) {
-            if (mLastFrameStageHintUptimeMs != 0L
-                    && now - mLastFrameStageHintUptimeMs < FRAME_HINT_COOLDOWN_MS) {
-                return true;
-            }
-            mLastFrameStageHintUptimeMs = now;
-            mLastHintUptimeMs[opcode] = now;
-            return false;
-        }
-        final long cooldown = frameRescueHint ? FRAME_HINT_COOLDOWN_MS : INTERACTIVE_HINT_COOLDOWN_MS;
-        final long last = mLastHintUptimeMs[opcode];
-        if (last != 0L && now - last < cooldown) return true;
-        mLastHintUptimeMs[opcode] = now;
-        return false;
-    }
-
-    private static boolean isFrameStageHint(int opcode) {
-        return opcode == AxBoostFwk.OP_FRAME_INPUT_END
-                || opcode == AxBoostFwk.OP_FRAME_DRAW_STEP
-                || opcode == AxBoostFwk.OP_FRAME_PREFETCHER
-                || opcode == AxBoostFwk.OP_FRAME_OBTAIN_VIEW
-                || opcode == AxBoostFwk.OP_FRAME_PRE_ANIM
-                || opcode == AxBoostFwk.OP_FRAME_VSYNC;
-    }
-
-    private static boolean isFrameRescueHint(int opcode) {
-        return opcode == AxBoostFwk.OP_FRAME_RESCUE_LIGHT
-                || opcode == AxBoostFwk.OP_FRAME_RESCUE_HEAVY
-                || opcode == AxBoostFwk.OP_FRAME_RESCUE_CROSS;
-    }
-
-    private static boolean isInteractiveHint(int opcode) {
-        return opcode == AxBoostFwk.OP_SCROLL_BOOST
-                || opcode == AxBoostFwk.OP_SCROLL_INPUT
-                || opcode == AxBoostFwk.OP_SCROLL_VERTICAL
-                || opcode == AxBoostFwk.OP_SCROLL_SCROLLER
-                || opcode == AxBoostFwk.OP_TOUCH_BOOST
-                || opcode == AxBoostFwk.OP_DRAG_BOOST
-                || opcode == AxBoostFwk.OP_DRAG_START
-                || opcode == AxBoostFwk.OP_DRAG_END
-                || opcode == AxBoostFwk.OP_RENDER_EARLY_WAKEUP
-                || opcode == AxBoostFwk.OP_RENDER_TRANSITION
-                || opcode == AxBoostFwk.OP_RENDER_ANIMATION
-                || opcode == AxBoostFwk.OP_SCENARIO_GPU
-                || opcode == AxBoostFwk.OP_SHADE;
-    }
 }

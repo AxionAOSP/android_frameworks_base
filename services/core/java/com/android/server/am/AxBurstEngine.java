@@ -33,11 +33,19 @@ import com.android.server.NtServiceInjector;
 import com.android.server.pinner.PinnedFile;
 import com.android.server.pinner.PinnerService;
 
+import java.io.File;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class AxBurstEngine implements IAxBurstEngine {
 
     private static final String TAG = "AxBurstEngine";
+    private static final String PROP_BURST_ENGINE_STATUS = "persist.sys.ax_burst_engine_status";
+    private static final String[] BOOST_CONFIG_PATHS = {
+            "/vendor/etc/ax_perf_boosts.xml",
+            "/system/etc/ax_perf_boosts.xml",
+            "/vendor/etc/ax_perf_config.xml",
+            "/system/etc/ax_perf_config.xml",
+    };
 
     private final Context mContext;
     private final AxBoostManager mBoostMgr;
@@ -75,6 +83,7 @@ public class AxBurstEngine implements IAxBurstEngine {
         sfBindCoreControll();
 
         mPinner = LocalServices.getService(PinnerService.class);
+        SystemProperties.set(PROP_BURST_ENGINE_STATUS, hasBoostConfig() ? "1" : "0");
     }
 
     private void sfBindCoreControll() {
@@ -90,6 +99,13 @@ public class AxBurstEngine implements IAxBurstEngine {
         } finally {
             p.recycle();
         }
+    }
+
+    private static boolean hasBoostConfig() {
+        for (String path : BOOST_CONFIG_PATHS) {
+            if (new File(path).canRead()) return true;
+        }
+        return false;
     }
 
     public DeviceData getDeviceData() {
