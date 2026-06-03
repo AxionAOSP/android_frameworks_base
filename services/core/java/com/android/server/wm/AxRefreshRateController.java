@@ -143,9 +143,7 @@ public class AxRefreshRateController {
     };
 
     private final Runnable mFlingBoostTimeoutRunnable = () -> {
-        if (!hasBoost(BOOST_FLING)) return;
-        clearBoost(BOOST_FLING);
-        syncDisplaySettings();
+        if (clearBoost(BOOST_FLING)) syncDisplaySettings();
     };
 
     // ──────────────────────────────────────────────────────────────────────
@@ -200,11 +198,7 @@ public class AxRefreshRateController {
         if (!mInitialized || !mVrrEnabled) return;
         if (mAppOverrideActive) return;
         if (mLockscreenLimitEnabled && !mKeyguardDone) return;
-        boolean wasIdle = !hasBoost(BOOST_TOUCH);
-        setBoost(BOOST_TOUCH);
-        if (wasIdle) {
-            mHandler.post(this::syncDisplaySettings);
-        }
+        if (setBoost(BOOST_TOUCH)) mHandler.post(mSyncRunnable);
     }
 
     public void setFlingBoost(long durationMillis) {
@@ -217,18 +211,11 @@ public class AxRefreshRateController {
         if (mAppOverrideActive
                 || (mLockscreenLimitEnabled && !mKeyguardDone)
                 || durationMillis <= 0) {
-            if (hasBoost(BOOST_FLING)) {
-                clearBoost(BOOST_FLING);
-                syncDisplaySettings();
-            }
+            if (clearBoost(BOOST_FLING)) syncDisplaySettings();
             return;
         }
 
-        final boolean wasBoosted = hasBoost(BOOST_FLING);
-        setBoost(BOOST_FLING);
-        if (!wasBoosted) {
-            syncDisplaySettings();
-        }
+        if (setBoost(BOOST_FLING)) syncDisplaySettings();
         mHandler.postDelayed(mFlingBoostTimeoutRunnable, durationMillis);
     }
 
@@ -242,7 +229,7 @@ public class AxRefreshRateController {
             if (done && mVrrEnabled) {
                 if (!mAppOverrideActive) setBoost(BOOST_FOCUS);
             }
-            mHandler.post(this::syncDisplaySettings);
+            mHandler.post(mSyncRunnable);
             mWmService.requestTraversal();
         }
     }
@@ -264,7 +251,7 @@ public class AxRefreshRateController {
         queryAndApplyDisplayModes();
         invalidateLastSync();
         mHandler.removeCallbacks(mDisplayChangeRequeryRunnable);
-        mHandler.post(this::syncDisplaySettings);
+        mHandler.post(mSyncRunnable);
         mHandler.postDelayed(mDisplayChangeRequeryRunnable, DISPLAY_CHANGE_REQUERY_DELAY_MS);
     }
 
@@ -319,13 +306,25 @@ public class AxRefreshRateController {
     // Private — boost helpers
     // ──────────────────────────────────────────────────────────────────────
 
-    private void setBoost(int flag) {
+    private boolean setBoost(int flag) {
         mLastActivityTime = SystemClock.uptimeMillis();
-        if (!hasBoost(flag)) mActiveBoosts.updateAndGet(v -> v | flag);
+        int activeBoosts;
+        do {
+            activeBoosts = mActiveBoosts.get();
+            if ((activeBoosts & flag) != 0) return false;
+        } while (!mActiveBoosts.compareAndSet(activeBoosts, activeBoosts | flag));
+        return true;
     }
 
-    private void clearBoost(int flag) {
-        if (hasBoost(flag)) mActiveBoosts.updateAndGet(v -> v & ~flag);
+    private boolean clearBoost(int flag) {
+        int activeBoosts;
+        int newBoosts;
+        do {
+            activeBoosts = mActiveBoosts.get();
+            if ((activeBoosts & flag) == 0) return false;
+            newBoosts = activeBoosts & ~flag;
+        } while (!mActiveBoosts.compareAndSet(activeBoosts, newBoosts));
+        return true;
     }
 
     private void clearBoosts() {
