@@ -31,12 +31,31 @@ public class BundleHeaderBlurView extends View {
     private final Object mBlurKey = new Object();
     private boolean mBlurEnabled;
     private int mOverlayColor;
+    private boolean mLastBlurActive;
+    private Runnable mOnBlurStateChanged;
 
     public BundleHeaderBlurView(Context context) {
         super(context);
         mBlurRenderer = new AxBlurBackgroundRenderer(this, AxBackdropBlurSettingsSpec.system(),
                 false);
         updateColors();
+    }
+
+    public void setOnBlurStateChangedListener(Runnable listener) {
+        mOnBlurStateChanged = listener;
+    }
+
+    @Override
+    public void draw(Canvas canvas) {
+        boolean active = mBlurEnabled && mBlurRenderer.isCrossWindowBlurActive();
+        if (active != mLastBlurActive) {
+            mLastBlurActive = active;
+            if (mOnBlurStateChanged != null) {
+                post(mOnBlurStateChanged);
+            }
+        }
+        drawBlurBackground(canvas);
+        super.draw(canvas);
     }
 
     @Override
@@ -49,6 +68,7 @@ public class BundleHeaderBlurView extends View {
     @Override
     protected void onDetachedFromWindow() {
         mBlurRenderer.onDetachedFromWindow();
+        mOnBlurStateChanged = null;
         super.onDetachedFromWindow();
     }
 
@@ -69,10 +89,8 @@ public class BundleHeaderBlurView extends View {
         return mBlurRenderer.verifyDrawable(who) || super.verifyDrawable(who);
     }
 
-    @Override
-    public void draw(Canvas canvas) {
-        drawBlurBackground(canvas);
-        super.draw(canvas);
+    public boolean isCrossWindowBlurActive() {
+        return mBlurRenderer.isCrossWindowBlurActive();
     }
 
     public void setAxBlurEnabled(boolean enabled) {
@@ -93,7 +111,8 @@ public class BundleHeaderBlurView extends View {
     }
 
     private void drawBlurBackground(Canvas canvas) {
-        if (!mBlurEnabled || getWidth() <= 0 || getHeight() <= 0) {
+        if (!mBlurEnabled || !mBlurRenderer.isCrossWindowBlurActive()
+                || getWidth() <= 0 || getHeight() <= 0) {
             return;
         }
         float cornerRadius = Math.min(getWidth(), getHeight()) * 0.5f;

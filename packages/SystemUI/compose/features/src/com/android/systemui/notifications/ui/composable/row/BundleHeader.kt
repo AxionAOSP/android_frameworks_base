@@ -21,6 +21,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -143,9 +144,16 @@ fun BundleHeader(viewModel: BundleHeaderViewModel, modifier: Modifier = Modifier
     // In most cases the height is expected to be equal to the header height dimension's value, but
     // it is set as the minimum here so that the header can resize if necessary for larger font
     // or display sizes.
+    val bgModifier = if (!viewModel.useBlurBackground) {
+        Modifier.background(MaterialTheme.colorScheme.surfaceBright)
+    } else {
+        Modifier
+    }
     Box(
         modifier =
-            modifier.heightIn(min = dimensionResource(R.dimen.notification_bundle_header_height))
+            modifier
+                .then(bgModifier)
+                .heightIn(min = dimensionResource(R.dimen.notification_bundle_header_height))
     ) {
         Background(
             background = viewModel.backgroundDrawable,

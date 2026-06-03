@@ -526,6 +526,7 @@ public class NotificationChildrenContainer extends ViewGroup
         initBundleDimens();
         mBundleHeaderView = view;
         mBundleHeaderBlurView = new BundleHeaderBlurView(getContext());
+        mBundleHeaderBlurView.setOnBlurStateChangedListener(this::updateBundleHeaderBlur);
         addView(mBundleHeaderBlurView);
         addView(mBundleHeaderView);
         mBundleHeaderWrapper = (BundleHeaderViewWrapper) NotificationViewWrapper.wrap(getContext(),
@@ -555,14 +556,17 @@ public class NotificationChildrenContainer extends ViewGroup
     }
 
     private void updateBundleHeaderBlur() {
-        boolean enabled = mBundleHeaderBlurEnabled
+        boolean shouldBlur = mBundleHeaderBlurEnabled
                 && mBundleHeaderView != null
                 && mBundleHeaderViewModel != null;
-        if (mBundleHeaderViewModel != null) {
-            mBundleHeaderViewModel.setUseBlurBackground(enabled);
-        }
         if (mBundleHeaderBlurView != null) {
-            mBundleHeaderBlurView.setAxBlurEnabled(enabled);
+            mBundleHeaderBlurView.setAxBlurEnabled(shouldBlur);
+        }
+        boolean canBlur = shouldBlur
+                && mBundleHeaderBlurView != null
+                && mBundleHeaderBlurView.isCrossWindowBlurActive();
+        if (mBundleHeaderViewModel != null) {
+            mBundleHeaderViewModel.setUseBlurBackground(canBlur);
         }
     }
 
