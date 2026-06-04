@@ -140,11 +140,14 @@ fun BundleHeader(viewModel: BundleHeaderViewModel, modifier: Modifier = Modifier
         viewModel.composeScope = scope
         onDispose { viewModel.composeScope = null }
     }
+    
+    val useBlur = viewModel.useBlurBackground
+    val onKeyguard = viewModel.isOnKeyguard
 
     // In most cases the height is expected to be equal to the header height dimension's value, but
     // it is set as the minimum here so that the header can resize if necessary for larger font
     // or display sizes.
-    val bgModifier = if (!viewModel.useBlurBackground) {
+    val bgModifier = if (!useBlur && onKeyguard) {
         Modifier.background(MaterialTheme.colorScheme.surfaceBright)
     } else {
         Modifier
@@ -157,7 +160,7 @@ fun BundleHeader(viewModel: BundleHeaderViewModel, modifier: Modifier = Modifier
     ) {
         Background(
             background = viewModel.backgroundDrawable,
-            useBlurBackground = viewModel.useBlurBackground,
+            useBlurBackground = useBlur && onKeyguard,
             modifier = Modifier.matchParentSize(),
         )
         SceneTransitionLayout(

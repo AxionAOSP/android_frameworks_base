@@ -556,18 +556,19 @@ public class NotificationChildrenContainer extends ViewGroup
     }
 
     private void updateBundleHeaderBlur() {
-        boolean shouldBlur = mBundleHeaderBlurEnabled
-                && mBundleHeaderView != null
-                && mBundleHeaderViewModel != null;
-        if (mBundleHeaderBlurView != null) {
-            mBundleHeaderBlurView.setAxBlurEnabled(shouldBlur);
+        if (mContainingNotification == null || mBundleHeaderBlurView == null 
+            || mBundleHeaderViewModel == null || mBundleHeaderView == null) {
+            return;
         }
-        boolean canBlur = shouldBlur
-                && mBundleHeaderBlurView != null
-                && mBundleHeaderBlurView.isCrossWindowBlurActive();
-        if (mBundleHeaderViewModel != null) {
-            mBundleHeaderViewModel.setUseBlurBackground(canBlur);
-        }
+        
+        boolean isOnKeyguard = mContainingNotification.isOnKeyguard();
+        mBundleHeaderViewModel.setIsOnKeyguard(isOnKeyguard);
+
+        boolean shouldBlur = mBundleHeaderBlurEnabled;
+        mBundleHeaderBlurView.setAxBlurEnabled(shouldBlur);
+
+        boolean canBlur = shouldBlur && mBundleHeaderBlurView.isCrossWindowBlurActive();
+        mBundleHeaderViewModel.setUseBlurBackground(canBlur);
     }
 
     private void initBundleDimens() {
