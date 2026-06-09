@@ -677,6 +677,16 @@ public final class AxPcModeService extends SystemService implements IAxPcModeSer
                         + " uniqueId=" + info.uniqueId);
                 return;
             }
+            if (info != null
+                    && (info.ownerPackageName != null
+                            || info.type == Display.TYPE_VIRTUAL
+                            || info.type == Display.TYPE_OVERLAY)) {
+                Slog.d(TAG, "Ignoring non-external/app-owned display " + displayId
+                        + " type=" + info.type
+                        + " owner=" + info.ownerPackageName
+                        + " uniqueId=" + info.uniqueId);
+                return;
+            }
         }
         mHandler.post(() -> {
             setTargetDisplayId(displayId);
