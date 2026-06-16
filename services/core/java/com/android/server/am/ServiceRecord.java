@@ -1593,6 +1593,10 @@ final class ServiceRecord extends ServiceRecordInternal implements ComponentName
     }
 
     public void postNotification(boolean byForegroundService) {
+	if (ServiceRecordExt.interceptPostNotification(packageName)) {
+            return;
+        }
+
         if (isForeground() && foregroundNoti != null && app != null) {
             final int appUid = appInfo.uid;
             final int appPid = app.getPid();
