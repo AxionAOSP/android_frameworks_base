@@ -23,6 +23,8 @@ import static android.provider.flags.Flags.newStoragePublicApi;
 import static android.server.Flags.removeGameManagerServiceFromWear;
 import static android.service.chooser.Flags.interactiveChooser;
 
+import com.oplus.os.ILinearmotorVibratorService;
+import com.oplus.os.LinearmotorVibrator;
 import android.accounts.AccountManager;
 import android.accounts.IAccountManager;
 import android.adservices.AdServicesFrameworkInitializer;
@@ -1866,6 +1868,15 @@ public final class SystemServiceRegistry {
                         }
                         return new E2eeContactKeysManager(ctx);
                     }});
+
+       registerService(Context.LINEARMOTOR_VIBRATOR_SERVICE, LinearmotorVibrator.class,
+                new CachedServiceFetcher<LinearmotorVibrator>() {
+                  @Override
+                  public LinearmotorVibrator createService(ContextImpl ctx) {
+                    IBinder binder = ServiceManager.getService(Context.LINEARMOTOR_VIBRATOR_SERVICE);
+                    ILinearmotorVibratorService service = ILinearmotorVibratorService.Stub.asInterface(binder);
+                    return new LinearmotorVibrator(ctx.getOuterContext(), service);
+                  }});
 
         registerService(Context.SUPERVISION_SERVICE, SupervisionManager.class,
                 new CachedServiceFetcher<>() {

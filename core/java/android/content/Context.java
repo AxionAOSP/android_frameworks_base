@@ -7174,6 +7174,16 @@ public abstract class Context {
     public static final String WEBVIEW_UPDATE_SERVICE = "webviewupdate";
 
     /**
+     * Use with {@link #getSystemService} to retrieve a
+     * {@link com.oplus.os.LinearmotorVibrator} for accessing linear motor vibrator state.
+     *
+     * @hide
+     * @see #getSystemService
+     * @see com.oplus.os.LinearmotorVibrator
+     */
+    public static final String LINEARMOTOR_VIBRATOR_SERVICE = "linearmotor";
+
+    /**
      * Use with {@link #getSystemService(String)} to retrieve a
      * {@link android.provider.BlockedNumbersManager} for accessing the blocked number service.
      *
