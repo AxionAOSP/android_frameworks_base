@@ -76,6 +76,18 @@ class ScreenshotTile @Inject constructor(
         panelInteractor.collapsePanels()
     }
 
+    override fun handleLongClick(expandable: Expandable?) {
+        handler.postDelayed({
+            screenshotHelper.takeScreenshot(
+                WindowManager.TAKE_SCREENSHOT_SELECTED_REGION,
+                WindowManager.ScreenshotSource.SCREENSHOT_OTHER,
+                handler,
+                null,
+            )
+        }, SCREENSHOT_DELAY_MS)
+        panelInteractor.collapsePanels()
+    }
+
     override fun getLongClickIntent(): Intent? = null
 
     override fun getTileLabel(): CharSequence =
