@@ -85,6 +85,7 @@ import android.os.UserManager;
 import android.os.storage.StorageManager;
 import android.permission.PermissionControllerManager;
 import android.permission.PermissionManager;
+import android.provider.Settings;
 import android.ravenwood.annotation.RavenwoodIgnore;
 import android.ravenwood.annotation.RavenwoodKeep;
 import android.ravenwood.annotation.RavenwoodKeepPartialClass;
@@ -211,6 +212,11 @@ class ReceiverRestrictedContext extends ContextWrapper {
 class ContextImpl extends Context {
     private final static String TAG = "ContextImpl";
     private final static boolean DEBUG = false;
+
+    private static final String AX_PC_MODE_SETTING = "ax_pc_mode";
+    private static final ComponentName AX_PC_MODE_LAUNCHER = new ComponentName(
+            "com.android.axion.axpcmode",
+            "com.android.axion.axpcmode.activities.PcModeLauncherActivity");
 
     private static final String XATTR_INODE_CACHE = "user.inode_cache";
     private static final String XATTR_INODE_CODE_CACHE = "user.inode_code_cache";
@@ -1196,14 +1202,43 @@ class ContextImpl extends Context {
                             + " context requires the FLAG_ACTIVITY_NEW_TASK flag."
                             + " Is this really what you want?");
         }
+        maybeRedirectHomeIntentForPcMode(intent);
+
         mMainThread.getInstrumentation().execStartActivity(
                 getOuterContext(), mMainThread.getApplicationThread(), null,
                 (Activity) null, intent, -1, applyLaunchDisplayIfNeeded(options));
     }
 
+    private boolean isHomeIntent(Intent intent) {
+        return intent != null && Intent.ACTION_MAIN.equals(intent.getAction())
+                && intent.hasCategory(Intent.CATEGORY_HOME);
+    }
+
+    private void maybeRedirectHomeIntentForPcMode(Intent intent) {
+        if (isHomeIntent(intent)
+                && Settings.Secure.getInt(getContentResolver(), AX_PC_MODE_SETTING, 0) == 1) {
+            redirectHomeIntentForPcMode(intent);
+        }
+    }
+
+    private void maybeRedirectHomeIntentForPcMode(Intent intent, int userId) {
+        if (isHomeIntent(intent)
+                && Settings.Secure.getIntForUser(getContentResolver(), AX_PC_MODE_SETTING,
+                        0, userId) == 1) {
+            redirectHomeIntentForPcMode(intent);
+        }
+    }
+
+    private void redirectHomeIntentForPcMode(Intent intent) {
+        intent.setComponent(AX_PC_MODE_LAUNCHER);
+        intent.removeCategory(Intent.CATEGORY_HOME);
+    }
+
     /** @hide */
     @Override
     public void startActivityAsUser(Intent intent, Bundle options, UserHandle user) {
+        maybeRedirectHomeIntentForPcMode(intent, user.getIdentifier());
+
         try {
             intent.collectExtraIntentKeys();
             ActivityTaskManager.getService().startActivityAsUser(

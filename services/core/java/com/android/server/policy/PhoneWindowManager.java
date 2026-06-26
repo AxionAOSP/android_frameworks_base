@@ -256,6 +256,7 @@ import com.android.server.DockObserverInternal;
 import com.android.server.ExtconStateObserver;
 import com.android.server.ExtconUEventObserver;
 import com.android.server.GestureLauncherService;
+import com.android.server.IAxPcModeService;
 import com.android.server.LocalServices;
 import com.android.server.SystemServiceManager;
 import com.android.server.UiThread;
@@ -2378,6 +2379,19 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
 
         boolean handleHomeButton(IBinder focusedToken, KeyEvent event) {
+            final IAxPcModeService pcModeService =
+                    LocalServices.getService(IAxPcModeService.class);
+            if (pcModeService != null && pcModeService.isPcModeEnabled()) {
+                if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                    Intent intent = new Intent();
+                    intent.setComponent(new ComponentName("com.android.axion.axpcmode",
+                            "com.android.axion.axpcmode.activities.PcModeLauncherActivity"));
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                            | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+                    mContext.startActivityAsUser(intent, UserHandle.CURRENT);
+                }
+                return true;
+            }
             final boolean keyguardOn = keyguardOn();
             final int repeatCount = event.getRepeatCount();
             final boolean down = event.getAction() == KeyEvent.ACTION_DOWN;

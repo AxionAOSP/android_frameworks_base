@@ -144,6 +144,7 @@ import com.android.internal.app.ResolverActivity;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.internal.util.function.pooled.PooledPredicate;
+import com.android.server.IAxPcModeService;
 import com.android.server.LocalServices;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.am.AppTimeTracker;
@@ -1344,6 +1345,7 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
 
         Intent homeIntent = null;
         ActivityInfo aInfo = null;
+
         if (taskDisplayArea == getDefaultTaskDisplayArea()
                 || mWmService.shouldPlacePrimaryHomeOnDisplay(
                         taskDisplayArea.getDisplayId(), userId)) {
@@ -2860,6 +2862,15 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
 
         startHomeOnDisplay(mCurrentUser, reason, displayContent.getDisplayId());
         displayContent.getDisplayPolicy().notifyDisplayAddSystemDecorations();
+
+        final int addedDisplayId = displayContent.getDisplayId();
+        if (addedDisplayId != DEFAULT_DISPLAY) {
+            final IAxPcModeService pcModeService =
+                    LocalServices.getService(IAxPcModeService.class);
+            if (pcModeService != null) {
+                pcModeService.onDisplayAdded(addedDisplayId);
+            }
+        }
     }
 
     @Override
@@ -2893,10 +2904,20 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
                         // Ensure the display content is removed even if the transition does not
                         // successfully finish.
                         removeDisplayContent(displayContent);
+                        final IAxPcModeService pcModeService =
+                                LocalServices.getService(IAxPcModeService.class);
+                        if (pcModeService != null) {
+                            pcModeService.onDisplayRemoved(displayId);
+                        }
                     });
                 });
             } else {
                 removeDisplayContent(displayContent);
+                final IAxPcModeService pcModeService =
+                        LocalServices.getService(IAxPcModeService.class);
+                if (pcModeService != null) {
+                    pcModeService.onDisplayRemoved(displayId);
+                }
             }
         }
     }
