@@ -35,6 +35,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator.AnimatorUpdateListener;
+import android.app.AxSandboxManager;
 import android.app.Notification;
 import android.content.Context;
 import android.content.res.Configuration;
@@ -53,6 +54,7 @@ import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserHandle;
+import android.service.notification.StatusBarNotification;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.FloatProperty;
@@ -157,6 +159,8 @@ import com.android.systemui.util.DumpUtilsKt;
 import com.android.systemui.util.ListenerSet;
 import com.android.wm.shell.shared.animation.PhysicsAnimator;
 
+import com.axion.applocker.AxAppLockerHelper;
+
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -216,6 +220,7 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
     private RowContentBindStage mRowContentBindStage;
     private PeopleNotificationIdentifier mPeopleNotificationIdentifier;
     private NotificationActivityStarter mNotificationActivityStarter;
+    private AxAppLockerHelper mAxAppLockerHelper;
     private MetricsLogger mMetricsLogger;
     private NotificationChildrenContainerLogger mChildrenContainerLogger;
     private ColorUpdateLogger mColorUpdateLogger;
@@ -412,6 +417,10 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
     }
 
     private void toggleExpansionState(View v, boolean shouldLogExpandClickMetric) {
+        if (doesNotificationNeedAuth() && !isOnKeyguard()) {
+            promptAppUnlock();
+            return;
+        }
         if (isBundle()
                 || (!shouldShowPublic() && (!mIsMinimized || isExpanded()) && isGroupRoot())) {
             mGroupExpansionChanging = true;
@@ -469,6 +478,35 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
                 mMetricsLogger.action(MetricsEvent.ACTION_NOTIFICATION_EXPANDER, nowExpanded);
             }
         }
+    }
+
+    private StatusBarNotification getAppLockSbn() {
+        if (NotificationBundleUi.isEnabled()) {
+            return mEntryAdapter != null ? mEntryAdapter.getSbn() : null;
+        }
+        return mEntry != null ? mEntry.getSbn() : null;
+    }
+
+    private boolean isNotificationAppLocked() {
+        StatusBarNotification sbn = getAppLockSbn();
+        if (sbn == null) return false;
+        if (!sbn.getNotification().extras
+                .getBoolean(AxSandboxManager.EXTRA_NOTIFICATION_APP_LOCKED, false)) {
+            return false;
+        }
+        return mAxAppLockerHelper.needsAuth(sbn.getPackageName(), sbn.getUserId());
+    }
+
+    private boolean doesNotificationNeedAuth() {
+        StatusBarNotification sbn = getAppLockSbn();
+        if (sbn == null) return false;
+        return mAxAppLockerHelper.needsAuth(sbn.getPackageName(), sbn.getUserId());
+    }
+
+    private void promptAppUnlock() {
+        StatusBarNotification sbn = getAppLockSbn();
+        if (sbn == null) return;
+        mAxAppLockerHelper.promptUnlock(sbn.getPackageName(), sbn.getUserId());
     }
 
     private boolean mKeepInParentForDismissAnimation;
@@ -2279,7 +2317,8 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
             UiEventLogger uiEventLogger,
             NotificationRebindingTracker notificationRebindingTracker,
             BundleInteractionLogger bundleInteractionLogger,
-            NotificationActivityStarter notificationActivityStarter) {
+            NotificationActivityStarter notificationActivityStarter,
+            AxAppLockerHelper axAppLockerHelper) {
 
         if (NotificationBundleUi.isEnabled()) {
             mEntryAdapter = entryAdapter;
@@ -2295,6 +2334,7 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
         mAppName = appName;
         mRebindingTracker = notificationRebindingTracker;
         mNotificationActivityStarter = notificationActivityStarter;
+        mAxAppLockerHelper = axAppLockerHelper;
         if (mMenuRow == null) {
             mMenuRow = new NotificationMenuRow(
                     mContext, peopleNotificationIdentifier, mNotificationActivityStarter);
@@ -3314,7 +3354,7 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
             return mGuts.getIntrinsicHeight();
         }
         if (NotificationBundleUi.isEnabled()) {
-            if (mSensitive && mHideSensitiveForIntrinsicHeight) {
+            if ((mSensitive && mHideSensitiveForIntrinsicHeight) || isNotificationAppLocked()) {
                 return getMinHeight();
             }
             if (mIsSummaryWithChildren) {
@@ -3326,6 +3366,10 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
         } else {
             if (isChildInGroup() && !isGroupExpanded()) {
                 return mPrivateLayout.getMinHeight();
+            } else if ((isChildInGroup() && !isGroupExpanded())) {
+                return mPrivateLayout.getMinHeight();
+            } else if (isNotificationAppLocked()) {
+                return getMinHeight();
             }
             if (mSensitive && mHideSensitiveForIntrinsicHeight) {
                 return getMinHeight();
@@ -3609,6 +3653,20 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
             // Just request the correct layout, even if the height hasn't changed
             getShowingLayout().requestSelectLayout(/* needsAnimation= */ true);
         }
+        updateAppLockedShowingState();
+    }
+
+    private void updateAppLockedShowingState() {
+        boolean wasPublic = mShowingPublic;
+        mShowingPublic = (mSensitive && mHideSensitiveForIntrinsicHeight)
+                || isNotificationAppLocked();
+        if (wasPublic != mShowingPublic) {
+            if (mShowingPublicInitialized) {
+                mPublicLayout.setVisibility(mShowingPublic ? View.VISIBLE : View.INVISIBLE);
+                updateChildrenVisibility();
+            }
+            notifyHeightChanged(true);
+        }
     }
 
     /** Sets whether this notification row should show the notification expander or not */
@@ -3641,7 +3699,7 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
             return;
         }
         boolean oldShowingPublic = mShowingPublic;
-        mShowingPublic = mSensitive && hideSensitive;
+        mShowingPublic = (mSensitive && hideSensitive) || isNotificationAppLocked();
         boolean isShowingLayoutNotChanged = mShowingPublic == oldShowingPublic;
         if (mShowingPublicInitialized && isShowingLayoutNotChanged) {
             return;
@@ -3763,6 +3821,9 @@ public class ExpandableNotificationRow extends ActivatableNotificationView
     }
 
     private boolean shouldShowPublic() {
+        if (isNotificationAppLocked()) {
+            return true;
+        }
         return mSensitive && mHideSensitiveForIntrinsicHeight;
     }
 

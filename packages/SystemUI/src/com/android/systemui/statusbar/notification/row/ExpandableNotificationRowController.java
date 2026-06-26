@@ -73,6 +73,7 @@ import com.android.systemui.statusbar.policy.SmartReplyConstants;
 import com.android.systemui.statusbar.policy.dagger.RemoteInputViewSubcomponent;
 import com.android.systemui.util.time.SystemClock;
 import com.android.systemui.window.domain.interactor.WindowRootViewBlurInteractor;
+import com.axion.applocker.AxAppLockerHelper;
 
 import com.google.android.msdl.data.model.MSDLToken;
 import com.google.android.msdl.domain.MSDLPlayer;
@@ -130,6 +131,7 @@ public class ExpandableNotificationRowController implements NotifViewController 
     private final EntryAdapterFactory mEntryAdapterFactory;
     private final WindowRootViewBlurInteractor mWindowRootViewBlurInteractor;
     private final NotificationActivityStarter mNotificationActivityStarter;
+    private final AxAppLockerHelper mAxAppLockerHelper;
     private final Context mContext;
 
     @VisibleForTesting
@@ -298,7 +300,8 @@ public class ExpandableNotificationRowController implements NotifViewController 
             EntryAdapterFactory entryAdapterFactory,
             WindowRootViewBlurInteractor windowRootViewBlurInteractor,
             BundleInteractionLogger bundleInteractionLogger,
-            NotificationActivityStarter notificationActivityStarter) {
+            NotificationActivityStarter notificationActivityStarter,
+            AxAppLockerHelper axAppLockerHelper) {
         mView = view;
         mContext = context;
         mListContainer = listContainer;
@@ -338,6 +341,7 @@ public class ExpandableNotificationRowController implements NotifViewController 
         mWindowRootViewBlurInteractor = windowRootViewBlurInteractor;
         mBundleInteractionLogger = bundleInteractionLogger;
         mNotificationActivityStarter = notificationActivityStarter;
+        mAxAppLockerHelper = axAppLockerHelper;
     }
 
     String loadsGutsAppName(Context context, PipelineEntry pipelineEntry) {
@@ -404,7 +408,8 @@ public class ExpandableNotificationRowController implements NotifViewController 
                 mUiEventLogger,
                 mNotificationRebindingTracker,
                 mBundleInteractionLogger,
-                mNotificationActivityStarter
+                mNotificationActivityStarter,
+                mAxAppLockerHelper
         );
         mView.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         if (mAllowLongPress) {
