@@ -18,6 +18,7 @@ package com.android.systemui.dagger
 
 import com.android.systemui.CoreStartable
 import com.android.systemui.ax.AxPlatformServiceImpl
+import com.android.systemui.doze.AodScheduleController
 import com.android.systemui.mistouch.domain.startable.StartMistouchPreventionModule
 import com.axion.applocker.AxAppLockerHelper
 import com.android.systemui.statusbar.policy.NetworkSpeedController
@@ -47,6 +48,10 @@ import dagger.multibindings.StringKey
 
 @Module(includes = [StartMistouchPreventionModule::class])
 abstract class AxionStartableModule {
+    @Binds
+    @IntoMap
+    @ClassKey(AodScheduleController::class)
+    abstract fun bindAodScheduleController(impl: AodScheduleController): CoreStartable
     @Binds
     @IntoMap
     @ClassKey(AxPlatformServiceImpl::class)
