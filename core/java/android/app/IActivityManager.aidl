@@ -1103,6 +1103,11 @@ interface IActivityManager {
     void setSandboxSpoofSettingEnabled(String packageName, String settingKey, boolean enabled);
     List<String> getSandboxEnabledSpoofSettings(String packageName);
     String getSandboxSpoofedSetting(String callingPackage, String settingName);
+    String getSpoofPifConfig();
+    String getSpoofGamePropsConfig();
+    String getSpoofTrickyStoreTarget();
+    String getSpoofTrickyStoreKeyBox();
+    String getSpoofTrickyStorePatch();
 
     List<AxKernelControl> getAxKernelControls();
 

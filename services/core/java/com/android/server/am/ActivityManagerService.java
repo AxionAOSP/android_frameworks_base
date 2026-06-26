@@ -490,6 +490,7 @@ import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.SELinuxUtil;
 import com.android.server.power.stats.BatteryStatsImpl;
 import com.android.server.sdksandbox.SdkSandboxManagerLocal;
+import com.android.server.spoof.AxSpoofManagerInternal;
 import com.android.server.stats.pull.StatsPullAtomService;
 import com.android.server.stats.pull.StatsPullAtomServiceInternal;
 import com.android.server.uri.GrantUri;
@@ -20045,6 +20046,10 @@ public class ActivityManagerService extends IActivityManager.Stub
         return LocalServices.getService(IAxSandboxService.class);
     }
 
+    private AxSpoofManagerInternal getAxSpoofManager() {
+        return LocalServices.getService(AxSpoofManagerInternal.class);
+    }
+
     @Override
     public boolean isSandboxAppLocked(String packageName) {
         final IAxSandboxService service = getAxSandboxService();
@@ -20285,6 +20290,36 @@ public class ActivityManagerService extends IActivityManager.Stub
     public String getSandboxSpoofedSetting(String callingPackage, String settingName) {
         final IAxSandboxService service = getAxSandboxService();
         return service != null ? service.getSpoofedSetting(callingPackage, settingName) : null;
+    }
+
+    @Override
+    public String getSpoofPifConfig() {
+        final AxSpoofManagerInternal service = getAxSpoofManager();
+        return service != null ? service.getPifConfig() : null;
+    }
+
+    @Override
+    public String getSpoofGamePropsConfig() {
+        final AxSpoofManagerInternal service = getAxSpoofManager();
+        return service != null ? service.getGamePropsConfig() : null;
+    }
+
+    @Override
+    public String getSpoofTrickyStoreTarget() {
+        final AxSpoofManagerInternal service = getAxSpoofManager();
+        return service != null ? service.getTrickyStoreTarget() : null;
+    }
+
+    @Override
+    public String getSpoofTrickyStoreKeyBox() {
+        final AxSpoofManagerInternal service = getAxSpoofManager();
+        return service != null ? service.getTrickyStoreKeyBox() : null;
+    }
+
+    @Override
+    public String getSpoofTrickyStorePatch() {
+        final AxSpoofManagerInternal service = getAxSpoofManager();
+        return service != null ? service.getTrickyStorePatch() : null;
     }
 
     @Override
