@@ -445,6 +445,7 @@ import com.android.internal.util.FastPrintWriter;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.internal.util.MemInfoReader;
 import com.android.internal.util.Preconditions;
+import com.android.internal.util.android.OmniJawsClient;
 import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.server.AlarmManagerInternal;
 import com.android.server.BootReceiver;
@@ -19952,6 +19953,78 @@ public class ActivityManagerService extends IActivityManager.Stub
             return;
         }
         r.getWindowProcessController().setOptimizationInfo(compilerFilter, compilationReason);
+    }
+
+    @Override
+    public Bundle queryOmniJawsWeather(int userId) {
+        final int callingPid = Binder.getCallingPid();
+        final int callingUid = Binder.getCallingUid();
+        enforceOmniJawsPermission(callingPid, callingUid, "queryOmniJawsWeather");
+        final int resolvedUserId = mUserController.handleIncomingUser(callingPid, callingUid,
+                userId, false, ALLOW_NON_FULL, "queryOmniJawsWeather", null);
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            return OmniJawsClient.weatherInfoToBundle(
+                    getOmniJawsClientService().queryWeather(resolvedUserId));
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
+    }
+
+    @Override
+    public Bundle getOmniJawsWeatherInfo(int userId) {
+        final int callingPid = Binder.getCallingPid();
+        final int callingUid = Binder.getCallingUid();
+        enforceOmniJawsPermission(callingPid, callingUid, "getOmniJawsWeatherInfo");
+        final int resolvedUserId = mUserController.handleIncomingUser(callingPid, callingUid,
+                userId, false, ALLOW_NON_FULL, "getOmniJawsWeatherInfo", null);
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            return OmniJawsClient.weatherInfoToBundle(
+                    getOmniJawsClientService().getWeatherInfo(resolvedUserId));
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
+    }
+
+    @Override
+    public boolean isOmniJawsEnabled(int userId) {
+        final int callingPid = Binder.getCallingPid();
+        final int callingUid = Binder.getCallingUid();
+        enforceOmniJawsPermission(callingPid, callingUid, "isOmniJawsEnabled");
+        final int resolvedUserId = mUserController.handleIncomingUser(callingPid, callingUid,
+                userId, false, ALLOW_NON_FULL, "isOmniJawsEnabled", null);
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            return getOmniJawsClientService().isOmniJawsEnabled(resolvedUserId);
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
+    }
+
+    private OmniJawsClientService getOmniJawsClientService() {
+        return OmniJawsClientService.getService();
+    }
+
+    private void enforceOmniJawsPermission(int callingPid, int callingUid, String method) {
+        if (callingUid == ROOT_UID || callingUid == SYSTEM_UID
+                || checkPermission(OmniJawsClient.READ_WEATHER_PERMISSION, callingPid, callingUid)
+                        == PERMISSION_GRANTED) {
+            return;
+        }
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            if (getOmniJawsClientService().isServicePackageUid(callingUid)) {
+                return;
+            }
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
+        String msg = "Permission Denial: " + method + " from pid=" + callingPid
+                + ", uid=" + callingUid + " requires "
+                + OmniJawsClient.READ_WEATHER_PERMISSION;
+        Slog.w(TAG, msg);
+        throw new SecurityException(msg);
     }
 
     @Override

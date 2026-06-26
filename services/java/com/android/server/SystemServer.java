@@ -126,6 +126,7 @@ import com.android.server.accounts.AccountManagerService;
 import com.android.server.adb.AdbService;
 import com.android.server.alarm.AlarmManagerService;
 import com.android.server.am.ActivityManagerService;
+import com.android.server.am.OmniJawsClientService;
 import com.android.server.ambientcontext.AmbientContextManagerService;
 import com.android.server.app.GameManagerService;
 import com.android.server.appbinding.AppBindingService;
@@ -1652,6 +1653,10 @@ public final class SystemServer implements Dumpable {
             mSystemServiceManager.startService(UPDATABLE_DEVICE_CONFIG_SERVICE_CLASS);
             // Now that SettingsProvider is ready, reactivate SQLiteCompatibilityWalFlags
             SQLiteCompatibilityWalFlags.reset();
+            t.traceEnd();
+
+            t.traceBegin("StartOmniJawsClientService");
+            mSystemServiceManager.startService(OmniJawsClientService.class);
             t.traceEnd();
 
             // Records errors and logs, for example wtf()

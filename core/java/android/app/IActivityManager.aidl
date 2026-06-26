@@ -1059,6 +1059,12 @@ interface IActivityManager {
     oneway void reportOptimizationInfo(in IBinder app, in String compilerFilter,
             in String compilationReason);
 
+    @nullable Bundle queryOmniJawsWeather(int userId);
+
+    @nullable Bundle getOmniJawsWeatherInfo(int userId);
+
+    boolean isOmniJawsEnabled(int userId);
+
     List<AxKernelControl> getAxKernelControls();
 
     boolean setAxKernelControlValue(String id, int value);
