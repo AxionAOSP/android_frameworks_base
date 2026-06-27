@@ -16,6 +16,8 @@
 
 #include "Properties.h"
 
+#include "AxHwuiMedia.h"
+
 #include <android-base/properties.h>
 #include <cutils/compiler.h>
 #include <log/log.h>
@@ -236,6 +238,9 @@ RenderPipelineType Properties::peekRenderPipelineType() {
     // If sRenderPipelineType has been locked, just return the locked type immediately.
     if (sRenderPipelineType != RenderPipelineType::NotInitialized) {
         return sRenderPipelineType;
+    }
+    if (AxHwuiMedia::useOpenGlPipeline()) {
+        return RenderPipelineType::SkiaGL;
     }
     bool useVulkan = use_vulkan().value_or(false);
     std::string rendererProperty = base::GetProperty(PROPERTY_RENDERER, useVulkan ? "skiavk" : "skiagl");

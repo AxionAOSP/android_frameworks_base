@@ -615,6 +615,7 @@ cc_defaults {
         "AnimationContext.cpp",
         "Animator.cpp",
         "AnimatorManager.cpp",
+        "AxHwuiMedia.cpp",
         "CanvasTransform.cpp",
         "ColorArea.cpp",
         "DamageAccumulator.cpp",
