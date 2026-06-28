@@ -17,14 +17,17 @@
 package com.android.systemui.navigationbar;
 
 import static android.content.Intent.ACTION_OVERLAY_CHANGED;
+import static android.view.WindowManagerPolicyConstants.NAV_BAR_MODE_GESTURAL;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.om.IOverlayManager;
+import android.content.om.OverlayInfo;
 import android.content.pm.PackageManager;
 import android.content.res.ApkAssets;
+import android.database.ExecutorContentObserver;
 import android.os.PatternMatcher;
 import android.os.RemoteException;
 import android.os.ServiceManager;
@@ -50,6 +53,8 @@ import java.util.concurrent.Executor;
 
 import javax.inject.Inject;
 
+import lineageos.providers.LineageSettings;
+
 /**
  * Controller for tracking the current navigation bar mode.
  */
@@ -58,6 +63,8 @@ public class NavigationModeController implements Dumpable {
 
     private static final String TAG = NavigationModeController.class.getSimpleName();
     private static final boolean DEBUG = true;
+    private static final String NAVIGATION_HINT_OVERLAY =
+            "com.custom.overlay.systemui.gestural.hidden";
 
     public interface ModeChangedListener {
         void onNavigationModeChanged(int mode);
@@ -67,6 +74,7 @@ public class NavigationModeController implements Dumpable {
     private Context mCurrentUserContext;
     private final IOverlayManager mOverlayManager;
     private final Executor mUiBgExecutor;
+    private final ExecutorContentObserver mNavigationHintObserver;
     private final UserTracker mUserTracker;
 
     private ArrayList<ModeChangedListener> mListeners = new ArrayList<>();
@@ -79,6 +87,7 @@ public class NavigationModeController implements Dumpable {
                         + newUser);
             }
 
+            registerNavigationHintObserver();
             updateCurrentInteractionMode(true /* notify */);
         }
     };
@@ -107,11 +116,17 @@ public class NavigationModeController implements Dumpable {
         mContext = context;
         mCurrentUserContext = context;
         mUserTracker = userTracker;
-        mUserTracker.addCallback(mUserTrackerCallback, mainExecutor);
         mOverlayManager = IOverlayManager.Stub.asInterface(
                 ServiceManager.getService(Context.OVERLAY_SERVICE));
         mUiBgExecutor = uiBgExecutor;
         dumpManager.registerDumpable(getClass().getSimpleName(), this);
+        mNavigationHintObserver = new ExecutorContentObserver(mainExecutor) {
+            @Override
+            public void onChange(boolean selfChange) {
+                scheduleNavigationHintOverlayUpdate();
+            }
+        };
+        mUserTracker.addCallback(mUserTrackerCallback, mainExecutor);
 
         IntentFilter overlayFilter = new IntentFilter(ACTION_OVERLAY_CHANGED);
         overlayFilter.addDataScheme("package");
@@ -128,6 +143,7 @@ public class NavigationModeController implements Dumpable {
             }
         });
 
+        registerNavigationHintObserver();
         updateCurrentInteractionMode(false /* notify */);
     }
 
@@ -135,9 +151,13 @@ public class NavigationModeController implements Dumpable {
         Trace.beginSection("NMC#updateCurrentInteractionMode");
         mCurrentUserContext = getCurrentUserContext();
         int mode = getCurrentInteractionMode(mCurrentUserContext);
-        mUiBgExecutor.execute(() ->
-            Settings.Secure.putString(mCurrentUserContext.getContentResolver(),
-                    Secure.NAVIGATION_MODE, String.valueOf(mode)));
+        int userId = mUserTracker.getUserId();
+        Context currentUserContext = mCurrentUserContext;
+        mUiBgExecutor.execute(() -> {
+            Settings.Secure.putString(currentUserContext.getContentResolver(),
+                    Secure.NAVIGATION_MODE, String.valueOf(mode));
+            updateNavigationHintOverlay(userId, mode);
+        });
         if (DEBUG) {
             Log.d(TAG, "updateCurrentInteractionMode: mode=" + mode);
             dumpAssetPaths(mCurrentUserContext);
@@ -163,6 +183,41 @@ public class NavigationModeController implements Dumpable {
     public boolean getImeDrawsImeNavBar() {
         return mCurrentUserContext.getResources().getBoolean(
                 com.android.internal.R.bool.config_imeDrawsImeNavBar);
+    }
+
+    private void registerNavigationHintObserver() {
+        mContext.getContentResolver().unregisterContentObserver(mNavigationHintObserver);
+        mContext.getContentResolver().registerContentObserver(
+                LineageSettings.System.getUriFor(LineageSettings.System.NAVIGATION_BAR_HINT),
+                false, mNavigationHintObserver, mUserTracker.getUserId());
+    }
+
+    private void scheduleNavigationHintOverlayUpdate() {
+        scheduleNavigationHintOverlayUpdate(mUserTracker.getUserId(),
+                getCurrentInteractionMode(mCurrentUserContext));
+    }
+
+    private void scheduleNavigationHintOverlayUpdate(int userId, int mode) {
+        mUiBgExecutor.execute(() -> updateNavigationHintOverlay(userId, mode));
+    }
+
+    private void updateNavigationHintOverlay(int userId, int mode) {
+        boolean enabled = mode == NAV_BAR_MODE_GESTURAL
+                && LineageSettings.System.getIntForUser(mContext.getContentResolver(),
+                        LineageSettings.System.NAVIGATION_BAR_HINT, 1, userId) == 0;
+        try {
+            OverlayInfo overlayInfo = mOverlayManager.getOverlayInfo(NAVIGATION_HINT_OVERLAY,
+                    userId);
+            if (overlayInfo == null || overlayInfo.isEnabled() == enabled) {
+                return;
+            }
+            mOverlayManager.setEnabled(NAVIGATION_HINT_OVERLAY, enabled, userId);
+            if (enabled) {
+                mOverlayManager.setHighestPriority(NAVIGATION_HINT_OVERLAY, userId);
+            }
+        } catch (RemoteException | IllegalArgumentException e) {
+            Log.e(TAG, "Failed to update navigation hint overlay", e);
+        }
     }
 
     private int getCurrentInteractionMode(Context context) {
