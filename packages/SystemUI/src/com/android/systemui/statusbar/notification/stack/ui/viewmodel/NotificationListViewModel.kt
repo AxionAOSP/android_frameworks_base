@@ -83,6 +83,13 @@ constructor(
     @Background bgDispatcher: CoroutineDispatcher,
     dumpManager: DumpManager,
 ) : FlowDumperImpl(dumpManager) {
+    private val hideFooterForQsFullscreen: Flow<Boolean> =
+        shadeInteractor.isQsFullscreen.combine(
+            activeNotificationsInteractor.hasEssentialNotifications
+        ) { qsFullScreen, hasEssentialNotifications ->
+            qsFullScreen && !hasEssentialNotifications
+        }
+
     /**
      * We want the NSSL to be unimportant for accessibility when there are no notifications in it
      * while the device is on lock screen, to avoid an unlabelled NSSL view in TalkBack. Otherwise,
@@ -194,13 +201,13 @@ constructor(
                 activeNotificationsInteractor.areAnyNotificationsPresent,
                 userSetupInteractor.isUserSetUp,
                 notificationStackInteractor.isShowingOnLockscreen,
-                shadeInteractor.isQsFullscreen,
+                hideFooterForQsFullscreen,
                 remoteInputInteractor.isRemoteInputActive,
             ) {
                 hasNotifications,
                 isUserSetUp,
                 isShowingOnLockscreen,
-                qsFullScreen,
+                hideForQsFullscreen,
                 isRemoteInputActive ->
                 when {
                     !hasNotifications -> VisibilityChange.DISAPPEAR_WITH_ANIMATION
@@ -214,7 +221,7 @@ constructor(
                     isShowingOnLockscreen -> VisibilityChange.DISAPPEAR_WITHOUT_ANIMATION
                     // Do not show the footer if quick settings are fully expanded (except
                     // for the foldable split shade view). See b/201427195 && b/222699879.
-                    qsFullScreen -> VisibilityChange.DISAPPEAR_WITH_ANIMATION
+                    hideForQsFullscreen -> VisibilityChange.DISAPPEAR_WITH_ANIMATION
                     // Hide the footer if remote input is active (i.e. user is replying to a
                     // notification). See b/75984847.
                     isRemoteInputActive -> VisibilityChange.DISAPPEAR_WITH_ANIMATION
@@ -260,14 +267,14 @@ constructor(
                     activeNotificationsInteractor.areAnyNotificationsPresent,
                     userSetupInteractor.isUserSetUp,
                     notificationStackInteractor.isShowingOnLockscreen,
-                    shadeInteractor.isQsFullscreen,
+                    hideFooterForQsFullscreen,
                     remoteInputInteractor.isRemoteInputActive,
                 ) {
                     shadeMode,
                     hasNotifications,
                     isUserSetUp,
                     isShowingOnLockscreen,
-                    qsFullScreen,
+                    hideForQsFullscreen,
                     isRemoteInputActive ->
                     val dualShade = shadeMode is ShadeMode.Dual
                     val singleShade = shadeMode is ShadeMode.Single
@@ -284,7 +291,8 @@ constructor(
                         isShowingOnLockscreen -> VisibilityChange.DISAPPEAR_WITHOUT_ANIMATION
                         // Do not show the footer if quick settings are fully expanded (in single
                         // shade). See b/201427195 && b/222699879.
-                        qsFullScreen && singleShade -> VisibilityChange.DISAPPEAR_WITH_ANIMATION
+                        hideForQsFullscreen && singleShade ->
+                            VisibilityChange.DISAPPEAR_WITH_ANIMATION
                         // Hide the footer if remote input is active (i.e. user is replying to a
                         // notification). See b/75984847.
                         isRemoteInputActive -> VisibilityChange.DISAPPEAR_WITH_ANIMATION
