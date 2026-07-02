@@ -47,6 +47,7 @@ constructor(
 
     private var notificationShadeZoomOut: Float = 0f
     private var unfoldTransitionZoomOut: Float = 0f
+    private var screenOnZoomOut: Float = 0f
 
     private val shouldUseDefaultUnfoldTransition: Boolean
         get() = wallpaperRepository.wallpaperInfo.value?.shouldUseDefaultUnfoldTransition() ?: true
@@ -63,8 +64,14 @@ constructor(
         }
     }
 
+    fun setScreenOnZoom(zoomOut: Float) {
+        screenOnZoomOut = zoomOut
+        updateZoom()
+    }
+
     private fun updateZoom() {
-        setWallpaperZoom(max(notificationShadeZoomOut, unfoldTransitionZoomOut))
+        val zoomOut = max(notificationShadeZoomOut, unfoldTransitionZoomOut)
+        setWallpaperZoom(max(zoomOut, screenOnZoomOut))
     }
 
     private fun setWallpaperZoom(zoomOut: Float) {

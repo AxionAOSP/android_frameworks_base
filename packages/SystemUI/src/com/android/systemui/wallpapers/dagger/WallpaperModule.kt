@@ -19,6 +19,7 @@ package com.android.systemui.wallpapers.dagger
 import com.android.systemui.CoreStartable
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.shared.Flags.extendedWallpaperEffects
+import com.android.systemui.wallpapers.AxWallpaperAnimController
 import com.android.systemui.wallpapers.WallpaperPresentationEnabled
 import com.android.systemui.wallpapers.data.repository.WallpaperRepository
 import com.android.systemui.wallpapers.data.repository.WallpaperRepositoryImpl
@@ -66,6 +67,11 @@ interface WallpaperModule {
     fun bindKeyguardWallpaperPresentationFactory(
         impl: KeyguardWallpaperPresentationFactory
     ): WallpaperPresentationFactory
+
+    @Binds
+    @IntoMap
+    @ClassKey(AxWallpaperAnimController::class)
+    fun bindAxWallpaperAnimController(impl: AxWallpaperAnimController): CoreStartable
 
     companion object {
         @Provides
