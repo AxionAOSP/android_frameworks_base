@@ -81,6 +81,7 @@ class EventTriggerMonitor @Inject constructor(
         FEATURE_STATE,
         SENSOR_PRIVACY,
         CAPTIVE_PORTAL,
+        NFC,
     }
 
     private val batteryCallback = object : BatteryController.BatteryStateChangeCallback {
@@ -289,6 +290,15 @@ class EventTriggerMonitor @Inject constructor(
             ListenerGroup.CAPTIVE_PORTAL -> {
                 connectivityManager.registerDefaultNetworkCallback(networkCallback)
             }
+            ListenerGroup.NFC -> {
+                context.registerReceiver(
+                    nfcReceiver,
+                    IntentFilter("com.android.systemui.routines.action.NFC_TAG_SCANNED"),
+                    null,
+                    null,
+                    Context.RECEIVER_EXPORTED,
+                )
+            }
         }
     }
 
@@ -336,6 +346,9 @@ class EventTriggerMonitor @Inject constructor(
             ListenerGroup.CAPTIVE_PORTAL -> {
                 runCatching { connectivityManager.unregisterNetworkCallback(networkCallback) }
                 lastCaptivePortalState = false
+            }
+            ListenerGroup.NFC -> {
+                runCatching { context.unregisterReceiver(nfcReceiver) }
             }
         }
     }
@@ -432,6 +445,15 @@ class EventTriggerMonitor @Inject constructor(
         }
     }
 
+    private val nfcReceiver = object : BroadcastReceiver() {
+        override fun onReceive(ctx: Context, intent: Intent) {
+            if (intent.action == "com.android.systemui.routines.action.NFC_TAG_SCANNED") {
+                val tagId = intent.getStringExtra("tag_id") ?: return
+                callback?.invoke(Trigger.NfcTag(tagId))
+            }
+        }
+    }
+
     private fun resolveLauncherPackage(): String? = runCatching {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         context.packageManager
@@ -455,6 +477,7 @@ class EventTriggerMonitor @Inject constructor(
             is Trigger.FeatureState -> ListenerGroup.FEATURE_STATE
             is Trigger.SensorPrivacyState -> ListenerGroup.SENSOR_PRIVACY
             is Trigger.CaptivePortal -> ListenerGroup.CAPTIVE_PORTAL
+            is Trigger.NfcTag -> ListenerGroup.NFC
             is Trigger.TimeOfDay, is Trigger.Interval, is Trigger.Location -> null
         }
     }

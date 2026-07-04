@@ -71,6 +71,9 @@ class TriggerEvaluator @Inject constructor() {
         trigger is Trigger.CaptivePortal && event is Trigger.CaptivePortal ->
             trigger.ssid == null || trigger.ssid == event.ssid
 
+        trigger is Trigger.NfcTag && event is Trigger.NfcTag ->
+            trigger.tagId == event.tagId
+
         else -> false
     }
 

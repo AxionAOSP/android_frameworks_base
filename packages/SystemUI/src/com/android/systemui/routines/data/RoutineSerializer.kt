@@ -155,6 +155,11 @@ class RoutineSerializer @Inject constructor() {
                 put(KEY_TYPE, Trigger.TYPE_CAPTIVE_PORTAL)
                 trigger.ssid?.let { put(KEY_SSID, it) }
             }
+            is Trigger.NfcTag -> {
+                put(KEY_TYPE, Trigger.TYPE_NFC_TAG)
+                put(KEY_TAG_ID, trigger.tagId)
+                trigger.tagName?.let { put(KEY_TAG_NAME, it) }
+            }
         }
     }
 
@@ -222,6 +227,10 @@ class RoutineSerializer @Inject constructor() {
             )
             Trigger.TYPE_CAPTIVE_PORTAL -> Trigger.CaptivePortal(
                 ssid = json.optString(KEY_SSID, null),
+            )
+            Trigger.TYPE_NFC_TAG -> Trigger.NfcTag(
+                tagId = json.getString(KEY_TAG_ID),
+                tagName = json.optString(KEY_TAG_NAME, null),
             )
             else -> throw IllegalArgumentException("Unknown trigger type: ${json.getString(KEY_TYPE)}")
         }
@@ -617,5 +626,7 @@ class RoutineSerializer @Inject constructor() {
         private const val KEY_COMPONENT_CLASS = "component_class"
         private const val KEY_EXTRA_TYPE = "extra_type"
         private const val KEY_EXTRA_VALUE = "extra_value"
+        private const val KEY_TAG_ID = "tag_id"
+        private const val KEY_TAG_NAME = "tag_name"
     }
 }
