@@ -326,6 +326,8 @@ import android.hardware.display.DisplayManager;
 import android.hardware.display.DisplayManagerInternal;
 import android.net.Uri;
 import android.os.AppZygote;
+import android.os.AxKernelControl;
+import android.os.AxKernelMetrics;
 import android.os.BatteryStats;
 import android.os.Binder;
 import android.os.BinderProxy;
@@ -471,6 +473,7 @@ import com.android.server.criticalevents.CriticalEventLog;
 import com.android.server.firewall.IntentFirewall;
 import com.android.server.graphics.fonts.FontManagerInternal;
 import com.android.server.job.JobSchedulerInternal;
+import com.android.server.kernel.AxKernelManagerService;
 import com.android.server.net.NetworkManagementInternal;
 import com.android.server.os.NativeTombstoneManager;
 import com.android.server.pm.Installer;
@@ -644,6 +647,7 @@ public class ActivityManagerService extends IActivityManager.Stub
 
     /** Service for optimizing resource usage from background apps. */
     private CachedAppOptimizer mCachedAppOptimizer;
+    private AxKernelManagerService mAxKernelManager;
     OomAdjuster mOomAdjuster;
     @GuardedBy("this")
     ProcessStateController mProcessStateController;
@@ -2432,6 +2436,7 @@ public class ActivityManagerService extends IActivityManager.Stub
         mPhantomProcessList = new PhantomProcessList(this);
 
         mCachedAppOptimizer = new CachedAppOptimizer(this);
+        mAxKernelManager = new AxKernelManagerService(mContext);
         mProcessStateController = new ProcessStateController
                 .Builder(this, mProcessList, activeUids, new OomAdjusterCallback())
                 .setHandlerThread(handlerThread)
@@ -2502,6 +2507,7 @@ public class ActivityManagerService extends IActivityManager.Stub
         mPhantomProcessList = new PhantomProcessList(this);
         final Looper activityTaskLooper = DisplayThread.get().getLooper();
         mCachedAppOptimizer = new CachedAppOptimizer(this);
+        mAxKernelManager = new AxKernelManagerService(mContext);
         mProcessStateController = new ProcessStateController
                 .Builder(this, mProcessList, activeUids, new OomAdjusterCallback())
                 .setLockObject(this)
@@ -9098,6 +9104,10 @@ public class ActivityManagerService extends IActivityManager.Stub
 
         t.traceBegin("registerActivityLaunchObserver");
         mAtmInternal.getLaunchObserverRegistry().registerLaunchObserver(mActivityLaunchObserver);
+        t.traceEnd();
+
+        t.traceBegin("AxKernelManager.systemReady");
+        mAxKernelManager.systemReady();
         t.traceEnd();
 
         t.traceBegin("watchDeviceProvisioning");
@@ -19942,5 +19952,21 @@ public class ActivityManagerService extends IActivityManager.Stub
             return;
         }
         r.getWindowProcessController().setOptimizationInfo(compilerFilter, compilationReason);
+    }
+
+    @Override
+    public List<AxKernelControl> getAxKernelControls() {
+        return mAxKernelManager.getControls();
+    }
+
+    @Override
+    public boolean setAxKernelControlValue(String id, int value) {
+        return mAxKernelManager.setControlValue(id, value);
+    }
+    
+    @Override
+    public AxKernelMetrics getAxKernelMetrics(
+            long previousCpuActiveTimeTicks, long previousCpuTimeTicks) {
+        return mAxKernelManager.getMetrics(previousCpuActiveTimeTicks, previousCpuTimeTicks);
     }
 }

@@ -65,6 +65,8 @@ import android.graphics.GraphicBuffer;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.net.Uri;
+import android.os.AxKernelControl;
+import android.os.AxKernelMetrics;
 import android.os.Bundle;
 import android.os.Debug;
 import android.os.IBinder;
@@ -1056,4 +1058,11 @@ interface IActivityManager {
      */
     oneway void reportOptimizationInfo(in IBinder app, in String compilerFilter,
             in String compilationReason);
+
+    List<AxKernelControl> getAxKernelControls();
+
+    boolean setAxKernelControlValue(String id, int value);
+    
+    AxKernelMetrics getAxKernelMetrics(long previousCpuActiveTimeTicks,
+            long previousCpuTimeTicks);
 }
