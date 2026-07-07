@@ -362,6 +362,7 @@ import com.android.server.FgThread;
 import com.android.server.LocalServices;
 import com.android.server.UiThread;
 import com.android.server.Watchdog;
+import com.android.server.am.AppBackgroundManager;
 import com.android.server.am.UserState;
 import com.android.server.input.InputManagerService;
 import com.android.server.inputmethod.InputMethodManagerInternal;
@@ -3031,6 +3032,12 @@ public class WindowManagerService extends IWindowManager.Stub
 
     void finishDrawingWindow(Session session, IWindow client,
             @Nullable SurfaceControl.Transaction postDrawTransaction, int seqId) {
+        final AppBackgroundManager appBgManager = AppBackgroundManager.getInstance();
+        if (appBgManager != null) {
+            appBgManager.startUnfreeze(session.mPackageName,
+                    AppBackgroundManager.COMPLETE_LAUNCH_UNFREEZE);
+        }
+
         if (postDrawTransaction != null) {
             postDrawTransaction.sanitize(Binder.getCallingPid(), Binder.getCallingUid());
         }

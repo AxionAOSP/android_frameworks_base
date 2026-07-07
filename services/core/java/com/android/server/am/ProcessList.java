@@ -2715,6 +2715,13 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
             int zygotePolicyFlags, boolean allowWhileBooting, boolean isolated, int isolatedUid,
             boolean isSdkSandbox, int sdkSandboxUid, String sdkSandboxClientAppPackage,
             String abiOverride, String entryPoint, String[] entryPointArgs, Runnable crashHandler) {
+        final AppBackgroundManager appBackgroundManager = mService.getAppBackgroundManager();
+        if (appBackgroundManager != null && appBackgroundManager.shouldPreventProcessStart(
+                processName, info, intentFlags, hostingRecord, allowWhileBooting, isolated,
+                isSdkSandbox)) {
+            return null;
+        }
+
         long startTime = SystemClock.uptimeMillis();
         final long startTimeNs = SystemClock.elapsedRealtimeNanos();
         ProcessRecord app;

@@ -163,6 +163,7 @@ import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.server.LocalServices;
 import com.android.server.am.ActivityManagerService;
+import com.android.server.am.AppBackgroundManager;
 import com.android.server.am.HostingRecord;
 import com.android.server.am.UserState;
 import com.android.server.companion.virtual.VirtualDeviceManagerInternal;
@@ -1211,6 +1212,12 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         r.notifyUnknownVisibilityLaunchedForKeyguardTransition();
 
         final boolean isTop = andResume && r.isTopRunningActivity();
+        if (isTop) {
+            final AppBackgroundManager appBgManager = AppBackgroundManager.getInstance();
+            if (appBgManager != null) {
+                appBgManager.startFreeze(r.processName, AppBackgroundManager.COLD_LAUNCH_FREEZE);
+            }
+        }
         mService.startProcessAsync(r, knownToBeDead, isTop,
                 isTop ? HostingRecord.HOSTING_TYPE_TOP_ACTIVITY
                         : HostingRecord.HOSTING_TYPE_ACTIVITY);

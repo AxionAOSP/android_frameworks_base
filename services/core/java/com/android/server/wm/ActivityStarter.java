@@ -141,6 +141,7 @@ import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.server.UiThread;
 import com.android.server.am.ActivityManagerService.IntentCreatorToken;
+import com.android.server.am.AppBackgroundManager;
 import com.android.server.am.PendingIntentRecord;
 import com.android.server.pm.InstantAppResolver;
 import com.android.server.pm.PackageArchiver;
@@ -1102,6 +1103,10 @@ class ActivityStarter {
             if (callingUid != realCallingUid
                     && realCallingUid != Request.DEFAULT_REAL_CALLING_UID) {
                 request.logMessage.append(" (realCallingUid=").append(realCallingUid).append(")");
+            }
+            final AppBackgroundManager appBgManager = AppBackgroundManager.getInstance();
+            if (appBgManager != null && aInfo != null) {
+                appBgManager.handleActivityStart(aInfo.applicationInfo);
             }
         }
 

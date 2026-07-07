@@ -394,6 +394,9 @@ public abstract class OomAdjuster {
         /** Notifies the client component when a process's OOM adjustment changes. */
         void onOomAdjustChanged(int oldAdj, int newAdj, ProcessRecordInternal appInternal);
 
+        void onSchedulingGroupChanged(ProcessRecordInternal appInternal, int oldSchedGroup,
+                int curSchedGroup);
+
         /**
          * Notifies the client component to evaluate and apply process freeze state changes.
          *
@@ -2091,6 +2094,25 @@ public abstract class OomAdjuster {
         }
 
         final int oldOomAdj = state.getSetAdj();
+        final AppBackgroundManager appBgManager = AppBackgroundManager.getInstance();
+        if (appBgManager != null) {
+            if (state.getSetAdj() >= ProcessList.FOREGROUND_APP_ADJ
+                    && state.getSetAdj() <= ProcessList.VISIBLE_APP_ADJ
+                    && state.getCurAdj() > ProcessList.VISIBLE_APP_ADJ) {
+                appBgManager.startUnfreeze(state.processName,
+                        AppBackgroundManager.INTERRUPT_LAUNCH_UNFREEZE);
+            }
+            if (state instanceof ProcessRecord
+                    && state.getSetAdj() >= state.getCurAdj()
+                    && state.getCurAdj() <= ProcessList.VISIBLE_APP_ADJ) {
+                final ProcessRecord app = (ProcessRecord) state;
+                if (appBgManager.checkNeedFreezeProcessLocked(app)) {
+                    appBgManager.startUnfreezeService(app,
+                            AppBackgroundManager.DEPEND_LAUNCH_UNFREEZE);
+                }
+            }
+        }
+
         if (state.getCurAdj() != state.getSetAdj()) {
             if (isBatchingOomAdj && mConstants.ENABLE_BATCHING_OOM_ADJ) {
                 mProcsToOomAdj.add(state);
@@ -2144,6 +2166,7 @@ public abstract class OomAdjuster {
                     processGroup = THREAD_GROUP_DEFAULT;
                     break;
             }
+            mCallback.onSchedulingGroupChanged(state, oldSchedGroup, curSchedGroup);
             setAppAndChildProcessGroup(state, processGroup);
             try {
                 final int renderThreadTid = state.getRenderThreadTid();
