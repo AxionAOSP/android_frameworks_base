@@ -20,8 +20,6 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.hardware.display.DisplayManager
-import android.media.MediaCodecInfo
-import android.util.DisplayMetrics
 import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.media.projection.StopReason
@@ -31,7 +29,9 @@ import android.os.Handler
 import android.os.Looper
 import android.os.ResultReceiver
 import android.os.UserHandle
+import android.util.DisplayMetrics
 import android.view.Display
+import android.view.Gravity
 import android.view.MotionEvent.ACTION_MOVE
 import android.view.View
 import android.view.View.GONE
@@ -40,7 +40,6 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Spinner
-import com.google.android.material.materialswitch.MaterialSwitch
 import androidx.annotation.LayoutRes
 import com.android.systemui.Prefs
 import com.android.systemui.mediaprojection.MediaProjectionCaptureTarget
@@ -56,9 +55,11 @@ import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.res.R
 import com.android.systemui.screenrecord.domain.ScreenRecordingParameters
 import com.android.systemui.screenrecord.domain.interactor.ScreenRecordingStartStopInteractor
+import com.google.android.material.materialswitch.MaterialSwitch
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
+import kotlin.math.roundToInt
 
 class ScreenRecordPermissionContentManager(
     private val hostUserHandle: UserHandle,
@@ -124,6 +125,10 @@ class ScreenRecordPermissionContentManager(
     private lateinit var timeLimitSpinner: Spinner
     private lateinit var fileSizeSpinner: Spinner
     private val resolutionModeValues = mutableListOf<Int>()
+    private val fpsModeValues = mutableListOf<Int>()
+    private val selectedFpsMode: Int
+        get() =
+            fpsModeValues[fpsSpinner.selectedItemPosition.coerceIn(0, fpsModeValues.lastIndex)]
 
     override fun bind(view: View) {
         super.bind(view)
@@ -205,7 +210,7 @@ class ScreenRecordPermissionContentManager(
         bitrateSpinner = containerView.requireViewById(R.id.screenrecord_bitrate_spinner)
         setupSpinner(bitrateSpinner, R.array.screenrecord_bitrate_entries)
         setupResolutionSpinner()
-        setupSpinner(fpsSpinner, R.array.screenrecord_fps_entries)
+        setupFpsSpinner()
         setupSpinner(timeLimitSpinner, R.array.screenrecord_time_limit_entries)
         setupSpinner(fileSizeSpinner, R.array.screenrecord_file_size_entries)
 
@@ -228,12 +233,17 @@ class ScreenRecordPermissionContentManager(
             }
         options.isLongClickable = false
 
-        loadPrefs();
+        loadPrefs()
     }
 
     override fun onItemSelected(adapterView: AdapterView<*>?, view: View, pos: Int, id: Long) {
         super.onItemSelected(adapterView, view, pos, id)
-        updateTapsViewVisibility()
+        if (::tapsView.isInitialized) {
+            updateTapsViewVisibility()
+        }
+        if (::fpsSpinner.isInitialized) {
+            setupFpsSpinner()
+        }
     }
 
     private fun updateTapsViewVisibility() {
@@ -262,11 +272,11 @@ class ScreenRecordPermissionContentManager(
         val hevc = hevcSwitch.isChecked
         val bitrateMultiplier = BITRATE_MULTIPLIER_VALUES[bitrateSpinner.selectedItemPosition]
         val resolutionMode = resolutionModeValues[resolutionSpinner.selectedItemPosition]
-        val fpsMode = FPS_MODE_VALUES[fpsSpinner.selectedItemPosition]
+        val fpsMode = selectedFpsMode
         val timeLimitMs = TIME_LIMIT_VALUES_MS[timeLimitSpinner.selectedItemPosition]
         val fileSizeBytes = FILE_SIZE_VALUES_BYTES[fileSizeSpinner.selectedItemPosition]
 
-        savePrefs();
+        savePrefs()
 
         controller.startCountdown(
             if (skipTime) NO_DELAY else DELAY_MS,
@@ -319,9 +329,7 @@ class ScreenRecordPermissionContentManager(
             resolutionModeValues.add(1280)
         }
 
-        val adapter = ArrayAdapter(ctx, R.layout.screenrecord_spinner_item, entries)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        resolutionSpinner.adapter = adapter
+        setSpinnerEntries(resolutionSpinner, entries)
     }
 
     private fun resolutionLabel(screenW: Int, screenH: Int, longEdgeCap: Int): String {
@@ -337,11 +345,63 @@ class ScreenRecordPermissionContentManager(
     }
 
     private fun setupSpinner(spinner: Spinner, entriesRes: Int) {
+        setSpinnerEntries(
+            spinner,
+            containerView.context.resources.getTextArray(entriesRes).asList(),
+        )
+    }
+
+    private fun setupFpsSpinner() {
         val ctx = containerView.context
-        val entries = ctx.resources.getTextArray(entriesRes)
-        val adapter = ArrayAdapter(ctx, R.layout.screenrecord_spinner_item, entries)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        val selectedFps =
+            if (fpsModeValues.isEmpty()) {
+                0
+            } else {
+                selectedFpsMode
+            }
+        val entries = mutableListOf<CharSequence>(ctx.getString(R.string.screenrecord_fps_auto))
+        fpsModeValues.clear()
+        fpsModeValues.add(0)
+
+        getDisplayRefreshRates().forEach { fps ->
+            entries.add(ctx.getString(R.string.screenrecord_fps_value, fps))
+            fpsModeValues.add(fps)
+        }
+
+        setSpinnerEntries(fpsSpinner, entries)
+        fpsSpinner.setSelection(fpsModeValues.indexOf(selectedFps).coerceAtLeast(0))
+    }
+
+    private fun setSpinnerEntries(spinner: Spinner, entries: List<CharSequence>) {
+        val adapter =
+            ArrayAdapter(
+                containerView.context,
+                R.layout.screenrecord_spinner_item,
+                entries,
+            )
+        adapter.setDropDownViewResource(R.layout.screenrecord_spinner_dropdown_item)
+        spinner.gravity = Gravity.END or Gravity.CENTER_VERTICAL
         spinner.adapter = adapter
+    }
+
+    private fun getDisplayRefreshRates(): List<Int> {
+        val ctx = containerView.context
+        val displayManager = ctx.getSystemService(DisplayManager::class.java)
+        val display =
+            displayManager.getDisplay(selectedScreenShareOption.displayId)
+                ?: displayManager.getDisplay(Display.DEFAULT_DISPLAY)
+        val rates = mutableSetOf(30, 60)
+        val maxFps = ctx.resources.getInteger(R.integer.config_screenRecorderMaxFramerate)
+
+        display?.let {
+            rates.add(it.refreshRate.roundToInt())
+            it.supportedModes.forEach { mode ->
+                rates.add(mode.refreshRate.roundToInt())
+                mode.alternativeRefreshRates.forEach { rate -> rates.add(rate.roundToInt()) }
+            }
+        }
+
+        return rates.filter { it > 0 && (maxFps == 0 || it <= maxFps) }.sorted()
     }
 
     private fun hasHevcHwEncoder(): Boolean {
@@ -373,7 +433,7 @@ class ScreenRecordPermissionContentManager(
         Prefs.putInt(userContext, PREF_HEVC, if (hevcSwitch.isChecked) 1 else 0)
         Prefs.putInt(userContext, PREF_BITRATE, bitrateSpinner.selectedItemPosition)
         Prefs.putInt(userContext, PREF_RESOLUTION, resolutionModeValues[resolutionSpinner.selectedItemPosition])
-        Prefs.putInt(userContext, PREF_FPS, fpsSpinner.selectedItemPosition)
+        Prefs.putInt(userContext, PREF_FPS, selectedFpsMode)
         Prefs.putInt(userContext, PREF_TIME_LIMIT, timeLimitSpinner.selectedItemPosition)
         Prefs.putInt(userContext, PREF_FILE_SIZE, fileSizeSpinner.selectedItemPosition)
     }
@@ -390,7 +450,13 @@ class ScreenRecordPermissionContentManager(
         bitrateSpinner.setSelection(Prefs.getInt(userContext, PREF_BITRATE, 0))
         val savedResMode = Prefs.getInt(userContext, PREF_RESOLUTION, 0)
         resolutionSpinner.setSelection(resolutionModeValues.indexOf(savedResMode).coerceAtLeast(0))
-        fpsSpinner.setSelection(Prefs.getInt(userContext, PREF_FPS, 0))
+        val savedFpsMode =
+            when (val savedFps = Prefs.getInt(userContext, PREF_FPS, 0)) {
+                1 -> 30
+                2 -> 60
+                else -> savedFps
+            }
+        fpsSpinner.setSelection(fpsModeValues.indexOf(savedFpsMode).coerceAtLeast(0))
         timeLimitSpinner.setSelection(Prefs.getInt(userContext, PREF_TIME_LIMIT, 0))
         fileSizeSpinner.setSelection(Prefs.getInt(userContext, PREF_FILE_SIZE, 0))
     }
@@ -437,7 +503,6 @@ class ScreenRecordPermissionContentManager(
         private const val PREF_FILE_SIZE = "screenrecord_file_size"
 
         private val BITRATE_MULTIPLIER_VALUES = floatArrayOf(1.0f, 0.5f, 0.25f)
-        private val FPS_MODE_VALUES = intArrayOf(0, 30, 60)
         private val TIME_LIMIT_VALUES_MS = intArrayOf(0, 5 * 60 * 1000, 10 * 60 * 1000, 30 * 60 * 1000, 60 * 60 * 1000)
         private val FILE_SIZE_VALUES_BYTES = longArrayOf(0L, 10L shl 20, 100L shl 20, 500L shl 20, 1L shl 30, 15L shl 30)
 

@@ -24,12 +24,6 @@
         <item>@string/screenrecord_bitrate_low</item>
     </string-array>
 
-    <string-array name="screenrecord_fps_entries">
-        <item>@string/screenrecord_fps_auto</item>
-        <item>@string/screenrecord_fps_30</item>
-        <item>@string/screenrecord_fps_60</item>
-    </string-array>
-
     <string-array name="screenrecord_time_limit_entries">
         <item>@string/screenrecord_time_unlimited</item>
         <item>@string/screenrecord_time_5min</item>

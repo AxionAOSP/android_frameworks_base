@@ -31,6 +31,7 @@ import android.graphics.Bitmap;
 import android.graphics.drawable.Icon;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
+import android.hardware.display.VirtualDisplayConfig;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
@@ -227,7 +228,9 @@ public class ScreenMediaRecorder extends MediaProjection.Callback {
         if (mRequestedFps > 0) {
             refreshRate = mRequestedFps;
         } else {
-            refreshRate = mLowQuality ? LOW_VIDEO_FRAME_RATE : (int) display.getRefreshRate();
+            refreshRate = mLowQuality
+                    ? LOW_VIDEO_FRAME_RATE
+                    : Math.round(display.getRefreshRate());
         }
         if (mMaxRefreshRate != 0 && refreshRate > mMaxRefreshRate) refreshRate = mMaxRefreshRate;
         int targetWidth = metrics.widthPixels;
@@ -284,20 +287,23 @@ public class ScreenMediaRecorder extends MediaProjection.Callback {
         mMediaRecorder.prepare();
         // Create surface
         mInputSurface = mMediaRecorder.getSurface();
-        mVirtualDisplay = mMediaProjection.createVirtualDisplay(
-                "Recording Display",
-                width,
-                height,
-                metrics.densityDpi,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                mInputSurface,
-                new VirtualDisplay.Callback() {
-                    @Override
-                    public void onStopped() {
-                        onStop();
-                    }
-                },
-                mHandler);
+        VirtualDisplayConfig.Builder virtualDisplayConfig =
+                new VirtualDisplayConfig.Builder(
+                                "Recording Display", width, height, metrics.densityDpi)
+                        .setFlags(DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR)
+                        .setSurface(mInputSurface)
+                        .setDisplayIdToMirror(mDisplayId)
+                        .setRequestedRefreshRate(refreshRate);
+        mVirtualDisplay =
+                mMediaProjection.createVirtualDisplay(
+                        virtualDisplayConfig,
+                        new VirtualDisplay.Callback() {
+                            @Override
+                            public void onStopped() {
+                                onStop();
+                            }
+                        },
+                        mHandler);
 
         mMediaRecorder.setOnInfoListener((mr, what, extra) -> mListener.onInfo(mr, what, extra));
         if (mAudioSource == INTERNAL ||
@@ -338,7 +344,7 @@ public class ScreenMediaRecorder extends MediaProjection.Callback {
      */
     private int[] getSupportedSize(final int screenWidth, final int screenHeight, int refreshRate)
             throws IOException {
-        String videoType = MediaFormat.MIMETYPE_VIDEO_AVC;
+        String videoType = mHEVC ? MediaFormat.MIMETYPE_VIDEO_HEVC : MediaFormat.MIMETYPE_VIDEO_AVC;
 
         // Get max size from the decoder, to ensure recordings will be playable on device
         MediaCodec decoder = MediaCodec.createDecoderByType(videoType);
@@ -362,14 +368,16 @@ public class ScreenMediaRecorder extends MediaProjection.Callback {
         if (width >= screenWidthAligned && height >= screenHeightAligned
                 && vc.isSizeSupported(screenWidthAligned, screenHeightAligned)) {
             // Desired size is supported, now get the rate
-            int maxRate = vc.getSupportedFrameRatesFor(screenWidthAligned,
-                    screenHeightAligned).getUpper().intValue();
-
-            if (maxRate < refreshRate) {
-                refreshRate = maxRate;
-            }
-            Log.d(TAG, "Screen size supported at rate " + refreshRate);
-            return new int[]{screenWidthAligned, screenHeightAligned, refreshRate};
+            int[] dimens =
+                    adjustSizeForFrameRate(
+                            vc,
+                            screenWidth,
+                            screenHeight,
+                            screenWidthAligned,
+                            screenHeightAligned,
+                            refreshRate);
+            Log.d(TAG, "Screen size supported at rate " + dimens[2]);
+            return dimens;
         }
 
         // Otherwise, resize for max supported size
@@ -386,15 +394,52 @@ public class ScreenMediaRecorder extends MediaProjection.Callback {
         }
 
         // Find max supported rate for size
-        int maxRate = vc.getSupportedFrameRatesFor(scaledWidth, scaledHeight)
-                .getUpper().intValue();
-        if (maxRate < refreshRate) {
-            refreshRate = maxRate;
+        int[] dimens =
+                adjustSizeForFrameRate(
+                        vc, screenWidth, screenHeight, scaledWidth, scaledHeight, refreshRate);
+
+        Log.d(TAG, "Resized by " + scale + ": " + dimens[0] + ", " + dimens[1] + ", " + dimens[2]);
+        return dimens;
+    }
+
+    private int[] adjustSizeForFrameRate(
+            MediaCodecInfo.VideoCapabilities videoCapabilities,
+            int screenWidth,
+            int screenHeight,
+            int maxWidth,
+            int maxHeight,
+            int frameRate) {
+        int maxRate =
+                videoCapabilities
+                        .getSupportedFrameRatesFor(maxWidth, maxHeight)
+                        .getUpper()
+                        .intValue();
+        if (maxRate >= frameRate || mRequestedFps == 0) {
+            return new int[] {maxWidth, maxHeight, Math.min(maxRate, frameRate)};
         }
 
-        Log.d(TAG, "Resized by " + scale + ": " + scaledWidth + ", " + scaledHeight
-                + ", " + refreshRate);
-        return new int[]{scaledWidth, scaledHeight, refreshRate};
+        int widthAlignment = videoCapabilities.getWidthAlignment();
+        int heightAlignment = videoCapabilities.getHeightAlignment();
+        int minWidth = videoCapabilities.getSupportedWidths().getLower();
+        int minHeight = videoCapabilities.getSupportedHeights().getLower();
+
+        for (int height = maxHeight; height >= minHeight; height -= heightAlignment) {
+            int width = (int) ((long) screenWidth * height / screenHeight);
+            width -= width % widthAlignment;
+            if (width > maxWidth) {
+                continue;
+            }
+            if (width < minWidth) {
+                break;
+            }
+            if (videoCapabilities.areSizeAndRateSupported(width, height, frameRate)) {
+                Log.d(
+                        TAG,
+                        "Resized for requested rate " + frameRate + ": " + width + ", " + height);
+                return new int[] {width, height, frameRate};
+            }
+        }
+        return new int[] {maxWidth, maxHeight, maxRate};
     }
 
     /**

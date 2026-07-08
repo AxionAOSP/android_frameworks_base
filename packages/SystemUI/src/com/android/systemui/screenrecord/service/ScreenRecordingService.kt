@@ -221,8 +221,33 @@ protected constructor(
             lowQuality: Boolean,
             longerDuration: Boolean,
             hevc: Boolean,
+            resolutionMode: Int,
+            fpsMode: Int,
+            timeLimitMs: Int,
+            fileSizeBytes: Long,
+            bitrateMultiplier: Float,
         ) {
             val screenRecordingAudioSource = ScreenRecordingAudioSource.entries[audioSource]
+            val recorder =
+                ScreenMediaRecorder(
+                    this@ScreenRecordingService,
+                    Handler(Looper.getMainLooper()),
+                    Process.myUid(),
+                    screenRecordingAudioSource,
+                    captureTarget,
+                    displayId,
+                    screenMediaRecorderListener,
+                    lowQuality,
+                    longerDuration,
+                    hevc,
+                )
+                    .apply {
+                        setResolutionMode(resolutionMode)
+                        setRequestedFps(fpsMode)
+                        setTimeLimitMs(timeLimitMs)
+                        setFileSizeBytes(fileSizeBytes)
+                        setBitrateMultiplier(bitrateMultiplier)
+                    }
             RecordingContext(
                     notificationId = UUID.randomUUID().mostSignificantBits.toInt(),
                     originalShouldShowTouches = getShouldShowTouches(),
@@ -230,19 +255,7 @@ protected constructor(
                     audioSource = screenRecordingAudioSource,
                     displayId = displayId,
                     shouldShowTaps = shouldShowTaps,
-                    recorder =
-                        ScreenMediaRecorder(
-                            this@ScreenRecordingService,
-                            Handler(Looper.getMainLooper()),
-                            Process.myUid(),
-                            screenRecordingAudioSource,
-                            captureTarget,
-                            displayId,
-                            screenMediaRecorderListener,
-                            lowQuality,
-                            longerDuration,
-                            hevc,
-                        ),
+                    recorder = recorder,
                 )
                 .also { context ->
                     recordingContext = context

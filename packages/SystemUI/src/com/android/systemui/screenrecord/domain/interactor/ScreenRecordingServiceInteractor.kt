@@ -194,6 +194,11 @@ private fun IScreenRecordingService.startRecording(status: Status.Started) {
             lowQuality,
             longerDuration,
             hevc,
+            resolutionMode,
+            fpsMode,
+            timeLimitMs,
+            fileSizeBytes,
+            bitrateMultiplier,
         )
     }
 }

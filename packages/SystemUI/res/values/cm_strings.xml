@@ -139,8 +139,7 @@
     <string name="screenrecord_bitrate_low">Low</string>
     <string name="screenrecord_resolution_auto">Auto</string>
     <string name="screenrecord_fps_auto">Auto</string>
-    <string name="screenrecord_fps_30">30 FPS</string>
-    <string name="screenrecord_fps_60">60 FPS</string>
+    <string name="screenrecord_fps_value"><xliff:g id="fps">%1$d</xliff:g> FPS</string>
     <string name="screenrecord_time_unlimited">Unlimited</string>
     <string name="screenrecord_time_5min">5 minutes</string>
     <string name="screenrecord_time_10min">10 minutes</string>
