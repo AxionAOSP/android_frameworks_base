@@ -675,6 +675,12 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         return PowerMenuUtils.isAdvancedRestartPossible(mContext);
     }
 
+    private boolean opensSubmenu(Action action) {
+        return action instanceof PowerOptionsAction
+                || (action instanceof RestartAction && shouldShowRestartSubmenu())
+                || action instanceof UsersAction;
+    }
+
     /**
      * Returns the maximum number of power menu items to show based on which GlobalActions
      * layout is being used.
@@ -2071,9 +2077,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             if (!(item instanceof SilentModeTriStateAction)) {
                 if (mDialog != null) {
                     // don't dismiss the dialog if we're opening the power/restart options menu
-                    if (!(item instanceof PowerOptionsAction ||
-                            (item instanceof RestartAction && shouldShowRestartSubmenu()) ||
-                            (item instanceof UsersAction))) {
+                    if (!opensSubmenu(item)) {
                         // Usually clicking an item shuts down the phone, locks, or starts an
                         // activity. We don't want to animate back into the power button when that
                         // happens, so we disable the dialog animation before dismissing.
@@ -2096,10 +2100,20 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
     /**
      * The adapter used for items in the overflow menu.
      */
-    public class MyPowerOptionsAdapter extends BaseAdapter {
+    public class MyPowerOptionsAdapter extends MultiListAdapter {
         @Override
         public int getCount() {
             return mPowerItems.size();
+        }
+
+        @Override
+        public int countSeparatedItems() {
+            return 0;
+        }
+
+        @Override
+        public int countListItems() {
+            return getCount();
         }
 
         @Override
@@ -2122,6 +2136,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             int viewLayoutResource = com.android.systemui.res.R.layout.global_actions_grid_item_lite;
             View view = convertView != null ? convertView
                     : LayoutInflater.from(mContext).inflate(viewLayoutResource, parent, false);
+            view.setId(View.generateViewId());
             view.setOnClickListener(v -> onClickItem(position));
             if (action instanceof LongPressAction) {
                 view.setOnLongClickListener(v -> onLongClickItem(position));
@@ -2144,7 +2159,8 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             return view;
         }
 
-        private boolean onLongClickItem(int position) {
+        @Override
+        public boolean onLongClickItem(int position) {
             final Action action = getItem(position);
             if (action instanceof LongPressAction) {
                 if (mDialog != null) {
@@ -2161,21 +2177,26 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             return false;
         }
 
-        private void onClickItem(int position) {
+        @Override
+        public void onClickItem(int position) {
             Action item = getItem(position);
             if (!(item instanceof SilentModeTriStateAction)) {
-                if (mDialog != null &&
-                        !(item instanceof RestartAction && shouldShowRestartSubmenu())) {
+                if (mDialog != null && !opensSubmenu(item)) {
                     // Usually clicking an item shuts down the phone, locks, or starts an activity.
                     // We don't want to animate back into the power button when that happens, so we
                     // disable the dialog animation before dismissing.
                     mDialogTransitionAnimator.disableAllCurrentDialogsExitAnimations();
                     mDialog.dismiss();
-                } else {
+                } else if (mDialog == null) {
                     Log.w(TAG, "Action clicked while mDialog is null.");
                 }
                 item.onPress();
             }
+        }
+
+        @Override
+        public boolean shouldBeSeparated(int position) {
+            return false;
         }
     }
 
@@ -2312,13 +2333,13 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         protected void onClickItem(int position) {
             Action item = getItem(position);
             if (!(item instanceof SilentModeTriStateAction)) {
-                if (mDialog != null) {
+                if (mDialog != null && !opensSubmenu(item)) {
                     // Usually clicking an item shuts down the phone, locks, or starts an activity.
                     // We don't want to animate back into the power button when that happens, so we
                     // disable the dialog animation before dismissing.
                     mDialogTransitionAnimator.disableAllCurrentDialogsExitAnimations();
                     mDialog.dismiss();
-                } else {
+                } else if (mDialog == null) {
                     Log.w(TAG, "Action clicked while mDialog is null.");
                 }
                 item.onPress();
@@ -2524,7 +2545,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         private void onClick() {
             if (mDialog != null) {
                 // don't dismiss the dialog if we're opening the power options menu
-                if (!(this instanceof PowerOptionsAction)) {
+                if (!opensSubmenu(this)) {
                     // Usually clicking an item shuts down the phone, locks, or starts an
                     // activity. We don't want to animate back into the power button when that
                     // happens, so we disable the dialog animation before dismissing.
@@ -3015,7 +3036,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         private final StatusBarWindowController mStatusBarWindowController;
         private ListPopupWindow mOverflowPopup;
         private Dialog mPowerOptionsDialog;
-        private Dialog mRestartOptionsDialog;
+        private boolean mShowingRestartOptions;
         private Dialog mUsersDialog;
         protected final Runnable mOnRefreshCallback;
         private UiEventLogger mUiEventLogger;
@@ -3051,8 +3072,10 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
                     @Override
                     public void onBackInvoked() {
                         resetBackAnimation();
-                        logOnBackInvocation();
-                        dismiss();
+                        if (!dismissRestartOptions()) {
+                            logOnBackInvocation();
+                            dismiss();
+                        }
                     }
                 };
 
@@ -3068,6 +3091,9 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
                     @Override
                     public boolean onSingleTapUp(MotionEvent e) {
                         // Close without opening shade
+                        if (dismissRestartOptions()) {
+                            return true;
+                        }
                         mUiEventLogger.log(GlobalActionsEvent.GA_CLOSE_TAP_OUTSIDE);
                         cancel();
                         return false;
@@ -3232,9 +3258,10 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         }
 
         public void showRestartOptionsMenu() {
-            mRestartOptionsDialog = GlobalActionsPowerDialog.create(mContext,
-                    mRestartOptionsAdapter);
-            mRestartOptionsDialog.show();
+            dismissOverflow();
+            dismissPowerOptions();
+            mShowingRestartOptions = true;
+            animateMenuChange(mRestartOptionsAdapter, getMenuTransitionOffset());
         }
 
         protected void showPowerOverflowMenu() {
@@ -3272,8 +3299,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             mScrimView = findViewById(
                     com.android.systemui.res.R.id.global_actions_background_scrim);
             mContainer.setOnTouchListener((v, event) -> {
-                mGestureDetector.onTouchEvent(event);
-                return v.onTouchEvent(event);
+                return mGestureDetector.onTouchEvent(event) || v.onTouchEvent(event);
             });
 
             View overflowButton = findViewById(
@@ -3395,8 +3421,10 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
 
         @Override
         public void onBackPressed() {
-            super.onBackPressed();
-            logOnBackInvocation();
+            if (!dismissRestartOptions()) {
+                super.onBackPressed();
+                logOnBackInvocation();
+            }
         }
 
         private void updateBackAnimation(BackEvent backEvent) {
@@ -3543,7 +3571,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         public void dismiss() {
             dismissOverflow();
             dismissPowerOptions();
-            dismissRestartOptions();
+            resetMenuTransition();
             dismissUsers();
             mTopUiController.setRequestTopUi(false, TAG);
             super.dismiss();
@@ -3561,9 +3589,61 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             }
         }
 
-        private void dismissRestartOptions() {
-            if (mRestartOptionsDialog != null) {
-                mRestartOptionsDialog.dismiss();
+        private boolean dismissRestartOptions() {
+            if (!mShowingRestartOptions) {
+                return false;
+            }
+            mShowingRestartOptions = false;
+            animateMenuChange(mAdapter, -getMenuTransitionOffset());
+            return true;
+        }
+
+        private float getMenuTransitionOffset() {
+            float offset = mGlobalActionsLayout.getAnimationOffsetX();
+            return mGlobalActionsLayout.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL
+                    ? -offset
+                    : offset;
+        }
+
+        private void animateMenuChange(MultiListAdapter adapter, float startTranslationX) {
+            resetMenuTransition();
+            mGlobalActionsLayout.setAdapter(adapter);
+            mGlobalActionsLayout.updateList();
+
+            ViewGroup list = findViewById(R.id.list);
+            if (list == null) {
+                return;
+            }
+            int duration = getContext().getResources().getInteger(
+                    R.integer.config_activityShortDur);
+            list.setTranslationX(startTranslationX);
+            list.animate()
+                    .translationX(0f)
+                    .setDuration(duration)
+                    .setInterpolator(Interpolators.STANDARD)
+                    .start();
+            for (int i = 0; i < list.getChildCount(); i++) {
+                View child = list.getChildAt(i);
+                child.setAlpha(0f);
+                child.animate()
+                        .alpha(1f)
+                        .setDuration(duration)
+                        .setInterpolator(Interpolators.STANDARD)
+                        .start();
+            }
+        }
+
+        private void resetMenuTransition() {
+            ViewGroup list = findViewById(R.id.list);
+            if (list == null) {
+                return;
+            }
+            list.animate().cancel();
+            list.setTranslationX(0f);
+            for (int i = 0; i < list.getChildCount(); i++) {
+                View child = list.getChildAt(i);
+                child.animate().cancel();
+                child.setAlpha(1f);
             }
         }
 
@@ -3610,11 +3690,12 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
             // Dismiss the dropdown menus.
             dismissOverflow();
             dismissPowerOptions();
-            dismissRestartOptions();
             dismissUsers();
 
             // Update the list as the max number of items per row has probably changed.
-            mGlobalActionsLayout.updateList();
+            if (!dismissRestartOptions()) {
+                mGlobalActionsLayout.updateList();
+            }
         }
 
         public void onRotate(int from, int to) {
