@@ -48,6 +48,8 @@ constructor(
     private var notificationShadeZoomOut: Float = 0f
     private var unfoldTransitionZoomOut: Float = 0f
     private var screenOnZoomOut: Float = 0f
+    private var launcherAnimationZoomOut: Float = 0f
+    private var launcherDepthZoomOut: Float = 0f
 
     private val shouldUseDefaultUnfoldTransition: Boolean
         get() = wallpaperRepository.wallpaperInfo.value?.shouldUseDefaultUnfoldTransition() ?: true
@@ -69,9 +71,20 @@ constructor(
         updateZoom()
     }
 
+    fun setLauncherAnimationZoom(zoomOut: Float) {
+        launcherAnimationZoomOut = zoomOut.coerceIn(0f, 1f)
+        updateZoom()
+    }
+
+    fun setLauncherDepthZoom(zoomOut: Float) {
+        launcherDepthZoomOut = zoomOut.coerceIn(0f, 1f)
+        updateZoom()
+    }
+
     private fun updateZoom() {
-        val zoomOut = max(notificationShadeZoomOut, unfoldTransitionZoomOut)
-        setWallpaperZoom(max(zoomOut, screenOnZoomOut))
+        val shadeZoomOut = max(notificationShadeZoomOut, unfoldTransitionZoomOut)
+        val launcherZoomOut = max(launcherAnimationZoomOut, launcherDepthZoomOut)
+        setWallpaperZoom(max(max(shadeZoomOut, launcherZoomOut), screenOnZoomOut))
     }
 
     private fun setWallpaperZoom(zoomOut: Float) {

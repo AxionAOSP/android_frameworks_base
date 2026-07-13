@@ -205,5 +205,9 @@ interface ISystemUiProxy {
      */
     oneway void forceStopPackage(String packageName, int userId) = 62;
 
-    // Next id = 63
+    oneway void setLauncherWallpaperZoom(float zoomOut) = 63;
+
+    oneway void setLauncherDepthWallpaperZoom(float zoomOut) = 64;
+
+    // Next id = 65
 }

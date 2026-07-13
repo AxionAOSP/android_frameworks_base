@@ -134,6 +134,7 @@ import com.android.systemui.statusbar.phone.StatusBarWindowCallback;
 import com.android.systemui.statusbar.policy.CallbackController;
 import com.android.systemui.unfold.progress.UnfoldTransitionProgressForwarder;
 import com.android.systemui.user.domain.interactor.HeadlessSystemUserMode;
+import com.android.systemui.util.WallpaperController;
 import com.android.wm.shell.back.BackAnimation;
 import com.android.wm.shell.shared.desktopmode.DesktopState;
 import com.android.wm.shell.sysui.ShellInterface;
@@ -183,6 +184,7 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
     private final Provider<ShadeInteractor> mShadeInteractor;
     private final Provider<ShadeModeInteractor> mShadeModeInteractor;
     private final StatusBarTouchShadeDisplayPolicy mShadeDisplayPolicy;
+    private final Lazy<WallpaperController> mWallpaperControllerLazy;
 
     private final Runnable mConnectionRunnable = () ->
             internalConnectToCurrentUser("runnable: startConnectionToCurrentUser");
@@ -552,6 +554,18 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
             });
         }
 
+        @Override
+        public void setLauncherWallpaperZoom(float zoomOut) {
+            verifyCallerAndClearCallingIdentityPostMain("setLauncherWallpaperZoom", () ->
+                    mWallpaperControllerLazy.get().setLauncherAnimationZoom(zoomOut));
+        }
+
+        @Override
+        public void setLauncherDepthWallpaperZoom(float zoomOut) {
+            verifyCallerAndClearCallingIdentityPostMain("setLauncherDepthWallpaperZoom", () ->
+                    mWallpaperControllerLazy.get().setLauncherDepthZoom(zoomOut));
+        }
+
         private void onShadeExpansionGesture(MotionEvent event, String reason) {
             if (!SceneContainerFlag.isEnabled()) {
                 return;
@@ -812,6 +826,7 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
             ScreenPinningRequest screenPinningRequest,
             NavigationModeController navModeController,
             NotificationShadeWindowController statusBarWinController,
+            Lazy<WallpaperController> wallpaperControllerLazy,
             PerDisplayRepository<SysUiState> perDisplaySysUiStateRepository,
             Provider<SceneInteractor> sceneInteractor,
             Provider<ShadeInteractor> shadeInteractor,
@@ -862,6 +877,7 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
         mShadeInteractor = shadeInteractor;
         mShadeModeInteractor = shadeModeInteractor;
         mShadeDisplayPolicy = shadeDisplayPolicy;
+        mWallpaperControllerLazy = wallpaperControllerLazy;
         mUserTracker = userTracker;
         mPowerInteractor = powerInteractor;
         mConnectionBackoffAttempts = 0;
@@ -1074,6 +1090,7 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
                 mShadeViewControllerLazy.get().cancelInputFocusTransfer();
             });
         }
+        mHandler.post(this::clearLauncherWallpaperZoom);
         mIsPrevServiceCleanedUp = true;
         startConnectionToCurrentUser();
     }
@@ -1213,8 +1230,15 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
         if (mLauncherProxy != null) {
             mLauncherProxy.asBinder().unlinkToDeath(mLauncherServiceDeathRcpt, 0);
             mLauncherProxy = null;
+            mHandler.post(this::clearLauncherWallpaperZoom);
             notifyConnectionChanged();
         }
+    }
+
+    private void clearLauncherWallpaperZoom() {
+        WallpaperController wallpaperController = mWallpaperControllerLazy.get();
+        wallpaperController.setLauncherAnimationZoom(0f);
+        wallpaperController.setLauncherDepthZoom(0f);
     }
 
     /**
