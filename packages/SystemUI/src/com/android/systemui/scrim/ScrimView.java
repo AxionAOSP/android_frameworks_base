@@ -55,6 +55,7 @@ import java.util.concurrent.Executor;
  */
 public class ScrimView extends View {
     private static final String TAG = "ScrimView";
+    private static final String NOTIFICATIONS_SCRIM_NAME = "notifications_scrim";
     private static final boolean isDebugLoggable = Build.IS_ENG || Log.isLoggable(TAG,
             Log.DEBUG);
 
@@ -159,6 +160,17 @@ public class ScrimView extends View {
         executeOnExecutor(() -> {
             super.setClickable(clickable);
         });
+    }
+
+    @Override
+    public void setVisibility(int visibility) {
+        super.setVisibility(NOTIFICATIONS_SCRIM_NAME.equals(mScrimName) ? GONE : visibility);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        setVisibility(getVisibility());
     }
 
     /**
@@ -333,6 +345,7 @@ public class ScrimView extends View {
 
     public void setScrimName(String scrimName) {
         mScrimName = scrimName;
+        setVisibility(getVisibility());
     }
 
     @Override

@@ -20,34 +20,32 @@ import android.content.ContentResolver
 import android.content.Context
 import android.database.ContentObserver
 import android.os.UserHandle
-import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import androidx.annotation.VisibleForTesting
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.VectorConverter
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderColors
@@ -84,7 +82,6 @@ import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -107,6 +104,7 @@ import com.android.systemui.biometrics.Utils.toBitmap
 import com.android.systemui.brightness.shared.model.GammaBrightness
 import com.android.systemui.brightness.ui.compose.AnimationSpecs.IconAppearSpec
 import com.android.systemui.brightness.ui.compose.AnimationSpecs.IconDisappearSpec
+import com.android.systemui.qs.panels.ui.compose.infinitegrid.LocalTileScale
 import com.android.systemui.brightness.ui.compose.Dimensions.IconPadding
 import com.android.systemui.brightness.ui.compose.Dimensions.IconSize
 import com.android.systemui.brightness.ui.compose.Dimensions.SliderBackgroundFrameSize
@@ -148,6 +146,7 @@ fun BrightnessSlider(
     overriddenByAppState: Boolean,
     modifier: Modifier = Modifier,
     showToast: () -> Unit = {},
+    showAutoBrightnessButton: Boolean = true,
     hapticsViewModelFactory: SliderHapticsViewModel.Factory,
 ) {
     var value by remember(gammaValue) { mutableIntStateOf(gammaValue) }
@@ -424,59 +423,24 @@ private fun drawAutoBrightnessButton(
     autoMode: Boolean,
     onIconClick: suspend () -> Unit,
 ) {
-    val view = LocalView.current
     val coroutineScope = rememberCoroutineScope()
-    val animatedCornerRadius by animateDpAsState(
-        targetValue = if (autoMode) {
-            SliderTrackRoundedCorner
-        } else {
-            22.5.dp
-        }
-    )
-    val backgroundColor by animateColorAsState(
-        targetValue = if (autoMode) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            LocalAndroidColorScheme.current.surfaceEffect1
-        }
-    )
-    val iconTint by animateColorAsState(
-        targetValue = if (autoMode) {
-            MaterialTheme.colorScheme.onPrimary
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        }
-    )
     val painterRes = if (autoMode) {
         R.drawable.ic_qs_brightness_auto_on
     } else {
         R.drawable.ic_qs_brightness_auto_off
     }
-    val hapticConstant = if (autoMode) {
-        HapticFeedbackConstants.TOGGLE_OFF
-    } else {
-        HapticFeedbackConstants.TOGGLE_ON
-    }
 
-    Box(
-        modifier = Modifier
-            .size(45.dp)
-            .clip(RoundedCornerShape(animatedCornerRadius))
-            .background(backgroundColor)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null, // Disable ripple effect
-                onClick = {
-                    view.performHapticFeedback(hapticConstant)
-                    coroutineScope.launch { onIconClick() }
-                }
+    IconButton(
+        colors =
+            IconButtonDefaults.iconButtonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
             ),
-        contentAlignment = Alignment.Center
+        onClick = { coroutineScope.launch { onIconClick() } },
     ) {
         Icon(
-            painter = painterResource(painterRes),
+            painterResource(painterRes),
             contentDescription = stringResource(R.string.accessibility_adaptive_brightness),
-            tint = iconTint
         )
     }
 }
@@ -486,6 +450,7 @@ fun BrightnessSliderContainer(
     viewModel: BrightnessSliderViewModel,
     modifier: Modifier = Modifier,
     containerColors: ContainerColors,
+    showAutoBrightnessButton: Boolean = true,
 ) {
     val gamma = viewModel.currentBrightness.value
     if (gamma == BrightnessSliderViewModel.initialValue.value) { // Ignore initial negative value.
@@ -512,10 +477,12 @@ fun BrightnessSliderContainer(
             if (dragging) containerColors.mirrorColor else containerColors.idleColor
         )
 
+    val tileScale = LocalTileScale.current
+
     Box(
         modifier =
             modifier
-                .padding(vertical = { SliderBackgroundFrameSize.height.roundToPx() })
+                .padding(vertical = { (SliderBackgroundFrameSize.height * tileScale).roundToPx() })
                 .fillMaxWidth()
                 .sysuiResTag("brightness_slider")
     ) {
@@ -560,6 +527,7 @@ fun BrightnessSliderContainer(
             showToast = {
                 viewModel.showToast(context, R.string.quick_settings_brightness_unable_adjust_msg)
             },
+            showAutoBrightnessButton = showAutoBrightnessButton,
         )
     }
 }

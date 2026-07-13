@@ -89,6 +89,8 @@ class WaveformSeekBar @JvmOverloads constructor(
     var isPlaying = false
         private set
 
+    var showThumbWhenDisabled = false
+
     init {
         loadThemeResources()
     }
@@ -313,14 +315,14 @@ class WaveformSeekBar @JvmOverloads constructor(
             }
         }
 
-        if (isEnabled) {
+        if (isEnabled || showThumbWhenDisabled) {
             canvas.drawCircle(progressX, centerY + 2 * density, thumbRadius, thumbShadowPaint)
             canvas.drawCircle(progressX, centerY, thumbRadius, thumbPaint)
         }
     }
 
     private fun drawStockThumb(canvas: Canvas) {
-        if (!isEnabled || transparentThumb.alphaValue <= 0) return
+        if ((!isEnabled && !showThumbWhenDisabled) || transparentThumb.alphaValue <= 0) return
         val pLeft = paddingLeft.toFloat()
         val drawWidth = width.toFloat() - pLeft - paddingRight
         if (drawWidth <= 0f) return

@@ -18,6 +18,7 @@ package com.android.systemui.qs.composefragment.viewmodel
 
 import android.content.res.Resources
 import android.graphics.Rect
+import android.media.AudioManager
 import androidx.annotation.FloatRange
 import androidx.annotation.VisibleForTesting
 import androidx.compose.runtime.derivedStateOf
@@ -29,6 +30,7 @@ import androidx.lifecycle.LifecycleCoroutineScope
 import com.android.app.animation.Interpolators
 import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.internal.logging.UiEventLogger
+import com.android.settingslib.volume.shared.model.AudioStream
 import com.android.keyguard.BouncerPanelExpansionCalculator
 import com.android.systemui.Dumpable
 import com.android.systemui.Flags
@@ -56,15 +58,15 @@ import com.android.systemui.media.remedia.ui.compose.MediaUiBehavior
 import com.android.systemui.media.remedia.ui.viewmodel.MediaCarouselVisibility
 import com.android.systemui.media.remedia.ui.viewmodel.MediaViewModel
 import com.android.systemui.plugins.statusbar.StatusBarStateController
-import com.android.systemui.qs.FooterActionsController
 import com.android.systemui.qs.QSEvent
 import com.android.systemui.qs.composefragment.dagger.QSFragmentComposeLog
 import com.android.systemui.qs.composefragment.dagger.QSFragmentComposeModule
-import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsViewModel
 import com.android.systemui.qs.panels.domain.interactor.TileSquishinessInteractor
 import com.android.systemui.qs.panels.ui.viewmodel.InFirstPageViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.MediaInRowInLandscapeViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.QuickQuickSettingsViewModel
+import com.android.systemui.qs.panels.ui.viewmodel.toolbar.ToolbarViewModel
+import com.android.systemui.qs.tiles.dialog.AudioDetailsViewModel
 import com.android.systemui.qs.ui.viewmodel.QuickSettingsContainerViewModel
 import com.android.systemui.res.R
 import com.android.systemui.scene.shared.model.Overlays
@@ -81,6 +83,7 @@ import com.android.systemui.util.kotlin.emitOnStart
 import com.android.systemui.util.printSection
 import com.android.systemui.util.println
 import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
+import com.android.systemui.volume.panel.component.volume.slider.ui.viewmodel.AudioStreamSliderViewModel
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -102,8 +105,9 @@ constructor(
     containerViewModelFactory: QuickSettingsContainerViewModel.Factory,
     @ShadeDisplayAware private val resources: Resources,
     quickQuickSettingsViewModelFactory: QuickQuickSettingsViewModel.Factory,
-    footerActionsViewModelFactory: FooterActionsViewModel.Factory,
-    private val footerActionsController: FooterActionsController,
+    toolbarViewModelFactory: ToolbarViewModel.Factory,
+    audioStreamSliderViewModelFactory: AudioStreamSliderViewModel.Factory,
+    val audioDetailsViewModelFactory: AudioDetailsViewModel.Factory,
     private val sysuiStatusBarStateController: SysuiStatusBarStateController,
     deviceEntryBypassInteractor: DeviceEntryBypassInteractor,
     disableFlagsInteractor: DisableFlagsInteractor,
@@ -131,7 +135,7 @@ constructor(
     val qsMediaUiBehavior =
         MediaUiBehavior(
             isCarouselDismissible = false,
-            carouselVisibility = MediaCarouselVisibility.WhenNotEmpty,
+            carouselVisibility = MediaCarouselVisibility.WhenAnyCardIsActive,
         )
 
     val qqsMediaUiBehavior =
@@ -147,10 +151,14 @@ constructor(
 
     private val hydrator = Hydrator("QSFragmentComposeViewModel.hydrator", tableLogBuffer)
 
-    val footerActionsViewModel =
-        footerActionsViewModelFactory.create(lifecycleScope).also {
-            lifecycleScope.launch { footerActionsController.init() }
-        }
+    val toolbarViewModel = toolbarViewModelFactory.create()
+    val volumeSliderViewModel =
+        audioStreamSliderViewModelFactory.create(
+            AudioStreamSliderViewModel.FactoryAudioStreamWrapper(
+                AudioStream(AudioManager.STREAM_MUSIC)
+            ),
+            lifecycleScope,
+        )
 
     var isQsExpanded by mutableStateOf(false)
 
@@ -178,6 +186,17 @@ constructor(
 
     var squishinessFraction by mutableStateOf(1f)
 
+    val isLargeScreenHeader by
+        hydrator.hydratedStateOf(
+            traceName = "isLargeScreenHeader",
+            initialValue = false,
+            source =
+                configurationInteractor.onAnyConfigurationChange.map {
+                    val isLargeScreenHeader = LargeScreenUtils.shouldUseLargeScreenShadeHeader(resources)
+                    isLargeScreenHeader
+                },
+        )
+
     val qqsHeaderHeight by
         hydrator.hydratedStateOf(
             traceName = "qqsHeaderHeight",
@@ -198,6 +217,12 @@ constructor(
             initialValue = resources.getDimensionPixelSize(R.dimen.qqs_layout_padding_bottom),
             source = configurationInteractor.dimensionPixelSize(R.dimen.qqs_layout_padding_bottom),
         )
+
+    val animateBrightnessSlider: Boolean
+        get() = isBrightnessSliderVisible
+
+    val animateVolumeSlider: Boolean
+        get() = false
 
     // Starting with a non-zero value makes it so that it has a non-zero height on first expansion
     // This is important for `QuickSettingsControllerImpl.mMinExpansionHeight` to detect a "change".
@@ -236,32 +261,42 @@ constructor(
     var isPanelExpanded by mutableStateOf(false)
 
     val expansionState by derivedStateOf {
-        if (forceQs) {
-            QSExpansionState(1f)
-        } else {
-            QSExpansionState(
-                if (Flags.noExpansionOnOverscroll() && isStackScrollerOverscrolling) 0f
-                else
-                    qsExpansion.coerceIn(
-                        // Only apply early expansion if we are not collapsing QQS, measured by
-                        // panelExpansionFraction and squishinessFraction
-                        minimumValue =
-                            if (
-                                isQsExpanded &&
-                                    panelExpansionFraction >= 1f &&
-                                    squishinessFraction >= 1f
-                            ) {
-                                EARLY_EXPANSION
-                            } else {
-                                0f
-                            },
-                        maximumValue = 1f,
-                    )
-            )
+        when {
+            !isQsVisibleAndAnyShadeExpanded -> QSExpansionState(0f)
+            forceQs -> QSExpansionState(1f)
+            else ->
+                QSExpansionState(
+                    if (Flags.noExpansionOnOverscroll() && isStackScrollerOverscrolling) 0f
+                    else
+                        qsExpansion.coerceIn(
+                            // Only apply early expansion if we are not collapsing QQS, measured by
+                            // panelExpansionFraction and squishinessFraction
+                            minimumValue =
+                                if (
+                                    isQsExpanded &&
+                                        panelExpansionFraction >= 1f &&
+                                        squishinessFraction >= 1f
+                                ) {
+                                    EARLY_EXPANSION
+                                } else {
+                                    0f
+                                },
+                            maximumValue = 1f,
+                        )
+                )
         }
     }
 
     val isQsFullyExpanded by derivedStateOf { expansionState.progress >= 1f && isQsExpanded }
+
+    fun resetCollapsedExpansionState() {
+        isQsExpanded = false
+        isStackScrollerOverscrolling = false
+        setQsExpansionValue(0f)
+        panelExpansionFraction = 0f
+        squishinessFraction = 1f
+        proposedTranslation = 0f
+    }
 
     /**
      * Accessibility action for collapsing/expanding QS. The provided runnable is responsible for
@@ -537,6 +572,7 @@ constructor(
             launch { hydrator.activate() }
             launch { containerViewModel.activate() }
             launch { quickQuickSettingsViewModel.activate() }
+            launch { toolbarViewModel.activate() }
             launch { qqsMediaInRowViewModel.activate() }
             launch { qsMediaInRowViewModel.activate() }
             awaitCancellation()
@@ -544,6 +580,7 @@ constructor(
     }
 
     private fun initMediaHosts() {
+        if (!usingMedia) return
         if (MediaControlsInComposeFlag.isEnabled) return
 
         qqsMediaHost.apply {
@@ -553,7 +590,7 @@ constructor(
         }
         qsMediaHost.apply {
             expansion = MediaHostState.EXPANDED
-            showsOnlyActiveMedia = false
+            showsOnlyActiveMedia = true
             init(LOCATION_QS)
         }
     }

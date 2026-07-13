@@ -49,6 +49,9 @@ import com.android.systemui.statusbar.phone.StatusBarLocation
 import com.android.systemui.statusbar.phone.domain.interactor.IsAreaDark
 import com.android.systemui.statusbar.phone.domain.interactor.ShadeDarkIconInteractor
 import com.android.systemui.statusbar.phone.ui.StatusBarIconController
+import com.android.systemui.statusbar.policy.ConfigurationController
+import com.android.systemui.statusbar.policy.onDensityOrFontScaleChanged
+import com.android.systemui.statusbar.policy.onThemeChanged
 import com.android.systemui.statusbar.pipeline.battery.ui.viewmodel.BatteryViewModel
 import com.android.systemui.statusbar.pipeline.mobile.domain.interactor.MobileIconsInteractor
 import com.android.systemui.statusbar.pipeline.mobile.ui.viewmodel.MobileIconsViewModel
@@ -61,6 +64,8 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.scan
 
 /** Models UI state for the shade header. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -84,9 +89,20 @@ constructor(
     val mobileIconsViewModelKairos: dagger.Lazy<MobileIconsViewModelKairos>,
     private val dualShadeEducationInteractor: DualShadeEducationInteractor,
     private val desktopInteractor: DesktopInteractor,
+    private val configurationController: ConfigurationController,
 ) : ExclusiveActivatable() {
 
     private val hydrator = Hydrator("ShadeHeaderViewModel.hydrator")
+
+    val configChangeToken: Int by
+        hydrator.hydratedStateOf(
+            initialValue = 0,
+            source =
+                merge(
+                    configurationController.onThemeChanged,
+                    configurationController.onDensityOrFontScaleChanged,
+                ).scan(0) { count, _ -> count + 1 },
+        )
 
     val isShadeAreaDark: IsAreaDark by
         hydrator.hydratedStateOf(
@@ -217,6 +233,20 @@ constructor(
         } else {
             clockInteractor.launchClockActivity()
         }
+    }
+
+    fun onBatteryClicked() {
+        activityStarter.postStartActivityDismissingKeyguard(
+            Intent(Intent.ACTION_POWER_USAGE_SUMMARY),
+            0,
+        )
+    }
+
+    fun onDateClicked() {
+        activityStarter.postStartActivityDismissingKeyguard(
+            Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALENDAR),
+            0,
+        )
     }
 
     /** Notifies that the notification icons container was clicked. */

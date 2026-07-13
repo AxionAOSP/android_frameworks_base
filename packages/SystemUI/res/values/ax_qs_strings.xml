@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright 2025-2026 AxionOS
+  SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <string name="ax_qs_panel_settings">Panel settings</string>
+    <string name="ax_qs_reorder_education">Touch and hold to change order</string>
+    <string name="ax_qs_top_quick_settings">Top quick settings</string>
+    <string name="ax_qs_full_quick_settings">Full quick settings</string>
+    <string name="ax_qs_panel_mode">Panel layout</string>
+    <string name="ax_qs_controls">Controls</string>
+    <string name="ax_qs_control_grid_full">Control grid is full</string>
+    <string name="ax_qs_tile_grid_full">Tile grid is full</string>
+    <string name="ax_qs_running_services">Running services</string>
+    <string name="ax_qs_column_count">%1$d columns</string>
+    <string name="ax_qs_row_count">%1$d rows</string>
+    <string name="ax_qs_control_grid_columns">Control grid columns</string>
+    <string name="ax_qs_tile_grid_columns">Tile grid columns</string>
+    <string name="ax_qs_tile_grid_rows">Tile grid rows</string>
+    <string name="ax_qs_show_tile_labels">Show tile labels</string>
+    <string name="ax_qs_together">Together</string>
+    <string name="ax_qs_together_summary">View notifications and collapsed quick settings together. Swipe down again to view the full quick settings panel.</string>
+    <string name="ax_qs_separate">Separate</string>
+    <string name="ax_qs_separate_summary_left">Swipe down from the top left corner for quick settings. Swipe down anywhere else along the top for notifications.</string>
+    <string name="ax_qs_separate_summary_right">Swipe down from the top right corner for quick settings. Swipe down anywhere else along the top for notifications.</string>
+    <string name="ax_qs_quick_panel_left">Quick panel on left side</string>
+    <string name="ax_qs_brightness_horizontal">Horizontal brightness</string>
+    <string name="ax_qs_brightness_vertical">Vertical brightness</string>
+    <string name="ax_qs_volume_horizontal">Horizontal volume</string>
+    <string name="ax_qs_volume_vertical">Vertical volume</string>
+    <string name="ax_qs_auto_brightness">Auto brightness</string>
+    <string name="ax_qs_volume_mute">Mute volume</string>
+    <string name="ax_qs_media">Media player</string>
+    <string name="ax_qs_media_not_playing">No media playing</string>
+    <string name="ax_qs_media_open_last_app">Open last media app</string>
+    <string name="ax_qs_media_compact_metadata">%1$s · %2$s</string>
+    <string name="ax_qs_move_earlier">Move earlier</string>
+    <string name="ax_qs_move_later">Move later</string>
+</resources>

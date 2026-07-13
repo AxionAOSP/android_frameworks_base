@@ -76,6 +76,7 @@ import com.android.systemui.plugins.statusbar.NotificationMenuRowPlugin.OnMenuEv
 import com.android.systemui.plugins.statusbar.NotificationSwipeActionHelper;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
 import com.android.systemui.power.domain.interactor.PowerInteractor;
+import com.android.systemui.qs.ax.ui.AxNotificationStackVisibility;
 import com.android.systemui.qs.flags.QSComposeFragment;
 import com.android.systemui.res.R;
 import com.android.systemui.scene.shared.flag.SceneContainerFlag;
@@ -159,6 +160,8 @@ public class NotificationStackScrollLayoutController implements Dumpable {
     /** Delay in milli-seconds before shade closes for clear all. */
     private static final int DELAY_BEFORE_SHADE_CLOSE = 200;
 
+    private final AxNotificationStackVisibility mAxNotificationStackVisibility =
+            new AxNotificationStackVisibility();
     private final boolean mAllowLongPress;
     private final NotificationGutsManager mNotificationGutsManager;
     private final NotificationsController mNotificationsController;
@@ -645,6 +648,9 @@ public class NotificationStackScrollLayoutController implements Dumpable {
                             return null;
                         }
                     }
+                    if (child instanceof MediaContainerView) {
+                        return null;
+                    }
                     if (child instanceof ExpandableNotificationRow row) {
                         ExpandableNotificationRow parent = row.getNotificationParent();
                         if (parent != null && parent.areChildrenExpanded()
@@ -1010,14 +1016,19 @@ public class NotificationStackScrollLayoutController implements Dumpable {
                 Settings.Secure.NOTIFICATION_HISTORY_ENABLED);
 
         mKeyguardMediaController.setVisibilityChangedListener(visible -> {
-            if (visible) {
-                mView.generateAddAnimation(
-                        mKeyguardMediaController.getSinglePaneContainer(),
-                        false /*fromMoreCard */);
-            } else {
-                mView.generateRemoveAnimation(mKeyguardMediaController.getSinglePaneContainer());
+            MediaContainerView mediaContainer =
+                    mKeyguardMediaController.getSinglePaneContainer();
+            if (mediaContainer == null) {
+                return kotlin.Unit.INSTANCE;
             }
-            mView.requestChildrenUpdate();
+            if (visible) {
+                mView.generateAddAnimation(mediaContainer, false /*fromMoreCard */);
+                addOneShotPreDrawListener(
+                        () -> mView.onChildHeightChanged(mediaContainer, false));
+            } else {
+                mView.generateRemoveAnimation(mediaContainer);
+                mView.onChildHeightChanged(mediaContainer, false);
+            }
             return kotlin.Unit.INSTANCE;
         });
 
@@ -1604,7 +1615,15 @@ public class NotificationStackScrollLayoutController implements Dumpable {
      * @param visible either the view is visible or not.
      */
     public void updateVisibility(boolean visible) {
-        mView.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
+        mAxNotificationStackVisibility.update(mView, visible);
+    }
+
+    public void setQuickQsHidden(boolean hidden) {
+        mAxNotificationStackVisibility.setQuickQsHidden(mView, hidden);
+    }
+
+    public void setSeparateShadeCollapsing(boolean collapsing) {
+        mAxNotificationStackVisibility.setSeparateShadeCollapsing(mView, collapsing);
     }
 
     public boolean isShowingEmptyShadeView() {

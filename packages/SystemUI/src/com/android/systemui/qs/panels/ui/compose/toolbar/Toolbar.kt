@@ -25,6 +25,7 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -33,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -41,6 +43,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import com.android.compose.animation.Expandable
@@ -50,6 +54,7 @@ import com.android.systemui.common.ui.compose.load
 import com.android.systemui.compose.modifiers.sysuiResTag
 import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsButtonViewModel
+import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsForegroundServicesButtonViewModel
 import com.android.systemui.qs.panels.ui.compose.toolbar.Toolbar.TransitionKeys.SecurityInfoKey
 import com.android.systemui.qs.panels.ui.viewmodel.TextFeedbackContentViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.TextFeedbackViewModel
@@ -107,7 +112,7 @@ private fun SharedTransitionScope.StandardToolbarLayout(
     isFullyVisible: () -> Boolean,
     modifier: Modifier = Modifier,
 ) {
-    Row(modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         // User switcher button
         IconButton(
             model = viewModel.userSwitcherViewModel,
@@ -136,6 +141,11 @@ private fun SharedTransitionScope.StandardToolbarLayout(
                     rememberSharedContentState(key = SecurityInfoKey),
                     animatedVisibilityScope = animatedContentScope,
                 ),
+        )
+
+        ForegroundServicesInfo(
+            model = viewModel.foregroundServicesViewModel,
+            modifier = Modifier.sysuiResTag("fgs_manager"),
         )
 
         // Text feedback chip / build number
@@ -215,6 +225,52 @@ private fun ToolbarTextFeedback(
             TextFeedback(model = viewModel.textFeedback)
         }
     }
+}
+
+@Composable
+private fun ForegroundServicesInfo(
+    model: FooterActionsForegroundServicesButtonViewModel?,
+    modifier: Modifier = Modifier,
+) {
+    if (model == null) {
+        return
+    }
+    val context = LocalContext.current
+    Expandable(
+        color = Color.Transparent,
+        shape = CircleShape,
+        onClick = { expandable -> model.onClick(context, expandable) },
+        modifier =
+            modifier.borderOnFocus(MaterialTheme.colorScheme.secondary, CornerSize(percent = 50)),
+        useModifierBasedImplementation = true,
+    ) {
+        Box(
+            modifier =
+                Modifier.minimumInteractiveComponentSize()
+                    .size(36.dp)
+                    .background(
+                        color = LocalAndroidColorScheme.current.surfaceEffect1,
+                        shape = CircleShape,
+                    )
+                    .semantics { contentDescription = model.text },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = model.foregroundServicesCount.toString(),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            if (model.hasNewChanges) {
+                ForegroundServicesDot(Modifier.align(Alignment.BottomEnd).size(8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ForegroundServicesDot(modifier: Modifier = Modifier) {
+    val color = MaterialTheme.colorScheme.tertiary
+    Canvas(modifier) { drawCircle(color) }
 }
 
 private object Toolbar {

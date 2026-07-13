@@ -192,6 +192,20 @@ constructor(
     private val showBatteryEstimate = MutableStateFlow(false)
 
     private var qsDisabled = false
+    private var composeOverlayHeaderActive = false
+        set(value) {
+            if (field == value) {
+                return
+            }
+            field = value
+            if (value) {
+                privacyIconsController.stopListening()
+            } else if (qsVisible) {
+                privacyIconsController.startListening()
+            }
+            updateVisibility()
+        }
+
     private var visible = false
         set(value) {
             if (field == value) {
@@ -264,6 +278,10 @@ constructor(
                 updateScrollY()
             }
         }
+
+    fun setOverlayShadeHeaderActive(active: Boolean) {
+        composeOverlayHeaderActive = active
+    }
 
     private val insetListener =
         View.OnApplyWindowInsetsListener { view, insets ->
@@ -624,7 +642,7 @@ constructor(
     }
 
     private fun onShadeExpandedChanged() {
-        if (qsVisible) {
+        if (qsVisible && !composeOverlayHeaderActive) {
             privacyIconsController.startListening()
         } else {
             privacyIconsController.stopListening()
@@ -644,6 +662,8 @@ constructor(
     private fun updateVisibility() {
         val visibility =
             if (qsDisabled) {
+                View.GONE
+            } else if (composeOverlayHeaderActive) {
                 View.GONE
             } else if (qsVisible && !customizing) {
                 View.VISIBLE

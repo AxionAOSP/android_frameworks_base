@@ -95,12 +95,13 @@ fun PlatformSlider(
     enabled: Boolean = true,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     colors: PlatformSliderColors = PlatformSliderDefaults.defaultPlatformSliderColors(),
+    sliderHeight: Dp = 64.dp,
+    showEndDot: Boolean = true,
     draggingCornersRadius: Dp = PlatformSliderDefaults.DefaultPlatformSliderDraggingCornerRadius,
     icon: (@Composable (isDragging: Boolean) -> Unit)? = null,
     label: (@Composable (isDragging: Boolean) -> Unit)? = null,
     indicatorBackground: (@Composable (Modifier, Dp) -> Unit)? = null,
 ) {
-    val sliderHeight: Dp = 64.dp
     val thumbSize: Dp = sliderHeight
     var isDragging by remember { mutableStateOf(false) }
     LaunchedEffect(interactionSource) {
@@ -144,7 +145,7 @@ fun PlatformSlider(
             thumb = { Spacer(Modifier.size(thumbSize)) },
         )
 
-        if (enabled) {
+        if (enabled && showEndDot) {
             Spacer(
                 Modifier.padding(8.dp)
                     .size(4.dp)

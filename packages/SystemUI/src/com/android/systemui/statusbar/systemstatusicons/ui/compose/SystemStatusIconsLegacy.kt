@@ -17,6 +17,7 @@
 package com.android.systemui.statusbar.systemstatusicons.ui.compose
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.annotation.RememberInComposition
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.movableContentOf
@@ -155,12 +156,13 @@ private fun SystemStatusIconsLegacyAndroidView(
     update: (StatusIconContainer) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    DisposableEffect(statusBarIconController, iconManager) {
+        statusBarIconController.addIconGroup(iconManager)
+        onDispose { statusBarIconController.removeIconGroup(iconManager) }
+    }
+
     AndroidView(
-        factory = {
-            statusBarIconController.addIconGroup(iconManager)
-            iconContainer
-        },
-        onRelease = { statusBarIconController.removeIconGroup(iconManager) },
+        factory = { iconContainer },
         update = update,
         modifier = modifier,
     )

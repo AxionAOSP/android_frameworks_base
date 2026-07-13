@@ -27,6 +27,7 @@ import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.foundation.Image
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -83,6 +84,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -91,6 +93,7 @@ import com.android.compose.modifiers.thenIf
 import com.android.compose.ui.graphics.painter.rememberDrawablePainter
 import com.android.systemui.Flags
 import com.android.systemui.Flags.iconRefresh2025
+import com.android.systemui.qs.composefragment.LocalQsScrolling
 import com.android.systemui.common.shared.model.Icon
 import com.android.systemui.common.ui.compose.Icon
 import com.android.systemui.common.ui.compose.load
@@ -322,7 +325,8 @@ private fun TileLabel(
 ) {
     var textSize by remember { mutableIntStateOf(0) }
 
-    val iterations = if (isVisible()) TILE_MARQUEE_ITERATIONS else 0
+    val isScrolling = LocalQsScrolling.current
+    val iterations = if (isVisible() && !isScrolling) TILE_MARQUEE_ITERATIONS else 0
 
     BasicText(
         text = text,
@@ -410,20 +414,31 @@ object TileBounceMotionTestKeys {
     val BounceScale = MotionTestValueKey<Float>("bounceScale")
 }
 
+val LocalTileScale = staticCompositionLocalOf { 1f }
+
 object CommonTileDefaults {
-    val IconSize = 32.dp
+    private const val BASELINE_SW_DP = 411f
+
+    val IconSize = 24.dp
     val LargeTileIconSize = 28.dp
     val SideIconWidth = 32.dp
     val SideIconHeight = 20.dp
     val ChevronSize = 14.dp
     val ToggleTargetSize = 56.dp
     val TileHeight = 72.dp
+    val TileSpacing = 16.dp
     val TileStartPadding = 8.dp
     val TileEndPadding = 12.dp
     val TileDualTargetEndPadding = 8.dp
-    val TileArrangementPadding = 6.dp
     val InactiveCornerRadius = 50.dp
     val TileLabelBlurWidth = 32.dp
+
+    @Composable
+    fun computeTileScale(): Float {
+        val sw = LocalConfiguration.current.smallestScreenWidthDp
+        return (sw / BASELINE_SW_DP).coerceAtMost(1f)
+    }
+
     const val TILE_MARQUEE_ITERATIONS = 1
     const val TILE_INITIAL_DELAY_MILLIS = 2000
 

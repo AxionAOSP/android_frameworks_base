@@ -131,4 +131,5 @@
     <string name="quick_settings_dns_auto">Auto</string>
     <string name="accessibility_quick_settings_dns_off">Private DNS off.</string>
     <string name="accessibility_quick_settings_dns_on">Private DNS on, <xliff:g id="state">%1$s</xliff:g>.</string>
+
 </resources>

@@ -17,7 +17,6 @@
 package com.android.systemui.qs.panels.data.repository
 
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.qs.panels.shared.model.InfiniteGridLayoutType
 import com.android.systemui.qs.panels.shared.model.PaginatedGridLayoutType
 import javax.inject.Inject
 import kotlinx.coroutines.flow.flowOf
@@ -26,5 +25,5 @@ import kotlinx.coroutines.flow.flowOf
 class GridLayoutTypeRepository @Inject constructor() {
     val defaultLayoutType = flowOf(PaginatedGridLayoutType)
 
-    val dualShadeLayoutType = flowOf(InfiniteGridLayoutType)
+    val dualShadeLayoutType = flowOf(PaginatedGridLayoutType)
 }

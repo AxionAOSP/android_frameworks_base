@@ -26,7 +26,7 @@
 
     <!-- Whether to use the split 2-column notification shade -->
     <!-- TODO(b/411449027): This config is deprecated. Remove with the launch of SceneContainer. -->
-    <bool name="config_use_split_notification_shade">true</bool>
+    <bool name="config_use_split_notification_shade">false</bool>
 
     <!-- Whether to force split shade. This value has effect only when flag
     lockscreen.enable_landscape is enabled. -->

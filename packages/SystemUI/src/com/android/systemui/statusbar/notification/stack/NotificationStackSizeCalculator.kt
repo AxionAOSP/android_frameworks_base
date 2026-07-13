@@ -23,6 +23,7 @@ import androidx.annotation.VisibleForTesting
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.media.controls.domain.pipeline.MediaDataManager
+import com.android.systemui.qs.ax.shared.AxQsMediaPolicy
 import com.android.systemui.res.R
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.shade.ShadeDisplayAware
@@ -188,14 +189,19 @@ constructor(
         shelfSpace: Float,
         shelfHeight: Float,
     ): Int {
+        val shelfOverlapSpace =
+            AxQsMediaPolicy.keyguardShelfOverlapSpace(
+                shelfSpace,
+                stack.showableChildren().any { it is MediaContainerView },
+            )
         log { "\n " }
         log {
             "computeMaxKeyguardNotifications ---" +
                 "\n\tnotifSpace $notifSpace" +
-                "\n\tspaceForShelf $shelfSpace" +
+                "\n\tspaceForShelf $shelfOverlapSpace" +
                 "\n\tshelfIntrinsicHeight $shelfHeight"
         }
-        if (notifSpace + shelfSpace <= 0f) {
+        if (notifSpace + shelfOverlapSpace <= 0f) {
             log { "--- No space to show anything. maxNotifs=0" }
             return 0
         }
@@ -215,7 +221,7 @@ constructor(
                     canStackFitInSpace(
                         heightResult,
                         notifSpace = notifSpace,
-                        shelfSpace = shelfSpace,
+                        shelfSpace = shelfOverlapSpace,
                     ) == FitResult.FIT
             }
 
@@ -245,7 +251,7 @@ constructor(
                         canStackFitInSpace(
                             heightResult,
                             notifSpace = notifSpace,
-                            shelfSpace = shelfSpace,
+                            shelfSpace = shelfOverlapSpace,
                         ) != FitResult.NO_FIT
                 }
             log { "\t--- maxNotifications=$maxNotifications" }
@@ -273,7 +279,7 @@ constructor(
             val sequence = if (SPEW) " stackHeightSequence=${stackHeightSequence.toList()}" else ""
             "--- computeMaxKeyguardNotifications(" +
                 " notifSpace=$notifSpace" +
-                " shelfSpace=$shelfSpace" +
+                " shelfSpace=$shelfOverlapSpace" +
                 " shelfHeight=$shelfHeight) -> $maxNotifications$sequence"
         }
         log { "\n" }

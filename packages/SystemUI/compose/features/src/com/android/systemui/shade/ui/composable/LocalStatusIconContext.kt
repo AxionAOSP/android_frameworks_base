@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import com.android.compose.animation.scene.ContentKey
 import com.android.systemui.res.R
@@ -75,8 +76,16 @@ fun rememberStatusIconContext(
     tintedIconManagerFactory: TintedIconManager.Factory
 ): StatusIconContext {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
 
-    return remember(context, tintedIconManagerFactory) {
+    return remember(
+        context,
+        tintedIconManagerFactory,
+        configuration.assetsSeq,
+        configuration.densityDpi,
+        configuration.fontScale,
+        configuration.uiMode,
+    ) {
         object : StatusIconContext {
             private val iconContainerByContentKey = mutableMapOf<ContentKey, StatusIconContainer>()
             private val iconManagerByContentKey = mutableMapOf<ContentKey, TintedIconManager>()

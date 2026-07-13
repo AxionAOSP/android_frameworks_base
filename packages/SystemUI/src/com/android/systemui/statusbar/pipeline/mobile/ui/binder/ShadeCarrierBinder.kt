@@ -16,6 +16,7 @@
 
 package com.android.systemui.statusbar.pipeline.mobile.ui.binder
 
+import android.annotation.ColorInt
 import android.annotation.StyleRes
 import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
@@ -27,6 +28,8 @@ import com.android.systemui.util.AutoMarqueeTextView
 
 interface ShadeCarrierBinding {
     fun setTextAppearance(@StyleRes resId: Int)
+
+    fun setTextColor(@ColorInt color: Int)
 }
 
 object ShadeCarrierBinder {
@@ -47,6 +50,10 @@ object ShadeCarrierBinder {
         return object : ShadeCarrierBinding {
             override fun setTextAppearance(resId: Int) {
                 carrierTextView.setTextAppearance(resId)
+            }
+
+            override fun setTextColor(color: Int) {
+                carrierTextView.setTextColor(color)
             }
         }
     }

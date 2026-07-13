@@ -29,13 +29,18 @@ import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.globalactions.GlobalActionsDialogLite
 import com.android.systemui.lifecycle.ExclusiveActivatable
 import com.android.systemui.lifecycle.Hydrator
+import com.android.systemui.plugins.ActivityStarter
+import com.android.systemui.qs.FooterActionsController
 import com.android.systemui.qs.footer.domain.interactor.FooterActionsInteractor
 import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsButtonViewModel
 import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsButtonViewModel.PowerActionViewModel
 import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsButtonViewModel.SettingsActionViewModel
+import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsForegroundServicesButtonViewModel
 import com.android.systemui.qs.footer.ui.viewmodel.FooterActionsSecurityButtonViewModel
+import com.android.systemui.qs.footer.ui.viewmodel.foregroundServicesButtonViewModel
 import com.android.systemui.qs.footer.ui.viewmodel.securityButtonViewModel
 import com.android.systemui.qs.footer.ui.viewmodel.userSwitcherViewModel
+import com.android.systemui.qs.panels.domain.interactor.TextFeedbackInteractor
 import com.android.systemui.qs.panels.ui.viewmodel.TextFeedbackContentViewModel
 import com.android.systemui.res.R
 import com.android.systemui.shade.ShadeDisplayAware
@@ -49,6 +54,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -59,9 +65,12 @@ class ToolbarViewModel
 constructor(
     val editModeButtonViewModelFactory: EditModeButtonViewModel.Factory,
     val textFeedbackContentViewModelFactory: TextFeedbackContentViewModel.Factory,
+    private val footerActionsController: FooterActionsController,
     private val footerActionsInteractor: FooterActionsInteractor,
     private val globalActionsDialogLiteProvider: Provider<GlobalActionsDialogLite>,
     private val falsingInteractor: FalsingInteractor,
+    private val activityStarter: ActivityStarter,
+    private val textFeedbackInteractor: TextFeedbackInteractor,
     private val selectedUserInteractor: SelectedUserInteractor,
     private val hsum: HeadlessSystemUserMode,
     @ShadeDisplayAware appContext: Context,
@@ -101,6 +110,39 @@ constructor(
     var securityInfoViewModel: FooterActionsSecurityButtonViewModel? by mutableStateOf(null)
         private set
 
+    val foregroundServicesViewModel: FooterActionsForegroundServicesButtonViewModel? by
+        hydrator.hydratedStateOf(
+            traceName = "foregroundServicesViewModel",
+            initialValue = null,
+            source =
+                combine(
+                        footerActionsInteractor.foregroundServicesCount,
+                        footerActionsInteractor.hasNewForegroundServices,
+                        footerActionsInteractor.securityButtonConfig,
+                        textFeedbackInteractor.textFeedback,
+                    ) {
+                        foregroundServicesCount,
+                        hasNewChanges,
+                        securityConfig,
+                        textFeedbackModel ->
+                        if (foregroundServicesCount <= 0) {
+                            null
+                        } else {
+                            foregroundServicesButtonViewModel(
+                                qsThemedContext,
+                                foregroundServicesCount,
+                                securityConfig?.let {
+                                    securityButtonViewModel(it, ::onSecurityButtonClicked)
+                                },
+                                textFeedbackModel,
+                                hasNewChanges,
+                                ::onForegroundServiceButtonClicked,
+                            )
+                        }
+                    }
+                    .distinctUntilChanged(),
+        )
+
     /**
      * Whether the security info text should be shown. When this is `true`, only the icon should be
      * shown.
@@ -111,6 +153,7 @@ constructor(
         private set
 
     override suspend fun onActivated(): Nothing {
+        footerActionsController.init()
         coroutineScope {
             launch(context = mainDispatcher) {
                 try {
@@ -131,6 +174,14 @@ constructor(
                         delay(COLLAPSED_SECURITY_INFO_DELAY)
                         securityInfoShowCollapsed = true
                     }
+            }
+            launch {
+                footerActionsInteractor.deviceMonitoringDialogRequests.collectLatest {
+                    footerActionsInteractor.showDeviceMonitoringDialog(
+                        qsThemedContext,
+                        expandable = null,
+                    )
+                }
             }
             awaitCancellation()
         }
@@ -157,6 +208,19 @@ constructor(
     fun onSecurityButtonClicked(quickSettingsContext: Context, expandable: Expandable) {
         falsingInteractor.runIfNotFalseTap {
             footerActionsInteractor.showDeviceMonitoringDialog(quickSettingsContext, expandable)
+        }
+    }
+
+    private fun onForegroundServiceButtonClicked(expandable: Expandable) {
+        falsingInteractor.runIfNotFalseTap {
+            activityStarter.dismissKeyguardThenExecute(
+                {
+                    footerActionsInteractor.showForegroundServicesDialog(expandable)
+                    false
+                },
+                null,
+                true,
+            )
         }
     }
 

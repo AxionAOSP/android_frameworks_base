@@ -7,6 +7,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -16,23 +19,31 @@ fun VariableDayDate(
     textColor: Color,
     modifier: Modifier = Modifier,
 ) {
+    val textStyle =
+        MaterialTheme.typography.bodyMediumEmphasized.copy(
+            platformStyle = PlatformTextStyle(includeFontPadding = true)
+        )
     Layout(
         contents =
             listOf(
                 {
                     Text(
                         text = longerDateText,
-                        style = MaterialTheme.typography.bodyMediumEmphasized,
+                        style = textStyle,
                         color = textColor,
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
                     )
                 },
                 {
                     Text(
                         text = shorterDateText,
-                        style = MaterialTheme.typography.bodyMediumEmphasized,
+                        style = textStyle,
                         color = textColor,
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
                     )
                 },
             ),
@@ -45,19 +56,27 @@ fun VariableDayDate(
         val longerMeasurable = measureables[0][0]
         val shorterMeasurable = measureables[1][0]
 
-        val longerPlaceable = longerMeasurable.measure(constraints)
-        val shorterPlaceable = shorterMeasurable.measure(constraints)
-
-        // If width < maxWidth (and not <=), we can assume that the text fits.
-        val placeable =
-            when {
-                longerPlaceable.width < constraints.maxWidth &&
-                    longerPlaceable.height <= constraints.maxHeight -> longerPlaceable
-                shorterPlaceable.width < constraints.maxWidth &&
-                    shorterPlaceable.height <= constraints.maxHeight -> shorterPlaceable
-                else -> null
+        val fallbackConstraints = constraints.copy(minWidth = 0, minHeight = 0)
+        val maxIntrinsicHeight =
+            if (constraints.hasBoundedHeight) constraints.maxHeight else Constraints.Infinity
+        val longerWidth = longerMeasurable.maxIntrinsicWidth(maxIntrinsicHeight)
+        val shorterWidth = shorterMeasurable.maxIntrinsicWidth(maxIntrinsicHeight)
+        val longerFits = longerWidth <= constraints.maxWidth
+        val shorterFits = shorterWidth <= constraints.maxWidth
+        val selectedMeasurable = if (longerFits) longerMeasurable else shorterMeasurable
+        val selectedConstraints =
+            if (!longerFits && !shorterFits) {
+                fallbackConstraints
+            } else {
+                constraints.copy(
+                    minWidth = 0,
+                    maxWidth = Constraints.Infinity,
+                    minHeight = 0,
+                    maxHeight = Constraints.Infinity,
+                )
             }
+        val placeable = selectedMeasurable.measure(selectedConstraints)
 
-        layout(placeable?.width ?: 0, placeable?.height ?: 0) { placeable?.placeRelative(0, 0) }
+        layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
     }
 }

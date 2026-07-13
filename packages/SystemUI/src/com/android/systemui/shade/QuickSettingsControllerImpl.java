@@ -79,6 +79,8 @@ import com.android.systemui.media.controls.ui.controller.MediaHierarchyManager;
 import com.android.systemui.mistouch.domain.interactor.MistouchInteractor;
 import com.android.systemui.plugins.FalsingManager;
 import com.android.systemui.plugins.qs.QS;
+import com.android.systemui.qs.ax.domain.AxQsShadePolicy;
+import com.android.systemui.qs.ax.shared.AxQsMediaPolicy;
 import com.android.systemui.qs.flags.QSComposeFragment;
 import com.android.systemui.res.R;
 import com.android.systemui.scene.shared.flag.SceneContainerFlag;
@@ -303,6 +305,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
 
     private int mOneFingerQuickSettingsIntercept;
     private final ContentObserver mOneFingerQuickSettingsInterceptObserver;
+    private final AxQsShadePolicy mAxQsShadePolicy;
 
     private final Region mInterceptRegion = new Region();
     /** The end bounds of a clipping animation. */
@@ -374,6 +377,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             Lazy<LargeScreenHeaderHelper> largeScreenHeaderHelperLazy,
             WindowManagerProvider windowManagerProvider,
             SelectedUserInteractor selectedUserInteractor,
+            AxQsShadePolicy axQsShadePolicy,
             NTForbiddenSwipeDownQSController ntForbiddenSwipeDownQSController
     ) {
         SceneContainerFlag.assertInLegacyMode();
@@ -422,6 +426,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         mActiveNotificationsInteractor = activeNotificationsInteractor;
         mCommunalTransitionViewModelLazy = communalTransitionViewModelLazy;
         mJavaAdapter = javaAdapter;
+        mAxQsShadePolicy = axQsShadePolicy;
 
         mLockscreenShadeTransitionController.addCallback(new LockscreenShadeTransitionCallback());
 
@@ -637,18 +642,25 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                         MotionEvent.BUTTON_SECONDARY) || event.isButtonPressed(
                         MotionEvent.BUTTON_TERTIARY));
 
-        final float w = mQs.getView().getMeasuredWidth();
+        final boolean separateShade = mAxQsShadePolicy.isSeparateShade();
+        final float w = separateShade
+                ? mPanelView.getMeasuredWidth()
+                : mQs.getView().getMeasuredWidth();
         final float x = event.getX();
         float region = w * 1.f / 4.f; // TODO overlay region fraction?
         boolean showQsOverride = false;
 
-        switch (mOneFingerQuickSettingsIntercept) {
-            case 1: // Right side pulldown
-                showQsOverride = mQs.getView().isLayoutRtl() ? x < region : w - region < x;
-                break;
-            case 2: // Left side pulldown
-                showQsOverride = mQs.getView().isLayoutRtl() ? w - region < x : x < region;
-                break;
+        if (separateShade) {
+            showQsOverride = mAxQsShadePolicy.isSeparateQuickPanelGesture(x, w);
+        } else {
+            switch (mOneFingerQuickSettingsIntercept) {
+                case 1: // Right side pulldown
+                    showQsOverride = mQs.getView().isLayoutRtl() ? x < region : w - region < x;
+                    break;
+                case 2: // Left side pulldown
+                    showQsOverride = mQs.getView().isLayoutRtl() ? w - region < x : x < region;
+                    break;
+            }
         }
         showQsOverride &= mBarState == StatusBarState.SHADE;
 
@@ -759,6 +771,9 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         boolean keyguardShowing = mBarState == KEYGUARD;
         if (!isExpansionEnabled() || mCollapsedOnDown || (keyguardShowing
                 && mKeyguardBypassController.getBypassEnabled()) || mSplitShadeEnabled) {
+            return false;
+        }
+        if (getExpanded() && yDiff < 0 && mAxQsShadePolicy.isSeparateShade()) {
             return false;
         }
         int headerTop, headerBottom;
@@ -946,7 +961,9 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             mMaxExpansionHeight = mQs.getDesiredHeight();
             mNotificationStackScrollLayoutController.setMaxTopPadding(
                     getMaxExpansionHeight());
-            mMediaHierarchyManager.onQsHeightUpdated();
+            if (AxQsMediaPolicy.useStockQsMediaHost) {
+                mMediaHierarchyManager.onQsHeightUpdated();
+            }
         }
         return oldMaxHeight;
     }
@@ -1010,7 +1027,13 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     }
 
     void setBarState(int barState) {
+        if (mBarState == barState) {
+            return;
+        }
         mBarState = barState;
+        if (isQsFragmentCreated()) {
+            updateMinHeight();
+        }
     }
 
     /** */
@@ -1056,7 +1079,9 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     void setShadeExpansion(float expandedHeight, float expandedFraction) {
         mShadeExpandedHeight = expandedHeight;
         mShadeExpandedFraction = expandedFraction;
-        mMediaHierarchyManager.setShadeExpandedFraction(expandedFraction);
+        if (AxQsMediaPolicy.useStockQsMediaHost) {
+            mMediaHierarchyManager.setShadeExpandedFraction(expandedFraction);
+        }
     }
 
     @VisibleForTesting
@@ -1068,6 +1093,9 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         if (expandImmediate != isExpandImmediate()) {
             mShadeLog.logQsExpandImmediateChanged(expandImmediate);
             mShadeRepository.setLegacyExpandImmediate(expandImmediate);
+        }
+        if (!expandImmediate || mAxQsShadePolicy.isSeparateShade()) {
+            mNotificationStackScrollLayoutController.setQuickQsHidden(expandImmediate);
         }
     }
 
@@ -1143,7 +1171,9 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
                 && mPanelViewControllerLazy.get().mAnimateBack) {
             mPanelViewControllerLazy.get().adjustBackAnimationScale(adjustedExpansionFraction);
         }
-        mMediaHierarchyManager.setQsExpansion(qsExpansionFraction);
+        if (AxQsMediaPolicy.useStockQsMediaHost) {
+            mMediaHierarchyManager.setQsExpansion(qsExpansionFraction);
+        }
         int qsPanelBottomY = calculateBottomPosition(qsExpansionFraction);
         mScrimController.setQsPosition(qsExpansionFraction, qsPanelBottomY);
         setClippingBounds();
@@ -1255,9 +1285,11 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             mNotificationStackScrollLayoutController.onExpansionStarted();
         }
         mExpandedWhenExpandingStarted = qsFullyExpanded;
-        mMediaHierarchyManager.setCollapsingShadeFromQS(mExpandedWhenExpandingStarted
-                /* We also start expanding when flinging closed Qs. Let's exclude that */
-                && !mAnimating);
+        if (AxQsMediaPolicy.useStockQsMediaHost) {
+            mMediaHierarchyManager.setCollapsingShadeFromQS(mExpandedWhenExpandingStarted
+                    /* We also start expanding when flinging closed Qs. Let's exclude that */
+                    && !mAnimating);
+        }
         if (getExpanded()) {
             onExpansionStarted();
         }
@@ -1691,6 +1723,9 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         if (mSplitShadeEnabled) {
             return; // QS is always expanded in split shade
         }
+        if (getExpanded() && mAxQsShadePolicy.collapseSeparateShade()) {
+            return;
+        }
         onExpansionStarted();
         if (getExpanded()) {
             flingQs(0, FLING_COLLAPSE, null, true);
@@ -1786,6 +1821,7 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
         if (mTwoFingerExpandPossible && isOpenQsEvent(event) && isInStatusBar) {
             mMetricsLogger.count(COUNTER_PANEL_OPEN_QS, 1);
             setExpandImmediate(true);
+            mNotificationStackScrollLayoutController.setQuickQsHidden(true);
             mNotificationStackScrollLayoutController.setShouldShowShelfOnly(!mSplitShadeEnabled);
             if (mExpansionHeightSetToMaxListener != null) {
                 mExpansionHeightSetToMaxListener.onExpansionHeightSetToMax(false);
@@ -2162,14 +2198,18 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
     private void maybeSetEarlyExpansion() {
         if (QSComposeFragment.isEnabled() && qsComposeFragmentEarlyExpansion() && mQs != null) {
             mQs.setExpanded(true);
-            mMediaHierarchyManager.setQsExpanded(true);
+            if (AxQsMediaPolicy.useStockQsMediaHost) {
+                mMediaHierarchyManager.setQsExpanded(true);
+            }
         }
     }
 
     private void maybeResetEarlyExpansion() {
         if (QSComposeFragment.isEnabled() && qsComposeFragmentEarlyExpansion()) {
             updateQsState();
-            mMediaHierarchyManager.setQsExpanded(getExpanded());
+            if (AxQsMediaPolicy.useStockQsMediaHost) {
+                mMediaHierarchyManager.setQsExpanded(getExpanded());
+            }
         }
     }
 

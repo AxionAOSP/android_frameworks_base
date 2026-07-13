@@ -51,6 +51,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -60,6 +61,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -98,6 +100,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -182,6 +185,12 @@ fun Media(
     behavior: MediaUiBehavior,
     onDismissed: () -> Unit,
     modifier: Modifier = Modifier,
+    cardFilter: ((MediaCardViewModel) -> Boolean)? = null,
+    carouselShape: Shape = RoundedCornerShape(32.dp),
+    cardContent: (@Composable (MediaCardViewModel, Modifier) -> Unit)? = null,
+    pagerIndicator: @Composable BoxScope.(PagerState) -> Unit = { pagerState ->
+        MediaPagerIndicator(pagerState)
+    },
 ) {
     val context = LocalContext.current
     val viewModel: MediaViewModel =
@@ -198,6 +207,10 @@ fun Media(
         behavior = behavior,
         onDismissed = onDismissed,
         modifier = modifier,
+        cardFilter = cardFilter,
+        carouselShape = carouselShape,
+        cardContent = cardContent,
+        pagerIndicator = pagerIndicator,
     )
 }
 
@@ -216,13 +229,25 @@ private fun CardCarousel(
     behavior: MediaUiBehavior,
     onDismissed: () -> Unit,
     modifier: Modifier = Modifier,
+    cardFilter: ((MediaCardViewModel) -> Boolean)?,
+    carouselShape: Shape,
+    cardContent: (@Composable (MediaCardViewModel, Modifier) -> Unit)?,
+    pagerIndicator: @Composable BoxScope.(PagerState) -> Unit,
 ) {
-    AnimatedVisibility(visible = viewModel.isCarouselVisible, modifier = modifier) {
+    val hasCards = cardFilter?.let { viewModel.cards.any(it) } ?: viewModel.cards.isNotEmpty()
+    AnimatedVisibility(
+        visible = viewModel.isCarouselVisible && hasCards,
+        modifier = modifier,
+    ) {
         CardCarouselContent(
             viewModel = viewModel,
             presentationStyle = presentationStyle,
             behavior = behavior,
             onDismissed = onDismissed,
+            cardFilter = cardFilter,
+            carouselShape = carouselShape,
+            cardContent = cardContent,
+            pagerIndicator = pagerIndicator,
         )
     }
 }
@@ -234,23 +259,34 @@ private fun CardCarouselContent(
     behavior: MediaUiBehavior,
     onDismissed: () -> Unit,
     modifier: Modifier = Modifier,
+    cardFilter: ((MediaCardViewModel) -> Boolean)?,
+    carouselShape: Shape,
+    cardContent: (@Composable (MediaCardViewModel, Modifier) -> Unit)?,
+    pagerIndicator: @Composable BoxScope.(PagerState) -> Unit,
 ) {
-    val pagerState = rememberPagerState { viewModel.cards.size }
-    LaunchedEffect(viewModel.currentIndex) {
-        if (viewModel.currentIndex != pagerState.currentPage) {
-            pagerState.scrollToPage(viewModel.currentIndex)
+    val cards = cardFilter?.let { viewModel.cards.filter(it) } ?: viewModel.cards
+    if (cards.isEmpty()) return
+    val cardKeys = cards.map { it.key }
+    val currentCardKey = viewModel.cards.getOrNull(viewModel.currentIndex)?.key
+    val currentIndex = cardKeys.indexOf(currentCardKey).coerceAtLeast(0)
+    val pagerState = rememberPagerState { cards.size }
+    LaunchedEffect(currentIndex, cards.size) {
+        if (currentIndex != pagerState.currentPage) {
+            pagerState.scrollToPage(currentIndex)
         }
     }
-    LaunchedEffect(pagerState.currentPage) { viewModel.onCardSelected(pagerState.currentPage) }
+    LaunchedEffect(pagerState.currentPage, cardKeys) {
+        val selectedKey = cardKeys.getOrNull(pagerState.currentPage) ?: return@LaunchedEffect
+        val selectedIndex = viewModel.cards.indexOfFirst { it.key == selectedKey }
+        if (selectedIndex >= 0) viewModel.onCardSelected(selectedIndex)
+    }
     var isFalseTouchDetected: Boolean by
         remember(behavior.isCarouselScrollFalseTouch) { mutableStateOf(false) }
     val isSwipingEnabled = behavior.isCarouselScrollingEnabled && !isFalseTouchDetected
 
-    val roundedCornerShape = RoundedCornerShape(32.dp)
-
     Box(
         modifier =
-            modifier.clip(roundedCornerShape).pointerInput(behavior) {
+            modifier.clip(carouselShape).pointerInput(behavior) {
                 if (behavior.isCarouselScrollFalseTouch != null) {
                     awaitEachGesture {
                         awaitFirstDown(false, PointerEventPass.Initial)
@@ -268,26 +304,24 @@ private fun CardCarouselContent(
                     userScrollEnabled = isSwipingEnabled,
                     pageSpacing = 8.dp,
                     beyondViewportPageCount = 1,
-                    key = { index: Int -> viewModel.cards[index].key },
+                    key = { index: Int -> cards[index].key },
                     overscrollEffect = overscrollEffect ?: rememberOffsetOverscrollEffect(),
                 ) { pageIndex: Int ->
-                    Card(
-                        viewModel = viewModel.cards[pageIndex],
-                        presentationStyle = presentationStyle,
-                        modifier =
-                            Modifier.clip(roundedCornerShape).sysuiResTag(MediaRes.MEDIA_CONTROLS),
-                    )
+                    val cardModifier =
+                        Modifier.clip(carouselShape).sysuiResTag(MediaRes.MEDIA_CONTROLS)
+                    if (cardContent == null) {
+                        Card(
+                            viewModel = cards[pageIndex],
+                            presentationStyle = presentationStyle,
+                            modifier = cardModifier,
+                        )
+                    } else {
+                        cardContent(cards[pageIndex], cardModifier)
+                    }
                 }
 
                 if (pagerState.pageCount > 1) {
-                    PagerDots(
-                        pagerState = pagerState,
-                        activeColor = Color(0xffdee0ff),
-                        nonActiveColor = Color(0xffa7a9ca),
-                        dotSize = 6.dp,
-                        spaceSize = 6.dp,
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(8.dp),
-                    )
+                    pagerIndicator(pagerState)
                 }
             }
         }
@@ -303,7 +337,7 @@ private fun CardCarouselContent(
             ) {
                 PagerContent()
             }
-        } else {
+        } else if (behavior.isSettingsRevealEnabled) {
             val overscrollEffect = rememberOffsetOverscrollEffect()
             SwipeToReveal(
                 foregroundContent = { PagerContent(overscrollEffect) },
@@ -316,6 +350,8 @@ private fun CardCarouselContent(
                 },
                 isSwipingEnabled = isSwipingEnabled,
             )
+        } else {
+            PagerContent()
         }
     }
 
@@ -325,6 +361,18 @@ private fun CardCarouselContent(
             viewModel.onScrollToFirstCard()
         }
     }
+}
+
+@Composable
+private fun BoxScope.MediaPagerIndicator(pagerState: PagerState) {
+    PagerDots(
+        pagerState = pagerState,
+        activeColor = Color(0xffdee0ff),
+        nonActiveColor = Color(0xffa7a9ca),
+        dotSize = 6.dp,
+        spaceSize = 6.dp,
+        modifier = Modifier.align(Alignment.BottomCenter).padding(8.dp),
+    )
 }
 
 /** Renders the UI of a single media card. */
@@ -1474,6 +1522,7 @@ enum class MediaPresentationStyle {
 data class MediaUiBehavior(
     val isCarouselDismissible: Boolean = true,
     val isCarouselScrollingEnabled: Boolean = true,
+    val isSettingsRevealEnabled: Boolean = true,
     val carouselVisibility: MediaCarouselVisibility = MediaCarouselVisibility.WhenNotEmpty,
     /**
      * If provided, this callback will be consulted at the beginning of each carousel scroll gesture
