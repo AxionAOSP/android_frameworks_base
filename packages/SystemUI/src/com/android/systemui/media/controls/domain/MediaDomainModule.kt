@@ -18,6 +18,7 @@ package com.android.systemui.media.controls.domain
 
 import com.android.systemui.CoreStartable
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.media.MediaSessionManager
 import com.android.systemui.media.controls.domain.pipeline.LegacyMediaDataManagerImpl
 import com.android.systemui.media.controls.domain.pipeline.MediaDataManager
 import com.android.systemui.media.controls.domain.pipeline.MediaDataProcessor
@@ -46,6 +47,11 @@ interface MediaDomainModule {
     @IntoMap
     @ClassKey(MediaDataProcessor::class)
     fun bindMediaDataProcessor(interactor: MediaDataProcessor): CoreStartable
+
+    @Binds
+    @IntoMap
+    @ClassKey(MediaSessionManager::class)
+    fun bindMediaSessionManager(manager: MediaSessionManager): CoreStartable
 
     companion object {
 

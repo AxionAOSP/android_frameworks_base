@@ -38,6 +38,7 @@ constructor(
     @Background private val backgroundExecutor: RepeatableExecutor,
     private val notificationMediaManager: NotificationMediaManager,
     private val mediaOutputDialogManager: MediaOutputDialogManager,
+    private val mediaSessionManager: MediaSessionManager,
 ) {
     companion object {
         private const val TAG = "MediaIslandManager"
@@ -85,17 +86,17 @@ constructor(
         }
 
     private val mediaSessionListener = object : MediaSessionManager.MediaDataListener {
-        override fun onMediaColorsChanged(color: Int) {
-            sessionMediaColor = color
-            _mediaEvent.update { event -> event?.copy(mediaColor = color) }
+        override fun onMediaColorsChanged(color: Int?) {
+            sessionMediaColor = color ?: 0
+            _mediaEvent.update { event -> event?.copy(mediaColor = color ?: 0) }
         }
 
-        override fun onAlbumArtChanged(drawable: Drawable) {
+        override fun onAlbumArtChanged(drawable: Drawable?) {
             sessionAlbumArt = drawable
             _mediaEvent.update { event -> event?.copy(albumArt = drawable) }
         }
 
-        override fun onAppIconChanged(drawable: Drawable) {
+        override fun onAppIconChanged(drawable: Drawable?) {
             sessionAppIcon = drawable
             _mediaEvent.update { event -> event?.copy(appIcon = drawable) }
         }
@@ -291,7 +292,7 @@ constructor(
         if (listening) return
         listening = true
         notificationMediaManager.addCallback(mediaListener)
-        MediaSessionManager.get().addListener(mediaSessionListener)
+        mediaSessionManager.addListener(mediaSessionListener)
         try {
             bindController(systemMediaSessionManager.getActiveSessions(null))
             systemMediaSessionManager.addOnActiveSessionsChangedListener(
@@ -308,7 +309,7 @@ constructor(
         listening = false
         stopProgressPolling()
         notificationMediaManager.removeCallback(mediaListener)
-        MediaSessionManager.get().removeListener(mediaSessionListener)
+        mediaSessionManager.removeListener(mediaSessionListener)
         try {
             systemMediaSessionManager.removeOnActiveSessionsChangedListener(sessionChangedListener)
             activeMediaController?.unregisterCallback(mediaControllerCallback)

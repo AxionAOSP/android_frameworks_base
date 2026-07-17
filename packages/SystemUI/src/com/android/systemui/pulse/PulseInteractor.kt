@@ -75,7 +75,8 @@ class PulseInteractor @Inject constructor(
     @Application private val scope: CoroutineScope,
     private val settingsRepository: PulseSettingsRepository,
     private val displayRepository: PulseDisplayRepository,
-    private val audioProcessor: PulseAudioDataProcessor
+    private val audioProcessor: PulseAudioDataProcessor,
+    private val mediaSessionManager: MediaSessionManager,
 ) : MediaSessionManager.MediaDataListener,
     ScrimUtils.ScrimEventListener {
 
@@ -102,7 +103,7 @@ class PulseInteractor @Inject constructor(
         get() = ScrimUtils.get().isAwake()
 
     private val mediaPlaying: Boolean
-        get() = MediaSessionManager.get().isMediaPlaying
+        get() = mediaSessionManager.isMediaPlaying
 
     private var bouncerShowingOrKeyguardDismissing = false
 
@@ -117,7 +118,7 @@ class PulseInteractor @Inject constructor(
             "media=$mediaPlaying, awake=$screenAwake")
 
         ScrimUtils.get().addListener(this)
-        MediaSessionManager.get().addListener(this)
+        mediaSessionManager.addListener(this)
 
         observeSettings()
         observeDisplayState()
@@ -197,9 +198,9 @@ class PulseInteractor @Inject constructor(
         updatePulseState()
     }
 
-    override fun onMediaColorsChanged(color: Int) {
+    override fun onMediaColorsChanged(color: Int?) {
         if (_uiState.value.colorMode == PulseColorMode.ALBUM) {
-            _uiState.update { it.copy(barColor = color) }
+            _uiState.update { it.copy(barColor = color ?: accentColor) }
         }
     }
 

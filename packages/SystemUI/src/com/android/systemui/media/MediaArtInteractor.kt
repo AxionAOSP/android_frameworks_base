@@ -53,6 +53,7 @@ data class MediaArtUiState(
 class MediaArtInteractor @Inject constructor(
     @Application private val scope: CoroutineScope,
     private val repository: MediaArtSettingsRepository,
+    private val mediaSessionManager: MediaSessionManager,
 ) {
 
     private val _uiState = MutableStateFlow(MediaArtUiState())
@@ -65,15 +66,15 @@ class MediaArtInteractor @Inject constructor(
 
     private val mediaDataFlow: Flow<MediaDataEvent> = conflatedCallbackFlow {
         val listener = object : MediaSessionManager.MediaDataListener {
-            override fun onAlbumArtChanged(drawable: Drawable) {
+            override fun onAlbumArtChanged(drawable: Drawable?) {
                 trySend(MediaDataEvent.AlbumArtChanged(drawable))
             }
             override fun onPlaybackStateChanged(state: Int) {
                 trySend(MediaDataEvent.PlaybackStateChanged(state))
             }
         }
-        MediaSessionManager.get().addListener(listener)
-        awaitClose { MediaSessionManager.get().removeListener(listener) }
+        mediaSessionManager.addListener(listener)
+        awaitClose { mediaSessionManager.removeListener(listener) }
     }
 
     private val scrimEventFlow: Flow<ScrimEvent> = conflatedCallbackFlow {
@@ -202,7 +203,7 @@ class MediaArtInteractor @Inject constructor(
     private fun shouldShowMediaArt(): Boolean {
         if (!ScrimUtils.get().isKeyguardShowing()) return false
         return featureEnabled &&
-               MediaSessionManager.get().isMediaPlaying &&
+               mediaSessionManager.isMediaPlaying &&
                ScrimUtils.get().isPanelFullyCollapsed() &&
                !bouncerShowingOrKeyguardDismissing
     }
@@ -276,7 +277,7 @@ class MediaArtInteractor @Inject constructor(
     }
 
     private sealed class MediaDataEvent {
-        data class AlbumArtChanged(val drawable: Drawable) : MediaDataEvent()
+        data class AlbumArtChanged(val drawable: Drawable?) : MediaDataEvent()
         data class PlaybackStateChanged(val state: Int) : MediaDataEvent()
     }
 
