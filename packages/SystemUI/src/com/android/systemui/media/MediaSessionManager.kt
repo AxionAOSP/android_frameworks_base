@@ -114,7 +114,7 @@ constructor(
             playbackState = session.state.toPlaybackState(),
             albumArt = session.background,
             appIcon = session.appIcon,
-            mediaColor = session.colorScheme?.background?.toArgb(),
+            mediaColor = session.colorScheme?.primary?.toArgb(),
             title = session.title,
             artist = session.subtitle,
         )
