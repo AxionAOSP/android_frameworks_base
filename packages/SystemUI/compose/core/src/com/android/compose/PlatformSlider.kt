@@ -192,34 +192,55 @@ private fun Track(
                 indicatorBackground = indicatorBackground,
             )
             if (icon != null) {
+                val isIconOnIndicator =
+                    drawingState.iconWidth > 0f &&
+                        drawingState.iconOffset + drawingState.iconWidth <=
+                            drawingState.indicatorRight - drawingState.indicatorLeft
                 Box(
                     modifier = Modifier.layoutId(TrackComponent.Icon).clip(CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     CompositionLocalProvider(
                         LocalContentColor provides
-                            if (enabled) colors.iconColor else colors.disabledIconColor
+                            when {
+                                !enabled -> colors.disabledIconColor
+                                isIconOnIndicator -> colors.iconColor
+                                else -> colors.labelColorOnTrack
+                            }
                     ) {
                         icon(isDragging)
                     }
                 }
             }
             if (label != null) {
+                val labelSpacing = LocalDensity.current.run { 16.dp.toPx() }
+                val indicatorWidth = drawingState.indicatorRight - drawingState.indicatorLeft
+                val isLabelOnTopOfIndicator =
+                    enabled && drawingState.labelWidth <= drawingState.iconOffset
                 val offsetX by
                     animateFloatAsState(
                         targetValue =
-                            if (enabled) {
-                                if (drawingState.isLabelOnTopOfIndicator) {
-                                    drawingState.iconWidth.coerceAtLeast(
-                                        LocalDensity.current.run { 16.dp.toPx() }
+                            when {
+                                !enabled -> drawingState.iconWidth
+                                isLabelOnTopOfIndicator ->
+                                    minOf(
+                                        labelSpacing,
+                                        drawingState.iconOffset - drawingState.labelWidth,
                                     )
-                                } else {
-                                    val indicatorWidth =
-                                        drawingState.indicatorRight - drawingState.indicatorLeft
-                                    indicatorWidth + LocalDensity.current.run { 16.dp.toPx() }
+                                else -> {
+                                    val contentEnd =
+                                        maxOf(
+                                            indicatorWidth,
+                                            drawingState.iconOffset + drawingState.iconWidth,
+                                        )
+                                    val availableLabelWidth =
+                                        drawingState.totalWidth -
+                                            contentEnd -
+                                            drawingState.labelWidth
+                                    val availableLabelSpacing =
+                                        availableLabelWidth.coerceIn(0f, labelSpacing)
+                                    contentEnd + availableLabelSpacing
                                 }
-                            } else {
-                                drawingState.iconWidth
                             },
                         label = "LabelIconSpacingAnimation"
                     )
@@ -234,7 +255,7 @@ private fun Track(
                         LocalContentColor provides
                             colors.getLabelColor(
                                 isEnabled = enabled,
-                                isLabelOnTopOfTheIndicator = drawingState.isLabelOnTopOfIndicator,
+                                isLabelOnTopOfTheIndicator = isLabelOnTopOfIndicator,
                             )
                     ) {
                         label(isDragging)
@@ -384,15 +405,16 @@ private class TrackMeasurePolicy(
                 .fastFirst { it.layoutId == TrackComponent.Background }
                 .measure(Constraints(desiredWidth, desiredWidth, desiredHeight, desiredHeight))
 
+        val maxIconSize = minOf(desiredWidth, desiredHeight)
         val iconPlaceable: Placeable? =
             measurables
                 .fastFirstOrNull { it.layoutId == TrackComponent.Icon }
                 ?.measure(
                     Constraints(
-                        minWidth = desiredHeight,
-                        maxWidth = desiredHeight,
-                        minHeight = desiredHeight,
-                        maxHeight = desiredHeight,
+                        minWidth = maxIconSize,
+                        maxWidth = maxIconSize,
+                        minHeight = maxIconSize,
+                        maxHeight = maxIconSize,
                     )
                 )
 
@@ -410,17 +432,31 @@ private class TrackMeasurePolicy(
                     )
                 )
 
+        val valueAsFraction = sliderState.coercedNormalizedValue
+        val indicatorWidth = desiredWidth * valueAsFraction
+        val iconOffset =
+            if (enabled) {
+                val unboundedIconOffset =
+                    if (desiredWidth - indicatorWidth > iconSize.toFloat()) {
+                        indicatorWidth
+                    } else {
+                        indicatorWidth - iconSize
+                    }
+                unboundedIconOffset.toInt().coerceIn(0, desiredWidth - iconSize)
+            } else {
+                0
+            }
         val drawingState =
             if (isRtl) {
                 DrawingState(
                     isRtl = true,
                     totalWidth = desiredWidth.toFloat(),
                     totalHeight = desiredHeight.toFloat(),
-                    indicatorLeft =
-                        (desiredWidth - iconSize) * (1 - sliderState.coercedNormalizedValue),
+                    indicatorLeft = desiredWidth - indicatorWidth,
                     indicatorTop = 0f,
                     indicatorRight = desiredWidth.toFloat(),
                     indicatorBottom = desiredHeight.toFloat(),
+                    iconOffset = iconOffset.toFloat(),
                     iconWidth = iconSize.toFloat(),
                     labelWidth = labelPlaceable?.width?.toFloat() ?: 0f,
                 )
@@ -431,9 +467,9 @@ private class TrackMeasurePolicy(
                     totalHeight = desiredHeight.toFloat(),
                     indicatorLeft = 0f,
                     indicatorTop = 0f,
-                    indicatorRight =
-                        iconSize + (desiredWidth - iconSize) * sliderState.coercedNormalizedValue,
+                    indicatorRight = indicatorWidth,
                     indicatorBottom = desiredHeight.toFloat(),
+                    iconOffset = iconOffset.toFloat(),
                     iconWidth = iconSize.toFloat(),
                     labelWidth = labelPlaceable?.width?.toFloat() ?: 0f,
                 )
@@ -444,7 +480,7 @@ private class TrackMeasurePolicy(
         return layout(desiredWidth, desiredHeight) {
             backgroundPlaceable.placeRelative(0, 0, TrackComponent.Background.zIndex)
 
-            iconPlaceable?.placeRelative(0, 0, TrackComponent.Icon.zIndex)
+            iconPlaceable?.placeRelative(iconOffset, 0, TrackComponent.Icon.zIndex)
             labelPlaceable?.placeRelative(0, 0, TrackComponent.Label.zIndex)
         }
     }
@@ -458,12 +494,10 @@ private data class DrawingState(
     val indicatorTop: Float = 0f,
     val indicatorRight: Float = 0f,
     val indicatorBottom: Float = 0f,
+    val iconOffset: Float = 0f,
     val iconWidth: Float = 0f,
     val labelWidth: Float = 0f,
 )
-
-private val DrawingState.isLabelOnTopOfIndicator: Boolean
-    get() = labelWidth < indicatorRight - indicatorLeft - iconWidth
 
 /** [SliderState.value] normalized using [SliderState.valueRange]. The result belongs to [0, 1] */
 private val SliderState.coercedNormalizedValue: Float
