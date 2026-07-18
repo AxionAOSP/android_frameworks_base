@@ -40,6 +40,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -48,6 +49,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -121,8 +123,29 @@ fun AxQsEditUi(
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val showQqsEditor = !landscape && axQsViewModel.panelMode == AxQsPanelMode.TOGETHER
 
+                var showResetDialog by remember { mutableStateOf(false) }
+
     BackHandler { editModeViewModel.stopEditing() }
     LaunchedEffect(showQqsEditor) { if (!showQqsEditor) editQqs = false }
+
+    if (showResetDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetDialog = false },
+            title = { Text(stringResource(com.android.internal.R.string.reset)) },
+            text = { Text("Reset all Quick Settings tiles to default layout?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    editModeViewModel.resetTiles()
+                    showResetDialog = false
+                }) { Text(stringResource(com.android.internal.R.string.reset)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetDialog = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
+    }
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val sidePadding =
@@ -155,6 +178,12 @@ fun AxQsEditUi(
                         ) {
                             Text(stringResource(R.string.ax_qs_panel_settings))
                         }
+                    }
+                    FilledTonalButton(
+                        onClick = { showResetDialog = true },
+                        shapes = ButtonDefaults.shapes(),
+                    ) {
+                        Text(stringResource(com.android.internal.R.string.reset))
                     }
                     Button(
                         onClick = editModeViewModel::stopEditing,

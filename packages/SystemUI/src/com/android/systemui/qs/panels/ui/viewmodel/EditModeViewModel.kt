@@ -180,6 +180,10 @@ constructor(
         _isEditing.value = false
     }
 
+    fun resetTiles() {
+        currentTilesInteractor.resetTiles()
+    }
+
     /**
      * Immediately adds [tileSpec] to the current tiles at [position]. If the [tileSpec] was already
      * present, it will be moved to the new position.
