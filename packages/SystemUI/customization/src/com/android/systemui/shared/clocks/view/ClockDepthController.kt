@@ -1,13 +1,21 @@
 package com.android.systemui.shared.clocks.view
 
 import android.animation.ValueAnimator
-import android.graphics.*
+import android.content.res.Resources
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.RectF
+import android.graphics.Region
+import android.provider.Settings
+import android.util.DisplayMetrics
 import android.view.View
 import com.android.app.animation.Interpolators
 import com.android.systemui.shared.clocks.DepthWallpaperProvider
-import android.content.res.Resources
-import android.provider.Settings
-import android.util.DisplayMetrics
 import kotlin.math.ceil
 import kotlin.math.floor
 
@@ -22,10 +30,16 @@ class ClockDepthController(private val view: View) {
     private var depthSuppressed = false
     private var maskAlpha = 0f
     private var revealProgress = 0f
+    private var wallpaperZoomActive = false
     private var maskAnimator: ValueAnimator? = null
 
     private val transformedPath = Path()
+    private val revealPath = Path()
     private val pathMatrix = Matrix()
+    private val revealMatrix = Matrix()
+    private val pathBounds = RectF()
+    private val revealBounds = RectF()
+    private val layerRect = RectF()
     private val coverageRegion = Region()
     private val coverageClip = Region()
     private val coverageDiff = Region()
@@ -35,6 +49,8 @@ class ClockDepthController(private val view: View) {
     private var cachedScreenH = 0f
     private var cachedViewX = Float.NaN
     private var cachedViewY = Float.NaN
+    private var cachedViewScaleX = Float.NaN
+    private var cachedViewScaleY = Float.NaN
     private var pathDirty = true
     var sourceBoundsProvider: (() -> RectF?)? = null
         set(value) {
@@ -47,6 +63,7 @@ class ClockDepthController(private val view: View) {
         color = Color.WHITE
         style = Paint.Style.FILL
     }
+    private val maskXfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
 
     private val wallpaperMaxScale: Float = try {
         val id = Resources.getSystem().getIdentifier(
@@ -77,11 +94,30 @@ class ClockDepthController(private val view: View) {
                 return
             }
 
-            maskAnimator?.cancel()
+            if (wallpaperZoomActive) {
+                hideDepth()
+                return
+            }
             if (depthActive && !wasActive) {
                 animateReveal()
             } else if (!depthActive && wasActive) {
                 animateHide()
+            } else {
+                view.postInvalidateOnAnimation()
+            }
+        }
+
+        override fun onWallpaperZoomActiveChanged(active: Boolean) {
+            if (wallpaperZoomActive == active) return
+            wallpaperZoomActive = active
+            if (active) {
+                hideDepth()
+                return
+            }
+
+            pathDirty = true
+            if (depthActive && depthVisible) {
+                animateReveal()
             } else {
                 view.postInvalidateOnAnimation()
             }
@@ -111,19 +147,25 @@ class ClockDepthController(private val view: View) {
 
         if (!depthActive) return
 
-        maskAnimator?.cancel()
         if (visible) {
-            animateReveal()
+            if (wallpaperZoomActive) {
+                hideDepth()
+            } else {
+                animateReveal()
+            }
         } else {
-            maskAlpha = 0f
-            revealProgress = 0f
-            view.postInvalidateOnAnimation()
+            hideDepth()
         }
     }
 
     fun shouldApplyDepth(): Boolean {
         val path = subjectPath
-        return depthActive && depthVisible && path != null && !path.isEmpty && maskAlpha > 0f
+        return depthActive &&
+            depthVisible &&
+            path != null &&
+            !path.isEmpty &&
+            maskAlpha > 0f &&
+            !wallpaperZoomActive
     }
 
     fun drawWithDepth(canvas: Canvas, drawSuper: (Canvas) -> Unit) {
@@ -145,6 +187,8 @@ class ClockDepthController(private val view: View) {
         }
         val viewX = location[0].toFloat()
         val viewY = location[1].toFloat()
+        val viewScaleX = view.scaleX
+        val viewScaleY = view.scaleY
         val nextScreenW: Float
         val nextScreenH: Float
         val nextViewX: Float
@@ -172,12 +216,16 @@ class ClockDepthController(private val view: View) {
                 cachedScreenH != nextScreenH ||
                 cachedViewX != nextViewX ||
                 cachedViewY != nextViewY ||
+                cachedViewScaleX != viewScaleX ||
+                cachedViewScaleY != viewScaleY ||
                 cachedZoom != nextZoom
         ) {
             cachedScreenW = nextScreenW
             cachedScreenH = nextScreenH
             cachedViewX = nextViewX
             cachedViewY = nextViewY
+            cachedViewScaleX = viewScaleX
+            cachedViewScaleY = viewScaleY
             cachedZoom = nextZoom
             pathDirty = true
         }
@@ -206,7 +254,7 @@ class ClockDepthController(private val view: View) {
             cropTop = (10000f - visibleH) / 2f
         }
 
-        if (pathDirty || revealProgress < 1f) {
+        if (pathDirty) {
             pathMatrix.reset()
             pathMatrix.setTranslate(-cropLeft, -cropTop)
             pathMatrix.postScale(screenW / visibleW, screenH / visibleH)
@@ -215,10 +263,8 @@ class ClockDepthController(private val view: View) {
             }
             pathMatrix.postTranslate(-translatedViewX, -translatedViewY)
 
-            val viewScaleX = view.scaleX
-            val viewScaleY = view.scaleY
-            if (viewScaleX != 1f || viewScaleY != 1f) {
-                pathMatrix.postScale(1f / viewScaleX, 1f / viewScaleY)
+            if (cachedViewScaleX != 1f || cachedViewScaleY != 1f) {
+                pathMatrix.postScale(1f / cachedViewScaleX, 1f / cachedViewScaleY)
             }
 
             transformedPath.reset()
@@ -226,14 +272,13 @@ class ClockDepthController(private val view: View) {
             pathDirty = false
         }
 
-        val pathBounds = RectF()
         transformedPath.computeBounds(pathBounds, true)
 
         val layerLeft = -translatedViewX
         val layerTop = -translatedViewY
         val layerRight = screenW - translatedViewX
         val layerBottom = screenH - translatedViewY
-        val layerRect = RectF(layerLeft, layerTop, layerRight, layerBottom)
+        layerRect.set(layerLeft, layerTop, layerRight, layerBottom)
 
         if (!RectF.intersects(pathBounds, layerRect)) {
             drawSuper(canvas)
@@ -264,27 +309,36 @@ class ClockDepthController(private val view: View) {
             drawSuper(canvas)
             canvas.restore()
         } else {
+            var maskPath = transformedPath
             if (revealProgress < 1f) {
-                val bounds = RectF()
-                transformedPath.computeBounds(bounds, false)
-                val revealMatrix = Matrix()
+                transformedPath.computeBounds(revealBounds, false)
                 val s = REVEAL_MIN_SCALE + (1f - REVEAL_MIN_SCALE) * revealProgress
-                revealMatrix.setScale(s, s, bounds.centerX(), bounds.centerY())
+                revealMatrix.setScale(s, s, revealBounds.centerX(), revealBounds.centerY())
                 revealMatrix.postTranslate(0f, PARALLAX_PX * (1f - revealProgress))
-                transformedPath.transform(revealMatrix)
+                revealPath.reset()
+                transformedPath.transform(revealMatrix, revealPath)
+                maskPath = revealPath
             }
 
             val layerCount = canvas.saveLayer(layerLeft, layerTop, layerRight, layerBottom, null)
             drawSuper(canvas)
 
             maskPaint.alpha = (maskAlpha * 255f).toInt().coerceIn(0, 255)
-            maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-            canvas.drawPath(transformedPath, maskPaint)
+            maskPaint.xfermode = maskXfermode
+            canvas.drawPath(maskPath, maskPaint)
             maskPaint.xfermode = null
             maskPaint.alpha = 255
 
             canvas.restoreToCount(layerCount)
         }
+    }
+
+    private fun hideDepth() {
+        maskAnimator?.cancel()
+        maskAnimator = null
+        maskAlpha = 0f
+        revealProgress = 0f
+        view.postInvalidateOnAnimation()
     }
 
     private fun pathFullyCovers(layerRect: RectF): Boolean {
@@ -336,6 +390,8 @@ class ClockDepthController(private val view: View) {
         cachedZoom = 0f
         cachedViewX = Float.NaN
         cachedViewY = Float.NaN
+        cachedViewScaleX = Float.NaN
+        cachedViewScaleY = Float.NaN
         pathDirty = true
     }
 

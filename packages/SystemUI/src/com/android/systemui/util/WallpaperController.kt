@@ -20,6 +20,7 @@ import android.app.WallpaperManager
 import android.util.Log
 import android.view.View
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.shared.clocks.DepthWallpaperProvider
 import com.android.systemui.wallpapers.data.repository.WallpaperRepository
 import javax.inject.Inject
 import kotlin.math.max
@@ -50,6 +51,7 @@ constructor(
     private var screenOnZoomOut: Float = 0f
     private var launcherAnimationZoomOut: Float = 0f
     private var launcherDepthZoomOut: Float = 0f
+    private var launcherZoomEnabled = true
 
     private val shouldUseDefaultUnfoldTransition: Boolean
         get() = wallpaperRepository.wallpaperInfo.value?.shouldUseDefaultUnfoldTransition() ?: true
@@ -81,23 +83,44 @@ constructor(
         updateZoom()
     }
 
-    private fun updateZoom() {
-        val shadeZoomOut = max(notificationShadeZoomOut, unfoldTransitionZoomOut)
-        val launcherZoomOut = max(launcherAnimationZoomOut, launcherDepthZoomOut)
-        setWallpaperZoom(max(max(shadeZoomOut, launcherZoomOut), screenOnZoomOut))
+    fun setLauncherZoomEnabled(enabled: Boolean) {
+        if (launcherZoomEnabled == enabled) return
+
+        launcherZoomEnabled = enabled
+        updateZoom()
     }
 
-    private fun setWallpaperZoom(zoomOut: Float) {
-        try {
-            rootView?.let { root ->
-                if (root.isAttachedToWindow && root.windowToken != null) {
-                    wallpaperManager.setWallpaperZoomOut(root.windowToken, zoomOut)
-                } else {
-                    Log.i(TAG, "Won't set zoom. Window not attached $root")
-                }
+    private fun updateZoom() {
+        val shadeZoomOut = max(notificationShadeZoomOut, unfoldTransitionZoomOut)
+        val launcherZoomOut =
+            if (launcherZoomEnabled) {
+                max(launcherAnimationZoomOut, launcherDepthZoomOut)
+            } else {
+                0f
+            }
+        val zoomOut = max(max(shadeZoomOut, launcherZoomOut), screenOnZoomOut)
+        val zoomActive = zoomOut > 0f
+        if (zoomActive) {
+            DepthWallpaperProvider.setWallpaperZoomActive(true)
+        }
+        if (setWallpaperZoom(zoomOut) && !zoomActive) {
+            DepthWallpaperProvider.setWallpaperZoomActive(false)
+        }
+    }
+
+    private fun setWallpaperZoom(zoomOut: Float): Boolean {
+        val root = rootView ?: return false
+        return try {
+            if (root.isAttachedToWindow && root.windowToken != null) {
+                wallpaperManager.setWallpaperZoomOut(root.windowToken, zoomOut)
+                true
+            } else {
+                Log.i(TAG, "Won't set zoom. Window not attached $root")
+                false
             }
         } catch (e: IllegalArgumentException) {
             Log.w(TAG, "Can't set zoom. Window is gone: ${rootView?.windowToken}", e)
+            false
         }
     }
 }

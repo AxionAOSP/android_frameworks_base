@@ -48,6 +48,8 @@ object DepthWallpaperProvider {
     var isEnabled: Boolean = false
         private set
 
+    private var wallpaperZoomActive = false
+
     private val listeners = mutableSetOf<DepthMaskListener>()
     private val handler = Handler(Looper.getMainLooper())
     private var registered = false
@@ -56,6 +58,8 @@ object DepthWallpaperProvider {
 
     interface DepthMaskListener {
         fun onDepthDataChanged(path: Path?, pathAspect: Float)
+
+        fun onWallpaperZoomActiveChanged(active: Boolean)
     }
 
     private val observer = object : ContentObserver(handler) {
@@ -88,6 +92,7 @@ object DepthWallpaperProvider {
             if (isEnabled) subjectPath else null,
             pathAspect
         )
+        listener.onWallpaperZoomActiveChanged(wallpaperZoomActive)
         if (subjectPath == null) {
             refreshAsync()
         }
@@ -95,6 +100,15 @@ object DepthWallpaperProvider {
 
     fun removeListener(listener: DepthMaskListener) {
         listeners.remove(listener)
+    }
+
+    fun setWallpaperZoomActive(active: Boolean) {
+        if (wallpaperZoomActive == active) return
+
+        wallpaperZoomActive = active
+        for (listener in listeners) {
+            listener.onWallpaperZoomActiveChanged(active)
+        }
     }
 
     private fun refreshAsync() {
