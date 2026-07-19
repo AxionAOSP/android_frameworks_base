@@ -44,6 +44,7 @@ constructor(
         set(value) {
             field = value
             wallpaperRepository.rootView = value
+            updateZoom()
         }
 
     private var notificationShadeZoomOut: Float = 0f
@@ -52,6 +53,7 @@ constructor(
     private var launcherAnimationZoomOut: Float = 0f
     private var launcherDepthZoomOut: Float = 0f
     private var launcherZoomEnabled = true
+    private var wallpaperZoomDisabled = false
 
     private val shouldUseDefaultUnfoldTransition: Boolean
         get() = wallpaperRepository.wallpaperInfo.value?.shouldUseDefaultUnfoldTransition() ?: true
@@ -90,6 +92,13 @@ constructor(
         updateZoom()
     }
 
+    fun setWallpaperZoomDisabled(disabled: Boolean) {
+        if (wallpaperZoomDisabled == disabled) return
+
+        wallpaperZoomDisabled = disabled
+        updateZoom()
+    }
+
     private fun updateZoom() {
         val shadeZoomOut = max(notificationShadeZoomOut, unfoldTransitionZoomOut)
         val launcherZoomOut =
@@ -98,7 +107,12 @@ constructor(
             } else {
                 0f
             }
-        val zoomOut = max(max(shadeZoomOut, launcherZoomOut), screenOnZoomOut)
+        val zoomOut =
+            if (wallpaperZoomDisabled) {
+                1f
+            } else {
+                max(max(shadeZoomOut, launcherZoomOut), screenOnZoomOut)
+            }
         val zoomActive = zoomOut > 0f
         if (zoomActive) {
             DepthWallpaperProvider.setWallpaperZoomActive(true)

@@ -16,6 +16,7 @@
 
 package com.android.systemui.wallpapers
 
+import com.android.app.tracing.coroutines.launchTraced as launch
 import com.android.systemui.CoreStartable
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
@@ -26,6 +27,7 @@ import com.android.systemui.keyguard.domain.interactor.KeyguardWakeDirectlyToGon
 import com.android.systemui.power.domain.interactor.PowerInteractor
 import com.android.systemui.power.shared.model.ScreenPowerState
 import com.android.systemui.power.shared.model.WakefulnessState
+import com.android.systemui.shared.settings.data.repository.SecureSettingsRepository
 import com.android.systemui.statusbar.policy.KeyguardStateController
 import com.android.systemui.statusbar.policy.KeyguardStateController.Callback
 import com.android.systemui.util.WallpaperController
@@ -36,7 +38,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 
 @SysUISingleton
 class AxWallpaperAnimController
@@ -48,6 +49,7 @@ constructor(
     private val wakeToGoneInteractor: KeyguardWakeDirectlyToGoneInteractor,
     private val keyguardStateController: KeyguardStateController,
     private val wallpaperRepository: WallpaperRepository,
+    private val secureSettingsRepository: SecureSettingsRepository,
     private val wallpaperController: WallpaperController,
     private val animator: AxWallpaperDepthAnimator,
     @Application private val scope: CoroutineScope,
@@ -59,6 +61,7 @@ constructor(
     private var canWakeToGone = false
     private var aodWallpaper = false
     private var lightRevealAmount = 1f
+    private var wallpaperZoomDisabled = false
 
     private val keyguardCallback =
         object : Callback {
@@ -73,7 +76,7 @@ constructor(
 
     override fun start() {
         keyguardStateController.addCallback(keyguardCallback)
-        scope.launch(mainDispatcher) {
+        scope.launch(context = mainDispatcher) {
             powerInteractor.detailedWakefulness
                 .map { it.internalWakefulnessState }
                 .distinctUntilChanged()
@@ -88,43 +91,54 @@ constructor(
                     sync()
                 }
         }
-        scope.launch(mainDispatcher) {
+        scope.launch(context = mainDispatcher) {
             powerInteractor.screenPowerState.collect {
                 screenPowerState = it
                 sync()
             }
         }
-        scope.launch(mainDispatcher) {
+        scope.launch(context = mainDispatcher) {
             lightRevealScrimInteractor.revealAmount.collect {
                 lightRevealAmount = it
                 sync()
             }
         }
-        scope.launch(mainDispatcher) {
+        scope.launch(context = mainDispatcher) {
             wallpaperRepository.lockscreenWallpaperInfo.collect { sync() }
         }
-        scope.launch(mainDispatcher) {
+        scope.launch(context = mainDispatcher) {
             wallpaperRepository.wallpaperSupportsAmbientMode.distinctUntilChanged().collect {
                 aodWallpaper = it
                 sync()
             }
         }
-        scope.launch(mainDispatcher) {
+        scope.launch(context = mainDispatcher) {
             keyguardEnabledInteractor.isKeyguardEnabled.collect {
                 keyguardEnabled = it
                 sync()
             }
         }
-        scope.launch(mainDispatcher) {
+        scope.launch(context = mainDispatcher) {
             wakeToGoneInteractor.canWakeDirectlyToGone.distinctUntilChanged().collect {
                 canWakeToGone = it
                 sync()
             }
         }
+        scope.launch(context = mainDispatcher) {
+            secureSettingsRepository
+                .boolSetting(DISABLE_WALLPAPER_ZOOM)
+                .collect {
+                    wallpaperZoomDisabled = it
+                    wallpaperController.setWallpaperZoomDisabled(it)
+                    if (it) animator.clear() else sync()
+                }
+        }
         sync()
     }
 
     private fun sync() {
+        if (wallpaperZoomDisabled) return
+
         val skipWake = shouldSkipWake()
         wallpaperController.setLauncherZoomEnabled(
             wakefulness == WakefulnessState.AWAKE &&
@@ -185,6 +199,7 @@ constructor(
     }
 
     companion object {
+        private const val DISABLE_WALLPAPER_ZOOM = "pref_disable_wallpaper_zoom"
         private const val SCRIM_REVEAL_START = 0.55f
     }
 }
