@@ -28,6 +28,7 @@ import com.android.systemui.power.shared.model.ScreenPowerState
 import com.android.systemui.power.shared.model.WakefulnessState
 import com.android.systemui.statusbar.policy.KeyguardStateController
 import com.android.systemui.statusbar.policy.KeyguardStateController.Callback
+import com.android.systemui.util.WallpaperController
 import com.android.systemui.wallpapers.data.repository.WallpaperRepository
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -47,6 +48,7 @@ constructor(
     private val wakeToGoneInteractor: KeyguardWakeDirectlyToGoneInteractor,
     private val keyguardStateController: KeyguardStateController,
     private val wallpaperRepository: WallpaperRepository,
+    private val wallpaperController: WallpaperController,
     private val animator: AxWallpaperDepthAnimator,
     @Application private val scope: CoroutineScope,
     @Main private val mainDispatcher: CoroutineDispatcher,
@@ -89,9 +91,6 @@ constructor(
         scope.launch(mainDispatcher) {
             powerInteractor.screenPowerState.collect {
                 screenPowerState = it
-                if (it != ScreenPowerState.SCREEN_ON) {
-                    lightRevealAmount = 0f
-                }
                 sync()
             }
         }
@@ -126,12 +125,19 @@ constructor(
     }
 
     private fun sync() {
+        val skipWake = shouldSkipWake()
+        wallpaperController.setLauncherZoomEnabled(
+            wakefulness == WakefulnessState.AWAKE &&
+                screenPowerState == ScreenPowerState.SCREEN_ON &&
+                !keyguardStateController.isShowing
+        )
+
         if (!canUseWallpaper()) {
             animator.clear()
             return
         }
 
-        if (shouldSkipWake()) {
+        if (skipWake) {
             animator.clear()
             return
         }
