@@ -181,9 +181,7 @@ internal fun ContentScope.AxQsMixedGrid(
         ((viewModel.expansionState.progress - QS_ENTRANCE_START) / (1f - QS_ENTRANCE_START))
             .coerceIn(0f, 1f)
     val separateQqs = qqs && (landscape || axQsViewModel.panelMode == AxQsPanelMode.SEPARATE)
-    val isExpanding = viewModel.expansionState.progress > 0f
-    val hideSeparateQqs =
-        separateQqs && (axQsViewModel.isQsBypassingShade || isExpanding)
+    val qqsHideBypass = separateQqs && axQsViewModel.isQsBypassingShade
     val controlContent: @Composable (AxQsGridItem<AxQsGridValue>) -> Unit = { item ->
         when (val value = item.value) {
             is AxQsGridValue.Tile ->
@@ -262,7 +260,7 @@ internal fun ContentScope.AxQsMixedGrid(
                 qqs ->
                     Column(
                         Modifier.fillMaxWidth().graphicsLayer {
-                            alpha = if (!landscape && hideSeparateQqs) 0f else 1f
+                            alpha = if (!landscape && qqsHideBypass) 0f else 1f
                         }
                     ) {
                         AxQQS(

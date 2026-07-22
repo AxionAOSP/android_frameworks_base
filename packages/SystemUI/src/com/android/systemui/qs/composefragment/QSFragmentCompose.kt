@@ -34,6 +34,7 @@ import android.widget.FrameLayout
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -445,13 +446,7 @@ constructor(
                     sceneState,
                     viewModel.containerViewModel.editModeViewModel.isEditing,
                     snapshotFlow { panelSettingsOpen },
-                    snapshotFlow {
-                        if (axQsViewModel.holdQsSceneDuringCollapse) {
-                            1f
-                        } else {
-                            viewModel.expansionState.progress
-                        }
-                    },
+                    snapshotFlow { viewModel.expansionState.progress },
                 )
             }
             launch {
@@ -628,8 +623,11 @@ constructor(
 
     override fun setExpanded(qsExpanded: Boolean) {
         viewModel.isQsExpanded = qsExpanded
-        if (!qsExpanded && !viewModel.isInSplitShade && !viewModel.isPanelExpanded) {
-            viewModel.resetCollapsedExpansionState()
+        if (!qsExpanded) {
+            axQsViewModel.clearCollapseGuard()
+            if (!viewModel.isInSplitShade && !viewModel.isPanelExpanded) {
+                viewModel.resetCollapsedExpansionState()
+            }
         }
     }
 
@@ -660,18 +658,14 @@ constructor(
         headerTranslation: Float,
         squishinessFraction: Float,
     ) {
-        axQsViewModel.updateCollapseGuard(
-            separateShade =
-                resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE ||
-                    axQsViewModel.panelMode == AxQsPanelMode.SEPARATE,
-            qsFullyExpanded = viewModel.isQsFullyExpanded,
-            previousPanelExpansion = viewModel.panelExpansionFraction,
-            panelExpansion = panelExpansionFraction,
-        )
         viewModel.setQsExpansionValue(qsExpansionFraction)
         viewModel.panelExpansionFraction = panelExpansionFraction
         viewModel.squishinessFraction = squishinessFraction
         viewModel.proposedTranslation = headerTranslation
+    }
+
+    override fun setForceQsEvent(forceQsEvent: Boolean) {
+        axQsViewModel.setForceQsEvent(forceQsEvent)
     }
 
     override fun setHeaderListening(listening: Boolean) {

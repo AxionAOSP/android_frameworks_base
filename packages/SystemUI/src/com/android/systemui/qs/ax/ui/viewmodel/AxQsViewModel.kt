@@ -416,17 +416,8 @@ constructor(
 
     fun setPanelMode(mode: AxQsPanelMode) = repository.setPanelMode(mode)
 
-    fun updateCollapseGuard(
-        separateShade: Boolean,
-        qsFullyExpanded: Boolean,
-        previousPanelExpansion: Float,
-        panelExpansion: Float,
-    ) {
-        if (!separateShade) {
-            holdQsSceneDuringCollapse = false
-        } else if (qsFullyExpanded && panelExpansion < previousPanelExpansion) {
-            holdQsSceneDuringCollapse = true
-        }
+    fun setForceQsEvent(forceQsEvent: Boolean) {
+        holdQsSceneDuringCollapse = forceQsEvent
     }
 
     fun clearCollapseGuard() {

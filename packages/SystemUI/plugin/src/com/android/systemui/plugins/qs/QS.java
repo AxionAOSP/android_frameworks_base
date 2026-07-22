@@ -209,6 +209,8 @@ public interface QS extends FragmentBase {
 
     default void setQSContentPaddingBottom(int padding) {}
 
+    default void setForceQsEvent(boolean forceQsEvent) {}
+
     /**
      * Callback for when QSPanel container is scrolled
      */
