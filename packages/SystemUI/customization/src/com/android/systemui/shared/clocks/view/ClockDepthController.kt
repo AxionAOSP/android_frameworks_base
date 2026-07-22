@@ -31,6 +31,7 @@ class ClockDepthController(private val view: View) {
     private var maskAlpha = 0f
     private var revealProgress = 0f
     private var wallpaperZoomActive = false
+    private var wallpaperZoomDisabled = false
     private var maskAnimator: ValueAnimator? = null
 
     private val transformedPath = Path()
@@ -94,7 +95,7 @@ class ClockDepthController(private val view: View) {
                 return
             }
 
-            if (wallpaperZoomActive) {
+            if (isZoomEffectActive()) {
                 hideDepth()
                 return
             }
@@ -110,6 +111,7 @@ class ClockDepthController(private val view: View) {
         override fun onWallpaperZoomActiveChanged(active: Boolean) {
             if (wallpaperZoomActive == active) return
             wallpaperZoomActive = active
+            if (wallpaperZoomDisabled) return
             if (active) {
                 hideDepth()
                 return
@@ -120,6 +122,19 @@ class ClockDepthController(private val view: View) {
                 animateReveal()
             } else {
                 view.postInvalidateOnAnimation()
+            }
+        }
+
+        override fun onWallpaperZoomDisabledChanged(disabled: Boolean) {
+            if (wallpaperZoomDisabled == disabled) return
+            wallpaperZoomDisabled = disabled
+            if (disabled && wallpaperZoomActive) {
+                pathDirty = true
+                if (depthActive && depthVisible) {
+                    animateReveal()
+                } else {
+                    view.postInvalidateOnAnimation()
+                }
             }
         }
     }
@@ -148,7 +163,7 @@ class ClockDepthController(private val view: View) {
         if (!depthActive) return
 
         if (visible) {
-            if (wallpaperZoomActive) {
+            if (isZoomEffectActive()) {
                 hideDepth()
             } else {
                 animateReveal()
@@ -165,7 +180,7 @@ class ClockDepthController(private val view: View) {
             path != null &&
             !path.isEmpty &&
             maskAlpha > 0f &&
-            !wallpaperZoomActive
+            !isZoomEffectActive()
     }
 
     fun drawWithDepth(canvas: Canvas, drawSuper: (Canvas) -> Unit) {
@@ -332,6 +347,8 @@ class ClockDepthController(private val view: View) {
             canvas.restoreToCount(layerCount)
         }
     }
+
+    private fun isZoomEffectActive(): Boolean = wallpaperZoomActive && !wallpaperZoomDisabled
 
     private fun hideDepth() {
         maskAnimator?.cancel()

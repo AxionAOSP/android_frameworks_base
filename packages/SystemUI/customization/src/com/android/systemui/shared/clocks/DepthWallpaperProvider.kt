@@ -32,6 +32,7 @@ object DepthWallpaperProvider {
     private const val TAG = "DepthWallpaperProvider"
     private const val SETTING_DEPTH_MASK = "ax_depth_subject_mask"
     private const val SETTING_DEPTH_ENABLED = "ax_depth_clock_enabled"
+    private const val SETTING_DISABLE_ZOOM = "pref_disable_wallpaper_zoom"
     private const val EFFECTS_PACKAGE = "com.android.axion.wallpapereffects"
     private const val MAGIC_PORTRAIT_SERVICE = "MagicPortraitService"
     private const val PATH_VERSION = 0x01
@@ -49,6 +50,7 @@ object DepthWallpaperProvider {
         private set
 
     private var wallpaperZoomActive = false
+    private var wallpaperZoomDisabled = false
 
     private val listeners = mutableSetOf<DepthMaskListener>()
     private val handler = Handler(Looper.getMainLooper())
@@ -60,11 +62,14 @@ object DepthWallpaperProvider {
         fun onDepthDataChanged(path: Path?, pathAspect: Float)
 
         fun onWallpaperZoomActiveChanged(active: Boolean)
+
+        fun onWallpaperZoomDisabledChanged(disabled: Boolean)
     }
 
     private val observer = object : ContentObserver(handler) {
         override fun onChange(selfChange: Boolean) {
             refreshAsync()
+            refreshZoomDisabled()
         }
     }
 
@@ -82,8 +87,13 @@ object DepthWallpaperProvider {
             Settings.Secure.getUriFor(SETTING_DEPTH_ENABLED),
             false, observer
         )
+        context.contentResolver.registerContentObserver(
+            Settings.Secure.getUriFor(SETTING_DISABLE_ZOOM),
+            false, observer
+        )
 
         refreshAsync()
+        refreshZoomDisabled()
     }
 
     fun addListener(listener: DepthMaskListener) {
@@ -92,6 +102,7 @@ object DepthWallpaperProvider {
             if (isEnabled) subjectPath else null,
             pathAspect
         )
+        listener.onWallpaperZoomDisabledChanged(wallpaperZoomDisabled)
         listener.onWallpaperZoomActiveChanged(wallpaperZoomActive)
         if (subjectPath == null) {
             refreshAsync()
@@ -141,6 +152,28 @@ object DepthWallpaperProvider {
                 Log.e(TAG, "Failed to refresh depth data", e)
                 handler.post { notifyListeners(null) }
             }
+        }.start()
+    }
+
+    private fun refreshZoomDisabled() {
+        val cr = contentResolver ?: return
+        Thread {
+            try {
+                var disabled = Settings.Secure.getInt(cr, SETTING_DISABLE_ZOOM, 0) == 1
+                if (wallpaperZoomDisabled == disabled) return@Thread
+                wallpaperZoomDisabled = disabled
+                handler.post {
+                    for (listener in listeners) {
+                        listener.onWallpaperZoomDisabledChanged(disabled)
+                    }
+                    if (disabled && wallpaperZoomActive) {
+                        wallpaperZoomActive = false
+                        for (listener in listeners) {
+                            listener.onWallpaperZoomActiveChanged(false)
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
         }.start()
     }
 
