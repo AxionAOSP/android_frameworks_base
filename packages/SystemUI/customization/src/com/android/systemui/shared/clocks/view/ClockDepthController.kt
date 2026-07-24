@@ -60,20 +60,34 @@ class ClockDepthController(private val view: View) {
             resetTransformCache()
             view.postInvalidateOnAnimation()
         }
+    var sourceScale = 1f
+        set(value) {
+            if (field == value) return
+            field = value
+            resetTransformCache()
+            view.postInvalidateOnAnimation()
+        }
     private val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         style = Paint.Style.FILL
     }
     private val maskXfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
 
-    private val wallpaperMaxScale: Float = try {
-        val id = Resources.getSystem().getIdentifier(
-            "config_wallpaperMaxScale", "dimen", "android"
-        )
-        if (id != 0) Resources.getSystem().getFloat(id) else 1.1f
-    } catch (_: Exception) { 1.1f }
+    private val wallpaperMinScale = systemWallpaperScale("config_wallpaperMinScale", 1f)
+    private val wallpaperMaxScale = systemWallpaperScale("config_wallpaperMaxScale", 1.1f)
+
+    private fun systemWallpaperScale(name: String, fallback: Float): Float {
+        val id = Resources.getSystem().getIdentifier(name, "dimen", "android")
+        if (id == 0) return fallback
+        return try {
+            view.context.resources.getFloat(id)
+        } catch (_: Resources.NotFoundException) {
+            fallback
+        }
+    }
 
     private fun getZoom(): Float {
+        if (wallpaperZoomDisabled) return wallpaperMinScale
         return try {
             val str = Settings.Secure.getString(
                 view.context.contentResolver, "ax_depth_zoom"
@@ -128,13 +142,13 @@ class ClockDepthController(private val view: View) {
         override fun onWallpaperZoomDisabledChanged(disabled: Boolean) {
             if (wallpaperZoomDisabled == disabled) return
             wallpaperZoomDisabled = disabled
-            if (disabled && wallpaperZoomActive) {
-                pathDirty = true
-                if (depthActive && depthVisible) {
-                    animateReveal()
-                } else {
-                    view.postInvalidateOnAnimation()
-                }
+            resetTransformCache()
+            if (isZoomEffectActive()) {
+                hideDepth()
+            } else if (depthActive && depthVisible && maskAlpha < 1f) {
+                animateReveal()
+            } else {
+                view.postInvalidateOnAnimation()
             }
         }
     }
@@ -211,10 +225,10 @@ class ClockDepthController(private val view: View) {
         val nextZoom: Float
 
         if (useSourceBounds && sourceBounds != null) {
-            nextScreenW = boundsW
-            nextScreenH = boundsH
-            nextViewX = viewX - sourceBounds.left
-            nextViewY = viewY - sourceBounds.top
+            nextScreenW = boundsW / sourceScale
+            nextScreenH = boundsH / sourceScale
+            nextViewX = (viewX - sourceBounds.left) / sourceScale
+            nextViewY = (viewY - sourceBounds.top) / sourceScale
             nextZoom = 1f
         } else {
             val realMetrics = DisplayMetrics()
