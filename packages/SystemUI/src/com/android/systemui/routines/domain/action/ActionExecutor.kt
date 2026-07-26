@@ -184,10 +184,56 @@ class ActionExecutor @Inject constructor(
     }
 
     private fun launchApp(action: Action.LaunchApp) {
-        val pm = context.packageManager
-        val intent = pm.getLaunchIntentForPackage(action.packageName) ?: return
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivityAsUser(intent, UserHandle.CURRENT)
+        when (action.launchMode) {
+            Action.LaunchApp.LaunchMode.FREEFORM -> {
+                runCatching {
+                    val token = android.os.Binder.clearCallingIdentity()
+                    try {
+                        android.app.FreeformLauncher.launch(action.packageName)
+                    } finally {
+                        android.os.Binder.restoreCallingIdentity(token)
+                    }
+                }.onFailure { e ->
+                    Log.e(TAG, "Failed to launch app in freeform", e)
+                }
+            }
+            Action.LaunchApp.LaunchMode.BUBBLE -> {
+                runCatching {
+                    val token = android.os.Binder.clearCallingIdentity()
+                    try {
+                        val binder = com.android.wm.shell.bubbles.BubbleController.getBubblesBinder()
+                        if (binder != null) {
+                            val bubbles = com.android.wm.shell.bubbles.IBubbles.Stub.asInterface(binder)
+                            val pm = context.packageManager
+                            val launchIntent = pm.getLaunchIntentForPackage(action.packageName) ?: return
+                            val intent = Intent().apply {
+                                component = launchIntent.component
+                                setPackage(action.packageName)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            bubbles.showAppBubble(
+                                intent,
+                                UserHandle.CURRENT,
+                                com.android.wm.shell.shared.bubbles.logging.EntryPoint.LAUNCHER_ICON_MENU,
+                                null
+                            )
+                        } else {
+                            Log.e(TAG, "Failed to launch as bubble: IBubbles binder is null")
+                        }
+                    } finally {
+                        android.os.Binder.restoreCallingIdentity(token)
+                    }
+                }.onFailure { e ->
+                    Log.e(TAG, "Failed to launch app as bubble", e)
+                }
+            }
+            else -> {
+                val pm = context.packageManager
+                val intent = pm.getLaunchIntentForPackage(action.packageName) ?: return
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivityAsUser(intent, UserHandle.CURRENT)
+            }
+        }
     }
 
     private fun sendBroadcast(action: Action.SendBroadcast) {

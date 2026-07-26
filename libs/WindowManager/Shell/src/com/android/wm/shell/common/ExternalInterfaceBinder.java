@@ -55,7 +55,7 @@ public interface ExternalInterfaceBinder {
         if (controllerInstance == null) return;
 
         final RemoteCallable<T> controller = controllerInstance;
-        controllerInstance.getContext().enforceCallingPermission(
+        controllerInstance.getContext().enforceCallingOrSelfPermission(
                 Manifest.permission.MANAGE_ACTIVITY_TASKS, log);
         if (blocking) {
             try {

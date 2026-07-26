@@ -42,7 +42,10 @@ sealed interface Action {
 
     data class LaunchApp(
         val packageName: String,
-    ) : Action
+        val launchMode: LaunchMode = LaunchMode.FULLSCREEN,
+    ) : Action {
+        enum class LaunchMode { FULLSCREEN, FREEFORM, BUBBLE }
+    }
 
     data class SendBroadcast(
         val action: String? = null,
