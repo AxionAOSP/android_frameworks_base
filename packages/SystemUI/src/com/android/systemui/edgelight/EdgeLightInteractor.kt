@@ -202,7 +202,7 @@ constructor(
         val currentState = _uiState.value
         if (!pulsing || !currentState.isEnabled || !dozing) return
 
-        val sbn = pendingNotification
+        val sbn = pendingNotification ?: return
         pendingNotification = null
         startPulse(getColor(sbn))
     }
