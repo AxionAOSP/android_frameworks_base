@@ -86,6 +86,11 @@ abstract class AxionStartableModule {
 
     @Binds
     @IntoMap
+    @ClassKey(com.android.systemui.display.VehicleMotionCuesService::class)
+    abstract fun bindVehicleMotionCuesService(impl: com.android.systemui.display.VehicleMotionCuesService): CoreStartable
+
+    @Binds
+    @IntoMap
     @ClassKey(KeyguardOverlayViewManager::class)
     abstract fun bindKeyguardOverlayViewManager(impl: KeyguardOverlayViewManager): CoreStartable
 
