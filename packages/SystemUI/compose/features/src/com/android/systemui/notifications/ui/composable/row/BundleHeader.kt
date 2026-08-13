@@ -147,16 +147,16 @@ fun BundleHeader(viewModel: BundleHeaderViewModel, modifier: Modifier = Modifier
     // In most cases the height is expected to be equal to the header height dimension's value, but
     // it is set as the minimum here so that the header can resize if necessary for larger font
     // or display sizes.
-    val bgModifier = if (!useBlur && onKeyguard) {
-        Modifier.background(MaterialTheme.colorScheme.surfaceBright)
-    } else {
-        Modifier
-    }
+    val backgroundModifier =
+        if (!useBlur && onKeyguard) {
+            Modifier.background(MaterialTheme.colorScheme.surfaceBright)
+        } else {
+            Modifier
+        }
     Box(
-        modifier =
-            modifier
-                .then(bgModifier)
-                .heightIn(min = dimensionResource(R.dimen.notification_bundle_header_height))
+        modifier = modifier
+            .then(backgroundModifier)
+            .heightIn(min = dimensionResource(R.dimen.notification_bundle_header_height))
     ) {
         Background(
             background = viewModel.backgroundDrawable,
