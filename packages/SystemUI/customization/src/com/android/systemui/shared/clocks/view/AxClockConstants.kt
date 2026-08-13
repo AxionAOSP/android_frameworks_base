@@ -21,8 +21,6 @@ internal const val FONT_FAMILY_DATE = "variable-title-medium-emphasized"
 
 internal const val SMALL_CLOCK_BOTTOM_PAD_DP = 12f
 
-internal const val ALARM_VISIBILITY_HOURS = 12L
-
 internal const val CLOCK_PATTERN_12 = "hhmm"
 internal const val CLOCK_PATTERN_12_STANDARD = "hh:mm"
 internal const val CLOCK_PATTERN_24 = "HHmm"

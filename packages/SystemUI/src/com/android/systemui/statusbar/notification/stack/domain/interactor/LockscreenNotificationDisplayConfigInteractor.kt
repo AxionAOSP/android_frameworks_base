@@ -23,6 +23,7 @@ import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.shared.model.Overlays
 import com.android.systemui.scene.shared.model.Scenes
+import com.android.systemui.shared.clocks.ClockSettingsRepository
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -77,7 +78,8 @@ constructor(
                 notificationStackAppearanceInteractor.constrainedAvailableSpace,
                 sharedNotificationContainerInteractor.useExtraShelfSpace,
                 sharedNotificationContainerInteractor.notificationStackChanged,
-            ) { showLimited, availableHeight, useExtraShelfSpace, _ ->
+                ClockSettingsRepository.topPaddingDp,
+            ) { showLimited, availableHeight, useExtraShelfSpace, _, _ ->
                 if (showLimited) {
                     LockscreenDisplayConfig(
                         isOnLockscreen = true,

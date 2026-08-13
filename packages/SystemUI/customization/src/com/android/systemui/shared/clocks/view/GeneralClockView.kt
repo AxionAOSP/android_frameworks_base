@@ -215,6 +215,7 @@ class GeneralClockView @JvmOverloads constructor(
         val (time, date, isDoze, screenOff, regionDark, icon, tintIcon, display) = rememberClockState()
 
         val dynSizeScale = rememberSmallClockSizeScale()
+        val infoSizeScale = maxOf(1f, dynSizeScale)
         val scale = context.scaleRatio * dynSizeScale
         val paddingV = context.scaledDimen(R.dimen.clock_padding) * dynSizeScale
         val dotSz = context.scaledDimen(R.dimen.dot_small_size)
@@ -264,7 +265,7 @@ class GeneralClockView @JvmOverloads constructor(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(
-                        fontSize = 14.sp,
+                        fontSize = (18f * infoSizeScale).sp,
                         fontWeight = FontWeight.Medium,
                         color = tintColor.copy(alpha = if (isDoze) 0.6f else 0.8f),
                         letterSpacing = 0.5.sp,
@@ -354,6 +355,7 @@ class GeneralClockView @JvmOverloads constructor(
                 textColor = tintColor,
                 startPadding = sidePadding,
                 horizontalAlign = horizontalAlign,
+                infoSizeScale = infoSizeScale,
                 modifier = inverseModifier,
             )
         }
@@ -369,6 +371,7 @@ class GeneralClockView @JvmOverloads constructor(
         textColor: Color,
         startPadding: androidx.compose.ui.unit.Dp,
         horizontalAlign: Alignment.Horizontal,
+        infoSizeScale: Float,
         modifier: Modifier = Modifier,
     ) {
         Column(
@@ -390,7 +393,7 @@ class GeneralClockView @JvmOverloads constructor(
                             bitmap = it.asImageBitmap(),
                             contentDescription = null,
                             colorFilter = if (tintIcon) ColorFilter.tint(textColor) else null,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(20.dp * infoSizeScale),
                         )
                         Spacer(modifier = Modifier.width(7.dp))
                     }
@@ -399,7 +402,7 @@ class GeneralClockView @JvmOverloads constructor(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = TextStyle(
-                            fontSize = textMajorSize,
+                            fontSize = textMajorSize * infoSizeScale,
                             fontWeight = FontWeight.Medium,
                             color = textColor,
                         ),

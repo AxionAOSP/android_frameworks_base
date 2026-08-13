@@ -63,11 +63,16 @@ private const val OPLUS_CLASSIC_TARGET_WIDTH_DP = 300f
 private const val OPLUS_CLASSIC_STACKED_TARGET_WIDTH_DP = 220f
 private const val OPLUS_BIG_TARGET_WIDTH_DP = 330f
 private const val OPLUS_BIG_TARGET_HEIGHT_DP = 300f
-private const val OPLUS_BIG_WIDE_TARGET_WIDTH_DP = 512f
 private const val OPLUS_BIG_WIDE_BASE_SCALE = 0.72f
-private const val OPLUS_BIG_WIDE_EXPAND_RATE = 0.7f
 private const val OPLUS_BIG_WIDE_MIN_VISIBLE_SCALE = 0.36f
-private const val OPLUS_BIG_WIDE_TARGET_HEIGHT_DP = 300f
+private const val OPLUS_BIG_WIDE_TEXT_SIZE_SP = 160f
+private const val OPLUS_BIG_WIDE_MIN_CANVAS_HEIGHT_DP = 232f
+private const val OPLUS_BIG_WIDE_CANVAS_PADDING_DP = 16f
+private const val OPLUS_BIG_WIDE_INFO_TEXT_SIZE_SP = 20f
+private const val OPLUS_BIG_WIDE_INFO_ICON_SIZE_DP = 22f
+private const val OPLUS_BIG_WIDE_INFO_SPACING_DP = 3f
+private const val OPLUS_BIG_WIDE_INFO_MIN_LINE_HEIGHT_SP = 24f
+private const val OPLUS_BIG_WIDE_INFO_LINE_HEIGHT_MULTIPLIER = 1.25f
 private const val OPLUS_GRAFFITI_TARGET_WIDTH_DP = 330f
 
 abstract class OplusComposeClockView(
@@ -529,13 +534,29 @@ class OplusBigClockView @JvmOverloads constructor(
     var previewBigFace: String? = null
     var previewBigDualTone: Boolean? = null
 
+    private val wideClockDigitHeightRatio by lazy {
+        readCanvasTextBounds(
+            "0123456789",
+            bigClockWideTypeface,
+            1000f,
+            -0.06f,
+        ).height / 1000f
+    }
+
     private fun wideClockScale(scale: Float): Float {
-        if (scale < 1f) {
-            return (OPLUS_BIG_WIDE_BASE_SCALE * scale).coerceAtLeast(OPLUS_BIG_WIDE_MIN_VISIBLE_SCALE)
-        }
-        return (OPLUS_BIG_WIDE_BASE_SCALE +
-            (scale - 1f).coerceIn(0f, 0.4f) * OPLUS_BIG_WIDE_EXPAND_RATE)
-            .coerceAtMost(1f)
+        return (OPLUS_BIG_WIDE_BASE_SCALE * scale)
+            .coerceIn(OPLUS_BIG_WIDE_MIN_VISIBLE_SCALE, 1f)
+    }
+
+    private fun constrainedWideClockScale(
+        scale: Float,
+        availableWidthDp: Float,
+        contentWidthDp: Float = wideClockContentWidthDp(),
+    ): Float {
+        if (availableWidthDp <= 0f) return wideClockScale(scale)
+        val widthScale = availableWidthDp / contentWidthDp
+        return min(wideClockScale(scale), widthScale)
+            .coerceAtLeast(OPLUS_BIG_WIDE_MIN_VISIBLE_SCALE)
     }
 
     override val clockHeightBase: Int
@@ -546,8 +567,15 @@ class OplusBigClockView @JvmOverloads constructor(
                     return (OPLUS_BIG_TARGET_HEIGHT_DP * density).toInt()
                 }
                 val settingScale = sizeScale.coerceAtLeast(0.01f)
-                val visibleScale = if (isPreviewLayoutLocked) 1f else wideClockScale(settingScale)
-                return (280f * visibleScale / settingScale * density).toInt()
+                val visibleScale = when {
+                    isPreviewLayoutLocked -> 1f
+                    isPreviewMode -> wideClockScale(settingScale)
+                    else -> constrainedWideClockScale(
+                        settingScale,
+                        context.resources.configuration.screenWidthDp.toFloat(),
+                    )
+                }
+                return (wideClockContentHeightDp(visibleScale) / settingScale * density).toInt()
             }
             return super.clockHeightBase
         }
@@ -560,16 +588,20 @@ class OplusBigClockView @JvmOverloads constructor(
         val range = ClockSettingsRepository.sizeScaleRange
         return when (currentResolvedBigFace()) {
             ClockSettingsRepository.OPLUS_BIG_FACE_WIDE -> {
-                val maxScale = wideClockMaxScale(availableWidthDp, range.max)
+                val contentWidthDp = wideClockContentWidthDp()
+                val maxScale = wideClockMaxScale(availableWidthDp, range.max, contentWidthDp)
                     .coerceIn(range.min, range.max)
                 val scale = requestedScale.coerceIn(range.min, maxScale)
+                val visibleScale =
+                    constrainedWideClockScale(scale, availableWidthDp, contentWidthDp)
                 ClockEditScaleGeometry(
                     scaleRange = range.copy(max = maxScale),
                     requestedScale = scale,
-                    frameWidthDp = OPLUS_BIG_WIDE_TARGET_WIDTH_DP * wideClockScale(scale) +
-                        OPLUS_CLOCK_EDIT_FRAME_HORIZONTAL_PADDING_DP,
-                    resizeDpPerScale = wideClockResizeDpPerScale(scale),
-                    frameHeightDp = OPLUS_BIG_WIDE_TARGET_HEIGHT_DP * wideClockScale(scale),
+                    frameWidthDp = contentWidthDp * visibleScale,
+                    minFrameWidthDp = 0f,
+                    resizeDpPerScale = contentWidthDp * OPLUS_BIG_WIDE_BASE_SCALE,
+                    frameHeightDp = wideClockContentHeightDp(visibleScale) +
+                        SMALL_CLOCK_BOTTOM_PAD_DP,
                 )
             }
             else -> linearClockEditScaleGeometry(
@@ -584,18 +616,42 @@ class OplusBigClockView @JvmOverloads constructor(
     override fun getTag(): String =
         if (isLargeClock) "OplusBigLargeClockView" else "OplusBigClockView"
 
-    private fun wideClockMaxScale(availableWidthDp: Float, repositoryMax: Float): Float {
+    private fun wideClockMaxScale(
+        availableWidthDp: Float,
+        repositoryMax: Float,
+        contentWidthDp: Float,
+    ): Float {
         if (availableWidthDp <= 0f) return repositoryMax
-        val availableTextWidth =
-            (availableWidthDp - OPLUS_CLOCK_EDIT_FRAME_HORIZONTAL_PADDING_DP).coerceAtLeast(1f)
-        val widthScale = availableTextWidth / OPLUS_BIG_WIDE_TARGET_WIDTH_DP
-        if (widthScale < OPLUS_BIG_WIDE_BASE_SCALE) return widthScale / OPLUS_BIG_WIDE_BASE_SCALE
-        return 1f + (widthScale - OPLUS_BIG_WIDE_BASE_SCALE) / OPLUS_BIG_WIDE_EXPAND_RATE
+        return availableWidthDp / contentWidthDp / OPLUS_BIG_WIDE_BASE_SCALE
     }
 
-    private fun wideClockResizeDpPerScale(scale: Float): Float {
-        val rate = if (scale < 1f) OPLUS_BIG_WIDE_BASE_SCALE else OPLUS_BIG_WIDE_EXPAND_RATE
-        return OPLUS_BIG_WIDE_TARGET_WIDTH_DP * rate
+    private fun wideClockContentWidthDp(): Float {
+        val metrics = context.resources.displayMetrics
+        val text = state.timeState.value.ifEmpty { PREVIEW_TIME_12 }
+        val timeParts = splitTimeLines(text)
+        return readCanvasTextBounds(
+            timeParts.first + timeParts.second,
+            bigClockWideTypeface,
+            OPLUS_BIG_WIDE_TEXT_SIZE_SP * metrics.scaledDensity,
+            -0.06f,
+        ).width / metrics.density
+    }
+
+    private fun wideClockContentHeightDp(scale: Float): Float {
+        val metrics = context.resources.displayMetrics
+        val digitHeight = OPLUS_BIG_WIDE_TEXT_SIZE_SP * scale *
+            metrics.scaledDensity / metrics.density * wideClockDigitHeightRatio
+        val canvasHeight = maxOf(
+            OPLUS_BIG_WIDE_MIN_CANVAS_HEIGHT_DP * scale,
+            digitHeight + OPLUS_BIG_WIDE_CANVAS_PADDING_DP,
+        )
+        val infoTextHeight = maxOf(
+            OPLUS_BIG_WIDE_INFO_MIN_LINE_HEIGHT_SP,
+            OPLUS_BIG_WIDE_INFO_TEXT_SIZE_SP * scale *
+                OPLUS_BIG_WIDE_INFO_LINE_HEIGHT_MULTIPLIER,
+        ) * metrics.scaledDensity / metrics.density
+        val infoHeight = maxOf(OPLUS_BIG_WIDE_INFO_ICON_SIZE_DP * scale, infoTextHeight)
+        return canvasHeight + infoHeight + OPLUS_BIG_WIDE_INFO_SPACING_DP * scale
     }
 
     private fun currentResolvedBigFace(): String {
@@ -738,31 +794,20 @@ class OplusBigClockView @JvmOverloads constructor(
     private fun BigWide(clock: ClockUiState, tint: Color, dualTone: Boolean) {
         val dateBelow by state.dateBelowState
         val hasInfo = clock.display !is DateDisplay.Hidden
-        val alignment by ClockSettingsRepository.resolvedClockAlignment.collectAsState()
+        val alignment by state.alignmentState
         BoxWithConstraints(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = bigWideBoxAlignment(alignment),
         ) {
             val requestedScale = activeScale()
-            val wideScale = if (isLargeClock || isPreviewLayoutLocked) {
-                1f
-            } else {
-                wideClockScale(requestedScale)
-            }
-            val horizontalPadding = 16.dp
-            val scale = if (isLargeClock || isPreviewLayoutLocked || maxWidth.value <= 0f) {
-                1f
-            } else {
-                min(
-                    wideScale,
-                    (maxWidth.value - OPLUS_CLOCK_EDIT_FRAME_HORIZONTAL_PADDING_DP)
-                        .coerceAtLeast(1f) / OPLUS_BIG_WIDE_TARGET_WIDTH_DP,
-                ).coerceAtLeast(OPLUS_BIG_WIDE_MIN_VISIBLE_SCALE)
-            }
+            val horizontalPadding = if (isLargeClock) 16.dp else 0.dp
+            val scale =
+                if (isLargeClock || isPreviewLayoutLocked || maxWidth.value <= 0f) 1f
+                else constrainedWideClockScale(requestedScale, maxWidth.value)
             val timeParts = splitTimeLines(clock.time)
             val timeText = timeParts.first + timeParts.second
             val letterSpacing = if (isLargeClock) -0.08f else -0.06f
-            val size = if (isLargeClock) 150.sp else (160f * scale).sp
+            val size = if (isLargeClock) 150.sp else (OPLUS_BIG_WIDE_TEXT_SIZE_SP * scale).sp
             val density = LocalDensity.current
             val textSizePx = with(density) { size.toPx() }
             val horizontalPaddingPx = with(density) { horizontalPadding.toPx() }
@@ -770,7 +815,7 @@ class OplusBigClockView @JvmOverloads constructor(
                 if (isLargeClock) {
                     300.dp.toPx()
                 } else {
-                    (232f * scale).dp.toPx()
+                    (OPLUS_BIG_WIDE_MIN_CANVAS_HEIGHT_DP * scale).dp.toPx()
                 }
             }
             val availableTextWidthPx = with(density) {
@@ -792,11 +837,18 @@ class OplusBigClockView @JvmOverloads constructor(
                 )
             }
             val canvasHeight = with(density) {
-                maxOf(minCanvasHeightPx, canvasMetrics.height + 16.dp.toPx())
+                maxOf(
+                    minCanvasHeightPx,
+                    canvasMetrics.height + OPLUS_BIG_WIDE_CANVAS_PADDING_DP.dp.toPx(),
+                )
                     .toDp()
             }
-            val infoTextSize = if (isLargeClock) 22.sp else (20f * scale).sp
-            val infoIconSize = if (isLargeClock) 24.dp else (22f * scale).dp
+            val infoTextSize =
+                if (isLargeClock) 22.sp else (OPLUS_BIG_WIDE_INFO_TEXT_SIZE_SP * scale).sp
+            val infoIconSize =
+                if (isLargeClock) 24.dp else (OPLUS_BIG_WIDE_INFO_ICON_SIZE_DP * scale).dp
+            val infoSpacing =
+                if (isLargeClock) 6.dp else (OPLUS_BIG_WIDE_INFO_SPACING_DP * scale).dp
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = bigWideHorizontalAlignment(alignment),
@@ -811,7 +863,7 @@ class OplusBigClockView @JvmOverloads constructor(
                         modifier = Modifier.padding(horizontal = horizontalPadding),
                         rowArrangement = bigWideRowArrangement(alignment),
                     )
-                    Spacer(modifier = Modifier.height(if (isLargeClock) 6.dp else (3f * scale).dp))
+                    Spacer(modifier = Modifier.height(infoSpacing))
                 }
                 OplusBigCanvasLine(
                     text = timeText,
@@ -826,7 +878,7 @@ class OplusBigClockView @JvmOverloads constructor(
                     textAlign = bigWideTextAlign(alignment),
                 )
                 if (dateBelow && hasInfo) {
-                    Spacer(modifier = Modifier.height(if (isLargeClock) 6.dp else (3f * scale).dp))
+                    Spacer(modifier = Modifier.height(infoSpacing))
                     EnhancedDateArea(
                         textColor = tint.copy(alpha = if (clock.isDoze) 0.6f else 0.72f),
                         textSize = infoTextSize,
@@ -1298,7 +1350,7 @@ private fun readCanvasTextBounds(
         this.letterSpacing = letterSpacing
     }
     paint.getTextBounds(text, 0, text.length, bounds)
-    val width = maxOf(bounds.width().toFloat(), paint.measureText(text))
+    val width = bounds.width().coerceAtLeast(1).toFloat()
     return CanvasTextMetrics(
         textSize,
         width,

@@ -19,6 +19,7 @@ package com.android.systemui.shared.clocks.view
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.*
+import android.graphics.Color as AndroidColor
 import android.icu.util.TimeZone
 import android.text.format.DateFormat
 import android.util.AttributeSet
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -50,6 +52,7 @@ import com.android.systemui.shared.clocks.ClockEditScaleGeometry
 import com.android.systemui.shared.clocks.ClockSettingsRepository
 import com.android.systemui.shared.clocks.extensions.*
 import java.util.Locale
+import kotlin.math.abs
 import kotlinx.coroutines.*
 
 abstract class AxClockView @JvmOverloads constructor(
@@ -88,6 +91,36 @@ abstract class AxClockView @JvmOverloads constructor(
 
     var touchEnabled: Boolean = true
     var previewSizeScaleOverride: Float? by mutableStateOf(null)
+    var previewAlignmentFrozen = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (!value) updatePreviewAlignment()
+        }
+    private val previewHorizontalOffsetDpOverrideState = mutableStateOf<Float?>(null)
+    var previewHorizontalOffsetDpOverride: Float?
+        get() = previewHorizontalOffsetDpOverrideState.value
+        set(value) {
+            previewHorizontalOffsetDpOverrideState.value = value
+            if (!previewAlignmentFrozen) updatePreviewAlignment()
+        }
+
+    private fun updatePreviewAlignment() {
+        state.alignmentState.value = ClockSettingsRepository.horizontalPositionAlignment(
+            previewHorizontalOffsetDpOverride ?: ClockSettingsRepository.horizontalOffsetDp.value,
+        )
+    }
+
+    var renderedClockEditGeometryVersion by mutableIntStateOf(0)
+        private set
+
+    private var renderedClockBaseWidthDp by mutableStateOf(0f)
+    private var renderedClockBaseHeightDp by mutableStateOf(0f)
+    private var renderedClockCenterYFraction by mutableStateOf(0.5f)
+    private var renderedClockBoundsDirty = true
+    private var renderedClockCapturePosted = false
+    private var renderedClockBitmap: Bitmap? = null
+    private var renderedClockPixels = IntArray(0)
 
     private val depthController = ClockDepthController(this)
     var depthEffectEnabled: Boolean
@@ -96,6 +129,9 @@ abstract class AxClockView @JvmOverloads constructor(
     var depthSourceBoundsProvider: (() -> RectF?)?
         get() = depthController.sourceBoundsProvider
         set(value) { depthController.sourceBoundsProvider = value }
+    var depthSourceScale: Float
+        get() = depthController.sourceScale
+        set(value) { depthController.sourceScale = value }
 
     protected open val clockHeightBase: Int get() = context.scaledDimenInt(R.dimen.clock_height)
     val clockPaddingTop get() = context.scaledDimen(R.dimen.clock_padding_top)
@@ -109,7 +145,11 @@ abstract class AxClockView @JvmOverloads constructor(
     protected val config: ClockConfigs.ClockStyleConfig?
         get() {
             val className = this::class.simpleName ?: return null
-            return ClockConfigs.resolveConfig(className, isLargeClock, state.alignmentState.value)
+            return ClockConfigs.resolveConfig(
+                className,
+                isLargeClock,
+                state.alignmentState.value,
+            )
         }
 
     val isLeftAligned: Boolean get() = config?.align == ClockConfigs.Align.LEFT
@@ -212,10 +252,16 @@ abstract class AxClockView @JvmOverloads constructor(
     open fun refreshTime() {
         if (interactor.refreshTime()) {
             contentDescription = interactor.talkBackContent
+            renderedClockBoundsDirty = true
+            requestLayout()
         }
     }
 
-    fun refreshDate() { interactor.refreshDate() }
+    fun refreshDate() {
+        interactor.refreshDate()
+        renderedClockBoundsDirty = true
+        requestLayout()
+    }
 
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
         if (!touchEnabled) return false
@@ -241,7 +287,10 @@ abstract class AxClockView @JvmOverloads constructor(
         }
         depthController.onAttached()
         uiScope?.launch {
-            ClockSettingsRepository.sizeScale.collect { requestLayout() }
+            ClockSettingsRepository.clockEditGeometryVersion.collect {
+                renderedClockBoundsDirty = true
+                requestLayout()
+            }
         }
         refreshTime()
         state.timeState.value = interactor.timeStr
@@ -253,10 +302,17 @@ abstract class AxClockView @JvmOverloads constructor(
         Log.d(tag, "onDetachedFromWindow")
         uiScope?.cancel()
         depthController.onDetached()
+        renderedClockBitmap?.recycle()
+        renderedClockBitmap = null
+        renderedClockPixels = IntArray(0)
+        renderedClockBoundsDirty = true
+        renderedClockCapturePosted = false
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        ClockSettingsRepository.init(context)
+        depthController.onConfigurationChanged()
         val newLocale = newConfig.locale
         if (newLocale != interactor.locale) {
             uiScope?.launch { refreshFormat(DateFormat.is24HourFormat(context), newLocale) }
@@ -265,6 +321,7 @@ abstract class AxClockView @JvmOverloads constructor(
 
     protected open fun onDisplayMetricsChanged() {
         state.configurationVersion.intValue++
+        renderedClockBoundsDirty = true
         host.view.requestLayout()
         requestLayout()
         invalidate()
@@ -305,6 +362,7 @@ abstract class AxClockView @JvmOverloads constructor(
             )
         }
         cv.layout(0, 0, width, height)
+        scheduleRenderedClockBoundsCapture()
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -324,6 +382,128 @@ abstract class AxClockView @JvmOverloads constructor(
             requestedScale = requestedScale,
             scaleRange = ClockSettingsRepository.sizeScaleRange,
         )
+
+    fun resolveClockEditScaleGeometry(
+        availableWidthDp: Float,
+        requestedScale: Float,
+    ): ClockEditScaleGeometry {
+        val baseWidthDp = renderedClockBaseWidthDp
+        val baseHeightDp = renderedClockBaseHeightDp
+        if (baseWidthDp <= 0f || baseHeightDp <= 0f) {
+            return getClockEditScaleGeometry(availableWidthDp, requestedScale)
+        }
+        val range = ClockSettingsRepository.sizeScaleRange
+        val fixedPaddingDp = CLOCK_EDIT_RENDERED_PADDING_DP * 2f
+        val maxScale = if (availableWidthDp > fixedPaddingDp) {
+            ((availableWidthDp - fixedPaddingDp) / baseWidthDp).coerceIn(range.min, range.max)
+        } else {
+            range.min
+        }
+        val scale = requestedScale.coerceIn(range.min, maxScale)
+        return ClockEditScaleGeometry(
+            scaleRange = range.copy(max = maxScale),
+            requestedScale = scale,
+            frameWidthDp = baseWidthDp * scale + fixedPaddingDp,
+            minFrameWidthDp = 0f,
+            resizeDpPerScale = baseWidthDp,
+            frameHeightDp = baseHeightDp * scale + fixedPaddingDp,
+            resizeHeightDpPerScale = baseHeightDp,
+            frameCenterYFraction = renderedClockCenterYFraction,
+        )
+    }
+
+    internal fun resolveHorizontalTranslationDp(
+        offsetDp: Float,
+        alignment: String,
+        requestedScale: Float,
+    ): Float {
+        val density = context.resources.displayMetrics.density
+        val availableWidthDp =
+            if (width > 0) width / density
+            else context.resources.configuration.screenWidthDp.toFloat()
+        val frameWidthDp = resolveClockEditScaleGeometry(availableWidthDp, requestedScale)
+            .frameWidthIn(availableWidthDp)
+        val freeWidthDp = (availableWidthDp - frameWidthDp).coerceAtLeast(0f)
+        val centeredStartDp = freeWidthDp / 2f
+        val alignedStartDp = when (alignment) {
+            ClockSettingsRepository.ALIGNMENT_LEFT -> 0f
+            ClockSettingsRepository.ALIGNMENT_RIGHT -> freeWidthDp
+            else -> centeredStartDp
+        }
+        val centeredOffsetDp = offsetDp.coerceIn(-centeredStartDp, centeredStartDp)
+        return centeredOffsetDp + centeredStartDp - alignedStartDp
+    }
+
+    private fun scheduleRenderedClockBoundsCapture() {
+        if (isLargeClock || width <= 0 || height <= 0 || renderedClockCapturePosted) return
+        if (!isPreviewMode && ClockSettingsRepository.horizontalOffsetDp.value == 0f) return
+        if (!renderedClockBoundsDirty && renderedClockBaseWidthDp > 0f) return
+        renderedClockCapturePosted = true
+        postOnAnimation {
+            renderedClockCapturePosted = false
+            if (!isAttachedToWindow) return@postOnAnimation
+            captureRenderedClockBounds()
+        }
+    }
+
+    private fun captureRenderedClockBounds() {
+        val contentView = host.view
+        val bitmapWidth = contentView.width
+        val bitmapHeight = contentView.height
+        if (bitmapWidth <= 0 || bitmapHeight <= 0) return
+        val scale = sizeScale.coerceAtLeast(0.01f)
+
+        val bitmap = renderedClockBitmap
+            ?.takeIf { it.width == bitmapWidth && it.height == bitmapHeight }
+            ?: Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888).also {
+                renderedClockBitmap?.recycle()
+                renderedClockBitmap = it
+            }
+        bitmap.eraseColor(AndroidColor.TRANSPARENT)
+        contentView.draw(Canvas(bitmap))
+
+        val pixelCount = bitmapWidth * bitmapHeight
+        if (renderedClockPixels.size < pixelCount) {
+            renderedClockPixels = IntArray(pixelCount)
+        }
+        bitmap.getPixels(renderedClockPixels, 0, bitmapWidth, 0, 0, bitmapWidth, bitmapHeight)
+
+        var left = bitmapWidth
+        var top = bitmapHeight
+        var right = -1
+        var bottom = -1
+        for (index in 0 until pixelCount) {
+            if ((renderedClockPixels[index] ushr 24) <= CLOCK_EDIT_ALPHA_THRESHOLD) continue
+            val x = index % bitmapWidth
+            val y = index / bitmapWidth
+            if (x < left) left = x
+            if (x > right) right = x
+            if (y < top) top = y
+            if (y > bottom) bottom = y
+        }
+
+        renderedClockBoundsDirty = false
+        if (right < left || bottom < top) return
+
+        val density = context.resources.displayMetrics.density
+        val baseWidthDp = (right - left + 1) / density / scale
+        val baseHeightDp = (bottom - top + 1) / density / scale
+        val centerYFraction = (top + bottom + 1f) / (bitmapHeight * 2f)
+        if (
+            abs(renderedClockBaseWidthDp - baseWidthDp) <
+                CLOCK_EDIT_BOUNDS_EPSILON_DP &&
+                abs(renderedClockBaseHeightDp - baseHeightDp) <
+                    CLOCK_EDIT_BOUNDS_EPSILON_DP &&
+                abs(renderedClockCenterYFraction - centerYFraction) <
+                    CLOCK_EDIT_CENTER_EPSILON
+        ) {
+            return
+        }
+        renderedClockBaseWidthDp = baseWidthDp
+        renderedClockBaseHeightDp = baseHeightDp
+        renderedClockCenterYFraction = centerYFraction
+        renderedClockEditGeometryVersion++
+    }
 
     open fun setupPreview() {
         interactor.setupPreview {
@@ -410,5 +590,9 @@ abstract class AxClockView @JvmOverloads constructor(
 
     companion object {
         const val DEBUG = false
+        private const val CLOCK_EDIT_ALPHA_THRESHOLD = 8
+        private const val CLOCK_EDIT_BOUNDS_EPSILON_DP = 0.5f
+        private const val CLOCK_EDIT_CENTER_EPSILON = 0.001f
+        private const val CLOCK_EDIT_RENDERED_PADDING_DP = 12f
     }
 }

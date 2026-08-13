@@ -14,14 +14,17 @@
 
 package com.android.systemui.shared.clocks
 
+import android.content.ComponentCallbacks
 import android.content.ContentResolver
 import android.content.Context
+import android.content.res.Configuration
 import android.database.ContentObserver
 import android.graphics.Color as AndroidColor
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import com.android.axion.util.DisplayUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,9 +33,9 @@ import org.json.JSONObject
 object ClockSettingsRepository {
 
     const val SETTING_CLOCK_FACE = "lock_screen_custom_clock_face"
-    const val SETTING_ALIGNMENT = "ax_clock_alignment"
     const val SETTING_SIZE = "ax_clock_size"
     const val SETTING_SIZE_SCALE = "ax_clock_size_scale"
+    const val SETTING_HORIZONTAL_OFFSET = "ax_clock_horizontal_offset_dp"
     const val SETTING_TOP_PADDING = "ax_clock_top_padding_dp"
     const val SETTING_LOCKSCREEN_WIDGETS_ENABLED = "lockscreen_widgets_enabled"
     const val SETTING_LOCKSCREEN_WIDGETS_CONFIG = "lockscreen_widgets_config"
@@ -87,6 +90,7 @@ object ClockSettingsRepository {
     const val SIZE_SCALE_MAX = 1.35f
     const val TOP_PADDING_MIN_DP = -24f
     const val TOP_PADDING_MAX_DP = 240f
+    const val HORIZONTAL_CENTER_SNAP_THRESHOLD_DP = 12f
 
     val INFO_DISPLAY_SOURCE_PRIORITY = listOf(
         INFO_DISPLAY_MEDIA,
@@ -99,6 +103,7 @@ object ClockSettingsRepository {
 
     private const val DEFAULT_SIZE_SCALE = 1f
     private const val LARGE_SIZE_SCALE = 1.35f
+    private const val DEFAULT_HORIZONTAL_OFFSET_DP = 0f
     private const val DEFAULT_TOP_PADDING_DP = 0f
 
     val sizeScaleRange = ClockSizeScaleRange(
@@ -109,10 +114,15 @@ object ClockSettingsRepository {
     )
 
     @JvmField val clockFaceUri: Uri = Settings.Secure.getUriFor(SETTING_CLOCK_FACE)
-    @JvmField val alignmentUri: Uri = Settings.Secure.getUriFor(SETTING_ALIGNMENT)
     @JvmField val sizeUri: Uri = Settings.Secure.getUriFor(SETTING_SIZE)
     @JvmField val sizeScaleUri: Uri = Settings.Secure.getUriFor(SETTING_SIZE_SCALE)
+    @JvmField val horizontalOffsetUri: Uri = Settings.Secure.getUriFor(SETTING_HORIZONTAL_OFFSET)
     @JvmField val topPaddingUri: Uri = Settings.Secure.getUriFor(SETTING_TOP_PADDING)
+    private val sizeSettingUris =
+        listOf(sizeUri) + layoutSettingUris(SETTING_SIZE_SCALE)
+    private val horizontalOffsetUris =
+        layoutSettingUris(SETTING_HORIZONTAL_OFFSET)
+    private val topPaddingUris = layoutSettingUris(SETTING_TOP_PADDING)
     @JvmField val lockscreenWidgetsEnabledUri: Uri =
         Settings.System.getUriFor(SETTING_LOCKSCREEN_WIDGETS_ENABLED)
     @JvmField val lockscreenWidgetsConfigUri: Uri =
@@ -133,11 +143,14 @@ object ClockSettingsRepository {
     @JvmField val oplusGraffitiAngleSettingUri: Uri =
         Settings.Secure.getUriFor(SETTING_OPLUS_GRAFFITI_ANGLE)
 
+    private fun layoutSettingUris(baseSetting: String): List<Uri> {
+        return DisplayUtils.DisplayLayout.values().map {
+            Settings.Secure.getUriFor(it.getSettingName(baseSetting))
+        }
+    }
+
     private val _clockId = MutableStateFlow("DEFAULT")
     val clockId: StateFlow<String> = _clockId.asStateFlow()
-
-    private val _alignment = MutableStateFlow(ALIGNMENT_CENTER)
-    val alignment: StateFlow<String> = _alignment.asStateFlow()
 
     private val _resolvedClockAlignment = MutableStateFlow(ALIGNMENT_CENTER)
     val resolvedClockAlignment: StateFlow<String> = _resolvedClockAlignment.asStateFlow()
@@ -147,6 +160,9 @@ object ClockSettingsRepository {
 
     private val _clockEditGeometryVersion = MutableStateFlow(0)
     val clockEditGeometryVersion: StateFlow<Int> = _clockEditGeometryVersion.asStateFlow()
+
+    private val _horizontalOffsetDp = MutableStateFlow(DEFAULT_HORIZONTAL_OFFSET_DP)
+    val horizontalOffsetDp: StateFlow<Float> = _horizontalOffsetDp.asStateFlow()
 
     private val _topPaddingDp = MutableStateFlow(DEFAULT_TOP_PADDING_DP)
     val topPaddingDp: StateFlow<Float> = _topPaddingDp.asStateFlow()
@@ -190,28 +206,36 @@ object ClockSettingsRepository {
     }
 
     private val clockLayoutAlignmentListeners = mutableSetOf<ClockLayoutAlignmentListener>()
+    private var displayContext: Context? = null
     private var contentResolver: ContentResolver? = null
-    private var appContext: Context? = null
-    private var registered = false
+    @Volatile private var positionLayout = DisplayUtils.DisplayLayout.PHONE
+    @Volatile private var registered = false
     private val handler = Handler(Looper.getMainLooper())
+
+    private val componentCallbacks =
+        object : ComponentCallbacks {
+            override fun onConfigurationChanged(newConfig: Configuration) {
+                displayContext?.let { updatePositionLayout(it, newConfig) }
+            }
+
+            override fun onLowMemory() = Unit
+        }
 
     private val observer = object : ContentObserver(handler) {
         override fun onChange(selfChange: Boolean, uri: Uri?) {
             val cr = contentResolver ?: return
-            val context = appContext ?: return
             when (uri) {
                 clockFaceUri -> {
                     _clockId.value = readClockId(cr)
-                    updateClockLayoutAlignment(context, cr)
                 }
-                alignmentUri -> {
-                    _alignment.value = readAlignment(cr)
-                    updateClockLayoutAlignment(context, cr)
-                }
-                sizeUri, sizeScaleUri -> {
+                in sizeSettingUris -> {
                     _sizeScale.value = readSizeScale(cr)
                 }
-                topPaddingUri -> {
+                in horizontalOffsetUris -> {
+                    _horizontalOffsetDp.value = readHorizontalOffsetDp(cr)
+                    updateClockLayoutAlignment()
+                }
+                in topPaddingUris -> {
                     _topPaddingDp.value = readTopPaddingDp(cr)
                 }
                 lockscreenWidgetsEnabledUri, lockscreenWidgetsConfigUri -> {
@@ -235,7 +259,6 @@ object ClockSettingsRepository {
                 }
                 oplusBigFaceSettingUri -> {
                     _oplusBigFace.value = readOplusBigFace(cr)
-                    updateClockLayoutAlignment(context, cr)
                 }
                 oplusBigDualToneUri -> {
                     _oplusBigDualTone.value = readOplusBigDualTone(cr)
@@ -254,21 +277,22 @@ object ClockSettingsRepository {
     @JvmStatic
     fun init(context: Context) {
         val stableContext = context.applicationContext ?: context
-        appContext = stableContext
+        displayContext = DisplayUtils.createStableDisplayContext(context)
         contentResolver = stableContext.contentResolver
-        val cr = stableContext.contentResolver
 
         if (registered) {
-            readAll(stableContext, cr)
+            updatePositionLayout(context)
             return
         }
         registered = true
 
+        val cr = stableContext.contentResolver
+        positionLayout = DisplayUtils.getCurrentDisplayLayout(context)
+
         cr.registerContentObserver(clockFaceUri, false, observer)
-        cr.registerContentObserver(alignmentUri, false, observer)
-        cr.registerContentObserver(sizeUri, false, observer)
-        cr.registerContentObserver(sizeScaleUri, false, observer)
-        cr.registerContentObserver(topPaddingUri, false, observer)
+        sizeSettingUris.forEach { cr.registerContentObserver(it, false, observer) }
+        horizontalOffsetUris.forEach { cr.registerContentObserver(it, false, observer) }
+        topPaddingUris.forEach { cr.registerContentObserver(it, false, observer) }
         cr.registerContentObserver(lockscreenWidgetsEnabledUri, false, observer)
         cr.registerContentObserver(lockscreenWidgetsConfigUri, false, observer)
         cr.registerContentObserver(datePositionUri, false, observer)
@@ -280,14 +304,15 @@ object ClockSettingsRepository {
         cr.registerContentObserver(oplusBigDualToneUri, false, observer)
         cr.registerContentObserver(oplusGraffitiFaceSettingUri, false, observer)
         cr.registerContentObserver(oplusGraffitiAngleSettingUri, false, observer)
+        stableContext.registerComponentCallbacks(componentCallbacks)
 
-        readAll(stableContext, cr)
+        readAll(cr)
     }
 
-    private fun readAll(context: Context, cr: ContentResolver) {
+    private fun readAll(cr: ContentResolver) {
         _clockId.value = readClockId(cr)
-        _alignment.value = readAlignment(cr)
         _sizeScale.value = readSizeScale(cr)
+        _horizontalOffsetDp.value = readHorizontalOffsetDp(cr)
         _topPaddingDp.value = readTopPaddingDp(cr)
         _lockscreenWidgetLayoutState.value = readLockscreenWidgetLayoutState(cr)
         _isDateBelow.value = readDateBelow(cr)
@@ -299,7 +324,7 @@ object ClockSettingsRepository {
         _oplusBigDualTone.value = readOplusBigDualTone(cr)
         _oplusGraffitiFace.value = readOplusGraffitiFace(cr)
         _oplusGraffitiAngle.value = readOplusGraffitiAngle(cr)
-        updateClockLayoutAlignment(context, cr)
+        updateClockLayoutAlignment()
         _clockEditGeometryVersion.value++
     }
 
@@ -312,6 +337,42 @@ object ClockSettingsRepository {
     fun clockLayoutAlignment(context: Context): String {
         init(context)
         return _resolvedClockAlignment.value
+    }
+
+    @JvmStatic
+    fun writePosition(
+        context: Context,
+        horizontalOffsetDp: Float,
+        topPaddingDp: Float,
+    ) {
+        init(context)
+        val layout = positionLayout
+        writeLayoutFloat(
+            context.contentResolver,
+            layout,
+            SETTING_HORIZONTAL_OFFSET,
+            horizontalOffsetDp,
+        )
+        writeLayoutFloat(context.contentResolver, layout, SETTING_TOP_PADDING, topPaddingDp)
+    }
+
+    @JvmStatic
+    fun writeSizeAndPosition(
+        context: Context,
+        sizeScale: Float,
+        horizontalOffsetDp: Float,
+        topPaddingDp: Float,
+    ) {
+        init(context)
+        val layout = positionLayout
+        writeLayoutFloat(context.contentResolver, layout, SETTING_SIZE_SCALE, sizeScale)
+        writeLayoutFloat(
+            context.contentResolver,
+            layout,
+            SETTING_HORIZONTAL_OFFSET,
+            horizontalOffsetDp,
+        )
+        writeLayoutFloat(context.contentResolver, layout, SETTING_TOP_PADDING, topPaddingDp)
     }
 
     @JvmStatic
@@ -349,32 +410,47 @@ object ClockSettingsRepository {
         }
     }
 
-    private fun readAlignment(cr: ContentResolver): String {
-        return readAlignmentOrNull(cr) ?: ALIGNMENT_CENTER
-    }
-
-    private fun readAlignmentOrNull(cr: ContentResolver): String? {
-        return when (Settings.Secure.getString(cr, SETTING_ALIGNMENT)) {
-            ALIGNMENT_LEFT -> ALIGNMENT_LEFT
-            ALIGNMENT_CENTER -> ALIGNMENT_CENTER
-            ALIGNMENT_RIGHT -> ALIGNMENT_RIGHT
-            else -> null
-        }
-    }
-
     private fun readSizeScale(cr: ContentResolver): Float {
-        val rawScale = Settings.Secure.getString(cr, SETTING_SIZE_SCALE)?.toFloatOrNull()
+        val rawScale = readLayoutFloat(cr, SETTING_SIZE_SCALE)
         return sizeScaleRange.resolve(
             rawScale,
             Settings.Secure.getString(cr, SETTING_SIZE) == SIZE_LARGE,
         )
     }
 
+    private fun readHorizontalOffsetDp(cr: ContentResolver): Float {
+        return readLayoutFloat(cr, SETTING_HORIZONTAL_OFFSET) ?: DEFAULT_HORIZONTAL_OFFSET_DP
+    }
+
     private fun readTopPaddingDp(cr: ContentResolver): Float {
-        return Settings.Secure.getString(cr, SETTING_TOP_PADDING)
+        return (readLayoutFloat(cr, SETTING_TOP_PADDING) ?: DEFAULT_TOP_PADDING_DP)
+            .coerceIn(TOP_PADDING_MIN_DP, TOP_PADDING_MAX_DP)
+    }
+
+    private fun readLayoutFloat(
+        cr: ContentResolver,
+        baseSetting: String,
+    ): Float? {
+        val activeSetting = positionLayout.getSettingName(baseSetting)
+        readFiniteFloat(cr, activeSetting)?.let { return it }
+        if (activeSetting != baseSetting) {
+            readFiniteFloat(cr, baseSetting)?.let { return it }
+        }
+        return null
+    }
+
+    private fun readFiniteFloat(cr: ContentResolver, setting: String): Float? =
+        Settings.Secure.getString(cr, setting)
             ?.toFloatOrNull()
-            ?.coerceIn(TOP_PADDING_MIN_DP, TOP_PADDING_MAX_DP)
-            ?: DEFAULT_TOP_PADDING_DP
+            ?.takeIf { it.isFinite() }
+
+    private fun writeLayoutFloat(
+        cr: ContentResolver,
+        layout: DisplayUtils.DisplayLayout,
+        setting: String,
+        value: Float,
+    ) {
+        Settings.Secure.putString(cr, layout.getSettingName(setting), value.toString())
     }
 
     private fun readLockscreenWidgetLayoutState(cr: ContentResolver): ClockWidgetLayoutState {
@@ -477,14 +553,23 @@ object ClockSettingsRepository {
         }
     }
 
-    private fun updateClockLayoutAlignment(context: Context, cr: ContentResolver) {
-        val clockId = readClockId(cr)
-        val resolvedAlignment = resolveClockLayoutAlignment(
-            context,
-            clockId,
-            readAlignmentOrNull(cr),
-            resolveOplusBigFace(cr, clockId),
-        )
+    private fun updatePositionLayout(
+        context: Context,
+        configuration: Configuration = context.resources.configuration,
+    ) {
+        val nextLayout = DisplayUtils.getCurrentDisplayLayout(context, configuration)
+        if (positionLayout == nextLayout) return
+        positionLayout = nextLayout
+        val cr = contentResolver ?: return
+        _sizeScale.value = readSizeScale(cr)
+        _horizontalOffsetDp.value = readHorizontalOffsetDp(cr)
+        _topPaddingDp.value = readTopPaddingDp(cr)
+        updateClockLayoutAlignment()
+        _clockEditGeometryVersion.value++
+    }
+
+    private fun updateClockLayoutAlignment() {
+        val resolvedAlignment = horizontalPositionAlignment(_horizontalOffsetDp.value)
         val oldAlignment = _resolvedClockAlignment.value
         _resolvedClockAlignment.value = resolvedAlignment
         _shouldCenterIcons.value = resolvedAlignment == ALIGNMENT_CENTER
@@ -499,38 +584,13 @@ object ClockSettingsRepository {
         }
     }
 
-    private fun resolveClockLayoutAlignment(
-        context: Context,
-        clockId: String,
-        alignValue: String?,
-        oplusBigFace: String,
-    ): String {
-        val clockType = AxClockType.resolve(context.resources, clockId)
-        if (clockType == AxClockType.OPLUS_BIG &&
-            oplusBigFace == OPLUS_BIG_FACE_WIDE &&
-            alignValue == null
-        ) {
-            return ALIGNMENT_LEFT
-        }
-        val configKey = clockType.clockConfigKey
-            ?: return ALIGNMENT_CENTER
-        val config = ClockConfigs.resolveConfig(configKey, false, alignValue ?: ALIGNMENT_CENTER)
-        return when (config?.align) {
-            ClockConfigs.Align.LEFT -> ALIGNMENT_LEFT
-            ClockConfigs.Align.RIGHT -> ALIGNMENT_RIGHT
+    @JvmStatic
+    fun horizontalPositionAlignment(horizontalOffsetDp: Float): String {
+        if (!horizontalOffsetDp.isFinite()) return ALIGNMENT_CENTER
+        return when {
+            horizontalOffsetDp < -HORIZONTAL_CENTER_SNAP_THRESHOLD_DP -> ALIGNMENT_LEFT
+            horizontalOffsetDp > HORIZONTAL_CENTER_SNAP_THRESHOLD_DP -> ALIGNMENT_RIGHT
             else -> ALIGNMENT_CENTER
-        }
-    }
-
-    private fun resolveOplusBigFace(cr: ContentResolver, clockId: String): String {
-        val selectedFace = readOplusBigFace(cr)
-        if (selectedFace != OPLUS_BIG_FACE_DEFAULT) return selectedFace
-        return when (clockId) {
-            "OPLUS_BIG_VERTICAL",
-            "OPLUS_BIG_START_HORIZONTAL",
-            "OPLUS_BIG_END_HORIZONTAL",
-            "OPLUS_BIG_WIDE" -> OPLUS_BIG_FACE_WIDE
-            else -> selectedFace
         }
     }
 }

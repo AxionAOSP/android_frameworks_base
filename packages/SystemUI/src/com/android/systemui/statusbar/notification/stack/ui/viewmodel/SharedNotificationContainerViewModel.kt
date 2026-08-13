@@ -95,6 +95,7 @@ import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
 import com.android.systemui.shade.shared.model.ShadeMode.Dual
 import com.android.systemui.shade.shared.model.ShadeMode.Single
 import com.android.systemui.shade.shared.model.ShadeMode.Split
+import com.android.systemui.shared.clocks.ClockSettingsRepository
 import com.android.systemui.statusbar.notification.domain.interactor.ActiveNotificationsInteractor
 import com.android.systemui.statusbar.notification.domain.interactor.HeadsUpNotificationInteractor
 import com.android.systemui.statusbar.notification.stack.domain.interactor.NotificationStackAppearanceInteractor
@@ -944,6 +945,7 @@ constructor(
                 availableHeight,
                 interactor.useExtraShelfSpace,
                 interactor.notificationStackChanged,
+                ClockSettingsRepository.topPaddingDp,
             ) { flows ->
                 val showLimitedNotifications = flows[0] as Boolean
                 val showUnlimitedNotifications = flows[1] as Boolean

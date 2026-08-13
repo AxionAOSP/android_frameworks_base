@@ -362,6 +362,8 @@ class CyberpunkClockView @JvmOverloads constructor(
             else -> Alignment.CenterHorizontally
         }
         val badgeSeed = remember(progress > 0f) { kotlin.random.Random.nextFloat() }
+        val dynSizeScale = rememberSmallClockSizeScale()
+        val infoSizeScale = maxOf(1f, dynSizeScale)
 
         Column(
             horizontalAlignment = colAlign,
@@ -396,7 +398,6 @@ class CyberpunkClockView @JvmOverloads constructor(
                     .padding(horizontal = 24.dp, vertical = 6.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val dynSizeScale = rememberSmallClockSizeScale()
                     Text(
                         text = time,
                         style = TextStyle(
@@ -445,7 +446,7 @@ class CyberpunkClockView @JvmOverloads constructor(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(
-                        fontSize = 14.sp,
+                        fontSize = 18.sp * infoSizeScale,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
                         color = if (isDoze) Color.White else primaryColor,

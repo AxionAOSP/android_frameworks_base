@@ -156,7 +156,7 @@ class ClockDepthController(private val view: View) {
     fun onAttached() {
         if (!enabled) return
         DepthWallpaperProvider.init(view.context)
-        DepthWallpaperProvider.addListener(listener)
+        DepthWallpaperProvider.addListener(view.context, listener)
     }
 
     fun onDetached() {
@@ -168,6 +168,11 @@ class ClockDepthController(private val view: View) {
         subjectPath = null
         depthActive = false
         depthSuppressed = false
+    }
+
+    fun onConfigurationChanged() {
+        resetTransformCache()
+        DepthWallpaperProvider.updateListenerContext(view.context, listener)
     }
 
     fun setDepthVisible(visible: Boolean) {

@@ -34,7 +34,7 @@ class AxClockState {
     val fidgetTrigger = mutableStateOf(0L)
     val fidgetPosition = mutableStateOf(Offset.Zero)
     val dateBelowState = mutableStateOf(false)
-    val alignmentState = mutableStateOf(ClockSettingsRepository.alignment.value)
+    val alignmentState = mutableStateOf(ClockSettingsRepository.resolvedClockAlignment.value)
     val clockColorOverrideState = mutableStateOf(ClockSettingsRepository.clockColorOverride.value)
     val fontVersion = mutableIntStateOf(0)
     val configurationVersion = mutableIntStateOf(0)

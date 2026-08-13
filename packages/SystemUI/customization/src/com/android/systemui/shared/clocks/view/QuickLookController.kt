@@ -26,7 +26,6 @@ import com.android.systemui.plugins.keyguard.data.model.AlarmData
 import com.android.systemui.plugins.keyguard.ui.clocks.ClockData
 import com.android.systemui.shared.clocks.ClockSettingsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
-import java.util.concurrent.TimeUnit
 
 class QuickLookController(private val view: AxClockView) {
 
@@ -59,9 +58,7 @@ class QuickLookController(private val view: AxClockView) {
     fun onAlarmDataChanged(data: AlarmData) {
         val nextAlarmMillis = data.nextAlarmMillis ?: 0L
         val now = System.currentTimeMillis()
-        val futureLimit = now + TimeUnit.HOURS.toMillis(ALARM_VISIBILITY_HOURS)
-        val withinHours = nextAlarmMillis in now..futureLimit
-        nextAlarmFlow.value = if (withinHours) {
+        nextAlarmFlow.value = if (nextAlarmMillis > now) {
             val fmt = if (DateFormat.is24HourFormat(view.context)) "HH:mm" else "h:mm"
             DateFormat.format(fmt, nextAlarmMillis).toString()
         } else ""

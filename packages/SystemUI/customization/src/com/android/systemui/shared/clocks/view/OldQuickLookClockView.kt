@@ -64,7 +64,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
 
     private val primaryTextSize = 80.sp
     private val secondaryTextSize = 18.sp
-    private val dateTextSize = 14.sp
+    private val dateTextSize = 18.sp
 
     override val clockHeightBase: Int
         get() {
@@ -86,6 +86,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
         val (time, date, isDoze, screenOff, regionDark, icon, tintIcon, display) = rememberClockState()
 
         val dynSizeScale = rememberSmallClockSizeScale()
+        val infoSizeScale = maxOf(1f, dynSizeScale)
         val textColor = tintColor(isDoze, screenOff, regionDark)
         val horizontalAlign = when {
             isLeftAligned -> Alignment.Start
@@ -142,7 +143,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(
-                        fontSize = dateTextSize,
+                        fontSize = dateTextSize * infoSizeScale,
                         fontWeight = FontWeight.Normal,
                         fontFamily = infoFontFamily,
                         color = textColor,
@@ -164,7 +165,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
                                 bitmap = it.asImageBitmap(),
                                 contentDescription = null,
                                 colorFilter = if (tintIcon) ColorFilter.tint(textColor) else null,
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size(20.dp * infoSizeScale),
                             )
                             Spacer(modifier = Modifier.width(7.dp))
                         }
@@ -173,7 +174,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             style = TextStyle(
-                                fontSize = secondaryTextSize,
+                                fontSize = secondaryTextSize * infoSizeScale,
                                 fontWeight = FontWeight.Normal,
                                 fontFamily = infoFontFamily,
                                 color = textColor,
@@ -185,7 +186,7 @@ class OldQuickLookClockView @JvmOverloads constructor(
                         text = placeholderText,
                         maxLines = 1,
                         style = TextStyle(
-                            fontSize = secondaryTextSize,
+                            fontSize = secondaryTextSize * infoSizeScale,
                             fontWeight = FontWeight.Normal,
                             fontFamily = infoFontFamily,
                             color = textColor,

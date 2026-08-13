@@ -41,6 +41,8 @@ data class ClockEditScaleGeometry(
     val minFrameWidthDp: Float = CLOCK_EDIT_MIN_FRAME_WIDTH_DP,
     val resizeDpPerScale: Float = CLOCK_EDIT_RESIZE_DP_PER_SCALE,
     val frameHeightDp: Float? = null,
+    val resizeHeightDpPerScale: Float? = null,
+    val frameCenterYFraction: Float = 0.5f,
 ) {
     fun clampScale(value: Float): Float = scaleRange.clamp(value)
 
@@ -48,10 +50,6 @@ data class ClockEditScaleGeometry(
         if (availableWidthDp <= 0f) return frameWidthDp.coerceAtLeast(minFrameWidthDp)
         val minWidth = minOf(minFrameWidthDp, availableWidthDp)
         return frameWidthDp.coerceIn(minWidth, availableWidthDp)
-    }
-
-    fun resizeScale(currentScale: Float, deltaDp: Float): Float {
-        return clampScale(currentScale + deltaDp / resizeDpPerScale)
     }
 
     companion object {

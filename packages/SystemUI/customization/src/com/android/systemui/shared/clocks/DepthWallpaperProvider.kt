@@ -24,8 +24,10 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.Base64
 import android.util.Log
+import com.android.axion.util.DisplayUtils
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.atomic.AtomicInteger
 
 object DepthWallpaperProvider {
 
@@ -38,22 +40,15 @@ object DepthWallpaperProvider {
     private const val PATH_VERSION = 0x01
 
     @Volatile
-    var subjectPath: Path? = null
-        private set
-
-    @Volatile
-    var pathAspect: Float = 1f
-        private set
-
-    @Volatile
     var isEnabled: Boolean = false
         private set
 
     private var wallpaperZoomActive = false
     private var wallpaperZoomDisabled = false
 
-    private val listeners = mutableSetOf<DepthMaskListener>()
+    private val listeners = mutableMapOf<DepthMaskListener, Context>()
     private val handler = Handler(Looper.getMainLooper())
+    private val refreshGeneration = AtomicInteger()
     private var registered = false
     private var contentResolver: ContentResolver? = null
     private var wallpaperManager: WallpaperManager? = null
@@ -76,18 +71,22 @@ object DepthWallpaperProvider {
     fun init(context: Context) {
         if (registered) return
         registered = true
-        contentResolver = context.contentResolver
-        wallpaperManager = WallpaperManager.getInstance(context)
+        val stableContext = context.applicationContext ?: context
+        contentResolver = stableContext.contentResolver
+        wallpaperManager = WallpaperManager.getInstance(stableContext)
 
-        context.contentResolver.registerContentObserver(
-            Settings.Secure.getUriFor(SETTING_DEPTH_MASK),
-            false, observer
-        )
-        context.contentResolver.registerContentObserver(
+        DisplayUtils.DisplayLayout.values().forEach {
+            stableContext.contentResolver.registerContentObserver(
+                Settings.Secure.getUriFor(it.getSettingName(SETTING_DEPTH_MASK)),
+                false,
+                observer,
+            )
+        }
+        stableContext.contentResolver.registerContentObserver(
             Settings.Secure.getUriFor(SETTING_DEPTH_ENABLED),
             false, observer
         )
-        context.contentResolver.registerContentObserver(
+        stableContext.contentResolver.registerContentObserver(
             Settings.Secure.getUriFor(SETTING_DISABLE_ZOOM),
             false, observer
         )
@@ -96,34 +95,37 @@ object DepthWallpaperProvider {
         refreshZoomDisabled()
     }
 
-    fun addListener(listener: DepthMaskListener) {
-        listeners.add(listener)
-        listener.onDepthDataChanged(
-            if (isEnabled) subjectPath else null,
-            pathAspect
-        )
+    fun addListener(context: Context, listener: DepthMaskListener) {
+        listeners[listener] = DisplayUtils.createStableDisplayContext(context)
+        listener.onDepthDataChanged(null, 1f)
         listener.onWallpaperZoomDisabledChanged(wallpaperZoomDisabled)
         listener.onWallpaperZoomActiveChanged(wallpaperZoomActive)
-        if (subjectPath == null) {
-            refreshAsync()
-        }
+        refreshAsync()
     }
 
     fun removeListener(listener: DepthMaskListener) {
         listeners.remove(listener)
     }
 
+    fun updateListenerContext(context: Context, listener: DepthMaskListener) {
+        if (!listeners.containsKey(listener)) return
+        listeners[listener] = DisplayUtils.createStableDisplayContext(context)
+        refreshAsync()
+    }
+
     fun setWallpaperZoomActive(active: Boolean) {
         if (wallpaperZoomActive == active) return
 
         wallpaperZoomActive = active
-        for (listener in listeners) {
+        for (listener in listeners.keys.toList()) {
             listener.onWallpaperZoomActiveChanged(active)
         }
     }
 
     private fun refreshAsync() {
         val cr = contentResolver ?: return
+        val generation = refreshGeneration.incrementAndGet()
+        val registrations = listeners.toMap()
         Thread {
             try {
                 val liveInfo = wallpaperManager?.wallpaperInfo
@@ -135,22 +137,44 @@ object DepthWallpaperProvider {
                                 liveInfo.component.packageName == EFFECTS_PACKAGE &&
                                     liveInfo.component.className.endsWith(MAGIC_PORTRAIT_SERVICE)
                             )
-                val maskStr = if (enabled) {
-                    Settings.Secure.getString(cr, SETTING_DEPTH_MASK)
-                } else null
-
-                val pathResult = maskStr?.let { decodePath(it) }
-
-                isEnabled = enabled
-                subjectPath = pathResult?.first
-                pathAspect = pathResult?.second ?: 1f
+                val paths =
+                    if (enabled) {
+                        registrations.values
+                            .map {
+                                DisplayUtils.getCurrentDisplayLayout(it)
+                                    .getSettingName(SETTING_DEPTH_MASK)
+                            }
+                            .distinct()
+                            .associateWith { setting ->
+                                Settings.Secure.getString(cr, setting)?.let(::decodePath)
+                            }
+                    } else {
+                        emptyMap()
+                    }
 
                 handler.post {
-                    notifyListeners(if (enabled) pathResult?.first else null)
+                    if (refreshGeneration.get() != generation) return@post
+                    isEnabled = enabled
+                    registrations.forEach { (listener, context) ->
+                        if (listeners[listener] !== context) return@forEach
+                        val result =
+                            paths[
+                                DisplayUtils.getCurrentDisplayLayout(context)
+                                    .getSettingName(SETTING_DEPTH_MASK)
+                            ]
+                        listener.onDepthDataChanged(result?.first, result?.second ?: 1f)
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to refresh depth data", e)
-                handler.post { notifyListeners(null) }
+                handler.post {
+                    if (refreshGeneration.get() != generation) return@post
+                    registrations.keys.forEach { listener ->
+                        if (listeners.containsKey(listener)) {
+                            listener.onDepthDataChanged(null, 1f)
+                        }
+                    }
+                }
             }
         }.start()
     }
@@ -159,16 +183,16 @@ object DepthWallpaperProvider {
         val cr = contentResolver ?: return
         Thread {
             try {
-                var disabled = Settings.Secure.getInt(cr, SETTING_DISABLE_ZOOM, 0) == 1
+                val disabled = Settings.Secure.getInt(cr, SETTING_DISABLE_ZOOM, 0) == 1
                 if (wallpaperZoomDisabled == disabled) return@Thread
                 wallpaperZoomDisabled = disabled
                 handler.post {
-                    for (listener in listeners) {
+                    for (listener in listeners.keys.toList()) {
                         listener.onWallpaperZoomDisabledChanged(disabled)
                     }
                     if (disabled && wallpaperZoomActive) {
                         wallpaperZoomActive = false
-                        for (listener in listeners) {
+                        for (listener in listeners.keys.toList()) {
                             listener.onWallpaperZoomActiveChanged(false)
                         }
                     }
@@ -227,10 +251,4 @@ object DepthWallpaperProvider {
         }
     }
 
-    private fun notifyListeners(path: Path?) {
-        val aspect = pathAspect
-        for (listener in listeners) {
-            listener.onDepthDataChanged(path, aspect)
-        }
-    }
 }

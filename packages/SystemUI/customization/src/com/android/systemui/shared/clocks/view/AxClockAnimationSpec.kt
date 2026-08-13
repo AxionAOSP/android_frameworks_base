@@ -65,7 +65,6 @@ data class AxClockAodAnimationSpec(
     val alpha: Float = 1f,
     val durationMs: Int = 0,
     val easing: Easing = CubicBezierEasing(0.2f, 0f, 0f, 1f),
-    val awakeScaleUsesSizeSetting: Boolean = false,
     val minSizeScaleForTransition: Float = 0f,
     val fallbackToAppearWhenSmall: Boolean = false,
 )
@@ -257,7 +256,6 @@ object AxClockAnimationSpecs {
             translationYDp = -2f,
             alpha = 0.96f,
             durationMs = 420,
-            awakeScaleUsesSizeSetting = true,
             minSizeScaleForTransition = 1f,
             fallbackToAppearWhenSmall = true,
         ),

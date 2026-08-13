@@ -27,6 +27,7 @@ import com.android.systemui.qs.ax.shared.AxQsMediaPolicy
 import com.android.systemui.res.R
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.shade.ShadeDisplayAware
+import com.android.systemui.shared.clocks.AxClockNotificationSpace
 import com.android.systemui.statusbar.LockscreenShadeTransitionController
 import com.android.systemui.statusbar.StatusBarState.KEYGUARD
 import com.android.systemui.statusbar.SysuiStatusBarStateController
@@ -189,6 +190,13 @@ constructor(
         shelfSpace: Float,
         shelfHeight: Float,
     ): Int {
+        val isOnLockscreen = onLockscreen()
+        val availableNotifSpace =
+            AxClockNotificationSpace.availableHeight(
+                notifSpace,
+                resources.displayMetrics.density,
+                isOnLockscreen,
+            )
         val shelfOverlapSpace =
             AxQsMediaPolicy.keyguardShelfOverlapSpace(
                 shelfSpace,
@@ -197,11 +205,11 @@ constructor(
         log { "\n " }
         log {
             "computeMaxKeyguardNotifications ---" +
-                "\n\tnotifSpace $notifSpace" +
+                "\n\tnotifSpace $availableNotifSpace" +
                 "\n\tspaceForShelf $shelfOverlapSpace" +
                 "\n\tshelfIntrinsicHeight $shelfHeight"
         }
-        if (notifSpace + shelfOverlapSpace <= 0f) {
+        if (availableNotifSpace + shelfOverlapSpace <= 0f) {
             log { "--- No space to show anything. maxNotifs=0" }
             return 0
         }
@@ -220,7 +228,7 @@ constructor(
                 allowedByPolicy(heightResult) &&
                     canStackFitInSpace(
                         heightResult,
-                        notifSpace = notifSpace,
+                        notifSpace = availableNotifSpace,
                         shelfSpace = shelfOverlapSpace,
                     ) == FitResult.FIT
             }
@@ -250,7 +258,7 @@ constructor(
                     allowedByPolicy(heightResult) &&
                         canStackFitInSpace(
                             heightResult,
-                            notifSpace = notifSpace,
+                            notifSpace = availableNotifSpace,
                             shelfSpace = shelfOverlapSpace,
                         ) != FitResult.NO_FIT
                 }
@@ -267,7 +275,7 @@ constructor(
             }
         }
 
-        if (onLockscreen()) {
+        if (isOnLockscreen) {
             val increaseMaxForMedia = maxNotificationsExcludesMedia && isMediaShowingInStack
             val lockscreenMax = maxKeyguardNotifications.safeIncrementIf(increaseMaxForMedia)
             maxNotifications = min(lockscreenMax, maxNotifications)
@@ -278,7 +286,7 @@ constructor(
         log {
             val sequence = if (SPEW) " stackHeightSequence=${stackHeightSequence.toList()}" else ""
             "--- computeMaxKeyguardNotifications(" +
-                " notifSpace=$notifSpace" +
+                " notifSpace=$availableNotifSpace" +
                 " shelfSpace=$shelfOverlapSpace" +
                 " shelfHeight=$shelfHeight) -> $maxNotifications$sequence"
         }

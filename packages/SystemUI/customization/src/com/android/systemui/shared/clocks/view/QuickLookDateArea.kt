@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.sp
 
 private const val TAG = "QuickLookDateArea"
 private const val LINE_HEIGHT_MULTIPLIER = 1.25f
+private const val MIN_INFO_TEXT_SIZE_SP = 18f
+private const val MIN_INFO_ICON_SIZE_DP = 20f
 
 @Composable
 fun QuickLookDateArea(
@@ -65,13 +67,16 @@ fun QuickLookDateArea(
 ) {
     if (display is DateDisplay.Hidden) return
 
+    val resolvedTextSize =
+        if (textSize.isSp) maxOf(MIN_INFO_TEXT_SIZE_SP, textSize.value).sp else textSize
+    val resolvedIconSize = maxOf(MIN_INFO_ICON_SIZE_DP, iconSize.value).dp
     val style = TextStyle(
-        fontSize = textSize,
+        fontSize = resolvedTextSize,
         fontWeight = fontWeight,
         fontFamily = fontFamily,
         color = textColor,
         letterSpacing = letterSpacing,
-        lineHeight = lineHeightFor(textSize),
+        lineHeight = lineHeightFor(resolvedTextSize),
     )
 
     val inverseScale = if (sizeScale > 0f) 1f / sizeScale else 1f
@@ -102,7 +107,7 @@ fun QuickLookDateArea(
                     bitmap = it.asImageBitmap(),
                     contentDescription = null,
                     colorFilter = if (display.tintIcon) ColorFilter.tint(textColor) else null,
-                    modifier = Modifier.size(iconSize),
+                    modifier = Modifier.size(resolvedIconSize),
                 )
             }
             if (display.temp.isNotEmpty()) {
@@ -116,7 +121,7 @@ fun QuickLookDateArea(
                     bitmap = it.asImageBitmap(),
                     contentDescription = null,
                     colorFilter = if (display.tintIcon) ColorFilter.tint(textColor) else null,
-                    modifier = Modifier.size(iconSize),
+                    modifier = Modifier.size(resolvedIconSize),
                 )
                 Spacer(modifier = Modifier.width(6.dp))
             }

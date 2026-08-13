@@ -80,26 +80,41 @@ class AxClockHost(private val clock: AxClockView) {
             ClockSettingsRepository.isDateBelow.collect { state.dateBelowState.value = it }
         }
         LaunchedEffect(Unit) {
-            ClockSettingsRepository.alignment.collect { state.alignmentState.value = it }
+            ClockSettingsRepository.resolvedClockAlignment.collect {
+                if (clock.previewHorizontalOffsetDpOverride == null) {
+                    state.alignmentState.value = it
+                }
+            }
         }
         LaunchedEffect(Unit) {
             ClockSettingsRepository.clockColorOverride.collect { state.clockColorOverrideState.value = it }
         }
 
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-            val align = state.alignmentState.value
             val trigger by state.fidgetTrigger
             val dozeAmount by state.dozeAmountFlow.collectAsState()
             val repositoryScale by ClockSettingsRepository.sizeScale.collectAsState()
+            val repositoryHorizontalOffsetDp by
+                ClockSettingsRepository.horizontalOffsetDp.collectAsState()
             val configurationVersion = state.configurationVersion.intValue
             val density = LocalDensity.current.density
             val animationSpec = clock.animationSpec
             val fidgetSpec = animationSpec.fidget
             val aodSpec = animationSpec.aod
             val sizeScale = ClockSettingsRepository.sizeScaleRange.clamp(repositoryScale)
-            val awakeScale = clock.awakeScale(sizeScale, aodSpec)
-            val scaleBudgetX = maxOf(1f, awakeScale, aodSpec.scaleX)
-            val scaleBudgetY = maxOf(1f, awakeScale, aodSpec.scaleY)
+            val activeSizeScale = clock.previewSizeScaleOverride ?: sizeScale
+            val requestedHorizontalOffsetDp =
+                clock.previewHorizontalOffsetDpOverride ?: repositoryHorizontalOffsetDp
+            val align = state.alignmentState.value
+            val horizontalTranslationDp =
+                if (clock.isLargeClock) 0f
+                else clock.resolveHorizontalTranslationDp(
+                    requestedHorizontalOffsetDp,
+                    align,
+                    activeSizeScale,
+                )
+            val scaleBudgetX = maxOf(1f, aodSpec.scaleX)
+            val scaleBudgetY = maxOf(1f, aodSpec.scaleY)
             val aodAmount = remember { Animatable(dozeAmount.coerceIn(0f, 1f)) }
             val fidgetScaleX = remember { Animatable(1f) }
             val fidgetScaleY = remember { Animatable(1f) }
@@ -172,8 +187,8 @@ class AxClockHost(private val clock: AxClockView) {
             }
             val transformModifier = Modifier.graphicsLayer {
                 val amount = aodAmount.value.coerceIn(0f, 1f)
-                val aodScaleX = lerp(awakeScale, aodSpec.scaleX, amount)
-                val aodScaleY = lerp(awakeScale, aodSpec.scaleY, amount)
+                val aodScaleX = lerp(1f, aodSpec.scaleX, amount)
+                val aodScaleY = lerp(1f, aodSpec.scaleY, amount)
                 val aodTranslationX = lerp(0f, aodSpec.translationXDp * density, amount)
                 val aodTranslationY = lerp(0f, aodSpec.translationYDp * density, amount)
                 val aodRotation = lerp(0f, aodSpec.rotationZ, amount)
@@ -181,7 +196,9 @@ class AxClockHost(private val clock: AxClockView) {
                 alpha = aodAlpha * fidgetAlpha.value
                 scaleX = aodScaleX * fidgetScaleX.value
                 scaleY = aodScaleY * fidgetScaleY.value
-                translationX = aodTranslationX + fidgetTranslationX.value * density
+                translationX = horizontalTranslationDp * density +
+                    aodTranslationX +
+                    fidgetTranslationX.value * density
                 translationY = aodTranslationY + fidgetTranslationY.value * density
                 rotationZ = aodRotation + fidgetRotation.value
                 transformOrigin = clockTransformOrigin(align)
@@ -229,12 +246,6 @@ private suspend fun Animatable<Float, AnimationVector1D>.animateFidgetValue(
 
 private fun lerp(start: Float, end: Float, fraction: Float): Float =
     start + (end - start) * fraction
-
-private fun AxClockView.awakeScale(sizeScale: Float, spec: AxClockAodAnimationSpec): Float {
-    if (isLargeClock || !spec.awakeScaleUsesSizeSetting) return 1f
-    if (sizeScale < spec.minSizeScaleForTransition) return 1f
-    return sizeScale
-}
 
 private fun clockContentAlignment(align: String): Alignment = when (align) {
     ClockSettingsRepository.ALIGNMENT_LEFT -> Alignment.CenterStart

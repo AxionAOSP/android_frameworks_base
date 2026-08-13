@@ -14,7 +14,6 @@
 
 package com.android.systemui.shared.clocks
 
-import android.content.Context
 import com.android.systemui.customization.R
 
 object ClockConfigs {
@@ -34,9 +33,6 @@ object ClockConfigs {
 
     enum class Position { ABOVE, BELOW }
     enum class Align { LEFT, CENTER, RIGHT }
-
-    fun resolveConfig(context: Context, className: String, isLarge: Boolean = false): ClockStyleConfig? =
-        resolveConfig(className, isLarge, ClockSettingsRepository.alignment.value)
 
     fun resolveConfig(className: String, isLarge: Boolean, alignValue: String): ClockStyleConfig? {
         val key = if (isLarge) "${className}_large" else className

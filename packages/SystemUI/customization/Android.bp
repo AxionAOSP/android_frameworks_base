@@ -41,6 +41,7 @@ android_library {
         "kotlinx_coroutines",
         "monet",
         "ax_compose",
+        "ax_utils",
         "axquicklook-client",
         "kotlin-stdlib",
         "kotlinx-coroutines-android",
