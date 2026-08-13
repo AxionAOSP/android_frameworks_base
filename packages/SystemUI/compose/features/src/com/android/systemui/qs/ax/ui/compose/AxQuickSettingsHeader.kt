@@ -94,9 +94,6 @@ fun AxQuickSettingsHeader(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 AxQuickSettingsClock(viewModel)
-                if (landscape) {
-                    AxQuickSettingsDate(viewModel)
-                }
             }
         }
         val endContent: @Composable () -> Unit = {
@@ -318,7 +315,7 @@ object AxQuickSettingsLayoutDefaults {
     const val LANDSCAPE_SIDE_PADDING_FRACTION = AxQsLayoutPadding.LANDSCAPE_SIDE_FRACTION
     val LandscapeGridSpacing = 16.dp
     val LandscapeSplitGridSpacing = AxQsLayoutPadding.LANDSCAPE_SPLIT_GRID_SPACING_DP.dp
-    val LandscapeHeaderContentSpacing = 20.dp
+    val LandscapeHeaderContentSpacing = 8.dp
     val LandscapeHeaderHeight: Dp
         @Composable get() = ShadeHeader.Dimensions.StatusBarHeight
 }

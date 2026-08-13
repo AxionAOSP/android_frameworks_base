@@ -16,14 +16,13 @@
 
 package com.android.systemui.qs.ax.domain
 
-import android.content.Context
-import android.content.res.Configuration
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.qs.ax.data.repository.AxQsSettingsRepository
 import com.android.systemui.qs.ax.shared.model.AxQsPanelMode
 import com.android.systemui.shade.ShadeController
 import com.android.systemui.shade.domain.interactor.ShadeAnimationInteractor
+import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayoutController
 import dagger.Lazy
 import javax.inject.Inject
@@ -37,11 +36,11 @@ import kotlinx.coroutines.flow.stateIn
 class AxQsShadePolicy
 @Inject
 constructor(
-    @Application private val context: Context,
     repository: AxQsSettingsRepository,
     @Application applicationScope: CoroutineScope,
     private val shadeController: Lazy<ShadeController>,
     shadeAnimationInteractor: ShadeAnimationInteractor,
+    private val shadeModeInteractor: ShadeModeInteractor,
     private val notificationStackScrollLayoutController:
         Lazy<NotificationStackScrollLayoutController>,
 ) {
@@ -64,10 +63,8 @@ constructor(
             .launchIn(applicationScope)
     }
 
-    fun isSeparateShade(): Boolean {
-        return context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE ||
-            panelMode.value == AxQsPanelMode.SEPARATE
-    }
+    fun isSeparateShade(): Boolean =
+        panelMode.value == AxQsPanelMode.SEPARATE && !shadeModeInteractor.isSplitShade
 
     fun isSeparateQuickPanelGesture(x: Float, width: Float): Boolean {
         val edgeWidth = width / 4f

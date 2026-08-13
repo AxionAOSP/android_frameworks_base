@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,7 +51,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -63,6 +63,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.android.axion.compose.preferences.LocalPreferencePosition
+import com.android.axion.compose.preferences.PreferenceGroup
+import com.android.axion.compose.preferences.preferenceShape
 import com.android.compose.theme.LocalAndroidColorScheme
 import com.android.systemui.common.ui.compose.load
 import com.android.systemui.qs.ax.shared.model.AxQsControl
@@ -110,7 +113,6 @@ internal fun AxAvailableControls(
     currentIds: Set<String>,
     controlColumns: Int,
     tileColumns: Int,
-    circleCells: Boolean,
     verticalSliderStyle: (AxQsControl) -> AxQsVerticalSliderStyle,
     onVerticalSliderStyleChanged: (AxQsControl, AxQsVerticalSliderStyle) -> Unit,
     controlPreview: @Composable (AxQsControl, AxQsSpan, AxQsVerticalSliderStyle) -> Unit,
@@ -136,41 +138,54 @@ internal fun AxAvailableControls(
     val tiles: List<AxAddItem> = allTiles.map { AxAddItem.Tile(it, it.tileSpec.spec in currentIds) }
     val tileGroups = remember(tiles) { groupAndSort(tiles).entries.toList() }
     val spacing = CommonTileDefaults.TileSpacing * LocalTileScale.current
-
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        AxAvailableItemGroup(
-            title = stringResource(R.string.ax_qs_controls),
-            iconId = TileCategory.UTILITIES.iconId,
-            items = controls,
-            columns = controlColumns,
-            circleCells = circleCells,
-            verticalSliderStyle = verticalSliderStyle,
-            onVerticalSliderStyleChanged = onVerticalSliderStyleChanged,
-            first = true,
-            last = tileGroups.isEmpty(),
-            spacing = spacing,
-            controlPreview = controlPreview,
-            canAdd = canAdd,
-            onAdd = onAdd,
-            settings = settings,
-        )
-        tileGroups.forEachIndexed { index, (category, items) ->
+    PreferenceGroup(modifier = modifier.fillMaxWidth(), spacing = 2.dp) {
+        settings?.let { settingsContent ->
+            item { AxPickerSettingsCard(settingsContent) }
+        }
+        item {
             AxAvailableItemGroup(
-                title = category.label.load().orEmpty(),
-                iconId = category.iconId,
-                items = items,
-                columns = tileColumns,
-                circleCells = circleCells,
+                title = stringResource(R.string.ax_qs_controls),
+                iconId = TileCategory.UTILITIES.iconId,
+                items = controls,
+                columns = controlColumns,
                 verticalSliderStyle = verticalSliderStyle,
                 onVerticalSliderStyleChanged = onVerticalSliderStyleChanged,
-                first = false,
-                last = index == tileGroups.lastIndex,
                 spacing = spacing,
                 controlPreview = controlPreview,
                 canAdd = canAdd,
                 onAdd = onAdd,
             )
         }
+        tileGroups.forEach { (category, items) ->
+            item {
+                AxAvailableItemGroup(
+                    title = category.label.load().orEmpty(),
+                    iconId = category.iconId,
+                    items = items,
+                    columns = tileColumns,
+                    verticalSliderStyle = verticalSliderStyle,
+                    onVerticalSliderStyleChanged = onVerticalSliderStyleChanged,
+                    spacing = spacing,
+                    controlPreview = controlPreview,
+                    canAdd = canAdd,
+                    onAdd = onAdd,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AxPickerSettingsCard(settings: @Composable () -> Unit) {
+    AxEditContainerCard(
+        contentPadding = 16.dp,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        AvailableItemHeader(
+            title = stringResource(R.string.qs_edit_settings),
+            iconId = R.drawable.ic_settings,
+        )
+        settings()
     }
 }
 
@@ -180,38 +195,16 @@ private fun AxAvailableItemGroup(
     iconId: Int,
     items: List<AxAddItem>,
     columns: Int,
-    circleCells: Boolean,
     verticalSliderStyle: (AxQsControl) -> AxQsVerticalSliderStyle,
     onVerticalSliderStyleChanged: (AxQsControl, AxQsVerticalSliderStyle) -> Unit,
-    first: Boolean,
-    last: Boolean,
     spacing: Dp,
     controlPreview: @Composable (AxQsControl, AxQsSpan, AxQsVerticalSliderStyle) -> Unit,
     canAdd: (AxAddItem) -> Boolean,
     onAdd: (AxAddItem) -> Unit,
-    settings: @Composable (() -> Unit)? = null,
 ) {
-    val shape =
-        when {
-            first && last -> RoundedCornerShape(28.dp)
-            first -> RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-            last -> RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
-            else -> RectangleShape
-        }
-    Column(
-        modifier =
-            Modifier.fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = .32f), shape),
+    AxEditContainerCard(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        if (settings != null) {
-            AvailableItemHeader(
-                title = stringResource(R.string.qs_edit_settings),
-                iconId = R.drawable.ic_settings,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
-            )
-            settings()
-        }
         AvailableItemHeader(
             title = title,
             iconId = iconId,
@@ -219,7 +212,7 @@ private fun AxAvailableItemGroup(
                 Modifier.padding(
                     start = 16.dp,
                     end = 16.dp,
-                    top = if (settings == null) 16.dp else 0.dp,
+                    top = 16.dp,
                 ),
         )
         val rows = packAvailableItems(items, columns)
@@ -229,7 +222,14 @@ private fun AxAvailableItemGroup(
         ) {
             val cellWidth = axQsGridCellWidth(maxWidth, columns, spacing)
             val aospTileHeight = CommonTileDefaults.TileHeight * LocalTileScale.current
-            val rowHeight = if (circleCells) cellWidth else aospTileHeight
+            val circleCells =
+                useAxQsCircleCells(
+                    gridWidth = maxWidth,
+                    tileColumns = columns,
+                    spacing = spacing,
+                    allowCircles = items.firstOrNull() is AxAddItem.Tile,
+                )
+            val itemRowHeight = if (circleCells) cellWidth else aospTileHeight
             Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
                 rows.forEach { row ->
                     Row(
@@ -249,8 +249,8 @@ private fun AxAvailableItemGroup(
                             AxAddItemCell(
                                 item = item,
                                 span = span,
-                                rowHeight = rowHeight,
-                                circleTile = circleCells,
+                                rowHeight = itemRowHeight,
+                                circleCells = circleCells,
                                 verticalSliderStyle = verticalSliderStyle,
                                 onVerticalSliderStyleChanged = onVerticalSliderStyleChanged,
                                 controlPreview = controlPreview,
@@ -267,6 +267,27 @@ private fun AxAvailableItemGroup(
             }
         }
     }
+}
+
+@Composable
+private fun AxEditContainerCard(
+    modifier: Modifier = Modifier,
+    contentPadding: Dp = 0.dp,
+    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .background(
+                    MaterialTheme.colorScheme.surface.copy(alpha = .32f),
+                    preferenceShape(LocalPreferencePosition.current),
+                )
+                .padding(contentPadding),
+        verticalArrangement = verticalArrangement,
+        content = content,
+    )
 }
 
 @Composable
@@ -380,12 +401,12 @@ private fun AxAddItemCell(
     item: AxAddItem,
     span: AxQsSpan,
     rowHeight: Dp,
-    circleTile: Boolean,
     verticalSliderStyle: (AxQsControl) -> AxQsVerticalSliderStyle,
     onVerticalSliderStyleChanged: (AxQsControl, AxQsVerticalSliderStyle) -> Unit,
     controlPreview: @Composable (AxQsControl, AxQsSpan, AxQsVerticalSliderStyle) -> Unit,
     canAdd: Boolean,
     onAdd: (AxAddItem) -> Unit,
+    circleCells: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val clickLabel =
@@ -416,12 +437,7 @@ private fun AxAddItemCell(
             ?: AxQsVerticalSliderStyle.M3_EXPRESSIVE
     val previewShape =
         when (item) {
-            is AxAddItem.Tile ->
-                if (circleTile) {
-                    CircleShape
-                } else {
-                    RoundedCornerShape(CommonTileDefaults.InactiveCornerRadius)
-                }
+            is AxAddItem.Tile -> RoundedCornerShape(CommonTileDefaults.InactiveCornerRadius)
             is AxAddItem.Control ->
                 axQsControlShape(item.control, span, sliderStyle)
         }
@@ -461,7 +477,7 @@ private fun AxAddItemCell(
                             AxQsEditTile(
                                 tile = item.viewModel,
                                 span = AxQsSpan.TileDefault,
-                                circle = circleTile,
+                                circleCells = circleCells,
                                 modifier = Modifier.fillMaxSize(),
                             )
                         is AxAddItem.Control ->
@@ -537,7 +553,7 @@ private fun packAvailableItems(items: List<AxAddItem>, columns: Int): List<List<
 fun AxQsEditTile(
     tile: EditTileViewModel,
     span: AxQsSpan,
-    circle: Boolean,
+    circleCells: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val colors =
@@ -549,7 +565,7 @@ fun AxQsEditTile(
             icon = MaterialTheme.colorScheme.onSurface,
         )
     val shape =
-        if (circle && span == AxQsSpan.TileDefault) {
+        if (circleCells && span == AxQsSpan.TileDefault) {
             CircleShape
         } else {
             RoundedCornerShape(CommonTileDefaults.InactiveCornerRadius)
@@ -558,7 +574,7 @@ fun AxQsEditTile(
         modifier = modifier.clip(shape).background(colors.background),
         contentAlignment = Alignment.Center,
     ) {
-        val compactIconSize = axQsTileIconSize(minOf(maxWidth, maxHeight))
+        val compactIconSize = CommonTileDefaults.IconSize * LocalTileScale.current
         AnimatedContent(
             targetState = span.columns == 1,
             label = "AxQsEditTileLayout",

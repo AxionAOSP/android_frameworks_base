@@ -147,6 +147,7 @@ import com.android.systemui.qs.ax.ui.compose.AxQsPanelSettings
 import com.android.systemui.qs.ax.ui.compose.AxQuickSettingsHeader
 import com.android.systemui.qs.ax.ui.compose.axFromQuickQuickSettingsToQuickSettings
 import com.android.systemui.qs.ax.ui.compose.axQsEntrance
+import com.android.systemui.qs.ax.ui.compose.axQuickSettingsSceneMotion
 import com.android.systemui.qs.ax.ui.compose.shouldComposeLiveAxQs
 import com.android.systemui.qs.ax.ui.compose.toAxEditMode
 import com.android.systemui.qs.ax.ui.compose.toAxPanelSettings
@@ -281,17 +282,13 @@ constructor(
         val canScrollQs =
             object : CanScrollQs {
                 override fun forward(): Boolean {
-                    return (resources.configuration.orientation !=
-                        Configuration.ORIENTATION_LANDSCAPE &&
-                        scrollState.maxValue - scrollState.value > scrollEndSlop &&
+                    return (scrollState.maxValue - scrollState.value > scrollEndSlop &&
                         viewModel.isQsFullyExpanded) || isCustomizing
                 }
 
                 override fun backward(): Boolean {
-                    return (resources.configuration.orientation !=
-                        Configuration.ORIENTATION_LANDSCAPE &&
-                        scrollState.canScrollBackward &&
-                        viewModel.isQsFullyExpanded) || isCustomizing
+                    return (scrollState.canScrollBackward && viewModel.isQsFullyExpanded) ||
+                        isCustomizing
                 }
             }
 
@@ -483,7 +480,14 @@ constructor(
                 scene(QuickSettings, alwaysCompose = true) {
                     if (sceneState.shouldComposeLiveAxQs()) {
                         LaunchedEffect(Unit) { viewModel.onQSOpen() }
-                        Element(QuickSettings.rootElementKey, Modifier) { QuickSettingsElement() }
+                        Element(
+                            QuickSettings.rootElementKey,
+                            Modifier.axQuickSettingsSceneMotion {
+                                viewModel.expansionState.progress
+                            },
+                        ) {
+                            QuickSettingsElement()
+                        }
                     }
                 }
 
@@ -1139,6 +1143,7 @@ constructor(
             axQsViewModel = axQsViewModel,
             onOpenPanelSettings = onOpenPanelSettings,
             animateItemBounds = animateItemBounds,
+            splitShade = viewModel.isInSplitShade,
             controlPreview = { control, span, maxColumns, verticalSliderStyle ->
                 AxQsControlPreview(
                     control = control,
@@ -1517,7 +1522,7 @@ private class FrameLayoutTouchPassthrough(
         when (action) {
             MotionEvent.ACTION_DOWN -> {
                 preventingIntercept = false
-                if (canScrollQs.forward()) {
+                if (canScrollQs.forward() || canScrollQs.backward()) {
                     // If we can scroll down, make sure we're not intercepted by the parent
                     preventingIntercept = true
                     parent?.requestDisallowInterceptTouchEvent(true)

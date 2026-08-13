@@ -187,7 +187,7 @@ internal fun AxQsGridSettings(
     val colorScheme = MaterialTheme.colorScheme.copy(surfaceBright = Color.Transparent)
     MaterialTheme(colorScheme = colorScheme) {
         PreferenceGroup {
-            if (tileLayout == AxQsGridLayout.PORTRAIT_QS_TILES) {
+            if (tileLayout.supportsTileLabels) {
                 item {
                     SwitchPreference(
                         title = stringResource(R.string.ax_qs_show_tile_labels),

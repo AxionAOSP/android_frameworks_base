@@ -68,6 +68,10 @@ constructor(
         stringSetting(LANDSCAPE_CONTROL_ORDER).map(::parseOrder)
     val landscapeTileOrder: Flow<List<String>?> =
         stringSetting(LANDSCAPE_TILE_ORDER).map(::parseOrder)
+    val splitShadeControlOrder: Flow<List<String>?> =
+        stringSetting(SPLIT_SHADE_CONTROL_ORDER).map(::parseOrder)
+    val splitShadeTileOrder: Flow<List<String>?> =
+        stringSetting(SPLIT_SHADE_TILE_ORDER).map(::parseOrder)
     val qqsControlPositions: Flow<Map<String, AxQsGridPosition>> =
         stringSetting(QQS_CONTROL_POSITIONS).map(::parsePositions)
     val qsControlPositions: Flow<Map<String, AxQsGridPosition>> =
@@ -76,20 +80,23 @@ constructor(
         stringSetting(LANDSCAPE_CONTROL_POSITIONS).map(::parsePositions)
     val landscapeSpans: Flow<Map<String, AxQsSpan>> =
         stringSetting(LANDSCAPE_SPANS).map(::parseSpans)
+    val splitShadeControlPositions: Flow<Map<String, AxQsGridPosition>> =
+        stringSetting(SPLIT_SHADE_CONTROL_POSITIONS).map(::parsePositions)
+    val splitShadeSpans: Flow<Map<String, AxQsSpan>> =
+        stringSetting(SPLIT_SHADE_SPANS).map(::parseSpans)
     val panelMode: Flow<AxQsPanelMode> =
         intSetting(PANEL_MODE, AxQsPanelMode.TOGETHER.settingValue)
             .map(AxQsPanelMode::fromSetting)
     val quickPanelOnLeft: Flow<Boolean> = boolSetting(QUICK_PANEL_ON_LEFT, false)
     val verticalSliderStyles: Flow<Map<AxQsVerticalSliderKey, AxQsVerticalSliderStyle>> =
         verticalSliderStyleSettings()
-    val portraitQqsColumns: Flow<Int?> = optionalIntSetting(PORTRAIT_QQS_COLUMNS)
-    val portraitQsColumns: Flow<Int?> = optionalIntSetting(PORTRAIT_QS_COLUMNS)
-    val landscapeQqsColumns: Flow<Int?> = optionalIntSetting(LANDSCAPE_QQS_COLUMNS)
-    val landscapeQsColumns: Flow<Int?> = optionalIntSetting(LANDSCAPE_QS_COLUMNS)
     val gridColumns: Flow<Map<AxQsGridLayout, Int>> =
         gridSettings(AxQsGridLayout.entries, ::gridColumnsKey)
     val gridRows: Flow<Map<AxQsGridLayout, Int>> =
-        gridSettings(GRID_ROW_KEYS.keys) { layout -> GRID_ROW_KEYS.getValue(layout) }
+        gridSettings(
+            AxQsGridLayout.entries.filter { it.section == AxQsGridSection.TILES },
+            ::gridRowsKey,
+        )
     val tileLabels: Flow<Map<AxQsGridLayout, Boolean>> = tileLabelSettings()
 
     fun setOrder(order: List<String>, layout: AxQsLayout, section: AxQsGridSection) {
@@ -132,7 +139,7 @@ constructor(
     }
 
     fun setRows(layout: AxQsGridLayout, rows: Int) {
-        putInt(GRID_ROW_KEYS.getValue(layout), rows)
+        putInt(gridRowsKey(layout), rows)
     }
 
     fun setTileLabels(layout: AxQsGridLayout, showLabels: Boolean) {
@@ -165,10 +172,6 @@ constructor(
 
     private fun boolSetting(key: String, default: Boolean): Flow<Boolean> {
         return intSetting(key, default.toSetting()).map { it != 0 }
-    }
-
-    private fun optionalIntSetting(key: String): Flow<Int?> {
-        return intSetting(key, 0).map { it.takeIf { value -> value > 0 } }
     }
 
     private fun gridSettings(
@@ -318,7 +321,7 @@ constructor(
         return when (layout) {
             AxQsLayout.QQS -> QQS_SPANS
             AxQsLayout.QS -> QS_SPANS
-            AxQsLayout.LANDSCAPE -> LANDSCAPE_SPANS
+            AxQsLayout.SPLIT_SHADE -> SPLIT_SHADE_SPANS
         }
     }
 
@@ -326,7 +329,7 @@ constructor(
         return when (layout) {
             AxQsLayout.QQS -> QQS_CONTROL_POSITIONS
             AxQsLayout.QS -> QS_CONTROL_POSITIONS
-            AxQsLayout.LANDSCAPE -> LANDSCAPE_CONTROL_POSITIONS
+            AxQsLayout.SPLIT_SHADE -> SPLIT_SHADE_CONTROL_POSITIONS
         }
     }
 
@@ -335,7 +338,7 @@ constructor(
             when (slider.layout) {
                 AxQsLayout.QQS -> "ax_qqs"
                 AxQsLayout.QS -> "ax_qs"
-                AxQsLayout.LANDSCAPE -> "ax_qs_landscape"
+                AxQsLayout.SPLIT_SHADE -> "ax_qs_split_shade"
             }
         return when (slider.control) {
             AxQsControl.BRIGHTNESS -> "${prefix}_brightness_vertical_slider_style"
@@ -358,11 +361,11 @@ constructor(
                 } else {
                     QS_TILE_ORDER
                 }
-            AxQsLayout.LANDSCAPE ->
+            AxQsLayout.SPLIT_SHADE ->
                 if (section == AxQsGridSection.CONTROLS) {
-                    LANDSCAPE_CONTROL_ORDER
+                    SPLIT_SHADE_CONTROL_ORDER
                 } else {
-                    LANDSCAPE_TILE_ORDER
+                    SPLIT_SHADE_TILE_ORDER
                 }
         }
     }
@@ -373,10 +376,17 @@ constructor(
             AxQsGridLayout.PORTRAIT_QQS_TILES -> PORTRAIT_QQS_TILE_COLUMNS
             AxQsGridLayout.PORTRAIT_QS_CONTROLS -> PORTRAIT_QS_CONTROL_COLUMNS
             AxQsGridLayout.PORTRAIT_QS_TILES -> PORTRAIT_QS_TILE_COLUMNS
-            AxQsGridLayout.LANDSCAPE_QQS_CONTROLS -> LANDSCAPE_QQS_CONTROL_COLUMNS
-            AxQsGridLayout.LANDSCAPE_QQS_TILES -> LANDSCAPE_QQS_TILE_COLUMNS
-            AxQsGridLayout.LANDSCAPE_QS_CONTROLS -> LANDSCAPE_QS_CONTROL_COLUMNS
-            AxQsGridLayout.LANDSCAPE_QS_TILES -> LANDSCAPE_QS_TILE_COLUMNS
+            AxQsGridLayout.SPLIT_SHADE_CONTROLS -> SPLIT_SHADE_CONTROL_COLUMNS
+            AxQsGridLayout.SPLIT_SHADE_TILES -> SPLIT_SHADE_TILE_COLUMNS
+        }
+    }
+
+    private fun gridRowsKey(layout: AxQsGridLayout): String {
+        return when (layout) {
+            AxQsGridLayout.PORTRAIT_QQS_TILES -> PORTRAIT_QQS_TILE_ROWS
+            AxQsGridLayout.PORTRAIT_QS_TILES -> PORTRAIT_QS_TILE_ROWS
+            AxQsGridLayout.SPLIT_SHADE_TILES -> SPLIT_SHADE_TILE_ROWS
+            else -> error("Only tile grids have row settings")
         }
     }
 
@@ -393,33 +403,26 @@ constructor(
         const val QS_TILE_ORDER = "ax_qs_tile_order"
         const val LANDSCAPE_CONTROL_ORDER = "ax_qs_landscape_control_order"
         const val LANDSCAPE_TILE_ORDER = "ax_qs_landscape_tile_order"
+        const val SPLIT_SHADE_CONTROL_ORDER = "ax_qs_split_shade_control_order"
+        const val SPLIT_SHADE_TILE_ORDER = "ax_qs_split_shade_tile_order"
         const val QQS_CONTROL_POSITIONS = "ax_qqs_control_positions"
         const val QS_CONTROL_POSITIONS = "ax_qs_control_positions"
         const val LANDSCAPE_CONTROL_POSITIONS = "ax_qs_landscape_control_positions"
+        const val SPLIT_SHADE_CONTROL_POSITIONS = "ax_qs_split_shade_control_positions"
+        const val SPLIT_SHADE_SPANS = "ax_qs_split_shade_spans"
         const val PANEL_MODE = "ax_qs_panel_mode"
         const val QUICK_PANEL_ON_LEFT = "ax_qs_quick_panel_on_left"
-        const val PORTRAIT_QQS_COLUMNS = "ax_qqs_columns"
-        const val PORTRAIT_QS_COLUMNS = "ax_qs_columns"
-        const val LANDSCAPE_QQS_COLUMNS = "ax_qqs_landscape_columns"
-        const val LANDSCAPE_QS_COLUMNS = "ax_qs_landscape_columns"
         const val PORTRAIT_QQS_CONTROL_COLUMNS = "ax_qqs_control_columns"
         const val PORTRAIT_QQS_TILE_COLUMNS = "ax_qqs_tile_columns"
         const val PORTRAIT_QS_CONTROL_COLUMNS = "ax_qs_control_columns"
         const val PORTRAIT_QS_TILE_COLUMNS = "ax_qs_tile_columns"
-        const val LANDSCAPE_QQS_CONTROL_COLUMNS = "ax_qqs_landscape_control_columns"
-        const val LANDSCAPE_QQS_TILE_COLUMNS = "ax_qqs_landscape_tile_columns"
-        const val LANDSCAPE_QS_CONTROL_COLUMNS = "ax_qs_landscape_control_columns"
-        const val LANDSCAPE_QS_TILE_COLUMNS = "ax_qs_landscape_tile_columns"
+        const val SPLIT_SHADE_CONTROL_COLUMNS = "ax_qs_split_shade_control_columns"
+        const val SPLIT_SHADE_TILE_COLUMNS = "ax_qs_split_shade_tile_columns"
         const val PORTRAIT_QQS_TILE_ROWS = "ax_qqs_tile_rows"
         const val PORTRAIT_QS_TILE_ROWS = "ax_qs_tile_rows"
-        const val LANDSCAPE_QS_TILE_ROWS = "ax_qs_landscape_tile_rows"
+        const val SPLIT_SHADE_TILE_ROWS = "ax_qs_split_shade_tile_rows"
         const val PORTRAIT_QS_TILE_LABELS = "ax_qs_show_tile_labels"
-        val GRID_ROW_KEYS =
-            mapOf(
-                AxQsGridLayout.PORTRAIT_QQS_TILES to PORTRAIT_QQS_TILE_ROWS,
-                AxQsGridLayout.PORTRAIT_QS_TILES to PORTRAIT_QS_TILE_ROWS,
-                AxQsGridLayout.LANDSCAPE_QS_TILES to LANDSCAPE_QS_TILE_ROWS,
-            )
+        const val SPLIT_SHADE_TILE_LABELS = "ax_qs_split_shade_show_tile_labels"
         val VERTICAL_SLIDER_KEYS =
             AxQsLayout.entries.flatMap { layout ->
                 listOf(AxQsControl.BRIGHTNESS, AxQsControl.VOLUME).map { control ->
@@ -427,7 +430,10 @@ constructor(
                 }
             }
         val TILE_LABEL_KEYS =
-            mapOf(AxQsGridLayout.PORTRAIT_QS_TILES to PORTRAIT_QS_TILE_LABELS)
+            mapOf(
+                AxQsGridLayout.PORTRAIT_QS_TILES to PORTRAIT_QS_TILE_LABELS,
+                AxQsGridLayout.SPLIT_SHADE_TILES to SPLIT_SHADE_TILE_LABELS,
+            )
         const val LEGACY_BRIGHTNESS_VERTICAL_ID = "control:brightness_vertical"
         const val LEGACY_VOLUME_VERTICAL_ID = "control:volume_vertical"
         const val LEGACY_RINGER_TILE_ID = "sound"

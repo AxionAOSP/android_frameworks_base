@@ -37,7 +37,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -83,6 +82,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.systemui.qs.ax.shared.model.AxQsControl
+import com.android.systemui.qs.ax.shared.model.AxQsControlSpans
 import com.android.systemui.qs.ax.shared.model.AxQsGridLayout
 import com.android.systemui.qs.ax.shared.model.AxQsGridPosition
 import com.android.systemui.qs.ax.shared.model.AxQsGridSection
@@ -97,12 +97,21 @@ import com.android.systemui.qs.panels.ui.compose.infinitegrid.LocalTileScale
 import com.android.systemui.qs.panels.ui.compose.selection.TileState
 import com.android.systemui.qs.panels.ui.viewmodel.EditModeViewModel
 import com.android.systemui.qs.panels.ui.viewmodel.EditTileViewModel
+import com.android.systemui.qs.ui.composable.QuickSettingsShade
 import com.android.systemui.res.R
 
 private sealed interface AxEditGridValue {
-    data class Tile(val viewModel: EditTileViewModel) : AxEditGridValue
+    val section: AxQsGridSection
 
-    data class Control(val control: AxQsControl) : AxEditGridValue
+    data class Tile(
+        val viewModel: EditTileViewModel,
+        override val section: AxQsGridSection,
+    ) : AxEditGridValue
+
+    data class Control(
+        val control: AxQsControl,
+        override val section: AxQsGridSection,
+    ) : AxEditGridValue
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -114,6 +123,7 @@ fun AxQsEditUi(
         @Composable (AxQsControl, AxQsSpan, Int, AxQsVerticalSliderStyle) -> Unit,
     onOpenPanelSettings: () -> Unit,
     animateItemBounds: Boolean,
+    splitShade: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val allTiles by editModeViewModel.tiles.collectAsStateWithLifecycle(initialValue = null)
@@ -121,7 +131,8 @@ fun AxQsEditUi(
     val scrollState = rememberScrollState()
     var viewportBounds by remember { mutableStateOf(Rect.Zero) }
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val showQqsEditor = !landscape && axQsViewModel.panelMode == AxQsPanelMode.TOGETHER
+    val showQqsEditor =
+        !landscape && !splitShade && axQsViewModel.panelMode == AxQsPanelMode.TOGETHER
 
                 var showResetDialog by remember { mutableStateOf(false) }
 
@@ -148,17 +159,10 @@ fun AxQsEditUi(
     }
 
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val sidePadding =
-            maxWidth *
-                if (landscape) {
-                    AxQuickSettingsLayoutDefaults.LANDSCAPE_SIDE_PADDING_FRACTION
-                } else {
-                    AxQuickSettingsLayoutDefaults.PORTRAIT_SIDE_PADDING_FRACTION
-                }
         Column(
             modifier =
                 Modifier.fillMaxSize()
-                    .padding(horizontal = sidePadding)
+                    .padding(horizontal = QuickSettingsShade.Dimensions.Padding)
                     .onGloballyPositioned { viewportBounds = it.boundsInRoot() }
                     .verticalScroll(scrollState),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -179,17 +183,19 @@ fun AxQsEditUi(
                             Text(stringResource(R.string.ax_qs_panel_settings))
                         }
                     }
-                    FilledTonalButton(
-                        onClick = { showResetDialog = true },
-                        shapes = ButtonDefaults.shapes(),
-                    ) {
-                        Text(stringResource(com.android.internal.R.string.reset))
-                    }
-                    Button(
-                        onClick = editModeViewModel::stopEditing,
-                        shapes = ButtonDefaults.shapes(),
-                    ) {
-                        Text(stringResource(R.string.quick_settings_done))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilledTonalButton(
+                            onClick = { showResetDialog = true },
+                            shapes = ButtonDefaults.shapes(),
+                        ) {
+                            Text(stringResource(com.android.internal.R.string.reset))
+                        }
+                        Button(
+                            onClick = editModeViewModel::stopEditing,
+                            shapes = ButtonDefaults.shapes(),
+                        ) {
+                            Text(stringResource(R.string.quick_settings_done))
+                        }
                     }
                 }
 
@@ -225,7 +231,7 @@ fun AxQsEditUi(
 
             val layout =
                 when {
-                    landscape -> AxQsLayout.LANDSCAPE
+                    splitShade -> AxQsLayout.SPLIT_SHADE
                     editQqs -> AxQsLayout.QQS
                     else -> AxQsLayout.QS
                 }
@@ -290,22 +296,18 @@ private fun AxEditableGrid(
 ) {
     val currentTiles = allTiles.filter(EditTileViewModel::isCurrent)
     val qqs = layout == AxQsLayout.QQS
-    val landscape = layout == AxQsLayout.LANDSCAPE
-    val controlGridLayout = AxQsGridLayout.from(qqs, landscape, AxQsGridSection.CONTROLS)
-    val tileGridLayout = AxQsGridLayout.from(qqs, landscape, AxQsGridSection.TILES)
+    val splitShade = layout == AxQsLayout.SPLIT_SHADE
+    val boundedRows = qqs || splitShade
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val controlGridLayout = AxQsGridLayout.from(layout, AxQsGridSection.CONTROLS)
+    val tileGridLayout = AxQsGridLayout.from(layout, AxQsGridSection.TILES)
     val controlColumns = axQsViewModel.columns(controlGridLayout)
-    val controlRows = axQsViewModel.defaultRows(controlGridLayout)
     val tileColumns = axQsViewModel.columns(tileGridLayout)
-    val tileRows = axQsViewModel.rows(tileGridLayout)
-    val defaultControlColumns = axQsViewModel.defaultColumns(controlGridLayout)
-    val defaultTileColumns = axQsViewModel.defaultColumns(tileGridLayout)
-    val pickerControlColumns = if (landscape) LANDSCAPE_PICKER_COLUMNS else defaultControlColumns
-    val pickerTileColumns = if (landscape) LANDSCAPE_PICKER_COLUMNS else defaultTileColumns
+    val pickerControlColumns = controlColumns
+    val pickerTileColumns = tileColumns
     val verticalSliderStyle: (AxQsControl) -> AxQsVerticalSliderStyle = { control ->
         axQsViewModel.verticalSliderStyle(layout, control)
     }
-    val allowCircleCells =
-        controlColumns >= defaultControlColumns && (landscape || tileColumns >= defaultTileColumns)
     val savedControlOrder = axQsViewModel.order(layout, AxQsGridSection.CONTROLS)
     val savedTileOrder = axQsViewModel.order(layout, AxQsGridSection.TILES)
     val savedSpans = axQsViewModel.spans(layout)
@@ -315,9 +317,7 @@ private fun AxEditableGrid(
             currentTiles,
             layout,
             controlColumns,
-            controlRows,
             tileColumns,
-            tileRows,
             savedControlOrder,
             savedTileOrder,
             savedSpans,
@@ -327,9 +327,7 @@ private fun AxEditableGrid(
                 currentTiles = currentTiles,
                 layout = layout,
                 controlColumns = controlColumns,
-                controlRows = controlRows,
                 tileColumns = tileColumns,
-                tileRows = tileRows,
                 controlPositions = savedControlPositions,
                 viewModel = axQsViewModel,
             )
@@ -350,6 +348,13 @@ private fun AxEditableGrid(
             listState.items.filter { it.section == AxQsGridSection.CONTROLS }.map { it.id }
         val tileOrder = listState.items.filter { it.section == AxQsGridSection.TILES }.map { it.id }
         val controlIds = controlOrder.toSet()
+        listState.items
+            .filter { it.section == AxQsGridSection.CONTROLS }
+            .forEach { item ->
+                if (savedSpans[item.id] != item.span && pendingSpans[item.id] != item.span) {
+                    saveSpan(item.id, item.span)
+                }
+            }
         pendingControlOrder = controlOrder
         pendingTileOrder = tileOrder
         axQsViewModel.setOrder(controlOrder, layout, AxQsGridSection.CONTROLS)
@@ -388,85 +393,85 @@ private fun AxEditableGrid(
     val scale = LocalTileScale.current
     val rowHeight = CommonTileDefaults.TileHeight * scale
     val spacing = CommonTileDefaults.TileSpacing * scale
+    val fitsLayout: (List<AxQsGridItem<AxEditGridValue>>) -> Boolean = { items ->
+        val controls = items.filter { it.section == AxQsGridSection.CONTROLS }
+        val tileCount = items.count { it.section == AxQsGridSection.TILES }
+        if (boundedRows) {
+            canFitAxQsSharedGrid(controls, controlColumns, tileCount, tileColumns)
+        } else {
+            canFitAxQsGridItems(controls, controlColumns, AX_QS_CONTROL_MAX_ROWS)
+        }
+    }
+    val fitsAfterControlRepack: (List<AxQsGridItem<AxEditGridValue>>) -> Boolean = { items ->
+        fitsLayout(items) ||
+            fitsLayout(
+                items.map {
+                    if (it.section == AxQsGridSection.CONTROLS) {
+                        it.copy(position = null)
+                    } else {
+                        it
+                    }
+                }
+            )
+    }
     val transformSection:
         (AxQsGridItem<AxEditGridValue>, AxQsGridSection) -> AxQsGridItem<AxEditGridValue>? =
         { item, section ->
-            when (item.value) {
-                is AxEditGridValue.Control -> item.takeIf { section == AxQsGridSection.CONTROLS }
-                is AxEditGridValue.Tile -> {
-                    val minSpan =
-                        if (section == AxQsGridSection.CONTROLS) {
-                            AxQsSpan.ControlTileMin
-                        } else {
-                            AxQsSpan.TileDefault
-                        }
-                    val maxSpan =
-                        if (section == AxQsGridSection.CONTROLS) {
-                            AxQsSpan.controlTileMax(controlColumns)
-                        } else {
-                            AxQsSpan.TileDefault
-                        }
-                    val span =
-                        if (section == AxQsGridSection.CONTROLS) {
-                            (item.span.takeIf { item.section == AxQsGridSection.CONTROLS }
-                                    ?: savedSpans[item.id]
-                                    ?: AxQsSpan.TileWideDefault)
-                                .coerceForControlTile(controlColumns)
-                        } else {
-                            AxQsSpan.TileDefault
-                        }
-                    val moved =
-                        item.copy(
-                            span = span,
-                            minSpan = minSpan,
-                            maxSpan = maxSpan,
-                            position = null,
-                        )
-                    val controls =
-                        listState.items.filter {
-                            it.id != item.id && it.section == AxQsGridSection.CONTROLS
-                        }
-                    val tiles =
-                        listState.items.filter {
-                            it.id != item.id && it.section == AxQsGridSection.TILES
-                        }
-                    moved.takeIf {
-                        when (section) {
-                            AxQsGridSection.CONTROLS ->
-                                canFitAxQsGridItems(controls + moved, controlColumns, controlRows)
-                            AxQsGridSection.TILES -> !qqs || tiles.size < tileColumns * tileRows
-                        }
-                    }
+            val value = item.value
+            val allowed =
+                when (value) {
+                    is AxEditGridValue.Tile -> true
+                    is AxEditGridValue.Control ->
+                        section == AxQsGridSection.CONTROLS || value.control.canUseTileGrid
                 }
+            if (!allowed) {
+                null
+            } else {
+                val spans =
+                    when {
+                        section == AxQsGridSection.TILES ->
+                            TileGridSpans
+                        value is AxEditGridValue.Control -> value.control.spans(controlColumns)
+                        else ->
+                            AxQsControlSpans(
+                                item.span.coerceForControlTile(controlColumns),
+                                AxQsSpan.ControlTileMin,
+                                AxQsSpan.controlTileMax(controlColumns),
+                            )
+                    }
+                val moved =
+                    item.copy(
+                        span =
+                            if (section == AxQsGridSection.TILES) {
+                                AxQsSpan.TileDefault
+                            } else if (value is AxEditGridValue.Control) {
+                                value.control.coerceSpan(item.span, controlColumns)
+                            } else {
+                                item.span.coerceForControlTile(controlColumns)
+                            },
+                        minSpan = spans.min,
+                        maxSpan = spans.max,
+                        value = value.inSection(section),
+                        position = null,
+                    )
+                val candidates = listState.items.filter { it.id != item.id } + moved
+                moved.takeIf { fitsAfterControlRepack(candidates) }
             }
         }
 
     AxQsDragAutoScroll(listState, scrollState, viewportBounds)
-    BoxWithConstraints(modifier.fillMaxWidth()) {
-        val gridWidth =
-            if (landscape) {
-                (maxWidth - AxQuickSettingsLayoutDefaults.LandscapeGridSpacing) / 2
-            } else {
-                maxWidth
-            }
-        val circleCells =
-            useAxQsCircleCells(
-                gridWidth = gridWidth,
-                tileColumns = tileColumns,
-                spacing = spacing,
-                allowCircles = allowCircleCells,
-            )
-        val pickerCircleCells =
-            useAxQsCircleCells(
-                gridWidth = (maxWidth - 32.dp).coerceAtLeast(0.dp),
-                tileColumns = pickerTileColumns,
-                spacing = spacing,
-                allowCircles = allowCircleCells,
-            )
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+            val controlCapacityRows =
+                if (
+                    boundedRows && listState.items.any { it.section == AxQsGridSection.TILES }
+                ) {
+                    AX_QS_CONTROL_MAX_ROWS - 1
+                } else {
+                    AX_QS_CONTROL_MAX_ROWS
+                }
             val controlSection: @Composable () -> Unit = {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(
@@ -479,10 +484,9 @@ private fun AxEditableGrid(
                         section = AxQsGridSection.CONTROLS,
                         listState = listState,
                         columns = controlColumns,
-                        maxRows = controlRows,
+                        maxRows = controlCapacityRows,
                         rowHeight = rowHeight,
                         spacing = spacing,
-                        circleCells = circleCells,
                         animateItemBounds = animateItemBounds,
                         selectedId = selectedId,
                         onSelected = { selectedId = it },
@@ -507,10 +511,9 @@ private fun AxEditableGrid(
                         section = AxQsGridSection.TILES,
                         listState = listState,
                         columns = tileColumns,
-                        maxRows = tileRows.takeIf { qqs },
+                        maxRows = null,
                         rowHeight = rowHeight,
                         spacing = spacing,
-                        circleCells = circleCells,
                         animateItemBounds = animateItemBounds,
                         selectedId = selectedId,
                         onSelected = { selectedId = it },
@@ -523,7 +526,7 @@ private fun AxEditableGrid(
                     )
                 }
             }
-            if (landscape) {
+            if (landscape && !splitShade) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement =
@@ -541,33 +544,19 @@ private fun AxEditableGrid(
                 if (listState.items.any { it.id == addItem.id }) {
                     null
                 } else {
-                    when (addItem) {
-                        is AxAddItem.Tile ->
-                            addItem.toEditGridItem(tileColumns).takeIf {
-                                !qqs ||
-                                    listState.items.count { it.section == AxQsGridSection.TILES } <
-                                        tileColumns * tileRows
-                            }
-                        is AxAddItem.Control -> {
-                            val item = addItem.toEditGridItem(controlColumns)
-                            val controls =
-                                listState.items.filter {
-                                    it.section == AxQsGridSection.CONTROLS
-                                }
-                            item.takeIf { candidate ->
-                                canFitAxQsGridItems(
-                                    controls + candidate,
-                                    controlColumns,
-                                    controlRows,
-                                ) ||
-                                    canFitAxQsGridItems(
-                                        controls.map { it.copy(position = null) } + candidate,
-                                        controlColumns,
-                                        controlRows,
-                                    )
-                            }
+                    val section =
+                        if (
+                            addItem is AxAddItem.Control && !addItem.control.canUseTileGrid
+                        ) {
+                            AxQsGridSection.CONTROLS
+                        } else {
+                            AxQsGridSection.TILES
                         }
-                    }
+                    val columns =
+                        if (section == AxQsGridSection.CONTROLS) controlColumns else tileColumns
+                    addItem
+                        .toEditGridItem(columns, section)
+                        .takeIf { fitsAfterControlRepack(listState.items + it) }
                 }
             }
             val canAddItem: (AxAddItem) -> Boolean = { addGridItem(it) != null }
@@ -576,7 +565,6 @@ private fun AxEditableGrid(
                 currentIds = listState.items.mapTo(mutableSetOf()) { it.id },
                 controlColumns = pickerControlColumns,
                 tileColumns = pickerTileColumns,
-                circleCells = pickerCircleCells,
                 verticalSliderStyle = verticalSliderStyle,
                 onVerticalSliderStyleChanged = { control, style ->
                     axQsViewModel.setVerticalSliderStyle(layout, control, style)
@@ -591,7 +579,7 @@ private fun AxEditableGrid(
                     if (addItem is AxAddItem.Tile && !addItem.viewModel.isCurrent) {
                         editModeViewModel.addTile(addItem.viewModel.tileSpec)
                     }
-                    if (addItem is AxAddItem.Control) {
+                    if (item.section == AxQsGridSection.CONTROLS) {
                         val controls =
                             listState.items.filter {
                                 it.section == AxQsGridSection.CONTROLS
@@ -600,14 +588,23 @@ private fun AxEditableGrid(
                             !canFitAxQsGridItems(
                                 controls + item,
                                 controlColumns,
-                                controlRows,
+                                if (
+                                    boundedRows &&
+                                        listState.items.any {
+                                            it.section == AxQsGridSection.TILES
+                                        }
+                                ) {
+                                    AX_QS_CONTROL_MAX_ROWS - 1
+                                } else {
+                                    AX_QS_CONTROL_MAX_ROWS
+                                },
                             )
                         ) {
                             listState.repack(controls.mapTo(mutableSetOf()) { it.id })
                         }
                     }
                     listState.add(item)
-                    if (addItem is AxAddItem.Control) {
+                    if (item.section == AxQsGridSection.CONTROLS) {
                         saveSpan(addItem.id, item.span)
                     }
                     saveOrders()
@@ -621,7 +618,6 @@ private fun AxEditableGrid(
                 },
             )
         }
-    }
 }
 
 @Composable
@@ -632,7 +628,6 @@ private fun AxEditableGridSection(
     maxRows: Int?,
     rowHeight: Dp,
     spacing: Dp,
-    circleCells: Boolean,
     animateItemBounds: Boolean,
     selectedId: String?,
     onSelected: (String?) -> Unit,
@@ -650,7 +645,15 @@ private fun AxEditableGridSection(
         val gridPadding = if (section == AxQsGridSection.CONTROLS) EditGridPadding else 0.dp
         val availableWidth = (maxWidth - gridPadding * 2).coerceAtLeast(0.dp)
         val cellWidth = axQsGridCellWidth(availableWidth, columns, spacing)
-        val measuredRowHeight = if (circleCells) cellWidth else rowHeight
+        val measuredRowHeight = rowHeight
+        val circleCells =
+            section == AxQsGridSection.TILES &&
+                useAxQsCircleCells(
+                    gridWidth = availableWidth,
+                    tileColumns = columns,
+                    spacing = spacing,
+                    allowCircles = true,
+                )
         val contentRows = axQsGridRowCount(items, columns, maxRows)
         val visibleRows =
             if (
@@ -696,8 +699,8 @@ private fun AxEditableGridSection(
                 rowHeight = rowHeight,
                 spacing = spacing,
                 maxRows = maxRows,
-                squareCells = circleCells,
                 minimumRows = visibleRows,
+                squareCells = circleCells,
                 animateItemBounds = animateItemBounds,
                 staticItemId = listState.draggedId,
                 onItemBounds = { id, bounds -> listState.updateItemBounds(id, section, bounds) },
@@ -771,11 +774,7 @@ private fun AxEditableGridSection(
                 val selectionShape =
                     when (value) {
                         is AxEditGridValue.Tile ->
-                            if (section == AxQsGridSection.TILES && circleCells) {
-                                CircleShape
-                            } else {
-                                RoundedCornerShape(CommonTileDefaults.InactiveCornerRadius)
-                            }
+                            RoundedCornerShape(CommonTileDefaults.InactiveCornerRadius)
                         is AxEditGridValue.Control ->
                             axQsControlShape(value.control, item.span, controlStyle)
                     }
@@ -951,9 +950,7 @@ private fun AxEditableGridSection(
                                         AxQsEditTile(
                                             tile = value.viewModel,
                                             span = item.span,
-                                            circle =
-                                                section == AxQsGridSection.TILES &&
-                                                    circleCells,
+                                            circleCells = circleCells,
                                             modifier = Modifier.fillMaxSize(),
                                         )
                                     is AxEditGridValue.Control ->
@@ -974,35 +971,48 @@ private fun AxEditableGridSection(
 }
 
 private val AxQsGridItem<AxEditGridValue>.section: AxQsGridSection
-    get() =
-        when (value) {
-            is AxEditGridValue.Control -> AxQsGridSection.CONTROLS
-            is AxEditGridValue.Tile ->
-                if (span == AxQsSpan.TileDefault) {
-                    AxQsGridSection.TILES
-                } else {
-                    AxQsGridSection.CONTROLS
-                }
-        }
+    get() = value.section
 
-private fun AxAddItem.toEditGridItem(columns: Int): AxQsGridItem<AxEditGridValue> {
+private fun AxEditGridValue.inSection(section: AxQsGridSection): AxEditGridValue {
     return when (this) {
-        is AxAddItem.Tile ->
+        is AxEditGridValue.Tile -> copy(section = section)
+        is AxEditGridValue.Control -> copy(section = section)
+    }
+}
+
+private fun AxAddItem.toEditGridItem(
+    columns: Int,
+    section: AxQsGridSection,
+): AxQsGridItem<AxEditGridValue> {
+    return when (this) {
+        is AxAddItem.Tile -> {
+            val controlGrid = section == AxQsGridSection.CONTROLS
             AxQsGridItem(
                 id = id,
                 span = AxQsSpan.TileDefault,
-                minSpan = AxQsSpan.TileDefault,
-                maxSpan = AxQsSpan.TileDefault,
-                value = AxEditGridValue.Tile(viewModel),
+                minSpan = if (controlGrid) AxQsSpan.ControlTileMin else AxQsSpan.TileDefault,
+                maxSpan =
+                    if (controlGrid) {
+                        AxQsSpan.controlTileMax(columns)
+                    } else {
+                        AxQsSpan.TileDefault
+                    },
+                value = AxEditGridValue.Tile(viewModel, section),
             )
+        }
         is AxAddItem.Control -> {
-            val spans = control.spans(columns)
+            val spans =
+                if (section == AxQsGridSection.TILES) {
+                    TileGridSpans
+                } else {
+                    control.spans(columns)
+                }
             AxQsGridItem(
                 id = id,
                 span = spans.default,
                 minSpan = spans.min,
                 maxSpan = spans.max,
-                value = AxEditGridValue.Control(control),
+                value = AxEditGridValue.Control(control, section),
             )
         }
     }
@@ -1012,15 +1022,17 @@ private fun buildEditItems(
     currentTiles: List<EditTileViewModel>,
     layout: AxQsLayout,
     controlColumns: Int,
-    controlRows: Int,
     tileColumns: Int,
-    tileRows: Int,
     controlPositions: Map<String, AxQsGridPosition>,
     viewModel: AxQsViewModel,
 ): List<AxQsGridItem<AxEditGridValue>> {
     val values = LinkedHashMap<String, AxEditGridValue>()
-    currentTiles.forEach { values[it.tileSpec.spec] = AxEditGridValue.Tile(it) }
-    AxQsControl.entries.forEach { control -> values[control.id] = AxEditGridValue.Control(control) }
+    currentTiles.forEach {
+        values[it.tileSpec.spec] = AxEditGridValue.Tile(it, AxQsGridSection.TILES)
+    }
+    AxQsControl.entries.forEach { control ->
+        values[control.id] = AxEditGridValue.Control(control, AxQsGridSection.CONTROLS)
+    }
     val controlIds =
         viewModel.orderedIds(
             layout = layout,
@@ -1032,9 +1044,11 @@ private fun buildEditItems(
         viewModel.orderedIds(
             layout = layout,
             section = AxQsGridSection.TILES,
-            availableIds = currentTiles.map { it.tileSpec.spec },
+            availableIds =
+                currentTiles.map { it.tileSpec.spec } +
+                    AxQsControl.entries.filter { it.canUseTileGrid }.map(AxQsControl::id),
             defaultIds = currentTiles.map { it.tileSpec.spec },
-        )
+        ).filterNot(controlIds.toSet()::contains)
     val controlItems: List<AxQsGridItem<AxEditGridValue>> =
         controlIds.map { id ->
             when (val value = values.getValue(id)) {
@@ -1043,11 +1057,11 @@ private fun buildEditItems(
                         id = id,
                         span =
                             viewModel
-                                .span(id, layout, AxQsSpan.TileWideDefault)
+                                .span(id, layout, AxQsSpan.TileDefault)
                                 .coerceForControlTile(controlColumns),
                         minSpan = AxQsSpan.ControlTileMin,
                         maxSpan = AxQsSpan.controlTileMax(controlColumns),
-                        value = value,
+                        value = value.inSection(AxQsGridSection.CONTROLS),
                         position = controlPositions[id],
                     )
                 is AxEditGridValue.Control -> {
@@ -1060,32 +1074,35 @@ private fun buildEditItems(
                             },
                         minSpan = spans.min,
                         maxSpan = spans.max,
-                        value = value,
+                        value = value.inSection(AxQsGridSection.CONTROLS),
                         position = controlPositions[id],
                     )
                 }
             }
         }
     val tileItems: List<AxQsGridItem<AxEditGridValue>> =
-        tileIds.mapNotNull { id ->
-            (values[id] as? AxEditGridValue.Tile)?.let { value ->
-                AxQsGridItem<AxEditGridValue>(
-                    id = id,
-                    span = AxQsSpan.TileDefault,
-                    minSpan = AxQsSpan.TileDefault,
-                    maxSpan = AxQsSpan.TileDefault,
-                    value = value,
-                )
-            }
+        tileIds.map { id ->
+            AxQsGridItem<AxEditGridValue>(
+                id = id,
+                span = AxQsSpan.TileDefault,
+                minSpan = AxQsSpan.TileDefault,
+                maxSpan = AxQsSpan.TileDefault,
+                value = values.getValue(id).inSection(AxQsGridSection.TILES),
+            )
+        }
+    val rows =
+        if (layout == AxQsLayout.QS) {
+            AX_QS_CONTROL_MAX_ROWS
+        } else {
+            axQsSharedGridRows(controlItems, controlColumns, tileItems.size, tileColumns).controls
         }
     val fittedControls =
-        fitAxQsGridItems<AxEditGridValue>(controlItems, controlColumns, controlRows)
-    val fittedTiles =
-        if (layout == AxQsLayout.QQS) tileItems.take(tileColumns * tileRows) else tileItems
-    return fittedControls + fittedTiles
+        fitAxQsGridItems<AxEditGridValue>(controlItems, controlColumns, rows)
+    return fittedControls + tileItems
 }
 
-private const val LANDSCAPE_PICKER_COLUMNS = 8
 private val SliderSelectionGap = 4.dp
 private val EditGridCornerRadius = 28.dp
 private val EditGridPadding = 10.dp
+private val TileGridSpans =
+    AxQsControlSpans(AxQsSpan.TileDefault, AxQsSpan.TileDefault, AxQsSpan.TileDefault)

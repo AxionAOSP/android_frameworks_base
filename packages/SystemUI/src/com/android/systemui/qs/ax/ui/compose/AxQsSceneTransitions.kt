@@ -18,7 +18,7 @@ package com.android.systemui.qs.ax.ui.compose
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.graphicsLayer
 import com.android.compose.animation.scene.ContentKey
 import com.android.compose.animation.scene.SceneTransitionLayoutState
 import com.android.compose.animation.scene.TransitionBuilder
@@ -29,13 +29,8 @@ import com.android.systemui.qs.shared.ui.QuickSettings.Elements
 import com.android.systemui.shade.ui.composable.ShadeHeader
 
 fun TransitionBuilder.axFromQuickQuickSettingsToQuickSettings() {
-    fractionRange(end = 0.5f) {
+    fractionRange(end = AX_QS_SCENE_FADE_START) {
         fade(SceneKeys.QuickQuickSettings.rootElementKey)
-        translate(SceneKeys.QuickQuickSettings.rootElementKey, y = 48.dp)
-    }
-    fractionRange(start = 0.43f) {
-        fade(SceneKeys.QuickSettings.rootElementKey)
-        translate(SceneKeys.QuickSettings.rootElementKey, y = (-48).dp)
     }
     disableAxQsSharedElements()
     sharedElement(ShadeHeader.Elements.Clock, enabled = false)
@@ -86,8 +81,26 @@ internal fun Modifier.axQsEntrance(progress: () -> Float): Modifier {
     )
 }
 
+internal fun Modifier.axQuickSettingsSceneMotion(progress: () -> Float): Modifier {
+    return graphicsLayer {
+        val expansion = progress().coerceIn(0f, 1f)
+        alpha =
+            ((expansion - AX_QS_SCENE_FADE_START) / (1f - AX_QS_SCENE_FADE_START))
+                .coerceIn(0f, 1f)
+        translationY =
+            if (expansion == 0f) {
+                AX_QS_SCENE_HIDDEN_TRANSLATION_PX
+            } else {
+                -(1f - expansion) * AX_QS_SCENE_TRANSLATION_PX
+            }
+    }
+}
+
 private fun ContentKey.isAxQsScene(): Boolean {
     return this == SceneKeys.QuickSettings || this == SceneKeys.QuickQuickSettings
 }
 
 private const val AX_QS_ENTRANCE_ALPHA_START = 0.89f
+private const val AX_QS_SCENE_FADE_START = 0.5f
+private const val AX_QS_SCENE_TRANSLATION_PX = 300f
+private const val AX_QS_SCENE_HIDDEN_TRANSLATION_PX = -5000f

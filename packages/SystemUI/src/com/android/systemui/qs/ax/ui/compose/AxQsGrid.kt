@@ -245,6 +245,49 @@ internal fun <T> axQsGridRowCount(
     maxRows: Int?,
 ): Int = packItems(items, columns, maxRows).maxOfOrNull { it.row + it.item.span.rows } ?: 0
 
+internal data class AxQsGridRows(val controls: Int, val tiles: Int)
+
+internal fun <T> axQsSharedGridRows(
+    controlItems: List<AxQsGridItem<T>>,
+    controlColumns: Int,
+    tileItemCount: Int,
+    tileColumns: Int,
+    maxTileRows: Int = AX_QS_TILE_MAX_ROWS,
+): AxQsGridRows {
+    val controlLimit =
+        if (tileItemCount == 0) AX_QS_SHARED_MAX_ROWS else AX_QS_SHARED_MAX_ROWS - 1
+    val controlRows =
+        axQsGridRowCount(controlItems, controlColumns, null).coerceAtMost(controlLimit)
+    val tileRows =
+        if (tileItemCount == 0) {
+            0
+        } else {
+            axQsVisibleTileRows(tileItemCount, tileColumns, maxTileRows)
+                .coerceAtMost(AX_QS_SHARED_MAX_ROWS - controlRows)
+        }
+    return AxQsGridRows(controls = controlRows, tiles = tileRows)
+}
+
+internal fun <T> canFitAxQsSharedGrid(
+    controlItems: List<AxQsGridItem<T>>,
+    controlColumns: Int,
+    tileItemCount: Int,
+    tileColumns: Int,
+): Boolean {
+    val rows = axQsSharedGridRows(controlItems, controlColumns, tileItemCount, tileColumns)
+    return canFitAxQsGridItems(controlItems, controlColumns, rows.controls) &&
+        (tileItemCount == 0 || rows.tiles > 0)
+}
+
+internal fun axQsVisibleTileRows(
+    itemCount: Int,
+    columns: Int,
+    maxRows: Int = AX_QS_TILE_MAX_ROWS,
+): Int {
+    if (itemCount == 0) return 0
+    return ((itemCount + columns - 1) / columns).coerceAtMost(maxRows.coerceAtLeast(1))
+}
+
 @Composable
 internal fun <T> AxQsTileGrid(
     items: List<AxQsGridItem<T>>,
@@ -290,7 +333,6 @@ internal fun <T> AxQsTileGrid(
                 columns = columns,
                 rowHeight = itemHeight,
                 spacing = spacing,
-                squareCells = false,
                 modifier = Modifier.fillMaxSize(),
             ) { item ->
                 Column(
@@ -318,8 +360,11 @@ internal fun <T> AxQsTileGrid(
 }
 
 internal fun axQsTileGridPageCount(itemCount: Int, columns: Int, rows: Int): Int {
+    if (itemCount == 0 || rows == 0) return 1
     return ((itemCount + columns * rows - 1) / (columns * rows)).coerceAtLeast(1)
 }
+
+private val AX_TILE_LABEL_HEIGHT = 24.dp
 
 internal fun useAxQsCircleCells(
     gridWidth: Dp,
@@ -333,5 +378,8 @@ internal fun useAxQsCircleCells(
 internal fun axQsTileIconSize(tileSize: Dp): Dp =
     CommonTileDefaults.IconSize * (tileSize / CommonTileDefaults.TileHeight).coerceAtLeast(1f)
 
-private val AX_TILE_LABEL_HEIGHT = 24.dp
+internal const val AX_QS_CONTROL_MAX_ROWS = 6
+internal const val AX_QS_TILE_MAX_ROWS = 3
+private const val AX_QS_SHARED_MAX_ROWS = 6
+
 private val AX_TILE_MAX_SIZE = 85.dp

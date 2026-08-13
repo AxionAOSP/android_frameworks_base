@@ -17,7 +17,6 @@
 package com.android.systemui.qs.ax.shared.model
 
 import androidx.compose.runtime.Immutable
-import kotlin.math.roundToInt
 
 @Immutable
 data class AxQsSpan(val columns: Int, val rows: Int) {
@@ -47,7 +46,7 @@ data class AxQsSpan(val columns: Int, val rows: Int) {
 
         val TileDefault = AxQsSpan(1, 1)
         val TileWideDefault = AxQsSpan(2, 1)
-        val ControlTileMin = TileWideDefault
+        val ControlTileMin = TileDefault
         val MediaDefault = AxQsSpan(2, 2)
         val MediaMin = AxQsSpan(2, 1)
         val Max = AxQsSpan(4, 4)
@@ -196,6 +195,12 @@ enum class AxQsControl(
 
     val isSlider: Boolean
         get() = isVerticalSlider || isHorizontalSlider
+
+    val canUseTileGrid: Boolean
+        get() =
+            defaultSpan == AxQsSpan.TileDefault &&
+                minSpan == AxQsSpan.TileDefault &&
+                maxSpan == AxQsSpan.TileDefault
 }
 
 data class AxQsControlSpans(val default: AxQsSpan, val min: AxQsSpan, val max: AxQsSpan)
@@ -226,54 +231,42 @@ enum class AxQsGridSection {
 }
 
 enum class AxQsGridLayout(
-    val isQqs: Boolean,
-    val isLandscape: Boolean,
+    val layout: AxQsLayout,
     val section: AxQsGridSection,
 ) {
-    PORTRAIT_QQS_CONTROLS(true, false, AxQsGridSection.CONTROLS),
-    PORTRAIT_QQS_TILES(true, false, AxQsGridSection.TILES),
-    PORTRAIT_QS_CONTROLS(false, false, AxQsGridSection.CONTROLS),
-    PORTRAIT_QS_TILES(false, false, AxQsGridSection.TILES),
-    LANDSCAPE_QQS_CONTROLS(true, true, AxQsGridSection.CONTROLS),
-    LANDSCAPE_QQS_TILES(true, true, AxQsGridSection.TILES),
-    LANDSCAPE_QS_CONTROLS(false, true, AxQsGridSection.CONTROLS),
-    LANDSCAPE_QS_TILES(false, true, AxQsGridSection.TILES);
+    PORTRAIT_QQS_CONTROLS(AxQsLayout.QQS, AxQsGridSection.CONTROLS),
+    PORTRAIT_QQS_TILES(AxQsLayout.QQS, AxQsGridSection.TILES),
+    PORTRAIT_QS_CONTROLS(AxQsLayout.QS, AxQsGridSection.CONTROLS),
+    PORTRAIT_QS_TILES(AxQsLayout.QS, AxQsGridSection.TILES),
+    SPLIT_SHADE_CONTROLS(AxQsLayout.SPLIT_SHADE, AxQsGridSection.CONTROLS),
+    SPLIT_SHADE_TILES(AxQsLayout.SPLIT_SHADE, AxQsGridSection.TILES);
+
+    val isSplitShade: Boolean
+        get() = layout == AxQsLayout.SPLIT_SHADE
+
+    val supportsTileLabels: Boolean
+        get() = section == AxQsGridSection.TILES && layout != AxQsLayout.QQS
 
     val showTileLabelsByDefault: Boolean
-        get() = this == PORTRAIT_QS_TILES
+        get() = supportsTileLabels
 
     fun columnRange(defaultColumns: Int): IntRange {
         return (defaultColumns - 1).coerceAtLeast(MIN_COLUMNS)..(defaultColumns + 1)
     }
 
-    val rowRange: IntRange?
-        get() =
-            when {
-                section != AxQsGridSection.TILES -> null
-                isLandscape && isQqs -> null
-                isLandscape -> null
-                isQqs -> MIN_ROWS..MAX_QQS_ROWS
-                else -> MIN_ROWS..MAX_QS_ROWS
-            }
-
     companion object {
-        fun from(qqs: Boolean, landscape: Boolean, section: AxQsGridSection): AxQsGridLayout {
-            return entries.first { layout ->
-                layout.isQqs == qqs && layout.isLandscape == landscape && layout.section == section
-            }
+        fun from(layout: AxQsLayout, section: AxQsGridSection): AxQsGridLayout {
+            return entries.first { it.layout == layout && it.section == section }
         }
 
         private const val MIN_COLUMNS = 2
-        private const val MIN_ROWS = 1
-        private const val MAX_QQS_ROWS = 3
-        private const val MAX_QS_ROWS = 5
     }
 }
 
 enum class AxQsLayout {
     QQS,
     QS,
-    LANDSCAPE,
+    SPLIT_SHADE,
 }
 
 enum class AxQsPanelMode(val settingValue: Int) {
@@ -298,50 +291,8 @@ enum class AxQsVerticalSliderStyle(val settingValue: Int) {
 
 data class AxQsVerticalSliderKey(val layout: AxQsLayout, val control: AxQsControl)
 
-data class AxQsLandscapeConfig(
-    val controlRows: Int,
-    val controlMinColumns: Int,
-    val controlMaxColumns: Int,
-    val tileDefaultRows: Int,
-    val tileMinColumns: Int,
-    val tileMaxColumns: Int,
-    val tileMaxRows: Int,
-) {
-    companion object {
-        fun fromSmallestWidth(smallestWidthDp: Int): AxQsLandscapeConfig {
-            return if (smallestWidthDp >= TABLET_MIN_WIDTH_DP) tablet else phone
-        }
-
-        private val phone =
-            AxQsLandscapeConfig(
-                controlRows = 3,
-                controlMinColumns = 2,
-                controlMaxColumns = 5,
-                tileDefaultRows = 3,
-                tileMinColumns = 3,
-                tileMaxColumns = 6,
-                tileMaxRows = 3,
-            )
-        private val tablet =
-            AxQsLandscapeConfig(
-                controlRows = 4,
-                controlMinColumns = 2,
-                controlMaxColumns = 6,
-                tileDefaultRows = 4,
-                tileMinColumns = 4,
-                tileMaxColumns = 8,
-                tileMaxRows = 4,
-            )
-        const val DEFAULT_COLUMNS = 4
-        private const val TABLET_MIN_WIDTH_DP = 600
-    }
-}
-
 object AxQsLayoutPadding {
     const val PORTRAIT_SIDE_FRACTION = 0.0637f
     const val LANDSCAPE_SIDE_FRACTION = 0.07f
     const val LANDSCAPE_SPLIT_GRID_SPACING_DP = 28f
-
-    @JvmStatic
-    fun portraitSidePadding(width: Int): Int = (width * PORTRAIT_SIDE_FRACTION).roundToInt()
 }
