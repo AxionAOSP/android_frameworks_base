@@ -22,40 +22,35 @@ import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
 import android.util.AttributeSet
-import com.android.axion.blur.AxBlurBackgroundRenderer
-import com.android.axion.blur.AxBlurColors
+import com.android.axion.blur.BlurEngine
 import com.android.internal.R as AndroidR
 import com.android.systemui.animation.view.LaunchableImageView
+import com.android.systemui.common.shared.colors.SurfaceEffectColors
 
 class KeyguardQuickAffordanceButton @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0,
 ) : LaunchableImageView(context, attrs, defStyleAttr) {
-    private val blur = AxBlurBackgroundRenderer(this)
-    private var overlayColor = AxBlurColors.surfaceBrightTint(context)
+    private val blur = BlurEngine(this)
+    private var overlayColor = SurfaceEffectColors.surfaceEffect1(context)
 
     init {
+        blur.setEnabled(true)
         updateThemeColors()
     }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         updateThemeColors()
-        blur.onAttachedToWindow()
-    }
-
-    override fun onDetachedFromWindow() {
-        blur.onDetachedFromWindow()
-        super.onDetachedFromWindow()
     }
 
     override fun onVisibilityAggregated(isVisible: Boolean) {
         super.onVisibilityAggregated(isVisible)
+        blur.onVisibilityAggregated(isVisible)
         if (isVisible) {
             updateThemeColors()
         }
-        blur.onVisibilityAggregated(isVisible)
     }
 
     override fun verifyDrawable(who: Drawable): Boolean =
@@ -92,28 +87,26 @@ class KeyguardQuickAffordanceButton @JvmOverloads constructor(
         if (usesActivatedBackground()) {
             return context.getColor(AndroidR.color.materialColorPrimaryFixed)
         }
-        return AxBlurColors.surfaceBright(context)
+        return SurfaceEffectColors.surfaceEffect1(context)
     }
 
     private fun backgroundOverlayColor(): Int {
         if (usesActivatedBackground()) {
             return context.getColor(AndroidR.color.materialColorPrimaryFixed)
         }
-        return AxBlurColors.surfaceBrightTint(context)
+        return SurfaceEffectColors.surfaceEffect1(context)
     }
 
     private fun usesActivatedBackground(): Boolean = !isSelected && isActivated
 
     private fun drawBlurBackground(canvas: Canvas) {
-        val currentBackground = background
-        if (currentBackground == null || width <= 0 || height <= 0) {
+        if (width <= 0 || height <= 0) {
             blur.clear()
             return
         }
-
-        currentBackground.setBounds(0, 0, width, height)
-        if (!blur.drawBackgroundWithOverlayColor(canvas, currentBackground, overlayColor)) {
-            currentBackground.draw(canvas)
+        blur.setOverlayColor(overlayColor)
+        if (!blur.draw(canvas, this, 255)) {
+            background?.let { it.setBounds(0, 0, width, height); it.draw(canvas) }
         }
     }
 
