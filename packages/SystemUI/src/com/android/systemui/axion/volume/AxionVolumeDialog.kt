@@ -13,8 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
-
 package com.android.systemui.axion.volume
 
 import android.content.Context
@@ -29,29 +27,23 @@ import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.activity.ComponentDialog
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.MaterialExpressiveTheme
-import androidx.compose.material3.MotionScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindowProvider
+import com.android.axion.compose.lifecycle.repeatWhenAttached
+import com.android.compose.theme.PlatformTheme
 import com.android.systemui.axion.volume.ui.composable.AxionVolumeDialogContent
 import com.android.systemui.axion.volume.ui.viewmodel.AxionVolumeDialogViewModel
 import com.android.systemui.axion.volume.ui.viewmodel.VisibilityState
 import com.android.systemui.dagger.qualifiers.Application
-import com.android.axion.compose.lifecycle.repeatWhenAttached
 import com.android.systemui.res.R
 import javax.inject.Inject
 
@@ -146,14 +138,7 @@ class AxionVolumeDialog @Inject constructor(
 
             repeatWhenAttached {
                 setContent {
-                    MaterialExpressiveTheme(
-                        colorScheme = if (isSystemInDarkTheme()) {
-                            dynamicDarkColorScheme(LocalContext.current)
-                        } else {
-                            dynamicLightColorScheme(LocalContext.current)
-                        },
-                        MotionScheme.expressive()
-                    ) {
+                    PlatformTheme {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
