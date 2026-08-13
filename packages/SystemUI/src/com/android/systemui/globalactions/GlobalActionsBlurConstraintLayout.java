@@ -20,28 +20,26 @@ import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 
-import com.android.axion.blur.AxBlurBackgroundRenderer;
 import com.android.axion.blur.AxBlurColors;
+import com.android.axion.blur.BlurEngine;
 import com.android.systemui.common.ui.view.LaunchableConstraintLayout;
+import com.android.systemui.res.R;
 
 public class GlobalActionsBlurConstraintLayout extends LaunchableConstraintLayout {
-    private final AxBlurBackgroundRenderer mBackdropBlur;
+    private final BlurEngine mBackdropBlur;
+    private final float mCornerRadius;
 
     public GlobalActionsBlurConstraintLayout(Context context, AttributeSet attrs) {
         super(context, attrs);
-        mBackdropBlur = new AxBlurBackgroundRenderer(this);
+        mBackdropBlur = new BlurEngine(this);
+        mBackdropBlur.setOverlayColor(AxBlurColors.surfaceContainerTint(context));
+        mBackdropBlur.setEnabled(true);
+        mCornerRadius = context.getResources().getDimension(R.dimen.global_actions_corner_radius);
     }
 
     @Override
-    protected void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        mBackdropBlur.onAttachedToWindow();
-    }
-
-    @Override
-    protected void onDetachedFromWindow() {
-        mBackdropBlur.onDetachedFromWindow();
-        super.onDetachedFromWindow();
+    protected boolean verifyDrawable(Drawable who) {
+        return mBackdropBlur.verifyDrawable(who) || super.verifyDrawable(who);
     }
 
     @Override
@@ -51,16 +49,8 @@ public class GlobalActionsBlurConstraintLayout extends LaunchableConstraintLayou
     }
 
     @Override
-    protected boolean verifyDrawable(Drawable who) {
-        return mBackdropBlur.verifyDrawable(who) || super.verifyDrawable(who);
-    }
-
-    @Override
     public void draw(Canvas canvas) {
-        mBackdropBlur.drawBackground(
-                canvas,
-                getBackground(),
-                AxBlurColors.surfaceContainerTint(getContext()));
+        mBackdropBlur.draw(canvas, 0, 0, getWidth(), getHeight(), mCornerRadius, 255);
         super.draw(canvas);
     }
 }
