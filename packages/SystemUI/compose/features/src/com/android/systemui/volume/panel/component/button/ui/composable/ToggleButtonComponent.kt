@@ -43,12 +43,12 @@ import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.android.compose.theme.LocalAndroidColorScheme
 import com.android.systemui.Flags
 import com.android.systemui.common.ui.compose.Icon
 import com.android.systemui.volume.panel.component.button.ui.viewmodel.ButtonViewModel
 import com.android.systemui.volume.panel.ui.composable.ComposeVolumePanelUiComponent
 import com.android.systemui.volume.panel.ui.composable.VolumePanelComposeScope
-import com.android.axion.blur.AxBlurSurfaceDefaults
 import kotlinx.coroutines.flow.StateFlow
 
 /** [ComposeVolumePanelUiComponent] implementing a toggleable button from a bottom row. */
@@ -84,7 +84,7 @@ class ToggleButtonComponent(
                     } else {
                         if (Flags.volumeRedesign()) {
                             ButtonDefaults.buttonColors(
-                                containerColor = AxBlurSurfaceDefaults.surfaceColor(),
+                                containerColor = LocalAndroidColorScheme.current.surfaceEffect1,
                                 contentColor = MaterialTheme.colorScheme.onSurface,
                             )
                         } else {

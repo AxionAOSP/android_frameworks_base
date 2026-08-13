@@ -37,10 +37,10 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.android.compose.animation.Expandable
+import com.android.compose.theme.LocalAndroidColorScheme
 import com.android.systemui.animation.Expandable
 import com.android.systemui.common.shared.model.Icon
 import com.android.systemui.common.ui.compose.Icon
-import com.android.axion.blur.AxBlurSurfaceDefaults
 
 /** Button with a label below it */
 @Composable
@@ -68,7 +68,7 @@ fun VolumePanelButton(
                 if (isEnabled && isActive) {
                     MaterialTheme.colorScheme.primary
                 } else {
-                    AxBlurSurfaceDefaults.surfaceColor()
+                    LocalAndroidColorScheme.current.surfaceEffect1
                 },
             shape = RoundedCornerShape(20.dp),
             contentColor =

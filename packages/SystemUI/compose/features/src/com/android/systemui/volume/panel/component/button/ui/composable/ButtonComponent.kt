@@ -46,6 +46,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.compose.animation.Expandable
+import com.android.compose.theme.LocalAndroidColorScheme
 import com.android.systemui.Flags
 import com.android.systemui.animation.Expandable
 import com.android.systemui.common.ui.compose.Icon
@@ -53,7 +54,6 @@ import com.android.systemui.volume.panel.component.button.ui.viewmodel.ButtonVie
 import com.android.systemui.volume.panel.component.popup.ui.composable.VolumePanelPopup.Companion.calculateGravity
 import com.android.systemui.volume.panel.ui.composable.ComposeVolumePanelUiComponent
 import com.android.systemui.volume.panel.ui.composable.VolumePanelComposeScope
-import com.android.axion.blur.AxBlurSurfaceDefaults
 import kotlinx.coroutines.flow.StateFlow
 
 /** [ComposeVolumePanelUiComponent] implementing a clickable button from a bottom row. */
@@ -93,7 +93,7 @@ class ButtonComponent(
                                 MaterialTheme.colorScheme.tertiaryContainer
                             }
                         } else {
-                            AxBlurSurfaceDefaults.surfaceColor()
+                            LocalAndroidColorScheme.current.surfaceEffect1
                         },
                     shape = RoundedCornerShape(20.dp),
                     contentColor =

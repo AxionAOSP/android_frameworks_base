@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -74,6 +75,7 @@ import com.android.compose.animation.scene.SceneTransitionLayout
 import com.android.compose.animation.scene.TransitionBuilder
 import com.android.compose.animation.scene.rememberMutableSceneTransitionLayoutState
 import com.android.compose.animation.scene.transitions
+import com.android.compose.theme.LocalAndroidColorScheme
 import com.android.systemui.axion.volume.domain.model.VolumeSliderItem
 import com.android.systemui.axion.volume.ui.viewmodel.AxionVolumeDialogUiState
 import com.android.systemui.axion.volume.ui.viewmodel.AxionVolumeDialogViewModel
@@ -140,18 +142,26 @@ fun AxionVolumeDialogContent(
     val motionScheme = MaterialTheme.motionScheme
     val visibilityAnimatable = remember { Animatable(0f) }
     val visibilityProgress = visibilityAnimatable.value
+    var dismissPending by remember { mutableStateOf(false) }
 
     LaunchedEffect(isVisible) {
         if (isVisible) {
+            dismissPending = false
             visibilityAnimatable.snapTo(0f)
             viewModel.collapseIfExpanded()
             visibilityAnimatable.animateTo(1f, tween(200))
         } else {
-            runCatching {
-                visibilityAnimatable.animateTo(0f, tween(200))
-            }
+            visibilityAnimatable.animateTo(0f, tween(200))
             viewModel.resetState()
+            dismissPending = true
+        }
+    }
+
+    LaunchedEffect(dismissPending) {
+        if (dismissPending) {
+            repeat(2) { withFrameNanos {} }
             viewModel.onDismissAnimationEnd()
+            dismissPending = false
         }
     }
 
@@ -198,17 +208,23 @@ fun AxionVolumeDialogContent(
             },
         contentAlignment = edgeAlignment
     ) {
-        AxBlurLifecycle(enabled = isVisible) {
+        AxBlurLifecycle(enabled = true) {
             SceneTransitionLayout(state = stlState) {
                 scene(VolumeScenes.Collapsed) {
-                    CollapsedPanelContent(viewModel = viewModel, uiState = uiState, isLeft = isLeft)
+                    CollapsedPanelContent(
+                        viewModel = viewModel,
+                        uiState = uiState,
+                        isLeft = isLeft,
+                        visibilityProgress = visibilityProgress,
+                    )
                 }
                 scene(VolumeScenes.Expanded) {
                     ExpandedPanelContent(
                         viewModel = viewModel,
                         uiState = uiState,
                         sliderItems = sliderItems,
-                        currStreamCount = currStreamCount
+                        currStreamCount = currStreamCount,
+                        visibilityProgress = visibilityProgress,
                     )
                 }
             }
@@ -219,6 +235,7 @@ fun AxionVolumeDialogContent(
 @Composable
 private fun ContentScope.VolumePanelCard(
     modifier: Modifier,
+    blurAlpha: Float = 1f,
     content: @Composable BoxScope.() -> Unit,
 ) {
     Box(
@@ -233,6 +250,7 @@ private fun ContentScope.VolumePanelCard(
                 .element(VolumeElements.PanelBackground),
             shape = CardShape,
             cornerRadius = DialogCornerRadius,
+            alpha = blurAlpha,
         ) {}
         content()
     }
@@ -243,6 +261,7 @@ private fun ContentScope.CollapsedPanelContent(
     viewModel: AxionVolumeDialogViewModel,
     uiState: AxionVolumeDialogUiState,
     isLeft: Boolean,
+    visibilityProgress: Float,
 ) {
     val dialogState = uiState.dialogState
     val ringerMode = dialogState.ringerMode
@@ -279,6 +298,7 @@ private fun ContentScope.CollapsedPanelContent(
         ) {
             VolumePanelCard(
                 modifier = Modifier.requiredWidth(CollapsedPanelWidth),
+                blurAlpha = visibilityProgress,
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -290,7 +310,8 @@ private fun ContentScope.CollapsedPanelContent(
                             viewModel.rescheduleTimeout()
                             viewModel.cycleRingerMode()
                         },
-                        modifier = Modifier.element(VolumeElements.RingerControl)
+                        modifier = Modifier.element(VolumeElements.RingerControl),
+                        blurAlpha = visibilityProgress,
                     )
 
                     if (streamModel != null) {
@@ -375,6 +396,7 @@ private fun ContentScope.CollapsedPanelContent(
                             modifier = Modifier.pointerInput(Unit) { detectTapGestures {} },
                             shape = CardShape,
                             cornerRadius = DialogCornerRadius,
+                            alpha = visibilityProgress * sliderEntrance.value,
                         ) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -419,6 +441,7 @@ private fun ContentScope.ExpandedPanelContent(
     uiState: AxionVolumeDialogUiState,
     sliderItems: List<VolumeSliderItem>,
     currStreamCount: Int,
+    visibilityProgress: Float,
 ) {
     val dialogState = uiState.dialogState
     val ringerMode = dialogState.ringerMode
@@ -435,6 +458,7 @@ private fun ContentScope.ExpandedPanelContent(
     ) {
         VolumePanelCard(
             modifier = Modifier.requiredWidth(panelWidth),
+            blurAlpha = visibilityProgress,
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,

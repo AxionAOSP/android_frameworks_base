@@ -58,6 +58,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.compose.animation.Expandable
+import com.android.compose.theme.LocalAndroidColorScheme
 import com.android.systemui.common.ui.compose.Icon
 import com.android.systemui.common.ui.compose.toColor
 import com.android.systemui.compose.modifiers.sysuiResTag
@@ -68,7 +69,6 @@ import com.android.systemui.volume.panel.component.mediaoutput.ui.viewmodel.Medi
 import com.android.systemui.volume.panel.dagger.scope.VolumePanelScope
 import com.android.systemui.volume.panel.ui.composable.ComposeVolumePanelUiComponent
 import com.android.systemui.volume.panel.ui.composable.VolumePanelComposeScope
-import com.android.axion.blur.AxBlurSurfaceDefaults
 import com.google.common.annotations.VisibleForTesting
 import java.util.Objects
 import javax.inject.Inject
@@ -97,7 +97,7 @@ class MediaOutputComponent @Inject constructor(private val viewModel: MediaOutpu
                         true
                     }
                 },
-            color = AxBlurSurfaceDefaults.surfaceColor(),
+            color = LocalAndroidColorScheme.current.surfaceEffect1,
             shape = RoundedCornerShape(28.dp),
             useModifierBasedImplementation = true,
             onClick =

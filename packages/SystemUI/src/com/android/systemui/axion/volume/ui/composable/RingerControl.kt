@@ -54,6 +54,7 @@ fun RingerCircleButton(
     ringerMode: AxionRingerMode,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    blurAlpha: Float = 1f,
 ) {
     AxBlurSurface(
         modifier = modifier
@@ -66,6 +67,7 @@ fun RingerCircleButton(
         shape = CircleShape,
         cornerRadius = RingerCircleSize / 2f,
         contentAlignment = Alignment.Center,
+        alpha = blurAlpha,
     ) {
         Crossfade(targetState = ringerMode, label = "ringerIcon") { mode ->
             Box(
@@ -93,6 +95,7 @@ fun RingerRow(
     panelWidth: Dp,
     onModeSelected: (AxionRingerMode) -> Unit,
     modifier: Modifier = Modifier,
+    blurAlpha: Float = 1f,
 ) {
     val modeCount = supportedModes.size.coerceAtLeast(1)
     val activeIndex = supportedModes.indexOf(ringerMode).coerceAtLeast(0)
