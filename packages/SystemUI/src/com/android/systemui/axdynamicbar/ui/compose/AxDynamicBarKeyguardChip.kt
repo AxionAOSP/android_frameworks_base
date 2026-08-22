@@ -30,8 +30,10 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -102,6 +104,14 @@ private val ActionSize = SpacePanel
 private val ActionIconSize = SizeBadge
 private val BatteryIconSize = ChipHeight - SpaceXxl
 private val CountBadgeHeight = ChipHeight / 2
+
+// Bigger, easier-to-tap targets for the keyguard media pill specifically.
+// Kept separate from ActionSize/ActionIconSize so other chip types (timer,
+// recording, sports, etc.) that reuse those tokens are unaffected.
+private val MediaActionSize = 32.dp
+private val MediaActionIconSize = 18.dp
+private val MediaPlayPauseSize = 36.dp
+private val MediaPlayPauseIconSize = 20.dp
 
 @Composable
 private fun rememberChargingParts(batteryString: String): List<String> {
@@ -317,15 +327,29 @@ private fun KeyguardChipBody(
 
     val parts = rememberChargingParts(batteryString)
     val isMultiLineCharging = event is IslandEvent.Charging && parts.size >= 2
-    val dynamicHeight = if (isMultiLineCharging) 48.dp else ChipHeight
+    val dynamicHeight = when {
+        isMultiLineCharging -> 48.dp
+        event is IslandEvent.Media -> 44.dp
+        else -> ChipHeight
+    }
 
     Box(contentAlignment = Alignment.Center) {
         Row(
             modifier = Modifier
                 .height(dynamicHeight)
-                .widthIn(min = 48.dp, max = 260.dp)
+                .widthIn(min = 48.dp, max = 280.dp)
                 .clip(ChipShape)
-                .background(accent)
+                .background(
+                    if (event is IslandEvent.Media) accent.copy(alpha = 0.72f) else accent,
+                )
+                .then(
+                    if (event is IslandEvent.Media) {
+                        Modifier.border(
+                            BorderStroke(1.dp, contentColor.copy(alpha = 0.14f)),
+                            ChipShape,
+                        )
+                    } else Modifier
+                )
                 .animateContentSize(motionScheme.defaultSpatialSpec())
                 .then(
                     if (progress != null) {
@@ -434,17 +458,17 @@ private fun KeyguardChipBody(
                     color = contentColor,
                     bgColor = lerp(accent, contentColor, AlphaSubtle),
                     onClick = { viewModel.skipPrev() },
-                    size = ActionSize,
-                    iconSize = ActionIconSize,
+                    size = MediaActionSize,
+                    iconSize = MediaActionIconSize,
                 )
-                Spacer(Modifier.width(SpaceXxs))
+                Spacer(Modifier.width(SpaceSm))
                 Surface(
                     onClick = { viewModel.togglePlayPause() },
-                    modifier = Modifier.size(ActionSize),
+                    modifier = Modifier.size(MediaPlayPauseSize),
                     shape = CircleShape,
                     color = lerp(accent, contentColor, AlphaSubtle),
                 ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(ActionSize)) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(MediaPlayPauseSize)) {
                         Icon(
                             if (event.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                             contentDescription = stringResource(
@@ -452,18 +476,18 @@ private fun KeyguardChipBody(
                                 else R.string.ax_dynamic_bar_play,
                             ),
                             tint = contentColor,
-                            modifier = Modifier.size(ActionIconSize),
+                            modifier = Modifier.size(MediaPlayPauseIconSize),
                         )
                     }
                 }
-                Spacer(Modifier.width(SpaceXxs))
+                Spacer(Modifier.width(SpaceSm))
                 ActionButton(
                     icon = ActionIcon.SKIP_NEXT,
                     color = contentColor,
                     bgColor = lerp(accent, contentColor, AlphaSubtle),
                     onClick = { viewModel.skipNext() },
-                    size = ActionSize,
-                    iconSize = ActionIconSize,
+                    size = MediaActionSize,
+                    iconSize = MediaActionIconSize,
                 )
             } else if (event is IslandEvent.Sports && event.team2Name.isNotEmpty()) {
                 SportsChipTeamBadge(event.team1Name, event.team1Icon, contentColor)
