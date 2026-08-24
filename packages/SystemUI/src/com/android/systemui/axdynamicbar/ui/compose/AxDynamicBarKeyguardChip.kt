@@ -452,7 +452,7 @@ private fun KeyguardChipBody(
                     Spacer(Modifier.height(SpaceXs))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(SpaceLg, Alignment.CenterHorizontally),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         ActionButton(
