@@ -232,4 +232,19 @@ class WiredChargingRippleControllerTest : SysuiTestCase() {
 
         verify(rippleView).setCenter(expectedCenterX, expectedCenterY)
     }
+
+    @Test
+    fun testOnThemeChanged_recreatesCustomRippleViews() {
+        val captor = ArgumentCaptor
+                .forClass(ConfigurationController.ConfigurationListener::class.java)
+        verify(configurationController).addCallback(captor.capture())
+
+        val initialAxRippleView = controller.axRippleView
+        val initialAxChargingCircleView = controller.axChargingCircleView
+
+        captor.value.onThemeChanged()
+
+        org.junit.Assert.assertNotSame(initialAxRippleView, controller.axRippleView)
+        org.junit.Assert.assertNotSame(initialAxChargingCircleView, controller.axChargingCircleView)
+    }
 }

@@ -59,6 +59,13 @@ fun UdfpsAnimation(
         ) {
             if (animType == "drawable") {
                 val drawable = remember(context) { context.getDrawable(R.drawable.udfps_animation) }
+                androidx.compose.runtime.DisposableEffect(drawable) {
+                    val animatable = drawable as? android.graphics.drawable.Animatable
+                    animatable?.start()
+                    onDispose {
+                        animatable?.stop()
+                    }
+                }
                 val painter = rememberDrawablePainter(drawable)
                 Image(
                     painter = painter,

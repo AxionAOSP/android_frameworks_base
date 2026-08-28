@@ -71,12 +71,20 @@ class AXRippleView @JvmOverloads constructor(
     private var activeFrameResIds: IntArray = IntArray(0)
     private var executorService: ExecutorService? = null
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    @Volatile
+    private var isReleased = false
 
     override fun onConfigurationChanged(newConfig: Configuration?) {
         super.onConfigurationChanged(newConfig)
     }
 
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        releaseRes()
+    }
+
     fun preloadRes() {
+        isReleased = false
         val ta = resources.obtainTypedArray(R.array.config_chargingAnimFrames)
         val frameCount = ta.length()
         activeFrameResIds = IntArray(frameCount) { ta.getResourceId(it, 0) }
@@ -96,14 +104,17 @@ class AXRippleView @JvmOverloads constructor(
     }
 
     private fun releaseRes() {
-        images.forEachIndexed { index, bitmap ->
-            bitmap?.recycle()
-            images[index] = null
+        synchronized(images) {
+            isReleased = true
+            images.forEachIndexed { index, bitmap ->
+                bitmap?.recycle()
+                images[index] = null
+            }
+            images.clear()
         }
-        images.clear()
         glare?.recycle()
         glare = null
-        executorService?.shutdown()
+        executorService?.shutdownNow()
         executorService = null
     }
 
@@ -211,8 +222,15 @@ class AXRippleView @JvmOverloads constructor(
         override fun run() {
             try {
                 if (resId != 0) {
-                    resources.openRawResource(resId).use { stream ->
-                        images[index] = BitmapFactory.decodeStream(stream)
+                    val bitmap = resources.openRawResource(resId).use { stream ->
+                        BitmapFactory.decodeStream(stream)
+                    }
+                    synchronized(images) {
+                        if (!isReleased && index < images.size) {
+                            images[index] = bitmap
+                        } else {
+                            bitmap?.recycle()
+                        }
                     }
                 }
             } catch (e: Exception) {}

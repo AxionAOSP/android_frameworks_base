@@ -170,6 +170,12 @@ class AXChargingCircleView @JvmOverloads constructor(
         turboLineFrames.clear()
     }
 
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        releaseTurboLineRes()
+        circleView.release()
+    }
+
     fun startAnimation(onAnimationEnd: Runnable? = null) {
         if (isAnimating) return
         isAnimating = true
