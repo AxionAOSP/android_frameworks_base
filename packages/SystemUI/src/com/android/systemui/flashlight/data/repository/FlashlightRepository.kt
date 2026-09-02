@@ -122,6 +122,8 @@ constructor(
 
     private var activeFadeJob: kotlinx.coroutines.Job? = null
 
+    private var activeFadeEnabled: Boolean? = null
+
     override fun start() {
         if (FlashlightStrength.isUnexpectedlyInLegacyMode()) {
             return
@@ -364,12 +366,19 @@ constructor(
 
             try {
                 if (enabled != currentState.enabled) {
+                    if (activeFadeJob?.isActive == true && activeFadeEnabled == enabled) {
+                        return@launch
+                    }
                     activeFadeJob?.cancel()
+                    activeFadeEnabled = enabled
 
                     if (currentFlashlightInfo.hasAdjustableLevels) {
                         val targetLevel = defaultEnabledLevelForUser.getOrPut(currentUserId) {
                             initialDefaultLevel
                         }
+                        val fromLevel =
+                            ((currentState as? FlashlightModel.Available.Level)?.level
+                                ?: targetLevel).coerceAtLeast(1)
 
                         activeFadeJob = bgScope.launch {
                             val totalSteps = 12
@@ -390,8 +399,8 @@ constructor(
                                 for (i in totalSteps downTo 1) {
                                     val progress = i.toFloat() / totalSteps
                                     val easedProgress = progress * progress
-                                    val currentStepLevel = 1 + (easedProgress * (targetLevel - 1))
-                                    val clampedLevel = currentStepLevel.toInt().coerceIn(1, targetLevel)
+                                    val currentStepLevel = 1 + (easedProgress * (fromLevel - 1))
+                                    val clampedLevel = currentStepLevel.toInt().coerceIn(1, fromLevel)
                                     cameraManager.turnOnTorchWithStrengthLevel(currentFlashlightInfo.cameraId, clampedLevel)
                                     delay(stepDelayMs)
                                 }
