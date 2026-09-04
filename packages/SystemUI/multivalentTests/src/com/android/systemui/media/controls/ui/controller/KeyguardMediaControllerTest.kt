@@ -40,8 +40,12 @@ import com.android.systemui.media.remedia.data.repository.setHasMedia
 import com.android.systemui.media.remedia.shared.flag.MediaControlsInComposeFlag
 import com.android.systemui.media.remedia.ui.viewmodel.factory.mediaViewModelFactory
 import com.android.systemui.media.remedia.ui.viewmodel.mediaFalsingSystem
+import com.android.systemui.axdynamicbar.domain.AxDynamicBarSettings
+import com.android.systemui.keyguard.data.repository.KeyguardClockRepository
 import com.android.systemui.plugins.statusbar.StatusBarStateController
+import com.android.systemui.qs.ax.ui.keyguard.AxKeyguardMediaContent
 import com.android.systemui.statusbar.StatusBarState
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.android.systemui.statusbar.SysuiStatusBarStateController
 import com.android.systemui.statusbar.notification.stack.MediaContainerView
 import com.android.systemui.statusbar.phone.KeyguardBypassController
@@ -76,12 +80,14 @@ class KeyguardMediaControllerTest : SysuiTestCase() {
     @Mock private lateinit var statusBarStateController: SysuiStatusBarStateController
     @Mock private lateinit var configurationController: ConfigurationController
 
+    @Mock private lateinit var axDynamicBarSettings: AxDynamicBarSettings
+    @Mock private lateinit var axMediaContent: AxKeyguardMediaContent
+    @Mock private lateinit var keyguardClockRepository: KeyguardClockRepository
+
     @JvmField @Rule val mockito = MockitoJUnit.rule()
 
     private val kosmos = testKosmos()
     private val testScope = kosmos.testScope
-    private val mediaFalsingSystem = kosmos.mediaFalsingSystem
-    private val mediaViewModelFactory = kosmos.mediaViewModelFactory
     private val transitionRepository = kosmos.fakeKeyguardTransitionRepository
     private val mediaContainerView: MediaContainerView = MediaContainerView(context, null)
     private val hostView = UniqueObjectHostView(context)
@@ -106,6 +112,10 @@ class KeyguardMediaControllerTest : SysuiTestCase() {
             true,
             UserHandle.USER_CURRENT,
         )
+        whenever(axDynamicBarSettings.isEnabled).thenReturn(MutableStateFlow(false))
+        whenever(axDynamicBarSettings.isKeyguardEnabled).thenReturn(MutableStateFlow(false))
+        whenever(axDynamicBarSettings.isKeyguardHideMediaPlayer).thenReturn(MutableStateFlow(true))
+        whenever(axDynamicBarSettings.disabledEventTypes).thenReturn(MutableStateFlow(emptySet()))
         keyguardMediaController =
             KeyguardMediaController(
                 mediaHost,
@@ -117,9 +127,10 @@ class KeyguardMediaControllerTest : SysuiTestCase() {
                 ResourcesSplitShadeStateController(),
                 mock<KeyguardMediaControllerLogger>(),
                 mock<DumpManager>(),
-                mediaViewModelFactory,
                 kosmos.mediaCarouselInteractor,
-                mediaFalsingSystem,
+                axMediaContent,
+                keyguardClockRepository,
+                axDynamicBarSettings,
             )
         keyguardMediaController.attachSinglePaneContainer(mediaContainerView)
         keyguardMediaController.useSplitShade = false
@@ -253,6 +264,30 @@ class KeyguardMediaControllerTest : SysuiTestCase() {
         setDozing()
 
         assertThat(mediaContainerView.visibility).isEqualTo(VISIBLE)
+    }
+
+    @Test
+    fun dynamicBarMediaAvailable_mediaIsHidden() {
+        whenever(axDynamicBarSettings.isEnabled).thenReturn(MutableStateFlow(true))
+        whenever(axDynamicBarSettings.isKeyguardEnabled).thenReturn(MutableStateFlow(true))
+        whenever(axDynamicBarSettings.isKeyguardHideMediaPlayer).thenReturn(MutableStateFlow(true))
+        whenever(axDynamicBarSettings.disabledEventTypes).thenReturn(MutableStateFlow(emptySet()))
+
+        keyguardMediaController.refreshMediaPosition(TEST_REASON)
+
+        assertThat(keyguardMediaController.visible).isFalse()
+    }
+
+    @Test
+    fun dynamicBarMediaAvailable_hideMediaPlayerDisabled_mediaIsVisible() {
+        whenever(axDynamicBarSettings.isEnabled).thenReturn(MutableStateFlow(true))
+        whenever(axDynamicBarSettings.isKeyguardEnabled).thenReturn(MutableStateFlow(true))
+        whenever(axDynamicBarSettings.isKeyguardHideMediaPlayer).thenReturn(MutableStateFlow(false))
+        whenever(axDynamicBarSettings.disabledEventTypes).thenReturn(MutableStateFlow(emptySet()))
+
+        keyguardMediaController.refreshMediaPosition(TEST_REASON)
+
+        assertThat(keyguardMediaController.visible).isTrue()
     }
 
     private fun setDozing() {
