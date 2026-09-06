@@ -234,6 +234,7 @@ constructor(
     /** Blur radius to be applied to Notifications. */
     fun blurRadius(maxBlurRadius: Flow<Int>) =
         combine(blurFraction, maxBlurRadius) { fraction, maxRadius -> fraction * maxRadius }
+            .distinctUntilChanged()
 
     /**
      * Scale of the blur effect that should be applied to Notifications.

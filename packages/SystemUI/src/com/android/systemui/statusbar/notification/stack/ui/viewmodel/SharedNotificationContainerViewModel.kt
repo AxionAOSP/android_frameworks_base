@@ -765,6 +765,7 @@ constructor(
         primaryBouncerTransitions
             .map { transition -> transition.notificationBlurRadius }
             .merge()
+            .distinctUntilChanged()
             .dumpWhileCollecting("blurRadius")
 
     /**
