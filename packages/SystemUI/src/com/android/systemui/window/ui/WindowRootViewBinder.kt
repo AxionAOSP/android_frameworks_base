@@ -114,7 +114,7 @@ object WindowRootViewBinder {
                                         lastScheduledBlurRadius != newBlurRadius ||
                                             lastScheduledBlurScale != newBlurScale
                                     ) {
-                                        Log.w(TAG, "Multiple blur values emitted in the same frame")
+                                        Log.v(TAG, "Multiple blur values emitted in the same frame")
                                     }
                                     lastScheduledBlurRadius = newBlurRadius
                                     lastScheduledBlurScale = newBlurScale
