@@ -416,6 +416,7 @@ static void get_cpuset_cores_for_policy(SchedPolicy policy, cpu_set_t *cpu_set)
         case SP_AUDIO_APP:
         case SP_AUDIO_SYS:
         case SP_RT_APP:
+        case SP_AX_FOREGROUND:
             if (!CgroupGetAttributePath("HighCapacityCPUs", &filename)) {
                 return;
             }
@@ -552,6 +553,27 @@ void android_os_Process_setThreadScheduler(JNIEnv* env, jclass clazz,
     struct sched_param param;
     param.sched_priority = pri;
     sched_setscheduler(tid, policy, &param);
+#endif
+}
+
+void android_os_Process_setThreadAffinityCpus(JNIEnv* env, jobject clazz, jint pid, jintArray cpuIds) {
+#if defined(__linux__)
+    if (cpuIds == nullptr) {
+        return;
+    }
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    jsize len = env->GetArrayLength(cpuIds);
+    jint* elements = env->GetIntArrayElements(cpuIds, nullptr);
+    for (jsize i = 0; i < len; i++) {
+        if (elements[i] >= 0 && elements[i] < CPU_SETSIZE) {
+            CPU_SET(elements[i], &cpuset);
+        }
+    }
+    env->ReleaseIntArrayElements(cpuIds, elements, JNI_ABORT);
+    if (sched_setaffinity(pid > 0 ? pid : gettid(), sizeof(cpu_set_t), &cpuset) != 0) {
+        signalExceptionForPriorityError(env, errno, pid);
+    }
 #endif
 }
 
@@ -1367,6 +1389,7 @@ static const JNINativeMethod methods[] = {
         {"createProcessGroup", "(II)I", (void*)android_os_Process_createProcessGroup},
         {"getExclusiveCores", "()[I", (void*)android_os_Process_getExclusiveCores},
         {"getSchedAffinity", "(I)[J", (void*)android_os_Process_getSchedAffinity},
+        {"setThreadAffinity", "(I[I)V", (void*)android_os_Process_setThreadAffinityCpus},
         {"setArgV0Native", "(Ljava/lang/String;)V", (void*)android_os_Process_setArgV0},
         {"setUid", "(I)I", (void*)android_os_Process_setUid},
         {"setGid", "(I)I", (void*)android_os_Process_setGid},

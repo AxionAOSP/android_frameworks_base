@@ -479,6 +479,7 @@ import com.android.server.criticalevents.CriticalEventLog;
 import com.android.server.firewall.IntentFirewall;
 import com.android.server.graphics.fonts.FontManagerInternal;
 import com.android.server.job.JobSchedulerInternal;
+import com.android.server.axdragonite.AxDragonite;
 import com.android.server.kernel.AxKernelManagerService;
 import com.android.server.net.NetworkManagementInternal;
 import com.android.server.os.NativeTombstoneManager;
@@ -20378,5 +20379,20 @@ public class ActivityManagerService extends IActivityManager.Stub
     public AxKernelMetrics getAxKernelMetrics(
             long previousCpuActiveTimeTicks, long previousCpuTimeTicks) {
         return mAxKernelManager.getMetrics(previousCpuActiveTimeTicks, previousCpuTimeTicks);
+    }
+
+    @Override
+    public int sceneBoostAcquire(int sceneId, Bundle data) {
+        return AxDragonite.getInstance().sceneBoostAcquire(sceneId, data);
+    }
+
+    @Override
+    public void sceneBoostRelease(int handle) {
+        AxDragonite.getInstance().sceneBoostRelease(handle);
+    }
+
+    @Override
+    public boolean isSceneIdExist(int sceneId) {
+        return AxDragonite.getInstance().isSceneIdExist(sceneId);
     }
 }

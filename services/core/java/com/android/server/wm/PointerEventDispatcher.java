@@ -24,6 +24,7 @@ import android.view.MotionEvent;
 import android.view.WindowManagerPolicyConstants.PointerEventListener;
 
 import com.android.server.UiThread;
+import com.android.server.axdragonite.AxDragonite;
 
 import java.util.ArrayList;
 
@@ -40,6 +41,7 @@ public class PointerEventDispatcher extends InputEventReceiver {
         try {
             if (event instanceof MotionEvent
                     && (event.getSource() & InputDevice.SOURCE_CLASS_POINTER) != 0) {
+                AxDragonite.getInstance().inputBoost();
                 MotionEvent motionEvent = (MotionEvent) event;
                 PointerEventListener[] listeners;
                 synchronized (mListeners) {

@@ -16,6 +16,8 @@
 
 package com.android.server.am;
 
+import com.android.server.axdragonite.AxDragonite;
+
 import static android.app.ActivityManager.PROCESS_CAPABILITY_NONE;
 import static android.app.ActivityManager.PROCESS_STATE_CACHED_ACTIVITY;
 import static android.app.ActivityManager.PROCESS_STATE_NONEXISTENT;
@@ -2679,6 +2681,7 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
                         app.processName);
             }
             checkSlow(startTime, "startProcess: returned from zygote!");
+            AxDragonite.getInstance().onProcessForked(startResult.pid, isTopApp);
             return startResult;
         } finally {
             Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
@@ -2972,6 +2975,7 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
         mService.reportUidInfoMessageLocked(TAG, buf.toString(), app.getStartUid());
         synchronized (mProcLock) {
             app.setPid(pid);
+            AxDragonite.getInstance().onProcessStarted(pid, app.info.packageName, app.processName, app.uid);
             app.setUsingWrapper(usingWrapper);
             app.setPendingStart(false);
         }
@@ -3555,6 +3559,9 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
             // newly created process and we don't want to destroy the new one.
             if ((expecting == null) || (old == expecting)) {
                 mProcessNames.remove(name, uid);
+                if (old != null) {
+                    AxDragonite.getInstance().onProcessKilled(old.getPid(), old.info.packageName);
+                }
             }
             if (record != null) {
                 final UidRecord uidRecord = record.getUidRecord();

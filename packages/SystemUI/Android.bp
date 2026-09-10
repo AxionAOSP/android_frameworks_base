@@ -511,6 +511,7 @@ android_library {
     srcs: [
         ":SystemUI-core-srcs",
         ":ReleaseJavaFiles",
+        ":ax_dragonite_systemui_sources",
         "compose/features/src/**/*.kt",
         "compose/facade/enabled/src/**/*.kt",
     ],
@@ -522,6 +523,7 @@ android_library {
         "axquicklook-client",
         "ax_compose",
         "ax_blur",
+        "ax_dragonite",
         "SystemUI-res",
         "WifiTrackerLib",
         "WindowManager-Shell",

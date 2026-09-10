@@ -16,6 +16,8 @@
 
 package com.android.systemui.shade;
 
+import com.android.axion.dragonite.AxDragonite;
+
 import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
 
@@ -2369,6 +2371,7 @@ public final class NotificationPanelViewController implements
     }
 
     private void onClosingFinished() {
+        AxDragonite.onFlingEnd();
         if (Flags.bouncerUiRevamp()) {
             mWindowRootViewBlurInteractor.setTrackingShadeMotion(false);
         }
@@ -3172,6 +3175,9 @@ public final class NotificationPanelViewController implements
 
     private void fling(float vel, boolean expand, float collapseSpeedUpFactor,
             boolean expandBecauseOfFalsing) {
+        if (!expand) {
+            AxDragonite.onFling();
+        }
         float target = expand ? getMaxPanelTransitionDistance() : 0;
         if (!expand) {
             setClosing(true);

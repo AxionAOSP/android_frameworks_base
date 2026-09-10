@@ -272,6 +272,7 @@ import com.android.server.EventLogTags;
 import com.android.server.LocalManagerRegistry;
 import com.android.server.LocalServices;
 import com.android.server.SystemService;
+import com.android.server.axdragonite.AxDragonite;
 import com.android.server.audio.AudioServiceEvents.DeviceVolumeEvent;
 import com.android.server.audio.AudioServiceEvents.PhoneStateEvent;
 import com.android.server.audio.AudioServiceEvents.VolChangedBroadcastEvent;
@@ -7252,6 +7253,7 @@ public class AudioService extends IAudioService.Stub
                 sendMsg(mAudioHandler, MSG_DISPATCH_AUDIO_MODE, SENDMSG_REPLACE, mode, 0,
                         /*obj*/ null, /*delay*/ 0);
                 int previousMode = mMode.getAndSet(mode);
+                updateRingtoneDex2oatRestriction(previousMode, mode);
                 // Note: newModeOwnerPid is always 0 when actualMode is MODE_NORMAL
                 mModeLogger.enqueue(new PhoneStateEvent(requesterPackage, requesterPid,
                         requestedMode, pid, mode));
@@ -7288,6 +7290,16 @@ public class AudioService extends IAudioService.Stub
                 resetAudioModeResetCount();
                 Log.w(TAG, "onUpdateAudioMode: failed to set audio mode to: " + mode);
             }
+        }
+    }
+
+    private void updateRingtoneDex2oatRestriction(int previousMode, int newMode) {
+        if (newMode == AudioSystem.MODE_RINGTONE) {
+            AxDragonite.getInstance().adjustCpusetCpus("dex2oat", null, 0L);
+            return;
+        }
+        if (previousMode == AudioSystem.MODE_RINGTONE && newMode == AudioSystem.MODE_NORMAL) {
+            AxDragonite.getInstance().adjustCpusetCpus("dex2oat", null, -1L);
         }
     }
 

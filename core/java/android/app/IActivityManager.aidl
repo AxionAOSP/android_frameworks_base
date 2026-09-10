@@ -1118,4 +1118,8 @@ interface IActivityManager {
     
     AxKernelMetrics getAxKernelMetrics(long previousCpuActiveTimeTicks,
             long previousCpuTimeTicks);
+
+    int sceneBoostAcquire(int sceneId, in Bundle data);
+    void sceneBoostRelease(int handle);
+    boolean isSceneIdExist(int sceneId);
 }

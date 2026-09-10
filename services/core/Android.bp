@@ -127,6 +127,7 @@ java_library_static {
         ":statslog-mediarouter-java-gen",
         ":services.core-aidl-sources",
         ":services.core-sources",
+        ":ax_dragonite_server_sources",
         ":services.core.protologsrc",
         ":platform-compat-config",
         ":platform-compat-overrides",

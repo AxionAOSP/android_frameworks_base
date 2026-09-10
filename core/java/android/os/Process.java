@@ -597,6 +597,11 @@ public class Process {
     public static final int THREAD_GROUP_RESTRICTED = 7;
 
     /**
+     * @hide
+     */
+    public static final int THREAD_GROUP_AX_FOREGROUND = 8;
+
+    /**
      * Thread group for foreground apps in multi-window mode
      * @hide
      **/
@@ -1379,6 +1384,27 @@ public class Process {
 
     public static final native void setThreadScheduler(int tid, int policy, int priority)
             throws IllegalArgumentException;
+
+    /**
+     * @hide
+     */
+    public static void setThreadAffinity(int tid, int mask) throws IllegalArgumentException {
+        final int count = Integer.bitCount(mask);
+        final int[] cpuIds = new int[count];
+        int index = 0;
+        for (int i = 0; i < 32; i++) {
+            if ((mask & (1 << i)) == 0) {
+                continue;
+            }
+            cpuIds[index++] = i;
+        }
+        setThreadAffinity(tid, cpuIds);
+    }
+
+    /**
+     * @hide
+     */
+    public static final native void setThreadAffinity(int tid, int[] cpuIds) throws IllegalArgumentException;
 
     /**
      * Determine whether the current environment supports multiple processes.

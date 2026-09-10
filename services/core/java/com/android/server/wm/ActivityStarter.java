@@ -140,6 +140,7 @@ import com.android.internal.app.IVoiceInteractor;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.server.UiThread;
+import com.android.server.axdragonite.AxDragonite;
 import com.android.server.am.ActivityManagerService.IntentCreatorToken;
 import com.android.server.am.AppBackgroundManager;
 import com.android.server.am.PendingIntentRecord;
@@ -1969,6 +1970,11 @@ class ActivityStarter {
             NeededUriGrants intentGrants, int realCallingUid) {
         setInitialState(r, options, inTask, inTaskFragment, startFlags, sourceRecord,
                 voiceSession, voiceInteractor, balVerdict, realCallingUid);
+
+        if (r != null && r.info != null && r.info.applicationInfo != null) {
+            AxDragonite.getInstance().onActivityStart(r.packageName, r.shortComponentName,
+                    r.info.applicationInfo.uid, r.app == null);
+        }
 
         computeLaunchingTaskFlags();
         mIntent.setFlags(mLaunchFlags);

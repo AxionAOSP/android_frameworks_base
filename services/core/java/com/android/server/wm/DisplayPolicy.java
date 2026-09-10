@@ -16,6 +16,8 @@
 
 package com.android.server.wm;
 
+import com.android.server.axdragonite.AxDragonite;
+
 import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
 import static android.view.InsetsFrameProvider.SOURCE_ARBITRARY_RECTANGLE;
 import static android.view.InsetsFrameProvider.SOURCE_CONTAINER_BOUNDS;
@@ -568,6 +570,7 @@ public class DisplayPolicy {
                         mService.mPowerManagerInternal.setPowerBoost(
                                 Boost.INTERACTION, duration);
                     }
+                    AxDragonite.getInstance().onSystemFling(duration + 160);
                 }
 
                 @Override
@@ -1546,6 +1549,7 @@ public class DisplayPolicy {
     }
 
     void onDisplayInfoChanged(DisplayInfo info) {
+        AxDragonite.getInstance().sceneBoostAcquire(AxDragonite.SCENE_ROTATION, null);
         if (!CLIENT_TRANSIENT) {
             mSystemGestures.onDisplayInfoChanged(info);
         }

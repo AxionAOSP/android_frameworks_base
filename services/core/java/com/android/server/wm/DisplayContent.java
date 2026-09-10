@@ -16,6 +16,8 @@
 
 package com.android.server.wm;
 
+import com.android.server.axdragonite.AxDragonite;
+
 import static android.app.ActivityTaskManager.INVALID_TASK_ID;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_DREAM;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_HOME;
@@ -4148,6 +4150,9 @@ class DisplayContent extends RootDisplayArea implements WindowManagerPolicy.Disp
         final Task oldTask = mFocusedApp != null ? mFocusedApp.getTask() : null;
         final Task newTask = newFocus != null ? newFocus.getTask() : null;
         mFocusedApp = newFocus;
+        if (newFocus != null) {
+            AxDragonite.getInstance().onSetFocusedApp(newFocus.packageName);
+        }
         if (oldTask != newTask) {
             if (oldTask != null) oldTask.onAppFocusChanged(false);
             if (newTask != null) newTask.onAppFocusChanged(true);

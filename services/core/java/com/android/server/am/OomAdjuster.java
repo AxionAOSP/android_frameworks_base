@@ -141,6 +141,7 @@ import com.android.internal.annotations.CompositeRWLock;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.ServiceThread;
+import com.android.server.axdragonite.AxOomAdjusterHelper;
 import com.android.server.am.psc.ActiveUidsInternal;
 import com.android.server.am.psc.ConnectionRecordInternal;
 import com.android.server.am.psc.ContentProviderConnectionInternal;
@@ -2157,13 +2158,13 @@ public abstract class OomAdjuster {
                     processGroup = THREAD_GROUP_TOP_APP;
                     break;
                 case SCHED_GROUP_RESTRICTED:
-                    processGroup = THREAD_GROUP_RESTRICTED;
+                    processGroup = AxOomAdjusterHelper.getRestrictedProcessGroup(state);
                     break;
                 case SCHED_GROUP_FOREGROUND_WINDOW:
                     processGroup = THREAD_GROUP_FOREGROUND_WINDOW;
                     break;
                 default:
-                    processGroup = THREAD_GROUP_DEFAULT;
+                    processGroup = AxOomAdjusterHelper.getDefaultProcessGroup(oldSchedGroup, state);
                     break;
             }
             mCallback.onSchedulingGroupChanged(state, oldSchedGroup, curSchedGroup);

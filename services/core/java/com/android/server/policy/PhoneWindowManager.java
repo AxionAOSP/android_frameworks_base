@@ -16,6 +16,8 @@
 
 package com.android.server.policy;
 
+import com.android.server.axdragonite.AxDragonite;
+
 import static android.Manifest.permission.CREATE_VIRTUAL_DEVICE;
 import static android.Manifest.permission.INTERNAL_SYSTEM_WINDOW;
 import static android.Manifest.permission.OVERRIDE_SYSTEM_KEY_BEHAVIOR_IN_FOCUSED_WINDOW;
@@ -5913,6 +5915,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     @Override
     public int interceptMotionBeforeQueueingNonInteractive(int displayId, int source, int action,
             long whenNanos, int policyFlags) {
+        AxDragonite.getInstance().inputBoost();
         if ((policyFlags & FLAG_WAKE) != 0) {
             if (mWindowWakeUpPolicy.wakeUpFromMotion(displayId, whenNanos / 1000000, source,
                     action == MotionEvent.ACTION_DOWN, mDeviceGoingToSleep)) {
