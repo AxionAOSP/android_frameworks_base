@@ -1063,6 +1063,14 @@ public final class PowerManagerService extends SystemService
             return PowerManagerService.nativeSetPowerMode(mode, enabled);
         }
 
+        public void nativeSetNodeCeiling(String nodePath, long maxCeiling, long minFloor) {
+            PowerManagerService.nativeSetNodeCeiling(nodePath, maxCeiling, minFloor);
+        }
+
+        public void nativeClearNodeCeiling(String nodePath) {
+            PowerManagerService.nativeClearNodeCeiling(nodePath);
+        }
+
         /** Wrapper for PowerManager.nativeForceSuspend */
         public boolean nativeForceSuspend() {
             return PowerManagerService.nativeForceSuspend();
@@ -1252,6 +1260,8 @@ public final class PowerManagerService extends SystemService
     private static native void nativeSetAutoSuspend(boolean enable);
     private static native void nativeSetPowerBoost(int boost, int durationMs);
     private static native boolean nativeSetPowerMode(int mode, boolean enabled);
+    private static native void nativeSetNodeCeiling(String nodePath, long maxCeiling, long minFloor);
+    private static native void nativeClearNodeCeiling(String nodePath);
     private static native boolean nativeForceSuspend();
 
     // Whether proximity check on wake is enabled by default
@@ -5020,6 +5030,14 @@ public final class PowerManagerService extends SystemService
         return mNativeWrapper.nativeSetPowerMode(mode, enabled);
     }
 
+    private void setNodeCeilingInternal(String nodePath, long maxCeiling, long minFloor) {
+        mNativeWrapper.nativeSetNodeCeiling(nodePath, maxCeiling, minFloor);
+    }
+
+    private void clearNodeCeilingInternal(String nodePath) {
+        mNativeWrapper.nativeClearNodeCeiling(nodePath);
+    }
+
     @VisibleForTesting
     boolean wasDeviceIdleForInternal(long ms) {
         synchronized (mLock) {
@@ -8184,6 +8202,16 @@ public final class PowerManagerService extends SystemService
             Message msg = mHandler.obtainMessage(MSG_FORCE_DISABLE_WAKELOCKS,
                     force ? 1 : 0,  0 /*unused*/);
             mHandler.sendMessageAtTime(msg, mClock.uptimeMillis());
+        }
+
+        @Override
+        public void setNodeCeiling(String nodePath, long maxCeiling, long minFloor) {
+            setNodeCeilingInternal(nodePath, maxCeiling, minFloor);
+        }
+
+        @Override
+        public void clearNodeCeiling(String nodePath) {
+            clearNodeCeilingInternal(nodePath);
         }
     }
 

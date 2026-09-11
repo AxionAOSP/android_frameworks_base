@@ -409,4 +409,8 @@ public abstract class PowerManagerInternal {
      * Notifies PowerManager that settings have changed and that it should refresh its state.
      */
     public abstract void updateSettings();
+
+    public abstract void setNodeCeiling(String nodePath, long maxCeiling, long minFloor);
+
+    public abstract void clearNodeCeiling(String nodePath);
 }

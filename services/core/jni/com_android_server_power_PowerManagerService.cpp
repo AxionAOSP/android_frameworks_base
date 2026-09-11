@@ -94,6 +94,18 @@ static bool setPowerMode(Mode mode, bool enabled) {
     return result.isOk();
 }
 
+static void setNodeCeiling(const char* nodePath, int64_t maxCeiling, int64_t minFloor) {
+    if (nodePath != nullptr) {
+        gPowerHalController.setNodeCeiling(nodePath, maxCeiling, minFloor);
+    }
+}
+
+static void clearNodeCeiling(const char* nodePath) {
+    if (nodePath != nullptr) {
+        gPowerHalController.clearNodeCeiling(nodePath);
+    }
+}
+
 void android_server_PowerManagerService_userActivity(nsecs_t eventTime, int32_t eventType,
                                                      ui::LogicalDisplayId displayId,
                                                      int32_t keyCode) {
@@ -235,6 +247,19 @@ static jboolean nativeSetPowerMode(JNIEnv* /* env */, jclass /* clazz */, jint m
     return setPowerMode(static_cast<Mode>(mode), enabled);
 }
 
+static void nativeSetNodeCeiling(JNIEnv* env, jclass /* clazz */, jstring nodePath,
+                                jlong maxCeiling, jlong minFloor) {
+    if (nodePath == nullptr) return;
+    ScopedUtfChars pathChars(env, nodePath);
+    setNodeCeiling(pathChars.c_str(), maxCeiling, minFloor);
+}
+
+static void nativeClearNodeCeiling(JNIEnv* env, jclass /* clazz */, jstring nodePath) {
+    if (nodePath == nullptr) return;
+    ScopedUtfChars pathChars(env, nodePath);
+    clearNodeCeiling(pathChars.c_str());
+}
+
 static bool nativeForceSuspend(JNIEnv* /* env */, jclass /* clazz */) {
     bool retval = false;
     getSuspendControlInternal()->forceSuspend(&retval);
@@ -254,6 +279,8 @@ static const JNINativeMethod gPowerManagerServiceMethods[] = {
         {"nativeSetAutoSuspend", "(Z)V", (void*)nativeSetAutoSuspend},
         {"nativeSetPowerBoost", "(II)V", (void*)nativeSetPowerBoost},
         {"nativeSetPowerMode", "(IZ)Z", (void*)nativeSetPowerMode},
+        {"nativeSetNodeCeiling", "(Ljava/lang/String;JJ)V", (void*)nativeSetNodeCeiling},
+        {"nativeClearNodeCeiling", "(Ljava/lang/String;)V", (void*)nativeClearNodeCeiling},
 };
 
 #define FIND_CLASS(var, className) \

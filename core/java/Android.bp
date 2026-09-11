@@ -20,6 +20,7 @@ filegroup {
         "**/*.aidl",
         "**/*.java",
         ":ax_dragonite_common_sources",
+        ":ax_km_common_sources",
         ":framework-nfc-non-updatable-sources",
         ":messagequeue-gen",
         ":ranging_stack_mock_initializer",

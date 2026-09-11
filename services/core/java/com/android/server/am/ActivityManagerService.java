@@ -326,8 +326,6 @@ import android.hardware.display.DisplayManager;
 import android.hardware.display.DisplayManagerInternal;
 import android.net.Uri;
 import android.os.AppZygote;
-import android.os.AxKernelControl;
-import android.os.AxKernelMetrics;
 import android.os.BatteryStats;
 import android.os.Binder;
 import android.os.BinderProxy;
@@ -425,6 +423,8 @@ import com.android.internal.app.SystemUserHomeActivity;
 import com.android.internal.app.procstats.ProcessState;
 import com.android.internal.app.procstats.ProcessStats;
 import com.android.internal.content.InstallLocationUtils;
+import com.android.internal.kernel.AxKernelControl;
+import com.android.internal.kernel.AxKernelMetrics;
 import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
 import com.android.internal.notification.SystemNotificationChannels;
 import com.android.internal.os.ApplicationSharedMemory;
@@ -2447,7 +2447,7 @@ public class ActivityManagerService extends IActivityManager.Stub
 
         mCachedAppOptimizer = new CachedAppOptimizer(this);
         mAppBackgroundManager = new AppBackgroundManager(this);
-        mAxKernelManager = new AxKernelManagerService(mContext);
+        mAxKernelManager = AxKernelManagerService.getInstance(mContext);
         mProcessStateController = new ProcessStateController
                 .Builder(this, mProcessList, activeUids, new OomAdjusterCallback())
                 .setHandlerThread(handlerThread)
@@ -2519,7 +2519,7 @@ public class ActivityManagerService extends IActivityManager.Stub
         final Looper activityTaskLooper = DisplayThread.get().getLooper();
         mCachedAppOptimizer = new CachedAppOptimizer(this);
         mAppBackgroundManager = new AppBackgroundManager(this);
-        mAxKernelManager = new AxKernelManagerService(mContext);
+        mAxKernelManager = AxKernelManagerService.getInstance(mContext);
         mProcessStateController = new ProcessStateController
                 .Builder(this, mProcessList, activeUids, new OomAdjusterCallback())
                 .setLockObject(this)
