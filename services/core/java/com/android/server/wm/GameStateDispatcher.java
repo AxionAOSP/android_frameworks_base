@@ -31,9 +31,9 @@ import lineageos.health.HealthInterface;
 
 class GameStateDispatcher {
     private static final String TAG = "GameStateDispatcher";
-    private static final String GAME_SPACE_PACKAGE = "io.chaldeaprjkt.gamespace";
+    private static final String GAME_SPACE_PACKAGE = "com.android.axion.gamespace";
     private static final String GAME_SPACE_SESSION_SERVICE =
-            "io.chaldeaprjkt.gamespace.gamebar.SessionService";
+            "com.android.axion.gamespace.gamebar.SessionService";
     private static final ComponentName GAME_SPACE_SESSION_COMPONENT =
             new ComponentName(GAME_SPACE_PACKAGE, GAME_SPACE_SESSION_SERVICE);
     private static final String ACTION_GAME_START = "game_start";
