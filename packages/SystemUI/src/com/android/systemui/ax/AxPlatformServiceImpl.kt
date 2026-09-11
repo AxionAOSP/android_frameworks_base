@@ -113,7 +113,7 @@ class AxPlatformServiceImpl @Inject constructor(
             val allowed = packages?.any {
                 it.startsWith("com.android.axion.") ||
                     it == "com.android.systemui" ||
-                    it == "io.chaldeaprjkt.gamespace"
+                    it == "com.android.axion.gamespace"
             } == true
             if (!allowed) {
                 throw SecurityException("AxPlatformService: caller uid=$uid not permitted")
