@@ -24,6 +24,7 @@
 #include <include/gpu/ganesh/SkImageGanesh.h>
 #include <include/gpu/vk/VulkanMutableTextureState.h>
 
+#include <ax_graphics/MediaBufferConverter.h>
 #include "renderthread/RenderThread.h"
 #include "utils/Color.h"
 #include "utils/PaintUtils.h"
@@ -35,6 +36,8 @@ namespace uirenderer {
 
 AutoBackendTextureRelease::AutoBackendTextureRelease(GrDirectContext* context,
                                                      AHardwareBuffer* buffer) {
+    mOriginalBuffer = buffer;
+    AHardwareBuffer* bufferToUse = buffer;
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
     bool createProtectedImage = 0 != (desc.usage & AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT);
@@ -56,14 +59,24 @@ AutoBackendTextureRelease::AutoBackendTextureRelease(GrDirectContext* context,
                                                              backendFormat,
                                                              false);
     } else if (backend == GrBackendApi::kVulkan) {
+        if (axion::graphics::MediaBufferConverter::isConversionEnabled() &&
+            axion::graphics::MediaBufferConverter::isMediaOrHdrBuffer(desc)) {
+            AHardwareBuffer* converted =
+                    axion::graphics::MediaBufferConverter::convertToRgba8888(buffer);
+            if (converted) {
+                mConvertedBuffer = converted;
+                bufferToUse = converted;
+                AHardwareBuffer_describe(bufferToUse, &desc);
+            }
+        }
         backendFormat =
                 GrAHardwareBufferUtils::GetVulkanBackendFormat(context,
-                                                               buffer,
+                                                               bufferToUse,
                                                                desc.format,
                                                                false);
         mBackendTexture =
                 GrAHardwareBufferUtils::MakeVulkanBackendTexture(context,
-                                                                 buffer,
+                                                                 bufferToUse,
                                                                  desc.width,
                                                                  desc.height,
                                                                  &mDeleteProc,
@@ -75,14 +88,11 @@ AutoBackendTextureRelease::AutoBackendTextureRelease(GrDirectContext* context,
     } else {
         LOG_ALWAYS_FATAL("Unexpected backend %d", backend);
     }
-    LOG_ALWAYS_FATAL_IF(!backendFormat.isValid(),
-                        __FILE__ " Invalid GrBackendFormat. GrBackendApi==%" PRIu32
-                                 ", AHardwareBuffer_Format==%" PRIu32 ".",
-                        static_cast<int>(context->backend()), desc.format);
-    LOG_ALWAYS_FATAL_IF(!mBackendTexture.isValid(),
-                        __FILE__ " Invalid GrBackendTexture. Width==%" PRIu32 ", height==%" PRIu32
-                                 ", protected==%d",
-                        desc.width, desc.height, createProtectedImage);
+    if (!backendFormat.isValid() || !mBackendTexture.isValid()) {
+        ALOGW("Invalid GrBackendFormat or GrBackendTexture for format %u (%ux%u)",
+              desc.format, desc.width, desc.height);
+        return;
+    }
 }
 
 void AutoBackendTextureRelease::unref(bool releaseImage) {
@@ -119,19 +129,33 @@ static void releaseProc(SkImages::ReleaseContext releaseContext) {
 void AutoBackendTextureRelease::makeImage(AHardwareBuffer* buffer,
                                           android_dataspace dataspace,
                                           GrDirectContext* context) {
+    if (!mBackendTexture.isValid()) {
+        return;
+    }
+    mOriginalBuffer = buffer;
+    if (mConvertedBuffer) {
+        axion::graphics::MediaBufferConverter::convertToRgba8888(mOriginalBuffer,
+                                                                 mConvertedBuffer);
+    }
+    AHardwareBuffer* bufferToUse = mConvertedBuffer ? mConvertedBuffer : buffer;
     AHardwareBuffer_Desc desc;
-    AHardwareBuffer_describe(buffer, &desc);
+    AHardwareBuffer_describe(bufferToUse, &desc);
     SkColorType colorType = AHardwareBufferUtils::GetSkColorTypeFromBufferFormat(desc.format);
     // The following ref will be counteracted by Skia calling releaseProc, either during
     // BorrowTextureFrom if there is a failure, or later when SkImage is discarded. It must
     // be called before BorrowTextureFrom, otherwise Skia may remove HWUI's ref on failure.
     ref();
+    const android_dataspace targetDataspace = mConvertedBuffer ? HAL_DATASPACE_V0_SRGB : dataspace;
     mImage = SkImages::BorrowTextureFrom(
             context, mBackendTexture, kTopLeft_GrSurfaceOrigin, colorType, kPremul_SkAlphaType,
-            uirenderer::DataSpaceToColorSpace(dataspace), releaseProc, this);
+            uirenderer::DataSpaceToColorSpace(targetDataspace), releaseProc, this);
 }
 
 void AutoBackendTextureRelease::newBufferContent(GrDirectContext* context) {
+    if (mConvertedBuffer && mOriginalBuffer) {
+        axion::graphics::MediaBufferConverter::convertToRgba8888(mOriginalBuffer,
+                                                                 mConvertedBuffer);
+    }
     if (mBackendTexture.isValid()) {
         mUpdateProc(mImageCtx, context);
     }
