@@ -56,8 +56,15 @@ public:
 
 private:
     // The only way to invoke dtor is with unref, when mUsageCount is 0.
-    ~AutoBackendTextureRelease() {}
+    ~AutoBackendTextureRelease() {
+        if (mConvertedBuffer) {
+            AHardwareBuffer_release(mConvertedBuffer);
+            mConvertedBuffer = nullptr;
+        }
+    }
 
+    AHardwareBuffer* mConvertedBuffer = nullptr;
+    AHardwareBuffer* mOriginalBuffer = nullptr;
     GrBackendTexture mBackendTexture;
     GrAHardwareBufferUtils::DeleteImageProc mDeleteProc;
     GrAHardwareBufferUtils::UpdateImageProc mUpdateProc;
