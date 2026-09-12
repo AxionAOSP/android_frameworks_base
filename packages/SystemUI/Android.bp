@@ -512,6 +512,7 @@ android_library {
         ":SystemUI-core-srcs",
         ":ReleaseJavaFiles",
         ":ax_dragonite_systemui_sources",
+        ":ax_systemui_sources",
         "compose/features/src/**/*.kt",
         "compose/facade/enabled/src/**/*.kt",
     ],
