@@ -18,6 +18,7 @@ package com.android.systemui.media.controls.ui.view
 import android.animation.ValueAnimator
 import android.R as AndroidR
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
@@ -150,16 +151,26 @@ class WaveformSeekBar @JvmOverloads constructor(
 
     private fun restoreStockSeekBar() {
         thumb = transparentThumb
-        progressDrawable =
+        val squiggly =
             context.getDrawable(R.drawable.media_squiggly_progress)?.mutate()?.apply {
                 alpha = 255
                 (this as? SquigglyProgress)?.configureStockSquiggly()
             }
-        thumbTintList = context.getColorStateList(R.color.media_on_background)
-        progressTintList = context.getColorStateList(R.color.media_on_background)
+        progressDrawable = squiggly
+        val tint =
+            if (mediaColor != 0) {
+                ColorStateList.valueOf(mediaColor)
+            } else {
+                context.getColorStateList(R.color.media_on_background)
+            }
+        thumbTintList = tint
+        progressTintList = tint
+        if (mediaColor != 0) {
+            (squiggly as? SquigglyProgress)?.setTint(mediaColor)
+        }
         progressBackgroundTintList = context.getColorStateList(AndroidR.color.system_primary_dark)
         splitTrack = false
-        thumbPaint.color = mediaColor
+        thumbPaint.color = if (mediaColor != 0) mediaColor else Color.WHITE
     }
 
     private fun SquigglyProgress.configureStockSquiggly() {
@@ -176,8 +187,12 @@ class WaveformSeekBar @JvmOverloads constructor(
 
     fun setMediaColor(color: Int) {
         mediaColor = color
+        thumbPaint.color = color
         if (!customWaveformEnabled) {
-            thumbPaint.color = color
+            val tint = ColorStateList.valueOf(color)
+            progressTintList = tint
+            thumbTintList = tint
+            (progressDrawable as? SquigglyProgress)?.setTint(color)
             invalidate()
             return
         }

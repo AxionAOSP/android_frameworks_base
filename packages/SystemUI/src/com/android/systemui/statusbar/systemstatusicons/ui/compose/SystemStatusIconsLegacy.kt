@@ -17,9 +17,7 @@
 package com.android.systemui.statusbar.systemstatusicons.ui.compose
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.annotation.RememberInComposition
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -66,14 +64,14 @@ fun SystemStatusIconsLegacy(
      * Use `rememberUpdatedState` to guarantee that a state will be exposed (without recomposition)
      * for all these parameters, so the update block will be called when any of them changes.
      */
-    val useExpandedFormat by rememberUpdatedState(useExpandedFormat)
-    val isTransitioning by rememberUpdatedState(isTransitioning)
-    val foregroundColor by rememberUpdatedState(foregroundColor)
-    val backgroundColor by rememberUpdatedState(backgroundColor)
-    val isSingleCarrier by rememberUpdatedState(isSingleCarrier)
-    val isMicCameraIndicationEnabled by rememberUpdatedState(isMicCameraIndicationEnabled)
-    val isPrivacyChipEnabled by rememberUpdatedState(isPrivacyChipEnabled)
-    val isLocationIndicationEnabled by rememberUpdatedState(isLocationIndicationEnabled)
+    val useExpandedFormatState = rememberUpdatedState(useExpandedFormat)
+    val isTransitioningState = rememberUpdatedState(isTransitioning)
+    val foregroundColorState = rememberUpdatedState(foregroundColor)
+    val backgroundColorState = rememberUpdatedState(backgroundColor)
+    val isSingleCarrierState = rememberUpdatedState(isSingleCarrier)
+    val isMicCameraIndicationEnabledState = rememberUpdatedState(isMicCameraIndicationEnabled)
+    val isPrivacyChipEnabledState = rememberUpdatedState(isPrivacyChipEnabled)
+    val isLocationIndicationEnabledState = rememberUpdatedState(isLocationIndicationEnabled)
 
     val update =
         remember(
@@ -85,23 +83,23 @@ fun SystemStatusIconsLegacy(
             locationSlot,
         ) {
             { container: StatusIconContainer ->
-                container.setQsExpansionTransitioning(isTransitioning)
+                container.setQsExpansionTransitioning(isTransitioningState.value)
 
-                if (isSingleCarrier || !useExpandedFormat) {
+                if (isSingleCarrierState.value || !useExpandedFormatState.value) {
                     container.removeIgnoredSlots(carrierIconSlots)
                 } else {
                     container.addIgnoredSlots(carrierIconSlots)
                 }
 
-                if (isPrivacyChipEnabled) {
-                    if (isMicCameraIndicationEnabled) {
+                if (isPrivacyChipEnabledState.value) {
+                    if (isMicCameraIndicationEnabledState.value) {
                         container.addIgnoredSlot(cameraSlot)
                         container.addIgnoredSlot(micSlot)
                     } else {
                         container.removeIgnoredSlot(cameraSlot)
                         container.removeIgnoredSlot(micSlot)
                     }
-                    if (isLocationIndicationEnabled) {
+                    if (isLocationIndicationEnabledState.value) {
                         container.addIgnoredSlot(locationSlot)
                     } else {
                         container.removeIgnoredSlot(locationSlot)
@@ -112,7 +110,7 @@ fun SystemStatusIconsLegacy(
                     container.removeIgnoredSlot(locationSlot)
                 }
 
-                iconManager.setTint(foregroundColor, backgroundColor)
+                iconManager.setTint(foregroundColorState.value, backgroundColorState.value)
             }
         }
 
@@ -156,13 +154,12 @@ private fun SystemStatusIconsLegacyAndroidView(
     update: (StatusIconContainer) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    DisposableEffect(statusBarIconController, iconManager) {
-        statusBarIconController.addIconGroup(iconManager)
-        onDispose { statusBarIconController.removeIconGroup(iconManager) }
-    }
-
     AndroidView(
-        factory = { iconContainer },
+        factory = {
+            statusBarIconController.addIconGroup(iconManager)
+            iconContainer
+        },
+        onRelease = { statusBarIconController.removeIconGroup(iconManager) },
         update = update,
         modifier = modifier,
     )

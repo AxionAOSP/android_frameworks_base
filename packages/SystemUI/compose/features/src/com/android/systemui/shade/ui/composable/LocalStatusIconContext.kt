@@ -85,6 +85,7 @@ fun rememberStatusIconContext(
         configuration.densityDpi,
         configuration.fontScale,
         configuration.uiMode,
+        configuration.orientation,
     ) {
         object : StatusIconContext {
             private val iconContainerByContentKey = mutableMapOf<ContentKey, StatusIconContainer>()

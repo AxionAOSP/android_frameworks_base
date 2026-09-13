@@ -157,7 +157,8 @@ constructor(
 
     fun onScrubFinished(session: MediaSessionModel, dragDelta: Offset) {
         if (
-            scrubbingSessionKey == session.key &&
+            session.canBeScrubbed &&
+                scrubbingSessionKey == session.key &&
                 dragDelta.isHorizontal() &&
                 !falsingSystem.isFalseTouch(Classifier.MEDIA_SEEKBAR)
         ) {

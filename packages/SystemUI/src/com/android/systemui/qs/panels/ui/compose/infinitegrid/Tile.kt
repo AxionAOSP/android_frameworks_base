@@ -98,6 +98,7 @@ import com.android.systemui.haptics.msdl.qs.TileHapticsViewModelFactoryProvider
 import com.android.systemui.lifecycle.rememberViewModel
 import com.android.systemui.qs.ax.shared.model.AxQsSpan
 import com.android.systemui.qs.ax.ui.compose.AxLargeTileContent
+import com.android.systemui.qs.ax.ui.compose.AxQsControlCornerRadius
 import com.android.systemui.qs.flags.QsDetailedView
 import com.android.systemui.qs.panels.ui.compose.BounceableInfo
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults.InactiveCornerRadius
@@ -211,8 +212,13 @@ fun ContentScope.Tile(
             }
 
         // TODO(b/361789146): Draw the shapes instead of clipping
-        val tileShape =
-            tileShapeOverride ?: TileDefaults.animateTileShapeAsState(uiState.state).value
+        val defaultTileShape =
+            if (span.columns > 1 || span.rows > 1) {
+                RoundedCornerShape(AxQsControlCornerRadius)
+            } else {
+                TileDefaults.animateTileShapeAsState(uiState.state).value
+            }
+        val tileShape = tileShapeOverride ?: defaultTileShape
         val animatedColor by animateColorAsState(colors.background, label = "QSTileBackgroundColor")
         val isDualTarget = uiState.handlesSecondaryClick
 

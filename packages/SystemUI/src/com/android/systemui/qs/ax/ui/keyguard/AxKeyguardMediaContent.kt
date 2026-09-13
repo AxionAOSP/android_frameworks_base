@@ -30,17 +30,16 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.res.dimensionResource
 import com.android.app.animation.Interpolators
 import com.android.compose.theme.PlatformTheme
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.media.remedia.ui.viewmodel.MediaViewModel
 import com.android.systemui.qs.ax.shared.model.AxQsSpan
 import com.android.systemui.qs.ax.ui.compose.AxMediaPanel
+import com.android.systemui.qs.ax.ui.compose.nonQsGridMediaHeight
 import com.android.systemui.qs.ax.ui.model.AxMediaSurface
 import com.android.systemui.qs.ax.ui.viewmodel.AxMediaViewModel
 import com.android.systemui.qs.ui.composable.QuickSettingsTheme
-import com.android.systemui.res.R
 import javax.inject.Inject
 import kotlin.math.abs
 import kotlin.math.sign
@@ -87,9 +86,7 @@ constructor(
                     Box(
                         modifier =
                             Modifier.fillMaxWidth()
-                                .height(
-                                    dimensionResource(R.dimen.qs_media_session_height_expanded)
-                                ),
+                                .height(nonQsGridMediaHeight),
                         contentAlignment = Alignment.Center,
                     ) {
                         AxMediaPanel(

@@ -17,14 +17,12 @@
 package com.android.systemui.qs.ax.ui.compose
 
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import com.android.compose.animation.scene.ContentKey
 import com.android.compose.animation.scene.SceneTransitionLayoutState
 import com.android.compose.animation.scene.TransitionBuilder
 import com.android.compose.animation.scene.content.state.TransitionState
 import com.android.systemui.qs.composefragment.SceneKeys
-import com.android.systemui.qs.panels.ui.compose.infinitegrid.squishScale
 import com.android.systemui.qs.shared.ui.QuickSettings.Elements
 import com.android.systemui.shade.ui.composable.ShadeHeader
 
@@ -74,11 +72,18 @@ fun SceneTransitionLayoutState.shouldComposeLiveAxQs(): Boolean {
 }
 
 internal fun Modifier.axQsEntrance(progress: () -> Float): Modifier {
-    return squishScale(
-        squishiness = progress,
-        alphaStart = AX_QS_ENTRANCE_ALPHA_START,
-        transformOrigin = TransformOrigin(0.5f, 0f),
-    )
+    return graphicsLayer {
+        val entrance = progress().coerceIn(0f, 1f)
+        alpha =
+            ((entrance - AX_QS_ENTRANCE_ALPHA_START) / (1f - AX_QS_ENTRANCE_ALPHA_START))
+                .coerceIn(0f, 1f)
+        translationY =
+            if (entrance == 0f) {
+                AX_QS_ENTRANCE_HIDDEN_TRANSLATION_PX
+            } else {
+                -(1f - entrance) * AX_QS_ENTRANCE_TRANSLATION_PX
+            }
+    }
 }
 
 internal fun Modifier.axQuickSettingsSceneMotion(progress: () -> Float): Modifier {
@@ -101,6 +106,8 @@ private fun ContentKey.isAxQsScene(): Boolean {
 }
 
 private const val AX_QS_ENTRANCE_ALPHA_START = 0.89f
+private const val AX_QS_ENTRANCE_TRANSLATION_PX = 300f
+private const val AX_QS_ENTRANCE_HIDDEN_TRANSLATION_PX = -5000f
 private const val AX_QS_SCENE_FADE_START = 0.5f
 private const val AX_QS_SCENE_TRANSLATION_PX = 300f
 private const val AX_QS_SCENE_HIDDEN_TRANSLATION_PX = -5000f

@@ -39,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,7 +100,7 @@ fun AxQuickSettingsHeader(
         val endContent: @Composable () -> Unit = {
             Row(
                 modifier = Modifier.padding(end = sidePadding),
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.End),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 AxStatusIcons(
@@ -150,37 +151,40 @@ private fun AxStatusIcons(
     @ColorInt backgroundColor: Int,
     modifier: Modifier = Modifier,
 ) {
-    key(viewModel.configChangeToken) {
-        if (SystemStatusIconsInCompose.isEnabled) {
-            SystemStatusIcons(
-                viewModelFactory = viewModel.systemStatusIconsViewModelFactory,
-                tint = Color(foregroundColor),
-                modifier = modifier,
-            )
-        } else {
-            val statusIconContext = LocalStatusIconContext.current
-            val iconContainer = statusIconContext.iconContainer(AxQuickSettingsHeaderContent)
-            val iconManager = statusIconContext.iconManager(AxQuickSettingsHeaderContent)
-            val movableContent =
-                remember(statusIconContext, iconManager) {
-                    statusIconContext.movableContent(iconManager)
-                }
-            SystemStatusIconsLegacy(
-                iconContainer = iconContainer,
-                iconManager = iconManager,
-                statusBarIconController = viewModel.statusBarIconController,
-                useExpandedFormat = false,
-                isTransitioning = isTransitioning,
-                foregroundColor = foregroundColor,
-                backgroundColor = backgroundColor,
-                isSingleCarrier = viewModel.isSingleCarrier,
-                isMicCameraIndicationEnabled = viewModel.isMicCameraIndicationEnabled,
-                isPrivacyChipEnabled = viewModel.isPrivacyChipVisible,
-                isLocationIndicationEnabled = viewModel.isLocationIndicationEnabled,
-                modifier = modifier,
-                content = movableContent,
-            )
+    if (SystemStatusIconsInCompose.isEnabled) {
+        SystemStatusIcons(
+            viewModelFactory = viewModel.systemStatusIconsViewModelFactory,
+            tint = Color(foregroundColor),
+            modifier = modifier,
+        )
+    } else {
+        val statusIconContext = LocalStatusIconContext.current
+        val iconContainer = statusIconContext.iconContainer(AxQuickSettingsHeaderContent)
+        val iconManager = statusIconContext.iconManager(AxQuickSettingsHeaderContent)
+        val movableContent =
+            remember(statusIconContext, iconManager) {
+                statusIconContext.movableContent(iconManager)
+            }
+        LaunchedEffect(viewModel.configChangeToken) {
+            if (viewModel.configChangeToken > 0) {
+                viewModel.statusBarIconController.refreshIconGroup(iconManager)
+            }
         }
+        SystemStatusIconsLegacy(
+            iconContainer = iconContainer,
+            iconManager = iconManager,
+            statusBarIconController = viewModel.statusBarIconController,
+            useExpandedFormat = !viewModel.isSingleCarrier,
+            isTransitioning = isTransitioning,
+            foregroundColor = foregroundColor,
+            backgroundColor = backgroundColor,
+            isSingleCarrier = viewModel.isSingleCarrier,
+            isMicCameraIndicationEnabled = viewModel.isMicCameraIndicationEnabled,
+            isPrivacyChipEnabled = viewModel.isPrivacyChipVisible,
+            isLocationIndicationEnabled = viewModel.isLocationIndicationEnabled,
+            modifier = modifier,
+            content = movableContent,
+        )
     }
 }
 
