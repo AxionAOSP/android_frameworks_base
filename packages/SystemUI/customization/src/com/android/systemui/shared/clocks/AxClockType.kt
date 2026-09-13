@@ -89,6 +89,12 @@ enum class AxClockType(
         largeViewId = R.layout.clock_bitmap_compose_large,
         bitmapFaceStyle = ClockFaceStyle.SEGMENTS
     ),
+    GOOEY(
+        clockId = R.string.clock_id_gooey,
+        viewId = R.layout.clock_bitmap_compose,
+        largeViewId = R.layout.clock_bitmap_compose_large,
+        bitmapFaceStyle = ClockFaceStyle.GOOEY
+    ),
     OPLUS_CLASSIC(
         clockId = R.string.clock_id_oplus_classic,
         viewId = R.layout.clock_oplus_classic,
@@ -122,7 +128,8 @@ enum class AxClockType(
             NTYPE,
             SPACE_AGE,
             POLYLINE,
-            SEGMENTS -> "BitmapDigitComposeClockView"
+            SEGMENTS,
+            GOOEY -> "BitmapDigitComposeClockView"
             OLD_QUICKLOOK -> "OldQuickLookClockView"
             CYBERPUNK -> "CyberpunkClockView"
             AXION_AGE -> "AxionAgeClockView"
