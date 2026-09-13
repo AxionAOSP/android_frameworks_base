@@ -30,7 +30,8 @@ enum class ClockFaceStyle(val key: String) {
     CYBERPUNK("cyberpunk"),
     AXION_AGE("axion_age"),
     SEGMENTS("segments"),
-    GRAPHIC("graphic");
+    GRAPHIC("graphic"),
+    GOOEY("gooey");
 
     val isComposeClock: Boolean
         get() = this != CYBERPUNK && this != AXION_AGE
@@ -217,6 +218,20 @@ object BitmapFaceConfigs {
             renderMode = RenderMode.AnalogClock,
             tickResIds = intArrayOf(R.drawable.graphic_tick, R.drawable.graphic_tick_light),
             dateSpacingDp = 40f,
+            topPaddingDp = 16f,
+            bottomPaddingDp = 24f,
+        ),
+        ClockFaceStyle.GOOEY to BitmapFaceConfig(
+            digitResIds = intArrayOf(
+                R.drawable.gooey_0, R.drawable.gooey_1, R.drawable.gooey_2,
+                R.drawable.gooey_3, R.drawable.gooey_4, R.drawable.gooey_5,
+                R.drawable.gooey_6, R.drawable.gooey_7, R.drawable.gooey_8,
+                R.drawable.gooey_9
+            ),
+            digitSpacingRes = R.dimen.gooey_clock_padding,
+            clockOffsetRes = R.dimen.clock_offset,
+            largeScaleMultiplier = 1.5f,
+            dateSpacingDp = 20f,
             topPaddingDp = 16f,
             bottomPaddingDp = 24f,
         ),

@@ -102,6 +102,7 @@ class AxClockProvider(
             AxClockType.CYBERPUNK,
             AxClockType.AXION_AGE,
             AxClockType.SEGMENTS,
+            AxClockType.GOOEY,
             AxClockType.OPLUS_CLASSIC,
             AxClockType.OPLUS_BIG,
             AxClockType.OPLUS_PLAYFUL,

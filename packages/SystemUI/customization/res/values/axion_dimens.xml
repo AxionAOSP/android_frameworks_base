@@ -67,6 +67,7 @@
     <dimen name="overlap_small_padding">2dp</dimen>
     <dimen name="space_age_clock_sticky_offset">0.3334dp</dimen>
     <dimen name="polyline_clock_padding">5dp</dimen>
+    <dimen name="gooey_clock_padding">5dp</dimen>
     <dimen name="clock_date_icon_size">16dp</dimen>
     <dimen name="clock_date_icon_margin">6dp</dimen>
     <dimen name="clock_date_element_spacing">8dp</dimen>

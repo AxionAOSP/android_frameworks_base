@@ -35,6 +35,7 @@
     <string name="clock_id_cyberpunk">CYBERPUNK</string>
     <string name="clock_id_axion_age">AXION_AGE</string>
     <string name="clock_id_segments">SEGMENTS</string>
+    <string name="clock_id_gooey">GOOEY</string>
     <string name="clock_id_oplus_classic">OPLUS_CLASSIC</string>
     <string name="clock_id_oplus_classic_start">OPLUS_CLASSIC_START</string>
     <string name="clock_id_oplus_classic_end">OPLUS_CLASSIC_END</string>

@@ -186,6 +186,22 @@ object AxClockAnimationSpecs {
         aod = AxClockAodAnimationSpec(scaleX = 0.96f, scaleY = 0.96f, translationYDp = -4f, alpha = 0.95f),
     )
 
+    val Gooey = AxClockAnimationSpec(
+        appear = AxClockAppearAnimationSpec(
+            startAlpha = 0.2f,
+            startScaleX = 0.92f,
+            startScaleY = 1.05f,
+            startTranslationYDp = 10f,
+        ),
+        fidget = AxClockFidgetAnimationSpec(
+            firstScaleX = 1.04f,
+            firstScaleY = 0.95f,
+            secondScaleX = 0.96f,
+            secondScaleY = 1.03f,
+        ),
+        aod = AxClockAodAnimationSpec(scaleX = 0.98f, scaleY = 0.98f, alpha = 0.94f),
+    )
+
     val OldQuickLook = AxClockAnimationSpec(
         appear = AxClockAppearAnimationSpec(startScaleX = 0.98f, startScaleY = 0.92f, startTranslationYDp = 14f),
         fidget = AxClockFidgetAnimationSpec(
@@ -289,5 +305,6 @@ object AxClockAnimationSpecs {
         ClockFaceStyle.AXION_AGE -> AxionAge
         ClockFaceStyle.SEGMENTS -> Segments
         ClockFaceStyle.GRAPHIC -> Graphic
+        ClockFaceStyle.GOOEY -> Gooey
     }
 }
