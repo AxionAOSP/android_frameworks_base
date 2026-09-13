@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height as layoutHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,6 +45,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.compose.animation.scene.ContentScope
 import com.android.systemui.brightness.ui.viewmodel.BrightnessSliderViewModel
 import com.android.systemui.media.remedia.ui.viewmodel.MediaViewModel
+import com.android.systemui.qs.ax.ui.compose.AxQsControlCornerRadius
 import com.android.systemui.qs.ax.shared.model.AxQsControl
 import com.android.systemui.qs.ax.shared.model.AxQsGridLayout
 import com.android.systemui.qs.ax.shared.model.AxQsGridSection
@@ -421,17 +423,21 @@ private fun ContentScope.AxLiveTile(
 ) {
     val coroutineScope = rememberCoroutineScope()
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
-        this@AxLiveTile.Tile(
-            tile = tile,
-            iconOnly = iconOnly,
-            span = item.span,
-            fillHeight = true,
-            compactIconSize = axQsTileIconSize(minOf(maxWidth, maxHeight)),
-            tileShapeOverride =
-                CircleShape.takeIf {
-                    item.span == AxQsSpan.TileDefault &&
-                        abs(maxWidth.value - maxHeight.value) < 1f
-                },
+            val isSquare = abs(maxWidth.value - maxHeight.value) < 1f
+            val shapeOverride =
+                when {
+                    item.span == AxQsSpan.TileDefault && isSquare -> CircleShape
+                    item.span.columns > 1 || item.span.rows > 1 ->
+                        RoundedCornerShape(AxQsControlCornerRadius)
+                    else -> null
+                }
+            this@AxLiveTile.Tile(
+                tile = tile,
+                iconOnly = iconOnly,
+                span = item.span,
+                fillHeight = true,
+                compactIconSize = axQsTileIconSize(minOf(maxWidth, maxHeight)),
+                tileShapeOverride = shapeOverride,
             squishiness = { 1f },
             coroutineScope = coroutineScope,
             bounceableInfo = null,

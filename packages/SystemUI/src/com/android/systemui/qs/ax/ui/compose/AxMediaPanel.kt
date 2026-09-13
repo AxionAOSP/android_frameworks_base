@@ -579,18 +579,25 @@ private fun OneRowMediaContent(
         val horizontalPadding = mediaHorizontalPadding(maxWidth)
         val actionSize = mediaCompactActionSize(maxWidth, maxHeight)
         val actionLimit = if (maxWidth < 132.dp) 1 else maxActions
-        if (maxHeight < 56.dp) {
+        val useRowLayout = maxWidth >= 200.dp || maxHeight < 56.dp
+        if (useRowLayout) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier =
-                    Modifier.fillMaxSize().padding(horizontal = horizontalPadding, vertical = 4.dp),
+                    Modifier.fillMaxSize().padding(horizontal = horizontalPadding, vertical = 6.dp),
             ) {
+                MediaAppIcon(
+                    session = session,
+                    size = 20.dp,
+                    tint = colors.primary,
+                    modifier = Modifier.padding(end = 8.dp),
+                )
                 AnimatedMediaText(
                     text = metadata,
                     color = colors.foreground,
                     style = MaterialTheme.typography.labelMedium,
                     textAlign = if (session == null) TextAlign.Center else TextAlign.Start,
-                    modifier = Modifier.weight(1f).padding(end = 4.dp),
+                    modifier = Modifier.weight(1f).padding(end = 8.dp),
                 )
                 MediaControls(
                     session = session,
@@ -605,12 +612,12 @@ private fun OneRowMediaContent(
             val dense = maxHeight < 68.dp
             Column(
                 horizontalAlignment = Alignment.Start,
-                verticalArrangement = Arrangement.spacedBy(if (dense) 2.dp else 4.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
                 modifier =
                     Modifier.fillMaxSize()
                         .padding(
                             horizontal = horizontalPadding,
-                            vertical = if (dense) 2.dp else 6.dp,
+                            vertical = if (dense) 6.dp else 8.dp,
                         ),
             ) {
                 AnimatedMediaText(
@@ -665,7 +672,7 @@ private fun CompactMediaContent(
                 Modifier.align(Alignment.Center)
                     .fillMaxWidth()
                     .height(contentHeight)
-                    .padding(top = 8.dp, bottom = if (compactOutput) 4.dp else 8.dp),
+                    .padding(top = 10.dp, bottom = 10.dp),
         ) {
             BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = horizontalPadding)) {
                 val outputMaxWidth = maxWidth * 0.32f
@@ -734,7 +741,7 @@ private fun CompactMediaContent(
                     maxActions = mediaActionLimit(AxQsSpan.MediaDefault.columns),
                     actionSize = actionSize,
                     spreadCoreActions = true,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                 )
             }
         }
@@ -1084,8 +1091,10 @@ private fun mediaHorizontalPadding(width: Dp): Dp {
 private fun mediaCompactActionSize(width: Dp, height: Dp): Dp {
     return when {
         width < 112.dp || height < 56.dp -> 28.dp
-        width < 160.dp || height < 144.dp -> 32.dp
-        else -> 36.dp
+        height < 120.dp -> 32.dp
+        width < 144.dp -> 36.dp
+        width < 168.dp -> 40.dp
+        else -> 44.dp
     }
 }
 
@@ -1200,8 +1209,21 @@ private fun MediaControls(
     modifier: Modifier = Modifier,
 ) {
     val spacing = dimensionResource(R.dimen.qs_media_action_spacing)
-    val iconSize = if (actionSize < 32.dp) 18.dp else 20.dp
-    val navigationIconSize = minOf(iconSize, MediaNavigationIconSize)
+    val iconSize =
+        when {
+            actionSize < 32.dp -> 18.dp
+            actionSize < 40.dp -> 20.dp
+            else -> 24.dp
+        }
+    val navigationIconSize =
+        minOf(
+            when {
+                actionSize < 32.dp -> 16.dp
+                actionSize < 40.dp -> 18.dp
+                else -> 22.dp
+            },
+            MediaNavigationIconSize,
+        )
     val showSideActions = maxActions >= 3
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Row(
@@ -1428,7 +1450,7 @@ private enum class AxMediaLayout {
 private val ExpandedMediaMinSeekWidth = 40.dp
 private val ExpandedMediaNavigationMaxWidth = 320.dp
 private val CompactMediaMaxHeight = 220.dp
-private val MediaNavigationIconSize = 16.dp
+private val MediaNavigationIconSize = 22.dp
 
 @Composable
 private fun MediaAction(

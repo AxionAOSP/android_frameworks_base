@@ -22,13 +22,10 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -122,40 +119,44 @@ fun RingerSliderTileContent(
         contentAlignment = Alignment.CenterStart
     ) {
         val controlWidth = maxWidth
-        val slotSize =
-            minOf(
-                RINGER_INDICATOR_SIZE,
-                maxHeight,
-                (controlWidth - RINGER_OUTER_PADDING * 2) / viewModel.numModes,
-            )
-        val iconSize = minOf(RINGER_ICON_SIZE, slotSize / 2)
+        val outerPadding = RINGER_OUTER_PADDING
+        val availableHeight = (maxHeight - outerPadding * 2).coerceAtLeast(0.dp)
+        val availableWidth = (controlWidth - outerPadding * 2).coerceAtLeast(0.dp)
+        val slotSize = minOf(availableHeight, availableWidth)
+        val iconSize = (slotSize * 0.42f).coerceIn(20.dp, 28.dp)
         val currentIndex = animatedPosition.value.roundToInt().coerceIn(0, viewModel.numModes - 1)
-        val travelWidth = (controlWidth - RINGER_OUTER_PADDING * 2 - slotSize).coerceAtLeast(0.dp)
+        val travelWidth = (controlWidth - outerPadding * 2 - slotSize).coerceAtLeast(0.dp)
         val step = if (viewModel.numModes > 1) travelWidth / (viewModel.numModes - 1) else 0.dp
-        val indicatorOffset = RINGER_OUTER_PADDING + step * animatedPosition.value
+        val indicatorOffset = outerPadding + step * animatedPosition.value
 
-        Row(
-            modifier = Modifier.fillMaxSize().padding(horizontal = RINGER_OUTER_PADDING),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            viewModel.availableModes.forEachIndexed { index, option ->
-                key(option.mode) {
-                    val dotAlpha by
-                        animateFloatAsState(
-                            targetValue = if (currentIndex == index) 0f else 0.4f,
-                            animationSpec = tween(durationMillis = 200),
-                            label = "RingerModeDotAlpha",
-                        )
-                    Box(modifier = Modifier.size(slotSize), contentAlignment = Alignment.Center) {
-                        Box(
-                            modifier =
-                                Modifier.size(RINGER_DOT_SIZE)
-                                    .graphicsLayer { alpha = dotAlpha }
-                                    .background(neutralDot, CircleShape)
-                        )
-                    }
-                }
+        val minCenter = outerPadding + slotSize / 2
+        val startDotCenter =
+            (controlWidth * 0.16f).coerceIn(outerPadding + RINGER_DOT_SIZE * 2, minCenter)
+        val endDotCenter = controlWidth - startDotCenter
+        val dotStep =
+            if (viewModel.numModes > 1) {
+                (endDotCenter - startDotCenter) / (viewModel.numModes - 1)
+            } else {
+                0.dp
+            }
+
+        viewModel.availableModes.forEachIndexed { index, option ->
+            key(option.mode) {
+                val dotAlpha by
+                    animateFloatAsState(
+                        targetValue = if (currentIndex == index) 0f else 0.4f,
+                        animationSpec = tween(durationMillis = 200),
+                        label = "RingerModeDotAlpha",
+                    )
+                val dotOffset = startDotCenter + dotStep * index - RINGER_DOT_SIZE / 2
+                Box(
+                    modifier =
+                        Modifier.offset(x = dotOffset)
+                            .size(RINGER_DOT_SIZE)
+                            .align(Alignment.CenterStart)
+                            .graphicsLayer { alpha = dotAlpha }
+                            .background(neutralDot, CircleShape)
+                )
             }
         }
 
@@ -176,7 +177,5 @@ fun RingerSliderTileContent(
     }
 }
 
-private val RINGER_INDICATOR_SIZE = 42.dp
-private val RINGER_OUTER_PADDING = 8.dp
-private val RINGER_ICON_SIZE = 20.dp
+private val RINGER_OUTER_PADDING = 3.dp
 private val RINGER_DOT_SIZE = 6.dp

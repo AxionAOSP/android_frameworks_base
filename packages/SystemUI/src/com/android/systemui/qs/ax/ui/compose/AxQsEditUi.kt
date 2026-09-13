@@ -92,6 +92,7 @@ import com.android.systemui.qs.ax.shared.model.AxQsSpan
 import com.android.systemui.qs.ax.shared.model.AxQsVerticalSliderStyle
 import com.android.systemui.qs.ax.ui.model.AxQsGridItem
 import com.android.systemui.qs.ax.ui.viewmodel.AxQsViewModel
+import com.android.systemui.qs.ax.ui.compose.AxQsControlCornerRadius
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.CommonTileDefaults
 import com.android.systemui.qs.panels.ui.compose.infinitegrid.LocalTileScale
 import com.android.systemui.qs.panels.ui.compose.selection.TileState
@@ -774,7 +775,11 @@ private fun AxEditableGridSection(
                 val selectionShape =
                     when (value) {
                         is AxEditGridValue.Tile ->
-                            RoundedCornerShape(CommonTileDefaults.InactiveCornerRadius)
+                            if (item.span.columns > 1 || item.span.rows > 1) {
+                                RoundedCornerShape(AxQsControlCornerRadius)
+                            } else {
+                                RoundedCornerShape(CommonTileDefaults.InactiveCornerRadius)
+                            }
                         is AxEditGridValue.Control ->
                             axQsControlShape(value.control, item.span, controlStyle)
                     }

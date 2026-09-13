@@ -209,11 +209,17 @@ fun LargeTileLabels(
     modifier: Modifier = Modifier,
     isVisible: () -> Boolean = { true },
     accessibilityUiState: AccessibilityUiState? = null,
+    verticalArrangement: Arrangement.Vertical = Arrangement.Center,
+    fillMaxHeight: Boolean = true,
 ) {
     val animatedLabelColor by animateColorAsState(colors.label, label = "QSTileLabelColor")
     val animatedSecondaryLabelColor by
         animateColorAsState(colors.secondaryLabel, label = "QSTileSecondaryLabelColor")
-    Column(verticalArrangement = Arrangement.Center, modifier = modifier.fillMaxHeight()) {
+    val heightModifier = if (fillMaxHeight) Modifier.fillMaxHeight() else Modifier
+    Column(
+        verticalArrangement = verticalArrangement,
+        modifier = modifier.then(heightModifier),
+    ) {
         TileLabel(
             text = label,
             style = MaterialTheme.typography.titleSmallEmphasized,

@@ -23,6 +23,7 @@ import android.service.quicksettings.Tile.STATE_INACTIVE
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,6 +34,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -63,12 +65,12 @@ import com.android.systemui.qs.panels.ui.viewmodel.AccessibilityUiState
 import com.android.systemui.qs.ui.compose.borderOnFocus
 
 internal object AxTileDefaults {
-    val LargeIconSize = 24.dp
+    val LargeIconSize = 26.dp
     val DividerWidth = 1.dp
     val DividerHeight = 16.dp
     val IconDividerSpacing = 12.dp
-    val DividerLabelSpacing = 16.dp
-    val LargeTileStartPadding = 24.dp
+    val DividerLabelSpacing = 14.dp
+    val LargeTileStartPadding = 16.dp
     val LargeTileEndPadding = 16.dp
 
     @Composable
@@ -123,15 +125,17 @@ fun AxLargeTileContent(
         ) {
             Box(
                 modifier =
-                    Modifier.fillMaxHeight().thenIf(isDualTarget) {
-                        Modifier.borderOnFocus(color = focusBorderColor, iconShape.topEnd)
-                            .combinedClickable(
-                                onClick = toggleClick!!,
-                                onLongClick = onLongClick,
-                                onLongClickLabel = longPressLabel,
-                                hapticFeedbackEnabled = !Flags.msdlFeedback(),
-                            )
-                    },
+                    Modifier.fillMaxHeight()
+                        .widthIn(min = 48.dp * scale)
+                        .thenIf(isDualTarget) {
+                            Modifier.borderOnFocus(color = focusBorderColor, iconShape.topEnd)
+                                .combinedClickable(
+                                    onClick = toggleClick!!,
+                                    onLongClick = onLongClick,
+                                    onLongClickLabel = longPressLabel,
+                                    hapticFeedbackEnabled = !Flags.msdlFeedback(),
+                                )
+                        },
                 contentAlignment = Alignment.Center,
             ) {
                 SmallTileContent(
@@ -192,8 +196,8 @@ fun AxLargeTileContent(
         )
         Spacer(Modifier.weight(1f))
         Box(
-            modifier = Modifier.fillMaxWidth().height(CommonTileDefaults.TileHeight * scale),
-            contentAlignment = Alignment.CenterEnd,
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.BottomEnd,
         ) {
             CompositionLocalProvider(LocalLayoutDirection provides textLayoutDirection) {
                 LargeTileLabels(
@@ -202,9 +206,11 @@ fun AxLargeTileContent(
                     colors = colors,
                     accessibilityUiState = accessibilityUiState,
                     isVisible = isVisible,
+                    verticalArrangement = Arrangement.Bottom,
+                    fillMaxHeight = false,
                     modifier =
-                        Modifier.fillMaxWidth(0.75f)
-                            .bounceScale(TransformOrigin(textOrigin, .5f), textScale),
+                        Modifier.fillMaxWidth(0.85f)
+                            .bounceScale(TransformOrigin(textOrigin, 1f), textScale),
                 )
             }
         }

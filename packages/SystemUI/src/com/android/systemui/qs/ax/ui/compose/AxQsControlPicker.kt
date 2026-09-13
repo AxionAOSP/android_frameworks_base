@@ -51,6 +51,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -66,7 +67,6 @@ import androidx.compose.ui.zIndex
 import com.android.axion.compose.preferences.LocalPreferencePosition
 import com.android.axion.compose.preferences.PreferenceGroup
 import com.android.axion.compose.preferences.preferenceShape
-import com.android.compose.theme.LocalAndroidColorScheme
 import com.android.systemui.common.ui.compose.load
 import com.android.systemui.qs.ax.shared.model.AxQsControl
 import com.android.systemui.qs.ax.shared.model.AxQsSpan
@@ -556,19 +556,20 @@ fun AxQsEditTile(
     circleCells: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    val tileBg = AxTileDefaults.backgroundColor()
     val colors =
         TileColors(
-            background = LocalAndroidColorScheme.current.surfaceEffect1,
-            iconBackground = LocalAndroidColorScheme.current.surfaceEffect2,
+            background = tileBg,
+            iconBackground = Color.Transparent,
             label = MaterialTheme.colorScheme.onSurface,
-            secondaryLabel = MaterialTheme.colorScheme.onSurface,
+            secondaryLabel = MaterialTheme.colorScheme.onSurfaceVariant,
             icon = MaterialTheme.colorScheme.onSurface,
         )
     val shape =
-        if (circleCells && span == AxQsSpan.TileDefault) {
-            CircleShape
-        } else {
-            RoundedCornerShape(CommonTileDefaults.InactiveCornerRadius)
+        when {
+            circleCells && span == AxQsSpan.TileDefault -> CircleShape
+            span.columns > 1 || span.rows > 1 -> RoundedCornerShape(AxQsControlCornerRadius)
+            else -> RoundedCornerShape(CommonTileDefaults.InactiveCornerRadius)
         }
     BoxWithConstraints(
         modifier = modifier.clip(shape).background(colors.background),
