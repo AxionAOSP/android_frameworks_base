@@ -36,7 +36,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -73,10 +72,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.Path
@@ -97,7 +100,6 @@ import com.android.systemui.axdynamicbar.ui.AxDynamicBarChipViewModel
 import com.android.systemui.axdynamicbar.ui.KeyguardBatteryInfo
 import android.content.Context
 import android.graphics.drawable.Drawable
-import com.android.axion.blur.AxBlurSurfaceDefaults
 import com.android.axion.blur.axBlurBackground
 import com.android.systemui.res.R
 import com.android.systemui.statusbar.chips.StatusBarChipsReturnAnimations
@@ -114,7 +116,16 @@ private val ActionIconSize = 16.dp
 private val PlayIconSize = 18.dp
 private val BatteryIconSize = 22.dp
 
-private val NowBarBorder = Color(0x1FFFFFFF)
+private val NowBarRimWidth = 1.dp
+
+// Pill content is always white, so the glass keeps a dark base in both light and dark themes.
+// The ax_blur default surface is light (accent2_50) in light theme and would kill contrast.
+private val NowBarGlassTint = Color.Black.copy(alpha = 0.32f)
+private val NowBarSolidTint = Color(0xFF16161A).copy(alpha = 0.82f)
+private val NowBarSheen = Color.White.copy(alpha = 0.07f)
+private val NowBarRimTop = Color.White.copy(alpha = 0.24f)
+private val NowBarRimBottom = Color.White.copy(alpha = 0.05f)
+private const val NowBarAccentWashAlpha = 0.10f
 
 // The pill Row's animateContentSize owns width changes; nested AnimatedContents must not animate size too.
 private val NowBarSnapSize = SizeTransform(clip = false) { _, _ -> snap() }
@@ -127,11 +138,13 @@ private fun rememberChargingParts(batteryString: String): List<String> {
 }
 
 /**
- * Blur backdrop for the now bar.
+ * Glass in the style of One UI's Now Bar.
  *
- * ax_blur's [axBlurBackground] follows the system blur toggle and radius. Compose layer alpha
- * never reaches the SurfaceFlinger blur region, so the visibility alpha is passed in explicitly.
- * It is read here, in its own scope, so a fade does not recompose the whole pill.
+ * The backdrop comes from ax_blur's [axBlurBackground], so it follows the system blur toggle and
+ * radius exactly like the keyguard shortcuts, and falls back to a solid tint when blur is off.
+ * Compose layer alpha never reaches the SurfaceFlinger region, so the visibility alpha is passed
+ * in explicitly. It is read here, in its own scope, so a fade does not recompose the whole pill.
+ * An accent wash, top sheen and light-to-dark rim are drawn over the blur.
  */
 @Composable
 private fun NowBarGlass(
@@ -143,17 +156,35 @@ private fun NowBarGlass(
         modifier
             .axBlurBackground(
                 enabled = true,
-                fallbackColor = Color.Transparent,
-                tintColor = AxBlurSurfaceDefaults.tintColor(Color.Transparent),
+                fallbackColor = NowBarSolidTint,
+                tintColor = NowBarGlassTint,
                 cornerRadius = NowBarHeight / 2,
                 alpha = alpha(),
             )
-            .then(
-                if (accent.isSpecified && accent.alpha > 0f) {
-                    Modifier.background(accent.copy(alpha = 0.08f), NowBarShape)
-                } else Modifier
-            )
-            .border(0.5.dp, NowBarBorder, NowBarShape)
+            .drawWithCache {
+                val corner = CornerRadius(size.height / 2f)
+                val rimPx = NowBarRimWidth.toPx()
+                val rimInset = rimPx / 2f
+                val rimCorner = CornerRadius((size.height - rimPx) / 2f)
+                val rimBrush = Brush.verticalGradient(listOf(NowBarRimTop, NowBarRimBottom))
+                val sheenBrush = Brush.verticalGradient(0f to NowBarSheen, 0.6f to Color.Transparent)
+                onDrawBehind {
+                    if (accent.isSpecified && accent.alpha > 0f) {
+                        drawRoundRect(
+                            color = accent.copy(alpha = NowBarAccentWashAlpha),
+                            cornerRadius = corner,
+                        )
+                    }
+                    drawRoundRect(brush = sheenBrush, cornerRadius = corner)
+                    drawRoundRect(
+                        brush = rimBrush,
+                        topLeft = Offset(rimInset, rimInset),
+                        size = Size(size.width - rimPx, size.height - rimPx),
+                        cornerRadius = rimCorner,
+                        style = Stroke(width = rimPx),
+                    )
+                }
+            }
     )
 }
 
