@@ -164,6 +164,7 @@ import com.android.systemui.util.kotlin.JavaAdapter;
 import com.android.systemui.util.time.FakeSystemClock;
 import com.android.systemui.util.time.SystemClock;
 import com.android.systemui.utils.windowmanager.WindowManagerProvider;
+import com.android.systemui.shade.Dt2sRepository;
 import com.android.systemui.window.domain.interactor.WindowRootViewBlurInteractor;
 import com.android.wm.shell.animation.FlingAnimationUtils;
 
@@ -581,7 +582,8 @@ public class NotificationPanelViewControllerBaseTest extends SysuiTestCase {
                 new BlurConfig(0f, 0f),
                 () -> mKosmos.getFakeShadeDisplaysRepository(),
                 mWindowRootViewBlurInteractor,
-                mContext);
+                mContext,
+                mock(Dt2sRepository.class));
         mNotificationPanelViewController.initDependencies(
                 mCentralSurfaces,
                 null,
