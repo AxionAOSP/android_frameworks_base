@@ -17,13 +17,17 @@
 package com.android.systemui.media.remedia.data.repository
 
 import android.app.WallpaperColors
+import android.content.ContentResolver
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.theming.ThemeStyle
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.Icon as AndroidIcon
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.PlaybackState
+import android.net.Uri
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -266,6 +270,23 @@ constructor(
             val duration = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
             val position = currentPlaybackState?.position ?: 0L
             val state = currentPlaybackState?.state ?: PlaybackState.STATE_NONE
+
+            val description = metadata?.description
+            val metaTitle =
+                description?.title?.toString()?.takeIf { it.isNotBlank() }
+                    ?: metadata?.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
+                        ?.takeIf { it.isNotBlank() }
+                    ?: metadata?.getString(MediaMetadata.METADATA_KEY_TITLE)
+                        ?.takeIf { it.isNotBlank() }
+            val metaSubtitle =
+                description?.subtitle?.toString()?.takeIf { it.isNotBlank() }
+                    ?: metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)
+                        ?.takeIf { it.isNotBlank() }
+                    ?: metadata?.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
+                        ?.takeIf { it.isNotBlank() }
+                    ?: metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
+                        ?.takeIf { it.isNotBlank() }
+
             MediaDataModel(
                 instanceId = instanceId,
                 appUid = appUid,
@@ -273,8 +294,8 @@ constructor(
                 appName = app.toString(),
                 appIcon = icon,
                 background = background,
-                title = song.toString(),
-                subtitle = artist.toString(),
+                title = metaTitle ?: song.toString(),
+                subtitle = metaSubtitle ?: artist.toString(),
                 colorScheme = getScheme(artwork, packageName),
                 notificationActions = actions,
                 playbackStateActions = semanticActions,
@@ -289,7 +310,10 @@ constructor(
                     },
                 durationMs = duration,
                 positionMs = position,
-                canBeScrubbed = state != PlaybackState.STATE_NONE && duration > 0L,
+                canBeScrubbed =
+                    state != PlaybackState.STATE_NONE &&
+                        duration > 0L &&
+                        (((currentPlaybackState?.actions ?: 0L) and PlaybackState.ACTION_SEEK_TO) != 0L),
                 canBeDismissed = isClearable,
                 isActive = active,
                 isResume = resumption,
@@ -406,30 +430,185 @@ constructor(
     }
 
     private fun setupController(dataModel: MediaDataModel, controller: MediaController) {
+        mediaCallbacks[dataModel.instanceId]?.let { controller.unregisterCallback(it) }
         activeControllers[dataModel.instanceId] = controller
         val callback =
             object : MediaController.Callback() {
                 override fun onPlaybackStateChanged(state: PlaybackState?) {
-                    if (state == null || PlaybackState.STATE_NONE.equals(state)) {
-                        clearControllerState(dataModel.instanceId)
+                    if (state == null || state.state == PlaybackState.STATE_NONE) {
+                        positionPollers[dataModel.instanceId]?.cancel()
+                        positionPollers.remove(dataModel.instanceId)
+                        applicationScope.launch {
+                            mediaMutex.withLock {
+                                currentMedia
+                                    .find { it.instanceId == dataModel.instanceId }
+                                    ?.let { latestModel ->
+                                        updateMediaModelInStateLocked(latestModel) { model ->
+                                            model.copy(
+                                                state = MediaSessionState.Paused,
+                                                canBeScrubbed = false,
+                                            )
+                                        }
+                                    }
+                            }
+                        }
                     } else {
                         updatePollingState(dataModel.instanceId, state)
+                        applicationScope.launch {
+                            mediaMutex.withLock {
+                                currentMedia
+                                    .find { it.instanceId == dataModel.instanceId }
+                                    ?.let { latestModel ->
+                                        val sessionState =
+                                            when {
+                                                NotificationMediaManager.isPlayingState(state.state) ->
+                                                    MediaSessionState.Playing
+                                                NotificationMediaManager.isConnectingState(state.state) ->
+                                                    MediaSessionState.Buffering
+                                                else -> MediaSessionState.Paused
+                                            }
+                                        val canBeScrubbed =
+                                            state.state != PlaybackState.STATE_NONE &&
+                                                latestModel.durationMs > 0L &&
+                                                ((state.actions and PlaybackState.ACTION_SEEK_TO) != 0L)
+                                        val actualPosition = state.computeActualPosition(latestModel.durationMs)
+                                        updateMediaModelInStateLocked(latestModel) { model ->
+                                            model.copy(
+                                                state = sessionState,
+                                                canBeScrubbed = canBeScrubbed,
+                                                positionMs = actualPosition,
+                                            )
+                                        }
+                                    }
+                            }
+                        }
                     }
                 }
 
                 override fun onMetadataChanged(metadata: MediaMetadata?) {
                     applicationScope.launch {
                         mediaMutex.withLock {
-                            val duration =
-                                metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+                            val currentController = activeControllers[dataModel.instanceId] ?: controller
+                            val meta = metadata ?: currentController.metadata ?: return@withLock
                             currentMedia
                                 .find { it.instanceId == dataModel.instanceId }
                                 ?.let { latestModel ->
+                                    val duration =
+                                        meta.getLong(MediaMetadata.METADATA_KEY_DURATION).takeIf { it > 0L }
+                                            ?: latestModel.durationMs
+                                    val currentPlayback = currentController.playbackState
+                                    val canBeScrubbed =
+                                        currentPlayback?.state != PlaybackState.STATE_NONE &&
+                                            duration > 0L &&
+                                            (((currentPlayback?.actions ?: 0L) and PlaybackState.ACTION_SEEK_TO) != 0L)
+                                    val description = meta.description
+                                    val newTitle =
+                                        description?.title?.toString()?.takeIf { it.isNotBlank() }
+                                            ?: meta.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
+                                                ?.takeIf { it.isNotBlank() }
+                                            ?: meta.getString(MediaMetadata.METADATA_KEY_TITLE)
+                                                ?.takeIf { it.isNotBlank() }
+                                            ?: latestModel.title
+                                    val newSubtitle =
+                                        description?.subtitle?.toString()?.takeIf { it.isNotBlank() }
+                                            ?: meta.getString(MediaMetadata.METADATA_KEY_ARTIST)
+                                                ?.takeIf { it.isNotBlank() }
+                                            ?: meta.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
+                                                ?.takeIf { it.isNotBlank() }
+                                            ?: meta.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
+                                                ?.takeIf { it.isNotBlank() }
+                                            ?: latestModel.subtitle
+
+                                    val rawBitmap =
+                                        description?.iconBitmap
+                                            ?: meta.getBitmap(MediaMetadata.METADATA_KEY_ART)
+                                            ?: meta.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+                                            ?: meta.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+                                    val bitmap = rawBitmap?.takeUnless { it.isRecycled }
+
+                                    val iconUri = description?.iconUri
+                                    val artUriString =
+                                        if (bitmap == null) {
+                                            iconUri?.toString()
+                                                ?: meta.getString(MediaMetadata.METADATA_KEY_ART_URI)
+                                                ?: meta.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI)
+                                                ?: meta.getString(MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI)
+                                        } else {
+                                            null
+                                        }
+
+                                    val (newBackground, newColorScheme) =
+                                        when {
+                                            bitmap != null -> {
+                                                val artIcon = AndroidIcon.createWithBitmap(bitmap)
+                                                val bg = Icon.Loaded(
+                                                    BitmapDrawable(applicationContext.resources, bitmap),
+                                                    contentDescription = null,
+                                                )
+                                                val scheme = getScheme(artIcon, latestModel.packageName)
+                                                Pair(bg, scheme)
+                                            }
+                                            artUriString != null -> {
+                                                try {
+                                                    val parsedUri = Uri.parse(artUriString)
+                                                    if (
+                                                        parsedUri.scheme in
+                                                            listOf(
+                                                                ContentResolver.SCHEME_CONTENT,
+                                                                ContentResolver.SCHEME_ANDROID_RESOURCE,
+                                                                ContentResolver.SCHEME_FILE,
+                                                            )
+                                                    ) {
+                                                        val artIcon = AndroidIcon.createWithContentUri(parsedUri)
+                                                        val loadedDrawable = artIcon.loadDrawable(applicationContext)
+                                                        if (loadedDrawable != null) {
+                                                            val bg = Icon.Loaded(loadedDrawable, contentDescription = null)
+                                                            val scheme = getScheme(artIcon, latestModel.packageName)
+                                                            Pair(bg, scheme)
+                                                        } else {
+                                                            Pair(latestModel.background, latestModel.colorScheme)
+                                                        }
+                                                    } else {
+                                                        Pair(latestModel.background, latestModel.colorScheme)
+                                                    }
+                                                } catch (e: Exception) {
+                                                    Log.w(TAG, "Failed to load art from URI $artUriString", e)
+                                                    Pair(latestModel.background, latestModel.colorScheme)
+                                                }
+                                            }
+                                            else -> Pair(latestModel.background, latestModel.colorScheme)
+                                        }
+
+                                    val currentEntry = mutableUserEntries.value[latestModel.instanceId]
+                                    if (currentEntry != null) {
+                                        val updatedArtwork =
+                                            when {
+                                                bitmap != null -> AndroidIcon.createWithBitmap(bitmap)
+                                                artUriString != null -> {
+                                                    try {
+                                                        AndroidIcon.createWithContentUri(Uri.parse(artUriString))
+                                                    } catch (e: Exception) {
+                                                        currentEntry.artwork
+                                                    }
+                                                }
+                                                else -> currentEntry.artwork
+                                            }
+                                        val updatedEntry =
+                                            currentEntry.copy(
+                                                song = newTitle,
+                                                artist = newSubtitle,
+                                                artwork = updatedArtwork,
+                                            )
+                                        mutableUserEntries.value =
+                                            mutableUserEntries.value + (latestModel.instanceId to updatedEntry)
+                                    }
+
                                     updateMediaModelInStateLocked(latestModel) { model ->
-                                        val canBeScrubbed =
-                                            controller.playbackState?.state !=
-                                                PlaybackState.STATE_NONE && duration > 0L
                                         model.copy(
+                                            title = newTitle,
+                                            subtitle = newSubtitle,
+                                            background = newBackground,
+                                            colorScheme = newColorScheme,
                                             canBeScrubbed = canBeScrubbed,
                                             durationMs = duration,
                                         )
@@ -533,8 +712,9 @@ constructor(
         oldModel: MediaDataModel,
         updateBlock: (MediaDataModel) -> MediaDataModel,
     ) {
-        val newModel = updateBlock(oldModel)
-        if (oldModel != newModel) {
+        val currentModel = currentMedia.find { it.instanceId == oldModel.instanceId } ?: oldModel
+        val newModel = updateBlock(currentModel)
+        if (currentModel != newModel) {
             sortedMedia.keys
                 .find { it.instanceId == newModel.instanceId }
                 ?.let {
@@ -546,7 +726,10 @@ constructor(
                     sortedMedia = sortedMap
                 }
 
-            currentMedia[currentMedia.indexOf(oldModel)] = newModel
+            val index = currentMedia.indexOfFirst { it.instanceId == newModel.instanceId }
+            if (index != -1) {
+                currentMedia[index] = newModel
+            }
         }
     }
 
