@@ -60,6 +60,7 @@ import com.android.systemui.res.R;
 import com.android.systemui.scene.shared.flag.SceneContainerFlag;
 import com.android.systemui.scene.ui.view.WindowRootViewKeyEventHandler;
 import com.android.systemui.settings.brightness.domain.interactor.BrightnessMirrorShowingInteractor;
+import com.android.systemui.shade.AxQQSGestureListener;
 import com.android.systemui.shade.domain.interactor.PanelExpansionInteractor;
 import com.android.systemui.shade.domain.interactor.ShadeAnimationInteractor;
 import com.android.systemui.shade.domain.interactor.ShadeStatusBarComponentsInteractor;
@@ -190,7 +191,7 @@ public class NotificationShadeWindowViewController implements Dumpable {
     private final SystemClock mClock;
 
     private GestureDetector mQQSGestureHandler;
-    private final QQSGestureListener mQQSGestureListener;
+    private final AxQQSGestureListener mQQSGestureListener;
 
     @Inject
     public NotificationShadeWindowViewController(
@@ -237,7 +238,7 @@ public class NotificationShadeWindowViewController implements Dumpable {
             ShadeStatusBarComponentsInteractor shadeStatusBarComponentsInteractor,
             DozeTouchInteractor dozeTouchInteractor,
             JavaAdapter javaAdapter,
-            QQSGestureListener qqsGestureListener) {
+            AxQQSGestureListener qqsGestureListener) {
         mLockscreenShadeTransitionController = transitionController;
         mFalsingCollector = falsingCollector;
         mStatusBarStateController = statusBarStateController;

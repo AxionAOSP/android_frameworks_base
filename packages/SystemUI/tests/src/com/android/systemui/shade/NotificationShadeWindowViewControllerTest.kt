@@ -62,6 +62,7 @@ import com.android.systemui.res.R
 import com.android.systemui.scene.ui.view.WindowRootViewKeyEventHandler
 import com.android.systemui.settings.brightness.data.repository.BrightnessMirrorShowingRepository
 import com.android.systemui.settings.brightness.domain.interactor.BrightnessMirrorShowingInteractorPassThrough
+import com.android.systemui.shade.AxQQSGestureListener
 import com.android.systemui.shade.NotificationShadeWindowView.InteractionEventHandler
 import com.android.systemui.shade.data.repository.ShadeAnimationRepository
 import com.android.systemui.shade.data.repository.ShadeRepositoryImpl
@@ -181,7 +182,7 @@ class NotificationShadeWindowViewControllerTest(flags: FlagsParameterization) : 
     private val notificationLaunchAnimationRepository = NotificationLaunchAnimationRepository()
     private val notificationLaunchAnimationInteractor =
         NotificationLaunchAnimationInteractor(notificationLaunchAnimationRepository)
-    @Mock private lateinit var qqsGestureListener: QQSGestureListener
+    @Mock private lateinit var qqsGestureListener: AxQQSGestureListener
 
     private val brightnessMirrorShowingRepository = BrightnessMirrorShowingRepository()
     private val brightnessMirrorShowingInteractor =

@@ -58,7 +58,6 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
-import android.database.ContentObserver;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.graphics.Rect;
@@ -230,7 +229,8 @@ import kotlinx.coroutines.CoroutineDispatcher;
 import kotlinx.coroutines.flow.MutableStateFlow;
 import kotlinx.coroutines.flow.StateFlow;
 
-import lineageos.providers.LineageSettings;
+import com.android.systemui.shade.Dt2sRepository;
+import com.android.systemui.shade.Dt2sType;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -304,7 +304,7 @@ public final class NotificationPanelViewController implements
     private final ShadeHeadsUpChangedListener mOnHeadsUpChangedListener =
             new ShadeHeadsUpChangedListener();
     private final ConfigurationListener mConfigurationListener = new ConfigurationListener();
-    private final ContentObserver mDoubleTapToSleepObserver;
+    private final Dt2sRepository mDt2sRepository;
     private final StatusBarStateListener mStatusBarStateListener = new StatusBarStateListener();
     private final NotificationPanelView mView;
     private final VibratorHelper mVibratorHelper;
@@ -490,7 +490,6 @@ public final class NotificationPanelViewController implements
     private final NotificationShadeDepthController mDepthController;
     private final NavigationBarController mNavigationBarController;
     private final int mDisplayId;
-    private boolean mDoubleTapToSleepEnabled;
     private GestureDetector mDoubleTapGesture;
 
     private final KeyguardIndicationController mKeyguardIndicationController;
@@ -681,7 +680,9 @@ public final class NotificationPanelViewController implements
             BlurConfig blurConfig,
             Lazy<ShadeDisplaysRepository> shadeDisplaysRepository,
             WindowRootViewBlurInteractor windowRootViewBlurInteractor,
-            Context context) {
+            Context context,
+            Dt2sRepository dt2sRepository) {
+        mDt2sRepository = dt2sRepository;
         mBlurConfig = blurConfig;
         mWindowRootViewBlurInteractor = windowRootViewBlurInteractor;
         SceneContainerFlag.assertInLegacyMode();
@@ -820,15 +821,6 @@ public final class NotificationPanelViewController implements
                 return true;
             }
         });
-        mDoubleTapToSleepObserver = new ContentObserver(handler) {
-            @Override
-            public void onChange(boolean selfChange) {
-                mDoubleTapToSleepEnabled = LineageSettings.System.getInt(mContentResolver,
-                        LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE,
-                        mResources.getBoolean(org.lineageos.platform.internal.R.bool.
-                                config_dt2sGestureEnabledByDefault) ? 1 : 0) != 0;
-            }
-        };
         mConversationNotificationManager = conversationNotificationManager;
         mScreenOffAnimationController = screenOffAnimationController;
         mUnlockedScreenOffAnimationController = unlockedScreenOffAnimationController;
@@ -3827,10 +3819,6 @@ public final class NotificationPanelViewController implements
                 mStatusBarStateListener.onStateChanged(mStatusBarStateController.getState(), true);
             }
             mConfigurationController.addCallback(mConfigurationListener);
-            mContentResolver.registerContentObserver(LineageSettings.System.getUriFor(
-                    LineageSettings.System.DOUBLE_TAP_SLEEP_GESTURE), false,
-                    mDoubleTapToSleepObserver);
-            mDoubleTapToSleepObserver.onChange(true);
             // Theme might have changed between inflating this view and attaching it to the
             // window, so
             // force a call to onThemeChanged
@@ -3841,7 +3829,6 @@ public final class NotificationPanelViewController implements
 
         @Override
         public void onViewDetachedFromWindow(View v) {
-            mContentResolver.unregisterContentObserver(mDoubleTapToSleepObserver);
             mFragmentService.getFragmentHostManager(mView)
                     .removeTagListener(QS.TAG, mQsController.getQsFragmentListener());
             mStatusBarStateController.removeCallback(mStatusBarStateListener);
@@ -4186,7 +4173,7 @@ public final class NotificationPanelViewController implements
                 return false;
             }
 
-            if (mDoubleTapToSleepEnabled && !mPulsing && !mDozing) {
+            if (mDt2sRepository.isEnabled(Dt2sType.STATUS_BAR) && !mPulsing && !mDozing) {
                 mDoubleTapGesture.onTouchEvent(event);
             }
 
