@@ -21,6 +21,7 @@ final class AxThermalBoostPolicy {
     static final int PERF_CLUSTER_LITTLE = 0;
     static final int PERF_CLUSTER_BIG = 1;
     static final int PERF_CLUSTER_PRIME = 2;
+    static final int PERF_CLUSTER_MID = 3;
 
     private volatile int mThermalCpuCap = -1;
 
@@ -40,6 +41,9 @@ final class AxThermalBoostPolicy {
         switch (cluster) {
             case PERF_CLUSTER_LITTLE:
                 min = level.littleMin;
+                break;
+            case PERF_CLUSTER_MID:
+                min = level.midMin;
                 break;
             case PERF_CLUSTER_BIG:
                 min = level.bigMin;
@@ -64,6 +68,9 @@ final class AxThermalBoostPolicy {
         switch (cluster) {
             case PERF_CLUSTER_LITTLE:
                 max = level.littleMax;
+                break;
+            case PERF_CLUSTER_MID:
+                max = level.midMax;
                 break;
             case PERF_CLUSTER_BIG:
                 max = level.bigMax;

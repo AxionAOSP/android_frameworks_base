@@ -36,6 +36,7 @@ import java.util.TreeMap;
 public final class AxPerfConfig {
 
     private static final String VENDOR_THERMAL_CONFIG = "/vendor/etc/ax_perf_thermal.xml";
+    private static final String SYSTEM_EXT_THERMAL_CONFIG = "/system_ext/etc/ax_perf_thermal.xml";
     private static final String SYSTEM_THERMAL_CONFIG = "/system/etc/ax_perf_thermal.xml";
     private static final String ROOT_TAG = "perf-config";
     private static final String ATTR_NAME = "name";
@@ -63,6 +64,7 @@ public final class AxPerfConfig {
     private static final String ATTR_STATUS = "status";
     private static final String ATTR_VALUE = "value";
     private static final String ATTR_LITTLE = "little";
+    private static final String ATTR_MID = "mid";
     private static final String ATTR_BIG = "big";
     private static final String ATTR_TITANIUM = "titanium";
     private static final String ATTR_PRIME = "prime";
@@ -89,6 +91,7 @@ public final class AxPerfConfig {
         if (sLoaded) return;
         sLoaded = true;
         boolean loaded = loadFrom(VENDOR_THERMAL_CONFIG, ATMC_TAG)
+                || loadFrom(SYSTEM_EXT_THERMAL_CONFIG, ATMC_TAG)
                 || loadFrom(SYSTEM_THERMAL_CONFIG, ATMC_TAG);
         if (!loaded) {
             Slog.i(TAG, "missing thermal config");
@@ -229,6 +232,7 @@ public final class AxPerfConfig {
             if (event == XmlPullParser.START_TAG && ATMC_LEVEL_TAG.equals(parser.getName())) {
                 int id = parseAttrInt(parser, ATTR_ID, -1);
                 int[] little = parsePair(parser.getAttributeValue(null, ATTR_LITTLE), -1);
+                int[] mid = parsePair(parser.getAttributeValue(null, ATTR_MID), -1);
                 int[] big = parsePair(parser.getAttributeValue(null, ATTR_BIG), -1);
                 int[] titanium = parsePair(parser.getAttributeValue(null, ATTR_TITANIUM), -1);
                 int[] prime = parsePair(parser.getAttributeValue(null, ATTR_PRIME), -1);
@@ -239,6 +243,8 @@ public final class AxPerfConfig {
                                     id,
                                     little[0],
                                     little[1],
+                                    mid[0],
+                                    mid[1],
                                     big[0],
                                     big[1],
                                     titanium[0],

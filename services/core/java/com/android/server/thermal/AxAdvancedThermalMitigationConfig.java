@@ -55,6 +55,7 @@ public final class AxAdvancedThermalMitigationConfig {
     private final List<ComplexRule> mComplexes;
     private final List<BufferRateRule> mBufferRates;
     private final List<CpuClusterPath> mCpuClusterPaths;
+    private final boolean mHasMidCluster;
 
     private AxAdvancedThermalMitigationConfig(
             Map<Integer, CpuLevel> cpuLevels,
@@ -73,6 +74,18 @@ public final class AxAdvancedThermalMitigationConfig {
         this.mComplexes = Collections.unmodifiableList(complexes);
         this.mBufferRates = Collections.unmodifiableList(bufferRates);
         this.mCpuClusterPaths = Collections.unmodifiableList(cpuClusterPaths);
+        boolean hasMid = false;
+        for (CpuLevel level : cpuLevels.values()) {
+            if (level.midMin >= 0 || level.midMax >= 0) {
+                hasMid = true;
+                break;
+            }
+        }
+        this.mHasMidCluster = hasMid;
+    }
+
+    public boolean hasMidCluster() {
+        return mHasMidCluster;
     }
 
     public CpuLevel getCpuLevel(int id) {
@@ -131,6 +144,7 @@ public final class AxAdvancedThermalMitigationConfig {
     public static final class CpuLevel {
         public final int id;
         public final int littleMin, littleMax;
+        public final int midMin, midMax;
         public final int bigMin, bigMax;
         public final int titaniumMin, titaniumMax;
         public final int primeMin, primeMax;
@@ -140,6 +154,8 @@ public final class AxAdvancedThermalMitigationConfig {
                 int id,
                 int lMin,
                 int lMax,
+                int mMin,
+                int mMax,
                 int bMin,
                 int bMax,
                 int tMin,
@@ -150,6 +166,8 @@ public final class AxAdvancedThermalMitigationConfig {
             this.id = id;
             this.littleMin = lMin;
             this.littleMax = lMax;
+            this.midMin = mMin;
+            this.midMax = mMax;
             this.bigMin = bMin;
             this.bigMax = bMax;
             this.titaniumMin = tMin;
