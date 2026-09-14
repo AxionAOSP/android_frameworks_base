@@ -195,8 +195,10 @@ constructor(
                     connect(chipViewId, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
                 }
                 else -> {
-                    constrainWidth(chipViewId, wrap)
+                    constrainWidth(chipViewId, ConstraintSet.MATCH_CONSTRAINT)
+                    constrainDefaultWidth(chipViewId, ConstraintSet.WRAP_CONTENT)
                     constrainHeight(chipViewId, wrap)
+                    connect(chipViewId, ConstraintSet.TOP, R.id.start_button, ConstraintSet.TOP)
                     connect(chipViewId, ConstraintSet.BOTTOM, R.id.start_button, ConstraintSet.BOTTOM)
                     connect(chipViewId, ConstraintSet.START, R.id.start_button, ConstraintSet.END)
                     connect(chipViewId, ConstraintSet.END, R.id.end_button, ConstraintSet.START)
@@ -211,6 +213,7 @@ constructor(
         val bottomProtectionPx = EXPANDED_BOTTOM_PROTECTION_DP.dpToPx(context)
         lp.width = ConstraintLayout.LayoutParams.MATCH_PARENT
         lp.height = 0
+        lp.constrainedWidth = false
         lp.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
         lp.topToBottom = UNSET
         lp.bottomToTop = R.id.device_entry_icon_view
@@ -226,12 +229,13 @@ constructor(
 
     private fun applyCollapsedLp(composeView: View, lowUdfps: Boolean) {
         val lp = composeView.layoutParams as ConstraintLayout.LayoutParams
-        lp.width = ViewGroup.LayoutParams.WRAP_CONTENT
         lp.height = ViewGroup.LayoutParams.WRAP_CONTENT
         lp.topMargin = 0
         lp.topToTop = UNSET
         lp.topToBottom = UNSET
         if (lowUdfps) {
+            lp.width = ViewGroup.LayoutParams.WRAP_CONTENT
+            lp.constrainedWidth = false
             lp.bottomToTop = R.id.device_entry_icon_view
             lp.bottomToBottom = UNSET
             lp.bottomMargin = CHIP_ABOVE_LOCK_MARGIN_DP.dpToPx(context)
@@ -240,9 +244,15 @@ constructor(
             lp.startToEnd = UNSET
             lp.endToStart = UNSET
         } else {
+            lp.width = 0
+            lp.matchConstraintDefaultWidth = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT_WRAP
+            lp.constrainedWidth = true
+            lp.topToTop = R.id.start_button
             lp.bottomToBottom = R.id.start_button
+            lp.topToBottom = UNSET
             lp.bottomToTop = UNSET
             lp.bottomMargin = 0
+            lp.topMargin = 0
             lp.startToEnd = R.id.start_button
             lp.endToStart = R.id.end_button
             lp.startToStart = UNSET
