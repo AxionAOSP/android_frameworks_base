@@ -98,6 +98,7 @@ import com.android.internal.app.IAppOpsStartedCallback;
 import com.android.internal.app.MessageSamplingConfig;
 import com.android.internal.os.RuntimeInit;
 import com.android.internal.os.ZygoteInit;
+import com.android.internal.util.AnnotationValidations;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.DataClass;
 import com.android.internal.util.FrameworkStatsLog;
@@ -1754,6 +1755,11 @@ public class AppOpsManager {
     /** @hide */
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     public static final int _NUM_OP = 170;
+
+    /** @hide */
+    public static final int OP_DUAL_APP = 1001;
+    /** @hide */
+    public static final String OPSTR_DUAL_APP = "android:axion_dual_app";
 
     /**
      * All app ops represented as strings.
@@ -3442,6 +3448,7 @@ public class AppOpsManager {
      * @hide
      */
     public static boolean shouldForceCollectNoteForOp(int op) {
+        if (op == OP_DUAL_APP) return false;
         Preconditions.checkArgumentInRange(op, 0, _NUM_OP - 1, "opCode");
         return sAppOpInfos[op].forceCollectNotes;
     }
@@ -3485,6 +3492,7 @@ public class AppOpsManager {
                 sOpStrToOp.put(sAppOpInfos[i].name, i);
             }
         }
+        sOpStrToOp.put(OPSTR_DUAL_APP, OP_DUAL_APP);
         for (int op : RUNTIME_PERMISSION_OPS) {
             if (op == OP_NONE) {
                 // Skip ops with a disabled feature flag.
@@ -3523,6 +3531,7 @@ public class AppOpsManager {
      */
     @UnsupportedAppUsage
     public static int opToSwitch(int op) {
+        if (op == OP_DUAL_APP) return OP_DUAL_APP;
         return sAppOpInfos[op].switchCode;
     }
 
@@ -3532,6 +3541,7 @@ public class AppOpsManager {
      */
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     public static String opToName(int op) {
+        if (op == OP_DUAL_APP) return "DUAL_APP";
         if (op == OP_NONE) return "NONE";
         return op < sAppOpInfos.length ? sAppOpInfos[op].simpleName : ("Unknown(" + op + ")");
     }
@@ -3542,6 +3552,7 @@ public class AppOpsManager {
      * @hide
      */
     public static @NonNull String opToPublicName(int op) {
+        if (op == OP_DUAL_APP) return OPSTR_DUAL_APP;
         return sAppOpInfos[op].name;
     }
 
@@ -3551,13 +3562,14 @@ public class AppOpsManager {
      * @hide
      */
     public static boolean isValidOp(int op) {
-        return op >= 0 && op < sAppOpInfos.length;
+        return (op >= 0 && op < sAppOpInfos.length) || op == OP_DUAL_APP;
     }
 
     /**
      * @hide
      */
     public static int strDebugOpToOp(String op) {
+        if ("DUAL_APP".equals(op)) return OP_DUAL_APP;
         for (int i = 0; i < sAppOpInfos.length; i++) {
             if (sAppOpInfos[i].simpleName.equals(op)) {
                 return i;
@@ -3573,6 +3585,7 @@ public class AppOpsManager {
     @UnsupportedAppUsage(maxTargetSdk = Build.VERSION_CODES.R, trackingBug = 170729553)
     @TestApi
     public static String opToPermission(int op) {
+        if (op == OP_DUAL_APP) return null;
         return sAppOpInfos[op].permission;
     }
 
@@ -3604,6 +3617,7 @@ public class AppOpsManager {
      * @hide
      */
     public static String opToRestriction(int op) {
+        if (op == OP_DUAL_APP) return null;
         return sAppOpInfos[op].restriction;
     }
 
@@ -3633,6 +3647,7 @@ public class AppOpsManager {
      * @hide
      */
     public static RestrictionBypass opAllowSystemBypassRestriction(int op) {
+        if (op == OP_DUAL_APP) return null;
         return sAppOpInfos[op].allowSystemRestrictionBypass;
     }
 
@@ -3641,6 +3656,7 @@ public class AppOpsManager {
      * @hide
      */
     public static @Mode int opToDefaultMode(int op) {
+        if (op == OP_DUAL_APP) return MODE_IGNORED;
         return sAppOpInfos[op].defaultMode;
     }
 
@@ -3674,6 +3690,7 @@ public class AppOpsManager {
      * @hide
      */
     public static boolean opRestrictsRead(int op) {
+        if (op == OP_DUAL_APP) return false;
         return sAppOpInfos[op].restrictRead;
     }
 
@@ -3682,6 +3699,7 @@ public class AppOpsManager {
      * @hide
      */
     public static boolean opAllowsReset(int op) {
+        if (op == OP_DUAL_APP) return false;
         return !sAppOpInfos[op].disableReset;
     }
 
@@ -4257,7 +4275,7 @@ public class AppOpsManager {
     @DataClass.Suppress({"getAccessEvents", "getRejectEvents", "getOp"})
     public static final class AttributedOpEntry implements Parcelable {
         /** The code of the op */
-        private final @IntRange(from = 0, to = _NUM_OP - 1) int mOp;
+        private final @IntRange(from = 0, to = 1004) int mOp;
         /** Whether the op is running */
         private final boolean mRunning;
         /** The access events */
@@ -4713,15 +4731,15 @@ public class AppOpsManager {
          */
         @DataClass.Generated.Member
         public AttributedOpEntry(
-                @IntRange(from = 0, to = _NUM_OP - 1) int op,
+                @IntRange(from = 0, to = 1004) int op,
                 boolean running,
                 @Nullable LongSparseArray<NoteOpEvent> accessEvents,
                 @Nullable LongSparseArray<NoteOpEvent> rejectEvents) {
             this.mOp = op;
-            com.android.internal.util.AnnotationValidations.validate(
+            AnnotationValidations.validate(
                     IntRange.class, null, mOp,
                     "from", 0,
-                    "to", _NUM_OP - 1);
+                    "to", 1004);
             this.mRunning = running;
             this.mAccessEvents = accessEvents;
             this.mRejectEvents = rejectEvents;
@@ -4793,10 +4811,10 @@ public class AppOpsManager {
             LongSparseArray<NoteOpEvent> rejectEvents = sParcellingForRejectEvents.unparcel(in);
 
             this.mOp = op;
-            com.android.internal.util.AnnotationValidations.validate(
+            AnnotationValidations.validate(
                     IntRange.class, null, mOp,
                     "from", 0,
-                    "to", _NUM_OP - 1);
+                    "to", 1004);
             this.mRunning = running;
             this.mAccessEvents = accessEvents;
             this.mRejectEvents = rejectEvents;
@@ -4845,7 +4863,7 @@ public class AppOpsManager {
     // @DataClass(genHiddenConstructor = true) codegen verifier is broken
     public static final class OpEntry implements Parcelable {
         /** The code of the op */
-        private final @IntRange(from = 0, to = _NUM_OP - 1) int mOp;
+        private final @IntRange(from = 0, to = 1004) int mOp;
         /** The mode of the op */
         private final @Mode int mMode;
         /** The attributed entries by attribution tag */
@@ -4864,7 +4882,7 @@ public class AppOpsManager {
          * @return This entry's op string name, such as {@link #OPSTR_COARSE_LOCATION}.
          */
         public @NonNull String getOpStr() {
-            return sAppOpInfos[mOp].name;
+            return opToPublicName(mOp);
         }
 
         /**
@@ -5350,14 +5368,14 @@ public class AppOpsManager {
          */
         @DataClass.Generated.Member
         public OpEntry(
-                @IntRange(from = 0, to = _NUM_OP - 1) int op,
+                @IntRange(from = 0, to = 1004) int op,
                 @Mode int mode,
                 @NonNull Map<String, AttributedOpEntry> attributedOpEntries) {
             this.mOp = op;
-            com.android.internal.util.AnnotationValidations.validate(
+            AnnotationValidations.validate(
                     IntRange.class, null, mOp,
                     "from", 0,
-                    "to", _NUM_OP - 1);
+                    "to", 1004);
             this.mMode = mode;
             com.android.internal.util.AnnotationValidations.validate(
                     Mode.class, null, mMode);
@@ -5415,10 +5433,10 @@ public class AppOpsManager {
             in.readMap(attributions, AttributedOpEntry.class.getClassLoader());
 
             this.mOp = op;
-            com.android.internal.util.AnnotationValidations.validate(
+            AnnotationValidations.validate(
                     IntRange.class, null, mOp,
                     "from", 0,
-                    "to", _NUM_OP - 1);
+                    "to", 1004);
             this.mMode = mode;
             com.android.internal.util.AnnotationValidations.validate(
                     Mode.class, null, mMode);
@@ -6986,7 +7004,7 @@ public class AppOpsManager {
             if (mHistoricalOps == null) {
                 mHistoricalOps = new ArrayMap<>();
             }
-            final String opStr = sAppOpInfos[opCode].name;
+            final String opStr = opToPublicName(opCode);
             HistoricalOp op = mHistoricalOps.get(opStr);
             if (op == null) {
                 op = new HistoricalOp(opCode);
@@ -7331,7 +7349,7 @@ public class AppOpsManager {
          * @return The op name.
          */
         public @NonNull String getOpName() {
-            return sAppOpInfos[mOp].name;
+            return opToPublicName(mOp);
         }
 
         /** @hide */
@@ -8919,7 +8937,7 @@ public class AppOpsManager {
     public static @Nullable String permissionToOp(@NonNull String permission) {
         final Integer opCode = sPermToOp.get(permission);
         if (opCode != null) {
-            return sAppOpInfos[opCode].name;
+            return opToPublicName(opCode);
         }
         if (HealthConnectManager.isHealthPermission(ActivityThread.currentApplication(),
                 permission)) {
@@ -9023,8 +9041,8 @@ public class AppOpsManager {
                                 ((OnOpChangedInternalListener)callback).onOpChanged(op, packageName,
                                         persistentDeviceId);
                             }
-                            if (sAppOpInfos[op].name != null) {
-                                callback.onOpChanged(sAppOpInfos[op].name, packageName,
+                            if (opToPublicName(op) != null) {
+                                callback.onOpChanged(opToPublicName(op), packageName,
                                         UserHandle.getUserId(uid), persistentDeviceId);
                             }
                         } else {
@@ -9032,8 +9050,8 @@ public class AppOpsManager {
                                 ((OnOpChangedInternalListener) callback).onOpChanged(op,
                                         packageName);
                             }
-                            if (sAppOpInfos[op].name != null) {
-                                callback.onOpChanged(sAppOpInfos[op].name, packageName,
+                            if (opToPublicName(op) != null) {
+                                callback.onOpChanged(opToPublicName(op), packageName,
                                         UserHandle.getUserId(uid));
                             }
                         }
@@ -9124,8 +9142,8 @@ public class AppOpsManager {
                                 ((OnOpActiveChangedInternalListener) callback).onOpActiveChanged(op,
                                         uid, packageName, virtualDeviceId, active);
                             }
-                            if (sAppOpInfos[op].name != null) {
-                                callback.onOpActiveChanged(sAppOpInfos[op].name, uid, packageName,
+                            if (opToPublicName(op) != null) {
+                                callback.onOpActiveChanged(opToPublicName(op), uid, packageName,
                                         attributionTag, virtualDeviceId, active, attributionFlags,
                                         attributionChainId);
                             }
@@ -9134,8 +9152,8 @@ public class AppOpsManager {
                                 ((OnOpActiveChangedInternalListener) callback).onOpActiveChanged(op,
                                         uid, packageName, active);
                             }
-                            if (sAppOpInfos[op].name != null) {
-                                callback.onOpActiveChanged(sAppOpInfos[op].name, uid, packageName,
+                            if (opToPublicName(op) != null) {
+                                callback.onOpActiveChanged(opToPublicName(op), uid, packageName,
                                         attributionTag, active, attributionFlags,
                                         attributionChainId);
                             }
@@ -9382,12 +9400,13 @@ public class AppOpsManager {
                     final long identity = Binder.clearCallingIdentity();
                     try {
                         executor.execute(() -> {
-                            if (sAppOpInfos[op].name != null) {
+                            String opName = opToPublicName(op);
+                            if (opName != null) {
                                 if (Flags.deviceAwarePermissionApisEnabled()) {
-                                    listener.onOpNoted(sAppOpInfos[op].name, uid, packageName,
+                                    listener.onOpNoted(opName, uid, packageName,
                                             attributionTag, virtualDeviceId, flags, mode);
                                 } else {
-                                    listener.onOpNoted(sAppOpInfos[op].name, uid, packageName,
+                                    listener.onOpNoted(opName, uid, packageName,
                                             attributionTag, flags, mode);
                                 }
                             }
@@ -9430,8 +9449,7 @@ public class AppOpsManager {
     }
 
     private String buildSecurityExceptionMsg(int op, int uid, String packageName) {
-        return packageName + " from uid " + uid + " not allowed to perform " +
-            sAppOpInfos[op].simpleName;
+        return packageName + " from uid " + uid + " not allowed to perform " + opToName(op);
     }
 
     /**
@@ -10012,7 +10030,7 @@ public class AppOpsManager {
                     + attributionSource.getUid() + " or calling package "
                     + attributionSource.getNextPackageName() + " from uid "
                     + attributionSource.getNextUid() + " not allowed to perform "
-                    + sAppOpInfos[op].simpleName);
+                    + opToName(op));
         }
         return mode;
     }
@@ -11692,10 +11710,11 @@ public class AppOpsManager {
      */
     @SystemApi
     public static String[] getOpStrs() {
-        String[] opStrs = new String[sAppOpInfos.length];
-        for(int i = 0; i < sAppOpInfos.length; i++) {
+        String[] opStrs = new String[sAppOpInfos.length + 1];
+        for (int i = 0; i < sAppOpInfos.length; i++) {
             opStrs[i] = sAppOpInfos[i].name;
         }
+        opStrs[sAppOpInfos.length] = OPSTR_DUAL_APP;
         return opStrs;
     }
 

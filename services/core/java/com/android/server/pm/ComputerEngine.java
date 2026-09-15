@@ -165,6 +165,7 @@ import com.android.server.utils.WatchedSparseBooleanArray;
 import com.android.server.utils.WatchedSparseIntArray;
 import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.AxSandboxService;
+import com.android.server.axdualapps.AxDualAppsService;
 
 import libcore.util.EmptyArray;
 
@@ -913,6 +914,12 @@ public class ComputerEngine implements Computer {
             final List<ResolveInfo> resolveInfos = mComponentResolver.queryServices(this, intent,
                     resolvedType, flags, pkg.getServices(),
                     userId);
+            if ((resolveInfos == null || resolveInfos.isEmpty()) && userId == AxDualAppsService.DUAL_APPS_USER_ID) {
+                final List<ResolveInfo> resolveInfos0 = mComponentResolver.queryServices(this, intent, resolvedType, flags, pkg.getServices(), 0);
+                if (resolveInfos0 != null) {
+                    return applyPostServiceResolutionFilter(resolveInfos0, instantAppPkgName, 0, callingUid);
+                }
+            }
             if (resolveInfos == null) {
                 return Collections.emptyList();
             }
@@ -947,6 +954,21 @@ public class ComputerEngine implements Computer {
                      */
                     result.addAll(filterIfNotSystemUser(queryResult, userId));
                 }
+                if (AxDualAppsService.get() != null && AxDualAppsService.get().shouldHandleIntentActivities(intent, userId)) {
+                    List<ResolveInfo> ownerActivities = filterIfNotSystemUser(mComponentResolver.queryActivities(this, intent, resolvedType, flags, 0), 0);
+                    if (ownerActivities != null) {
+                        for (int i3 = ownerActivities.size() - 1; i3 >= 0; i3--) {
+                            ActivityInfo dualAi = ownerActivities.get(i3).activityInfo;
+                            for (int j = result.size() - 1; j >= 0; j--) {
+                                ActivityInfo ownerAi = result.get(j).activityInfo;
+                                if (ownerAi.name.equals(dualAi.name) && ownerAi.packageName.equals(dualAi.packageName)) {
+                                    result.set(j, ownerActivities.get(i3));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
             }
             addInstant = isInstantAppResolutionAllowed(intent, result, userId,
                     false /*skipPackageCheck*/, flags);
@@ -974,6 +996,12 @@ public class ComputerEngine implements Computer {
                 // If the user doesn't exist, the queryResult is null
                 if (queryResult != null) {
                     result.addAll(filterIfNotSystemUser(queryResult, userId));
+                }
+                if (AxDualAppsService.get() != null && AxDualAppsService.get().shouldHandleIntentActivities(intent, userId) && result.isEmpty()) {
+                    List<ResolveInfo> ownerActivities = filterIfNotSystemUser(mComponentResolver.queryActivities(this, intent, resolvedType, flags, setting.getAndroidPackage().getActivities(), 0), 0);
+                    if (ownerActivities != null) {
+                        result.addAll(ownerActivities);
+                    }
                 }
             }
             if (result == null || result.size() == 0) {
@@ -1088,15 +1116,22 @@ public class ComputerEngine implements Computer {
         if (DEBUG_PACKAGE_INFO) Log.v(TAG, "getActivityInfo " + component + ": " + a);
 
         AndroidPackage pkg = a == null ? null : mPackages.get(a.getPackageName());
-        if (pkg != null && mSettings.isEnabledAndMatch(pkg, a, flags, userId)) {
+        int targetUserId = userId;
+        if (pkg != null && AxDualAppsService.get() != null) {
+            int overrideUserId = AxDualAppsService.get().overrideUserId(targetUserId, mSettings.isEnabledAndMatch(pkg, a, flags, targetUserId));
+            if (overrideUserId != -10000) {
+                targetUserId = overrideUserId;
+            }
+        }
+        if (pkg != null && mSettings.isEnabledAndMatch(pkg, a, flags, targetUserId)) {
             PackageStateInternal ps = mSettings.getPackage(component.getPackageName());
             if (ps == null) return null;
             if (shouldFilterApplication(
-                    ps, filterCallingUid, component, TYPE_ACTIVITY, userId)) {
+                    ps, filterCallingUid, component, TYPE_ACTIVITY, targetUserId)) {
                 return null;
             }
             return PackageInfoUtils.generateActivityInfo(pkg,
-                    a, flags, ps.getUserStateOrDefault(userId), userId, ps);
+                    a, flags, ps.getUserStateOrDefault(targetUserId), targetUserId, ps);
         }
         if (resolveComponentName().equals(component)) {
             return PackageInfoUtils.generateDelegateActivityInfo(mResolveActivity,
@@ -1223,6 +1258,9 @@ public class ComputerEngine implements Computer {
             // Note: isEnabledLP() does not apply here - always return info
             ApplicationInfo ai = PackageInfoUtils.generateApplicationInfo(
                     p, flags, ps.getUserStateOrDefault(userId), userId, ps);
+            if (ai == null && AxDualAppsService.get() != null && userId == AxDualAppsService.DUAL_APPS_USER_ID) {
+                ai = PackageInfoUtils.generateApplicationInfo(p, flags, ps.getUserStateOrDefault(0), 0, ps);
+            }
             if (ai != null) {
                 ai.packageName = resolveExternalPackageName(p);
             }
@@ -1914,7 +1952,11 @@ public class ComputerEngine implements Computer {
                 if (shouldFilterApplication(ps, filterCallingUid, userId)) {
                     return null;
                 }
-                return generatePackageInfo(ps, flags, userId);
+            PackageInfo result = generatePackageInfo(ps, flags, userId);
+            if (result == null && AxDualAppsService.get() != null && userId == AxDualAppsService.DUAL_APPS_USER_ID) {
+                return generatePackageInfo(ps, flags, 0);
+            }
+            return result;
             }
         }
 
@@ -2132,15 +2174,22 @@ public class ComputerEngine implements Computer {
         }
 
         AndroidPackage pkg = mPackages.get(s.getPackageName());
-        if (mSettings.isEnabledAndMatch(pkg, s, flags, userId)) {
+        int targetUserId = userId;
+        if (pkg != null && AxDualAppsService.get() != null) {
+            int overrideUserId = AxDualAppsService.get().overrideUserId(targetUserId, mSettings.isEnabledAndMatch(pkg, s, flags, targetUserId));
+            if (overrideUserId != -10000) {
+                targetUserId = overrideUserId;
+            }
+        }
+        if (mSettings.isEnabledAndMatch(pkg, s, flags, targetUserId)) {
             PackageStateInternal ps = mSettings.getPackage(component.getPackageName());
             if (ps == null) return null;
             if (shouldFilterApplication(
-                    ps, callingUid, component, TYPE_SERVICE, userId)) {
+                    ps, callingUid, component, TYPE_SERVICE, targetUserId)) {
                 return null;
             }
             return PackageInfoUtils.generateServiceInfo(pkg,
-                    s, flags, ps.getUserStateOrDefault(userId), userId, ps);
+                    s, flags, ps.getUserStateOrDefault(targetUserId), targetUserId, ps);
         }
         return null;
     }
@@ -5056,7 +5105,9 @@ public class ComputerEngine implements Computer {
         if (!checkedGrants) {
             boolean enforceCrossUser = true;
 
-            if (isAuthorityRedirectedForCloneProfile(authorityWithoutUserId)) {
+            if (isAuthorityRedirectedForCloneProfile(authorityWithoutUserId)
+                    || (AxDualAppsService.get() != null
+                            && AxDualAppsService.get().isAuthorityRedirectedForDualAppsProfile(authorityWithoutUserId, UserHandle.getUserId(callingUid)))) {
                 final UserManagerInternal umInternal = mInjector.getUserManagerInternal();
 
                 UserInfo userInfo = umInternal.getUserInfo(UserHandle.getUserId(callingUid));

@@ -158,6 +158,8 @@ import com.android.server.utils.Slogf;
 import com.android.server.wm.utils.RegionUtils;
 import com.android.window.flags.Flags;
 
+import com.android.server.axdualapps.AxDualAppsService;
+
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.lang.annotation.Retention;
@@ -363,7 +365,8 @@ class RootWindowContainer extends WindowContainer<DisplayContent>
             final ActivityRecord r = task.getTopNonFinishingActivity(
                     false /* includeOverlays */, mIncludeLaunchedFromBubble);
 
-            if (r == null || r.finishing || r.mUserId != userId
+            if (r == null || r.finishing
+                    || (r.mUserId != userId && (AxDualAppsService.get() == null || !AxDualAppsService.get().isCallingRelation(r.mUserId, userId)))
                     || r.launchMode == ActivityInfo.LAUNCH_SINGLE_INSTANCE) {
                 ProtoLog.d(WM_DEBUG_TASKS, "Skipping %s: mismatch root %s", task, r);
                 return false;

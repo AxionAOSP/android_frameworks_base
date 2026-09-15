@@ -192,11 +192,14 @@ import com.android.server.companion.virtual.VirtualDeviceManagerInternal;
 import com.android.server.input.InputManagerInternal;
 import com.android.server.inputmethod.InputMethodManagerInternal.InputMethodListListener;
 import com.android.server.inputmethod.InputMethodSubtypeSwitchingController.ImeSubtypeListItem;
+import com.android.server.inputmethod.IInputMethodInvoker;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.statusbar.StatusBarManagerInternal;
 import com.android.server.utils.PriorityDump;
 import com.android.server.wm.AxSandboxService;
 import com.android.server.wm.WindowManagerInternal;
+
+import com.android.server.axdualapps.AxDualAppsService;
 
 import lineageos.hardware.LineageHardwareManager;
 import lineageos.providers.LineageSettings;
@@ -2463,6 +2466,8 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
 
     @GuardedBy("ImfLock.class")
     void requestClientSessionLocked(ClientState cs, @UserIdInt int userId) {
+        final int targetUserId = (AxDualAppsService.get() != null && AxDualAppsService.get().isDualAppsUserId(userId))
+                ? 0 : userId;
         if (!cs.mSessionRequested) {
             ProtoLog.v(IMMS_DEBUG, "Creating new session for client %s", cs);
             final InputChannel serverChannel;
@@ -2473,7 +2478,7 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
 
             cs.mSessionRequested = true;
 
-            final var bindingController = getInputMethodBindingController(userId);
+            final var bindingController = getInputMethodBindingController(targetUserId);
             final IInputMethodInvoker curMethod = bindingController.getCurMethod();
             final IInputMethodSessionCallback.Stub callback =
                     new IInputMethodSessionCallback.Stub() {
@@ -2481,7 +2486,7 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
                         public void sessionCreated(@Nullable IInputMethodSession session) {
                             final long ident = Binder.clearCallingIdentity();
                             try {
-                                onSessionCreated(curMethod, session, serverChannel, userId);
+                                onSessionCreated(curMethod, session, serverChannel, targetUserId);
                             } finally {
                                 Binder.restoreCallingIdentity(ident);
                             }
@@ -3663,6 +3668,9 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
                 throw new InvalidParameterException("EditorInfo#targetInputMethodUser must also be "
                         + "specified for cross-user startInputOrWindowGainedFocus()");
             }
+        }
+        if (AxDualAppsService.get() != null && AxDualAppsService.get().isDualAppsUserId(userId)) {
+            userId = 0;
         }
         if (windowToken == null) {
             Slog.e(TAG, "windowToken cannot be null.");

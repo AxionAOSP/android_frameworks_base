@@ -155,6 +155,8 @@ import com.android.server.LocalServices;
 import com.android.server.net.BaseNetworkObserver;
 import com.android.server.utils.LazyJniRegistrar;
 
+import com.android.server.axdualapps.AxDualAppsService;
+
 import libcore.io.IoUtils;
 
 import java.io.FileDescriptor;
@@ -2024,7 +2026,8 @@ public class Vpn {
             Log.e(TAG, "Can not retrieve UserInfo for userId=" + userId);
             return;
         }
-        if (user.isRestricted() && user.restrictedProfileParentId == mUserId) {
+        if ((user.isRestricted() && user.restrictedProfileParentId == mUserId)
+                || (userId == AxDualAppsService.DUAL_APPS_USER_ID && mUserId == 0)) {
             synchronized(Vpn.this) {
                 final Set<Range<Integer>> existingRanges = mNetworkCapabilities.getUids();
                 if (existingRanges != null) {
@@ -2061,7 +2064,8 @@ public class Vpn {
             Log.e(TAG, "Can not retrieve UserInfo for userId=" + userId);
             return;
         }
-        if (user.isRestricted() && user.restrictedProfileParentId == mUserId) {
+        if ((user.isRestricted() && user.restrictedProfileParentId == mUserId)
+                || (userId == AxDualAppsService.DUAL_APPS_USER_ID && mUserId == 0)) {
             synchronized(Vpn.this) {
                 final Set<Range<Integer>> existingRanges = mNetworkCapabilities.getUids();
                 if (existingRanges != null) {

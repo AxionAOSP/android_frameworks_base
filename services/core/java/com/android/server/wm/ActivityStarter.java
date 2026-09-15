@@ -151,6 +151,7 @@ import com.android.server.power.ShutdownCheckPoints;
 import com.android.server.statusbar.StatusBarManagerInternal;
 import com.android.server.uri.NeededUriGrants;
 import com.android.server.wm.ActivityMetricsLogger.LaunchingState;
+import com.android.server.wm.AxDualAppsWmHelper;
 import com.android.server.wm.BackgroundActivityStartController.BalVerdict;
 import com.android.server.wm.LaunchParamsController.LaunchParams;
 import com.android.server.wm.TaskFragment.EmbeddingCheckResult;
@@ -708,6 +709,10 @@ class ActivityStarter {
                             computeResolveFilterUid(callingUid, realCallingUid,
                                     filterCallingUid), realCallingPid);
                 }
+                if (userInfo != null && userInfo.isCloneProfile()) {
+                    return AxDualAppsWmHelper.resolveIntentFallback(supervisor, intent, resolvedType,
+                            computeResolveFilterUid(callingUid, realCallingUid, filterCallingUid), realCallingPid);
+                }
             }
             return null;
         }
@@ -1049,6 +1054,8 @@ class ActivityStarter {
         }
         mLastStartReason = request.reason;
         mLastStartActivityTimeMs = System.currentTimeMillis();
+
+        AxDualAppsWmHelper.overrideRequest(request, mSupervisor);
 
         final IApplicationThread caller = request.caller;
         Intent intent = request.intent;

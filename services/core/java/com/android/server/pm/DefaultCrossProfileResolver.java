@@ -31,6 +31,8 @@ import com.android.server.pm.pkg.PackageStateInternal;
 import com.android.server.pm.resolution.ComponentResolverApi;
 import com.android.server.pm.verify.domain.DomainVerificationManagerInternal;
 
+import com.android.server.axdualapps.AxDualAppsService;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -167,6 +169,9 @@ public final class DefaultCrossProfileResolver extends CrossProfileResolver {
             int size = matchingFilters.size();
             for (int i = 0; i < size; i++) {
                 CrossProfileIntentFilter filter = matchingFilters.get(i);
+                if (AxDualAppsService.get() != null && AxDualAppsService.get().skipCurrentProfileIntents(intent, filter.mOwnerPackage, sourceUserId)) {
+                    continue;
+                }
                 if ((filter.getFlags() & PackageManager.SKIP_CURRENT_PROFILE) != 0) {
                     // Checking if there are activities in the target user that can handle the
                     // intent.

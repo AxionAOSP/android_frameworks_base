@@ -70,6 +70,7 @@ import android.view.Window;
 import android.view.WindowManagerGlobal;
 
 import com.android.internal.content.ReferrerIntent;
+import com.android.internal.dualapps.AxDualAppsManager;
 
 import java.io.File;
 import java.lang.annotation.Retention;
@@ -2325,6 +2326,9 @@ public class Instrumentation {
         try {
             intent.migrateExtraStreamToClipData(who);
             intent.prepareToLeaveProcess(who);
+            if (AxDualAppsManager.get() != null) {
+                AxDualAppsManager.get().checkFromChooser(target, intent, userId);
+            }
             int result = ActivityTaskManager.getService()
                     .startActivityAsCaller(whoThread, who.getOpPackageName(), intent,
                             intent.resolveTypeIfNeeded(who.getContentResolver()),

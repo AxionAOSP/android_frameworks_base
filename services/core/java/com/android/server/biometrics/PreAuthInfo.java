@@ -42,6 +42,8 @@ import android.window.DesktopExperienceFlags.DesktopExperienceFlag;
 import com.android.internal.R;
 import com.android.server.biometrics.sensors.LockoutTracker;
 
+import com.android.server.axdualapps.AxDualAppsService;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
@@ -127,7 +129,7 @@ class PreAuthInfo {
                 == BiometricManager.Authenticators.IDENTITY_CHECK;
 
         final int effectiveUserId;
-        if (Flags.effectiveUserBp()) {
+        if (Flags.effectiveUserBp() || (AxDualAppsService.get() != null && AxDualAppsService.get().isDualAppsUserId(userId))) {
             effectiveUserId = userManager.getCredentialOwnerProfile(userId);
         } else {
             effectiveUserId = userId;

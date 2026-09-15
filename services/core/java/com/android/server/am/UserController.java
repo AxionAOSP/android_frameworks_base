@@ -154,6 +154,8 @@ import com.android.server.wm.ActivityAssistInfo;
 import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.WindowManagerService;
 
+import com.android.server.axdualapps.AxDualAppsService;
+
 import java.io.PrintWriter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -985,6 +987,14 @@ class UserController implements Handler.Callback {
                             null, null, 0, null, null, null, AppOpsManager.OP_NONE,
                             null, false, MY_PID, SYSTEM_UID, Binder.getCallingUid(),
                             Binder.getCallingPid(), parent.id);
+                } else if (userInfo.isCloneProfile() && AxDualAppsService.get() != null) {
+                    Intent cloneUnlockedIntent = AxDualAppsService.get().getUserUnlockIntentForDualApps(userInfo.id);
+                    if (cloneUnlockedIntent != null) {
+                        mInjector.broadcastIntent(cloneUnlockedIntent,
+                                null, null, 0, null, null, null, AppOpsManager.OP_NONE,
+                                null, false, MY_PID, SYSTEM_UID, Binder.getCallingUid(),
+                                Binder.getCallingPid(), parent.id);
+                    }
                 }
             }
         }
@@ -998,7 +1008,7 @@ class UserController implements Handler.Callback {
             // Suppress double notifications for managed profiles that
             // were unlocked automatically as part of their parent user being
             // unlocked.  TODO(b/217442918): this code doesn't work correctly.
-            final boolean quiet = info.isManagedProfile();
+            final boolean quiet = info.isManagedProfile() || info.isCloneProfile();
             mInjector.sendPreBootBroadcast(userId, quiet,
                     () -> finishUserUnlockedCompleted(uss));
         } else {
@@ -1023,7 +1033,12 @@ class UserController implements Handler.Callback {
         // Remember that we logged in
         mInjector.getUserManager().onUserLoggedIn(userId);
 
-        Runnable initializeUser = () -> mInjector.getUserManager().makeInitialized(userInfo.id);
+        Runnable initializeUser = () -> {
+            mInjector.getUserManager().makeInitialized(userInfo.id);
+            if (AxDualAppsService.get() != null && AxDualAppsService.get().isDualAppsUserId(userInfo.id)) {
+                AxDualAppsService.get().onDualSpaceInitialized();
+            }
+        };
         if (!userInfo.isInitialized()) {
             Slogf.d(TAG, "Initializing user #" + userId);
             if (userInfo.preCreated) {

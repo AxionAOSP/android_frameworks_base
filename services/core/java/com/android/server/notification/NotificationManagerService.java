@@ -244,6 +244,7 @@ import android.app.StatsManager;
 import android.app.UriGrantsManager;
 import android.app.ZenBypassingApp;
 import com.android.internal.app.HiddenNotificationInfo;
+import com.android.server.axdualapps.AxDualAppsService;
 import android.app.admin.DevicePolicyManagerInternal;
 import android.app.backup.BackupManager;
 import android.app.backup.BackupRestoreEventLogger;
@@ -8815,6 +8816,12 @@ public class NotificationManagerService extends SystemService {
         }
 
         if (notificationUid == INVALID_UID) {
+            if (AxDualAppsService.get() != null && AxDualAppsService.get().isDualAppsUserId(userId)) {
+                return false;
+            }
+            if ("com.google.android.gms".equals(opPkg)) {
+                return false;
+            }
             throw new SecurityException("Caller " + opPkg + ":" + callingUid
                     + " trying to post for invalid pkg " + pkg + " in user " + incomingUserId);
         }
@@ -9529,6 +9536,11 @@ public class NotificationManagerService extends SystemService {
                 || mPreferencesHelper.isDelegateAllowed(
                         targetPkg, targetUid, callingPkg, callingUid)) {
             return targetUid;
+        }
+
+        if ((AxDualAppsService.get() != null && AxDualAppsService.get().isDualAppsUserId(userId))
+                || "com.google.android.gms".equals(callingPkg)) {
+            return INVALID_UID;
         }
 
         throw new SecurityException("Caller " + callingPkg + ":" + callingUid

@@ -94,6 +94,8 @@ import com.android.server.pm.UserManagerInternal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.sdksandbox.SdkSandboxManagerLocal;
 
+import com.android.server.axdualapps.AxDualAppsService;
+
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -1157,6 +1159,8 @@ public class ContentProviderHelper {
             if (userInfo != null && userInfo.isCloneProfile()) {
                 userId = umInternal.getProfileParentId(userId);
                 checkUser = false;
+            } else if (AxDualAppsService.get() != null && AxDualAppsService.get().isDualAppsUserId(UserHandle.getCallingUserId()) && userId == 0) {
+                checkUser = false;
             }
         }
 
@@ -2011,7 +2015,8 @@ public class ContentProviderHelper {
             final Boolean retVal = mCloneProfileAuthorityRedirectionCache.get(auth);
             return retVal == null ? false : retVal.booleanValue();
         } else {
-            boolean isAuthRedirected = isAuthorityRedirectedForCloneProfile(auth);
+            boolean isAuthRedirected = isAuthorityRedirectedForCloneProfile(auth)
+                    || (AxDualAppsService.get() != null && AxDualAppsService.get().isAuthorityRedirectedForDualAppsProfile(auth));
             mCloneProfileAuthorityRedirectionCache.put(auth, isAuthRedirected);
             return isAuthRedirected;
         }

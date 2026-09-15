@@ -33,6 +33,7 @@ import android.annotation.SystemApi;
 import android.annotation.TestApi;
 import android.app.AppOpsManager;
 import android.compat.annotation.UnsupportedAppUsage;
+import android.content.ContentResolver;
 import android.content.pm.PackageManager;
 import android.content.pm.PathPermission;
 import android.content.pm.ProviderInfo;
@@ -66,6 +67,7 @@ import android.util.Log;
 import android.util.SparseBooleanArray;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.dualapps.AxDualAppsManager;
 import com.android.internal.util.FrameworkStatsLog;
 
 import java.io.File;
@@ -926,7 +928,8 @@ public abstract class ContentProvider implements ContentInterface, ComponentCall
      *                       then it should be 11.
      */
     private boolean isContentRedirectionAllowedForUser(int incomingUserId) {
-        if (MediaStore.AUTHORITY.equals(mAuthority)) {
+        if (MediaStore.AUTHORITY.equals(mAuthority)
+                || AxDualAppsManager.get().isAuthorityRedirectedForDualAppsProfile(this.mAuthority, this.mAuthorities, incomingUserId)) {
             int incomingUserIdIndex = mUsersRedirectedToOwnerForMedia.indexOfKey(incomingUserId);
             if (incomingUserIdIndex >= 0) {
                 return mUsersRedirectedToOwnerForMedia.valueAt(incomingUserIdIndex);
@@ -2973,13 +2976,18 @@ public abstract class ContentProvider implements ContentInterface, ComponentCall
     @UnsupportedAppUsage
     @android.ravenwood.annotation.RavenwoodKeep
     public static Uri maybeAddUserId(Uri uri, int userId) {
+        return maybeAddUserId(uri, userId, 0);
+    }
+
+    /** @hide */
+    public static Uri maybeAddUserId(Uri uri, int userId, int targetUserId) {
         if (uri == null) return null;
         if (userId != UserHandle.USER_CURRENT
                 && ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) {
             if (!uriHasUserId(uri)) {
-                //We don't add the user Id if there's already one
+                int fixUserId = (AxDualAppsManager.get() != null && AxDualAppsManager.get().skipFixUris(uri, userId, targetUserId)) ? targetUserId : userId;
                 Uri.Builder builder = uri.buildUpon();
-                builder.encodedAuthority("" + userId + "@" + uri.getEncodedAuthority());
+                builder.encodedAuthority("" + fixUserId + "@" + uri.getEncodedAuthority());
                 return builder.build();
             }
         }

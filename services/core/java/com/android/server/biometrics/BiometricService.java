@@ -95,6 +95,7 @@ import com.android.internal.os.SomeArgs;
 import com.android.internal.statusbar.IStatusBarService;
 import com.android.internal.util.DumpUtils;
 import com.android.server.SystemService;
+import com.android.server.axdualapps.AxDualAppsService;
 import com.android.server.biometrics.log.BiometricContext;
 import com.android.server.utils.Slogf;
 
@@ -1082,6 +1083,10 @@ public class BiometricService extends SystemService {
 
             super.hasEnrolledBiometrics_enforcePermission();
 
+            if (AxDualAppsService.get() != null && AxDualAppsService.get().isDualAppsUserId(userId)) {
+                userId = 0;
+            }
+
             try {
                 for (BiometricSensor sensor : mSensors) {
                     if (sensor.impl.hasEnrolledTemplates(userId, opPackageName)) {
@@ -1201,6 +1206,10 @@ public class BiometricService extends SystemService {
         public long[] getAuthenticatorIds(int callingUserId) {
 
             super.getAuthenticatorIds_enforcePermission();
+
+            if (AxDualAppsService.get() != null && AxDualAppsService.get().isDualAppsUserId(callingUserId)) {
+                callingUserId = 0;
+            }
 
             final List<Long> authenticatorIds = new ArrayList<>();
             for (BiometricSensor sensor : mSensors) {

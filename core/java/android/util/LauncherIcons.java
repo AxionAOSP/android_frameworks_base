@@ -28,6 +28,9 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.DrawableWrapper;
 import android.graphics.drawable.LayerDrawable;
 
+import com.android.internal.R;
+import com.android.internal.dualapps.AxDualAppsManager;
+
 /**
  * Utility class to handle icon treatments (e.g., shadow generation) for the Launcher icons.
  * @hide
@@ -104,18 +107,31 @@ public final class LauncherIcons {
         return getBadgedDrawable(null, badgeForeground, backgroundColor);
     }
 
+    public Drawable getBadgeDrawable(Drawable badgeForeground, int backgroundColor, int userId) {
+        return getBadgedDrawable(null, badgeForeground, backgroundColor, userId);
+    }
+
     public Drawable getBadgedDrawable(
             Drawable base, Drawable badgeForeground, int backgroundColor) {
+        return getBadgedDrawable(base, badgeForeground, backgroundColor, 0);
+    }
+
+    public Drawable getBadgedDrawable(
+            Drawable base, Drawable badgeForeground, int backgroundColor, int userId) {
         Resources overlayableRes =
                 ActivityThread.currentActivityThread().getApplication().getResources();
         // ic_corp_icon_badge_shadow is not work-profile-specific.
         Drawable badgeShadow = overlayableRes.getDrawable(
-                com.android.internal.R.drawable.ic_corp_icon_badge_shadow);
+                R.drawable.ic_corp_icon_badge_shadow);
 
         // ic_corp_icon_badge_color is not work-profile-specific.
         Drawable badgeColor = overlayableRes.getDrawable(
-                com.android.internal.R.drawable.ic_corp_icon_badge_color)
+                R.drawable.ic_corp_icon_badge_color)
                 .getConstantState().newDrawable().mutate();
+
+        if (AxDualAppsManager.get() != null) {
+            AxDualAppsManager.get().shouldTintBadgeBg(this.mContext, badgeColor, userId);
+        }
 
         badgeForeground.setTint(backgroundColor);
 

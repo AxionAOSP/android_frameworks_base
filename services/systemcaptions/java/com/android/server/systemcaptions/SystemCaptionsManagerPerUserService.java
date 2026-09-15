@@ -28,6 +28,7 @@ import android.util.Slog;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.server.infra.AbstractPerUserSystemService;
+import com.android.server.axdualapps.AxDualAppsService;
 
 /** Manages the captions manager service on a per-user basis. */
 final class SystemCaptionsManagerPerUserService extends
@@ -89,6 +90,9 @@ final class SystemCaptionsManagerPerUserService extends
     private RemoteSystemCaptionsManagerService getRemoteServiceLocked() {
         if (mRemoteService == null) {
             String serviceName = getComponentNameLocked();
+            if (AxDualAppsService.get() != null && AxDualAppsService.get().isDualAppsUserId(mUserId)) {
+                serviceName = null;
+            }
             if (serviceName == null) {
                 if (mMaster.verbose) {
                     Slog.v(TAG, "getRemoteServiceLocked(): Not set");

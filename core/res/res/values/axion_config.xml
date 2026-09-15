@@ -40,4 +40,89 @@
 
     <!-- Expected value from fast charging status file  -->
     <string name="config_oemFastChargerStatusValue" translatable="false">1</string>
+
+    <string-array name="config_dualAppsBasicPackages">
+        <item>com.google.android.gms</item>
+        <item>com.google.android.gsf</item>
+        <item>com.google.android.play.games</item>
+        <item>com.android.vending</item>
+        <item>com.google.android.feedback</item>
+        <item>com.google.android.backuptransport</item>
+        <item>com.google.android.syncadapters.contacts</item>
+        <item>com.google.android.syncadapters.calendar</item>
+        <item>com.android.providers.contacts</item>
+        <item>com.android.providers.media</item>
+        <item>com.android.providers.downloads</item>
+        <item>com.android.providers.settings</item>
+    </string-array>
+
+    <string-array name="config_dualAppsSupportPackages">
+        <item>com.whatsapp</item>
+        <item>com.whatsapp.w4b</item>
+        <item>org.telegram.messenger</item>
+        <item>org.telegram.plus</item>
+        <item>com.facebook.orca</item>
+        <item>com.facebook.katana</item>
+        <item>com.instagram.android</item>
+        <item>com.snapchat.android</item>
+        <item>com.twitter.android</item>
+        <item>com.discord</item>
+        <item>com.tencent.mm</item>
+        <item>com.tencent.mobileqq</item>
+        <item>com.linecorp.line</item>
+        <item>com.viber.voip</item>
+        <item>com.skype.raider</item>
+        <item>com.linkedin.android</item>
+    </string-array>
+
+    <string-array name="config_dualAppsAvailableBlacklist">
+        <item>com.android.settings</item>
+        <item>com.android.systemui</item>
+        <item>com.android.launcher3</item>
+        <item>com.google.android.googlequicksearchbox</item>
+    </string-array>
+
+    <string-array name="config_dualAppsFilterCrossProfilePackages">
+        <item>com.google.android.gms</item>
+        <item>com.android.vending</item>
+    </string-array>
+
+    <string-array name="config_dualAppsSkipCurrentProfilePackages">
+        <item>com.android.packageinstaller</item>
+        <item>com.google.android.packageinstaller</item>
+    </string-array>
+
+    <string-array name="config_dualAppsProviderAuthorityConfig">
+        <item>media</item>
+        <item>downloads</item>
+        <item>com.android.providers.media.documents</item>
+        <item>com.android.providers.downloads.documents</item>
+    </string-array>
+
+    <string-array name="config_dualAppsSkipChooserCallingPackages">
+        <item>android</item>
+        <item>com.android.systemui</item>
+        <item>com.android.settings</item>
+    </string-array>
+
+    <string-array name="config_dualAppsSkipChooserCallerNullActivityNames">
+    </string-array>
+
+    <string-array name="config_dualAppsSkipChooserClazzNames">
+    </string-array>
+
+    <string-array name="config_dualAppsSkipChooserActionMainList">
+        <item>com.android.launcher3</item>
+    </string-array>
+
+    <string-array name="config_dualAppsSkipChooserCustomActionList">
+        <item>android.intent.action.DIAL</item>
+        <item>android.intent.action.CALL</item>
+    </string-array>
+
+    <string-array name="config_dualAppsSkipChooserCustomActionMap">
+    </string-array>
+
+    <color name="dual_badge_icon_bg_color">#FFD71920</color>
+    <color name="dual_badge_icon_color">#FFFFFFFF</color>
 </resources>

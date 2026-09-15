@@ -142,6 +142,7 @@ import com.android.server.utils.WatchedArraySet;
 import com.android.server.utils.WatchedSparseArray;
 import com.android.server.utils.WatchedSparseIntArray;
 import com.android.server.utils.Watcher;
+import com.android.server.axdualapps.AxDualAppsService;
 
 import dalvik.annotation.optimization.NeverCompile;
 
@@ -1161,11 +1162,14 @@ public final class Settings implements Watchable, Snappable, ResilientAtomicFile
                         // original default value is true), or we are being
                         // asked to install for all users, or this is the
                         // user we are installing for.
-                        final boolean installed = installUser == null
+                        boolean installed = installUser == null
                                 || (installUserId == UserHandle.USER_ALL
                                     && !isAdbInstallDisallowed(userManager, user.id)
                                     && !user.preCreated)
                                 || installUserId == user.id;
+                        if (AxDualAppsService.get() != null && AxDualAppsService.get().installBlocked(pkgName, pkgFlags, installUserId, user)) {
+                            installed = false;
+                        }
                         if (DEBUG_MU) {
                             Slogf.d(TAG, "createNewSetting(pkg=%s, installUserId=%s, user=%s, "
                                     + "installed=%b)",
@@ -4794,7 +4798,8 @@ public final class Settings implements Watchable, Snappable, ResilientAtomicFile
                 }
                 final boolean shouldMaybeInstall = ps.isSystem() &&
                         !ArrayUtils.contains(disallowedPackages, ps.getPackageName()) &&
-                        !ps.getPkgState().isHiddenUntilInstalled();
+                        !ps.getPkgState().isHiddenUntilInstalled() &&
+                        (AxDualAppsService.get() == null || !AxDualAppsService.get().installBlocked(ps.getPackageName(), userHandle));
                 final boolean shouldReallyInstall = shouldMaybeInstall &&
                         (skipPackageAllowList || userTypeInstallablePackages.contains(
                                 ps.getPackageName()));

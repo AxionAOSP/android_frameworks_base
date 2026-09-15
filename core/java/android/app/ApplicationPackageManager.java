@@ -133,6 +133,7 @@ import android.window.DesktopExperienceFlags;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.dualapps.AxDualAppsManager;
 import com.android.internal.os.SomeArgs;
 import com.android.internal.pm.RoSystemFeatures;
 import com.android.internal.util.UserIcons;
@@ -149,6 +150,7 @@ import org.xmlpull.v1.XmlPullParserException;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.CharSequence;
 import java.lang.ref.WeakReference;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
@@ -2060,7 +2062,8 @@ public class ApplicationPackageManager extends PackageManager {
 
         Drawable badge = new LauncherIcons(mContext).getBadgeDrawable(
                 badgeForeground,
-                getUserBadgeColor(user, false));
+                getUserBadgeColor(user, false),
+                user.getIdentifier());
         return getBadgedDrawable(icon, badge, null, true);
     }
 
@@ -2105,6 +2108,8 @@ public class ApplicationPackageManager extends PackageManager {
             return null;
         }
 
+        AxDualAppsManager.get().shouldTintBadgeBg(mContext, badgeColor, user.getIdentifier());
+
         final Drawable badgeForeground = getDevicePolicyManager().getResources()
                 .getDrawableForDensity(
                         getUpdatableUserBadgeId(user),
@@ -2143,7 +2148,9 @@ public class ApplicationPackageManager extends PackageManager {
                 () -> getDefaultUserBadgeNoBackgroundForDensity(user, density));
 
         if (badge != null) {
-            badge.setTint(getUserBadgeColor(user, true));
+            if (!AxDualAppsManager.get().shouldTintBadgeForNoBackground(mContext, badge, user.getIdentifier())) {
+                badge.setTint(getUserBadgeColor(user, true));
+            }
         }
         return badge;
     }
@@ -3537,7 +3544,8 @@ public class ApplicationPackageManager extends PackageManager {
      */
     public Drawable loadItemIcon(PackageItemInfo itemInfo, ApplicationInfo appInfo) {
         Drawable dr = loadUnbadgedItemIcon(itemInfo, appInfo);
-        if (itemInfo.showUserIcon != UserHandle.USER_NULL) {
+        if (itemInfo.showUserIcon != UserHandle.USER_NULL
+                || (AxDualAppsManager.get() != null && AxDualAppsManager.get().skipLoadBadgedIcon(mContext, appInfo))) {
             return dr;
         }
         return getUserBadgedIcon(dr, new UserHandle(getUserId()));

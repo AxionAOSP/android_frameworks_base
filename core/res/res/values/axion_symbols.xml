@@ -40,4 +40,20 @@
 
     <!-- Expected value from fast charging status file -->
     <java-symbol type="string" name="config_oemFastChargerStatusValue" />
+
+    <!-- Dual Apps Symbols -->
+    <java-symbol type="array" name="config_dualAppsBasicPackages" />
+    <java-symbol type="array" name="config_dualAppsSupportPackages" />
+    <java-symbol type="array" name="config_dualAppsAvailableBlacklist" />
+    <java-symbol type="array" name="config_dualAppsFilterCrossProfilePackages" />
+    <java-symbol type="array" name="config_dualAppsSkipCurrentProfilePackages" />
+    <java-symbol type="array" name="config_dualAppsProviderAuthorityConfig" />
+    <java-symbol type="array" name="config_dualAppsSkipChooserCallingPackages" />
+    <java-symbol type="array" name="config_dualAppsSkipChooserCallerNullActivityNames" />
+    <java-symbol type="array" name="config_dualAppsSkipChooserClazzNames" />
+    <java-symbol type="array" name="config_dualAppsSkipChooserActionMainList" />
+    <java-symbol type="array" name="config_dualAppsSkipChooserCustomActionList" />
+    <java-symbol type="array" name="config_dualAppsSkipChooserCustomActionMap" />
+    <java-symbol type="color" name="dual_badge_icon_bg_color" />
+    <java-symbol type="color" name="dual_badge_icon_color" />
 </resources>

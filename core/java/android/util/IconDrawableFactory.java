@@ -93,7 +93,8 @@ public class IconDrawableFactory {
                     SOLID_COLORED,
                     () -> getDefaultUserIconBadge(userId));
 
-            icon = mLauncherIcons.getBadgedDrawable(icon, badge, mUm.getUserBadgeColor(userId));
+            icon = mLauncherIcons.getBadgedDrawable(
+                    icon, badge, mUm.getUserBadgeColor(userId), userId);
         }
         return icon;
     }

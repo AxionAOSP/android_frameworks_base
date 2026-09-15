@@ -132,6 +132,7 @@ import com.android.server.pm.pkg.ArchiveState;
 import com.android.server.pm.pkg.PackageStateInternal;
 import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.AxSandboxService;
+import com.android.server.axdualapps.AxDualAppsService;
 
 import java.io.DataInputStream;
 import java.io.FileDescriptor;
@@ -1026,6 +1027,10 @@ public class LauncherAppsService extends SystemService {
                 final String packageName = ri.activityInfo.packageName;
                 if (packageName == null) {
                     // should not happen
+                    continue;
+                }
+
+                if (AxDualAppsService.get() != null && AxDualAppsService.get().hiddenFromLauncher(packageName, user.getIdentifier())) {
                     continue;
                 }
 
@@ -2104,14 +2109,25 @@ public class LauncherAppsService extends SystemService {
                 String packageName = component.getPackageName();
                 int uId = -1;
                 try {
-                    uId = mContext.getPackageManager().getApplicationInfo(
-                            packageName, PackageManager.MATCH_ANY_USER).uid;
+                    uId = mContext.getPackageManager().getApplicationInfoAsUser(
+                            packageName, PackageManager.MATCH_ANY_USER, user.getIdentifier()).uid;
                 } catch (PackageManager.NameNotFoundException e) {
-                    Log.d(TAG, "package not found: " + e);
+                    try {
+                        uId = mContext.getPackageManager().getApplicationInfo(
+                                packageName, PackageManager.MATCH_ANY_USER).uid;
+                    } catch (PackageManager.NameNotFoundException ex) {
+                        Log.d(TAG, "package not found: " + ex);
+                    }
+                }
+                if (uId != -1 && user.getIdentifier() != UserHandle.getUserId(uId)) {
+                    uId = UserHandle.getUid(user.getIdentifier(), UserHandle.getAppId(uId));
                 }
                 intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         Uri.fromParts("package", packageName, null));
                 intent.putExtra("uId", uId);
+                intent.putExtra(Intent.EXTRA_USER, user);
+                intent.putExtra(Intent.EXTRA_USER_HANDLE, user);
+                intent.putExtra(Intent.EXTRA_USER_ID, user.getIdentifier());
                 intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 intent.setSourceBounds(sourceBounds);
             } finally {

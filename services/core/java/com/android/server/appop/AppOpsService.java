@@ -2844,8 +2844,10 @@ public class AppOpsService extends IAppOpsService.Stub {
         // Also, if the caller has requested WATCH_FOREGROUND_CHANGES, should we require
         // the USAGE_STATS permission since this can provide information about when an
         // app is in the foreground?
-        Preconditions.checkArgumentInRange(op, AppOpsManager.OP_NONE,
-                AppOpsManager._NUM_OP - 1, "Invalid op code: " + op);
+        if (op != AppOpsManager.OP_DUAL_APP) {
+            Preconditions.checkArgumentInRange(op, AppOpsManager.OP_NONE,
+                    AppOpsManager._NUM_OP - 1, "Invalid op code: " + op);
+        }
         if (callback == null) {
             return;
         }
@@ -2935,6 +2937,10 @@ public class AppOpsService extends IAppOpsService.Stub {
     private static boolean isOpAllowedForUid(int uid) {
         int appId = UserHandle.getAppId(uid);
         return appId == Process.ROOT_UID || appId == Process.SYSTEM_UID;
+    }
+
+    private static boolean isOpAllowedForUid(int uid, int code) {
+        return isOpAllowedForUid(uid) && code < AppOpsManager.OP_DUAL_APP;
     }
 
     @Override
@@ -3057,7 +3063,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                     pvr.bypass, true)) {
                 return AppOpsManager.MODE_IGNORED;
             }
-            if (isOpAllowedForUid(uid)) {
+            if (isOpAllowedForUid(uid, code)) {
                 return MODE_ALLOWED;
             }
             code = AppOpsManager.opToSwitch(code);
@@ -3121,7 +3127,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                     pvr.bypass, isCheckOp)) {
                 return MODE_IGNORED;
             }
-            if (isOpAllowedForUid(uid)) {
+            if (isOpAllowedForUid(uid, code)) {
                 return MODE_ALLOWED;
             }
 
@@ -3478,7 +3484,7 @@ public class AppOpsService extends IAppOpsService.Stub {
                 return new SyncNotedAppOp(AppOpsManager.MODE_IGNORED, code, attributionTag,
                         packageName);
             }
-            if (isOpAllowedForUid(uid)) {
+            if (isOpAllowedForUid(uid, code)) {
                 // Op is always allowed for the UID, do nothing.
 
                 // If there is a non-default per UID policy (we set UID op mode only if
@@ -3567,8 +3573,12 @@ public class AppOpsService extends IAppOpsService.Stub {
             watchedUid = callingUid;
         }
         if (ops != null) {
-            Preconditions.checkArrayElementsInRange(ops, 0,
-                    AppOpsManager._NUM_OP - 1, "Invalid op code in: " + Arrays.toString(ops));
+            for (int op : ops) {
+                if (op != AppOpsManager.OP_DUAL_APP) {
+                    Preconditions.checkArgumentInRange(op, 0,
+                            AppOpsManager._NUM_OP - 1, "Invalid op code in: " + Arrays.toString(ops));
+                }
+            }
         }
         if (callback == null) {
             return;
@@ -3616,8 +3626,12 @@ public class AppOpsService extends IAppOpsService.Stub {
         }
 
         Preconditions.checkArgument(!ArrayUtils.isEmpty(ops), "Ops cannot be null or empty");
-        Preconditions.checkArrayElementsInRange(ops, 0, AppOpsManager._NUM_OP - 1,
-                "Invalid op code in: " + Arrays.toString(ops));
+        for (int op : ops) {
+            if (op != AppOpsManager.OP_DUAL_APP) {
+                Preconditions.checkArgumentInRange(op, 0,
+                        AppOpsManager._NUM_OP - 1, "Invalid op code in: " + Arrays.toString(ops));
+            }
+        }
         Objects.requireNonNull(callback, "Callback cannot be null");
 
         synchronized (this) {
@@ -3663,8 +3677,12 @@ public class AppOpsService extends IAppOpsService.Stub {
             watchedUid = callingUid;
         }
         Preconditions.checkArgument(!ArrayUtils.isEmpty(ops), "Ops cannot be null or empty");
-        Preconditions.checkArrayElementsInRange(ops, 0, AppOpsManager._NUM_OP - 1,
-                "Invalid op code in: " + Arrays.toString(ops));
+        for (int op : ops) {
+            if (op != AppOpsManager.OP_DUAL_APP) {
+                Preconditions.checkArgumentInRange(op, 0,
+                        AppOpsManager._NUM_OP - 1, "Invalid op code in: " + Arrays.toString(ops));
+            }
+        }
         Objects.requireNonNull(callback, "Callback cannot be null");
         synchronized (this) {
             SparseArray<NotedCallback> callbacks = mNotedWatchers.get(callback.asBinder());
@@ -4124,7 +4142,7 @@ public class AppOpsService extends IAppOpsService.Stub {
             final int switchCode = AppOpsManager.opToSwitch(code);
 
             int rawUidMode;
-            if (isOpAllowedForUid(uid)) {
+            if (isOpAllowedForUid(uid, code)) {
                 // Op is always allowed for the UID, do nothing.
 
                 // If there is a non-default per UID policy (we set UID op mode only if
@@ -4801,9 +4819,9 @@ public class AppOpsService extends IAppOpsService.Stub {
     }
 
     private void verifyIncomingOp(int op) {
-        if (op >= 0 && op < AppOpsManager._NUM_OP) {
+        if ((op >= 0 && op < AppOpsManager._NUM_OP) || op == AppOpsManager.OP_DUAL_APP) {
             // Enforce privileged appops permission if it's a restricted read op.
-            if (opRestrictsRead(op)) {
+            if (op < AppOpsManager._NUM_OP && opRestrictsRead(op)) {
                 if (!(mContext.checkPermission(Manifest.permission.MANAGE_APPOPS,
                         Binder.getCallingPid(), Binder.getCallingUid())
                         == PackageManager.PERMISSION_GRANTED || mContext.checkPermission(

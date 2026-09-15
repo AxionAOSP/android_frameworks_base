@@ -278,7 +278,8 @@ public class ResolverListAdapter extends BaseAdapter {
                             /* shouldGetResolvedFilter= */ true,
                             mResolverListCommunicator.shouldGetActivityMetadata(),
                             mResolverListCommunicator.shouldGetOnlyDefaultActivities(),
-                            mIntents);
+                            mIntents,
+                            mResolverListCommunicator.getLaunchedFromPackage());
         }
     }
 
@@ -880,6 +881,10 @@ public class ResolverListAdapter extends BaseAdapter {
         default boolean shouldGetOnlyDefaultActivities() { return true; };
 
         Intent getTargetIntent();
+
+        default String getLaunchedFromPackage() {
+            return null;
+        }
 
         void onHandlePackagesChanged(ResolverListAdapter listAdapter);
     }

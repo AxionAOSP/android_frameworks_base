@@ -191,6 +191,7 @@ import com.android.server.storage.DeviceStorageMonitorInternal;
 import com.android.server.utils.Slogf;
 import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.ActivityTaskManagerInternal;
+import com.android.server.axdualapps.AxDualAppsService;
 
 import libcore.io.IoUtils;
 
@@ -6493,7 +6494,9 @@ public class UserManagerService extends IUserManager.Stub {
                             USER_OPERATION_ERROR_UNKNOWN);
                 }
 
-                userId = getNextAvailableId();
+                userId = (UserManager.isUserTypeCloneProfile(userType) && (flags & 67108864) != 0)
+                        ? 999
+                        : getNextAvailableId();
                 Slog.i(LOG_TAG, "Creating user " + userId + " of type " + userType);
                 Environment.getUserSystemDirectory(userId).mkdirs();
 
@@ -6563,8 +6566,14 @@ public class UserManagerService extends IUserManager.Stub {
             getLockSettingsInternal().createNewUser(userId, userInfo.serialNumber);
             t.traceEnd();
 
-            final Set<String> userTypeInstallablePackages =
+            Set<String> userTypeInstallablePackages =
                     mSystemPackageInstaller.getInstallablePackagesForUserType(userType);
+            if (AxDualAppsService.get() != null && UserManager.isUserTypeCloneProfile(userType)) {
+                if (userTypeInstallablePackages == null) {
+                    userTypeInstallablePackages = new ArraySet<>();
+                }
+                AxDualAppsService.get().overrideInstallablePackages(userType, userTypeInstallablePackages);
+            }
             t.traceBegin("PM.createNewUser");
             mPm.createNewUser(userId, userTypeInstallablePackages, disallowedPackages);
             t.traceEnd();
@@ -7430,6 +7439,9 @@ public class UserManagerService extends IUserManager.Stub {
         synchronized (mUsersLock) {
             removeUserDataLU(userId);
             getActivityManagerInternal().onUserRemoved(userId);
+            if (AxDualAppsService.get() != null) {
+                AxDualAppsService.get().onUserRemoved(userId);
+            }
         }
         synchronized (mUserStates) {
             mUserStates.delete(userId);
@@ -9389,5 +9401,25 @@ public class UserManagerService extends IUserManager.Stub {
      */
     public UserJourneyLogger getUserJourneyLogger() {
         return mUserJourneyLogger;
+    }
+
+    public boolean isCloneUser(int userId) {
+        synchronized (mUsersLock) {
+            UserInfo userInfo = getUserInfoLU(userId);
+            return userInfo != null && userInfo.isCloneProfile();
+        }
+    }
+
+    public UserInfo getCloneProfile() {
+        synchronized (mUsersLock) {
+            int userSize = mUsers.size();
+            for (int i = 0; i < userSize; i++) {
+                UserInfo profile = mUsers.valueAt(i).info;
+                if (profile.isCloneProfile()) {
+                    return profile;
+                }
+            }
+            return null;
+        }
     }
 }

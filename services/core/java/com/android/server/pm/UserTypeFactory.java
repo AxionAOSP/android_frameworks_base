@@ -54,6 +54,9 @@ import android.util.Slog;
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.XmlUtils;
+import com.android.server.pm.UserTypeDetails;
+
+import com.android.server.axdualapps.AxDualAppsService;
 
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -126,7 +129,7 @@ public final class UserTypeFactory {
      */
     // TODO(b/182396009): Add default restrictions, if needed for clone user type.
     private static UserTypeDetails.Builder getDefaultTypeProfileClone() {
-        return new UserTypeDetails.Builder()
+        UserTypeDetails.Builder builder = new UserTypeDetails.Builder()
                 .setName(USER_TYPE_PROFILE_CLONE)
                 .setBaseType(FLAG_PROFILE)
                 .setMaxAllowed(getDefaultMaxAllowedSwitchableUsers())
@@ -169,6 +172,10 @@ public final class UserTypeFactory {
                         .setDeleteAppWithParent(true)
                         .setCrossProfileContentSharingStrategy(UserProperties
                                 .CROSS_PROFILE_CONTENT_SHARING_DELEGATE_FROM_PARENT));
+        if (AxDualAppsService.get() != null) {
+            AxDualAppsService.get().modifyDefaultTypeProfileClone(builder);
+        }
+        return builder;
     }
 
     /**

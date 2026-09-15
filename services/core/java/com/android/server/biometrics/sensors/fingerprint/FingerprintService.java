@@ -94,6 +94,7 @@ import com.android.server.biometrics.sensors.LockoutResetDispatcher;
 import com.android.server.biometrics.sensors.LockoutTracker;
 import com.android.server.biometrics.sensors.fingerprint.aidl.FingerprintProvider;
 import com.android.server.companion.virtual.VirtualDeviceManagerInternal;
+import com.android.server.axdualapps.AxDualAppsService;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -797,6 +798,10 @@ public class FingerprintService extends SystemService {
                 return false;
             }
 
+            if (AxDualAppsService.get() != null && AxDualAppsService.get().isDualAppsUserId(userId)) {
+                userId = 0;
+            }
+
             return provider.getEnrolledFingerprints(sensorId, userId).size() > 0;
         }
 
@@ -1156,6 +1161,10 @@ public class FingerprintService extends SystemService {
             Slog.w(TAG, "Null provider for getEnrolledFingerprintsDeprecated, caller: "
                     + opPackageName);
             return Collections.emptyList();
+        }
+
+        if (AxDualAppsService.get() != null && AxDualAppsService.get().isDualAppsUserId(userId)) {
+            userId = 0;
         }
 
         return provider.second.getEnrolledFingerprints(provider.first, userId);

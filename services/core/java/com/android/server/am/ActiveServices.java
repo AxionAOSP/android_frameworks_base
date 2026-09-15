@@ -254,6 +254,8 @@ import com.android.server.uri.NeededUriGrants;
 import com.android.server.utils.AnrTimer;
 import com.android.server.wm.ActivityServiceConnectionsHolder;
 
+import com.android.server.axdualapps.AxDualAppsService;
+
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -5168,9 +5170,10 @@ public final class ActiveServices {
                         return null;
                     }
 
-                    if (mAm.isSingleton(sInfo.processName, sInfo.applicationInfo,
+                    if ((mAm.isSingleton(sInfo.processName, sInfo.applicationInfo,
                             sInfo.name, sInfo.flags)
-                            && mAm.isValidSingletonCall(callingUid, sInfo.applicationInfo.uid)) {
+                            && mAm.isValidSingletonCall(callingUid, sInfo.applicationInfo.uid))
+                            || (AxDualAppsService.get() != null && AxDualAppsService.get().redirectToOwner(userId, sInfo.applicationInfo.uid))) {
                         userId = 0;
                         smap = getServiceMapLocked(0);
                         // Bypass INTERACT_ACROSS_USERS permission check

@@ -320,6 +320,7 @@ import com.android.server.wearable.WearableSensingManagerService;
 import com.android.server.webkit.WebViewUpdateService;
 import com.android.server.wm.ActivityTaskManagerService;
 import com.android.server.wm.AxSandboxService;
+import com.android.server.axdualapps.AxDualAppsService;
 import com.android.server.wm.GameSpaceService;
 import com.android.server.wm.FreeformOverlayManagerService;
 import com.android.server.wm.WindowManagerGlobalLock;
@@ -1323,6 +1324,10 @@ public final class SystemServer implements Dumpable {
 
         t.traceBegin("StartAxSandboxService");
         mSystemServiceManager.startService(new AxSandboxService(mSystemContext, atm));
+        t.traceEnd();
+
+        t.traceBegin("StartAxDualAppsService");
+        mSystemServiceManager.startService(new AxDualAppsService(mSystemContext));
         t.traceEnd();
 
         // Now that the power manager has been started, let the activity manager

@@ -32,8 +32,10 @@ import android.os.UserHandle;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.app.ResolverActivity;
 import com.android.internal.app.chooser.DisplayResolveInfo;
 import com.android.internal.app.chooser.TargetInfo;
+import com.android.internal.dualapps.AxDualAppsManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -115,6 +117,27 @@ public class ResolverListController {
                 intent.resolveType(mContext.getContentResolver()),
                 PackageManager.MATCH_DEFAULT_ONLY,
                 filter, match, intent.getComponent());
+    }
+
+    public List<ResolverActivity.ResolvedComponentInfo> getResolversForIntent(
+            boolean shouldGetResolvedFilter,
+            boolean shouldGetActivityMetadata,
+            boolean shouldGetOnlyDefaultActivities,
+            List<Intent> intents,
+            String callingPackage) {
+        if (AxDualAppsManager.get() != null) {
+            List<ResolverActivity.ResolvedComponentInfo> results =
+                    AxDualAppsManager.get().overrideResolversForIntent(
+                            this, shouldGetResolvedFilter, shouldGetActivityMetadata,
+                            shouldGetOnlyDefaultActivities, intents, callingPackage,
+                            mQueryIntentsAsUser.getIdentifier());
+            if (results != null) {
+                return results;
+            }
+        }
+        return getResolversForIntent(
+                shouldGetResolvedFilter, shouldGetActivityMetadata,
+                shouldGetOnlyDefaultActivities, intents);
     }
 
     @VisibleForTesting

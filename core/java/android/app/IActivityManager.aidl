@@ -65,6 +65,7 @@ import android.graphics.GraphicBuffer;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.net.Uri;
+import com.android.internal.dualapps.IAxDualAppsReceiver;
 import com.android.internal.kernel.AxKernelControl;
 import com.android.internal.kernel.AxKernelMetrics;
 import android.os.Bundle;
@@ -1124,4 +1125,18 @@ interface IActivityManager {
     boolean isSceneIdExist(int sceneId);
     void killProcessOnFaceAuthStart();
     long releaseMemory(int minAdj, int maxCount);
+
+    boolean isDualSpaceExists();
+    boolean isDualSpaceInitialized();
+    boolean isCloneProfile(int userId);
+    int getCloneProfileId();
+    void prepareDualSpace(in IAxDualAppsReceiver receiver);
+    void clearDualSpace(in IAxDualAppsReceiver receiver);
+    int installDualApp(String packageName, int callingUid);
+    void uninstallDualApp(String packageName, int callingUid, in IAxDualAppsReceiver receiver);
+    ParceledListSlice queryRecommendedAppList(in Intent intent, int flags);
+    ParceledListSlice queryAvailableAppList(in Intent intent, int flags);
+    List<String> queryAllowPackages();
+    List<String> queryHiddenPackages();
+    boolean isAuthorityRedirectedForDualAppsProfile(in String[] authorities);
 }

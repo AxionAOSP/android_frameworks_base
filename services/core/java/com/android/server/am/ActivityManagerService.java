@@ -515,6 +515,9 @@ import com.android.server.wm.WindowManagerInternal;
 import com.android.server.wm.WindowManagerService;
 import com.android.server.wm.WindowProcessController;
 
+import com.android.internal.dualapps.IAxDualAppsReceiver;
+import com.android.server.axdualapps.AxDualAppsService;
+
 import dalvik.annotation.optimization.NeverCompile;
 import dalvik.system.VMRuntime;
 
@@ -20416,5 +20419,76 @@ public class ActivityManagerService extends IActivityManager.Stub
     @Override
     public long releaseMemory(int minAdj, int maxCount) {
         return AxMemoryManager.getInstance().releaseMemory(minAdj, maxCount);
+    }
+
+    @Override
+    public boolean isDualSpaceExists() {
+        return AxDualAppsService.get() != null && AxDualAppsService.get().isDualSpaceExists();
+    }
+
+    @Override
+    public boolean isDualSpaceInitialized() {
+        return AxDualAppsService.get() != null && AxDualAppsService.get().isDualSpaceInitialized();
+    }
+
+    @Override
+    public boolean isCloneProfile(int userId) {
+        return AxDualAppsService.get() != null && AxDualAppsService.get().isDualAppsUserId(userId);
+    }
+
+    @Override
+    public int getCloneProfileId() {
+        return AxDualAppsService.get() != null ? AxDualAppsService.get().findDualAppsUserId() : -10000;
+    }
+
+    @Override
+    public void prepareDualSpace(IAxDualAppsReceiver receiver) {
+        if (AxDualAppsService.get() != null) {
+            AxDualAppsService.get().prepareDualSpace(receiver);
+        }
+    }
+
+    @Override
+    public void clearDualSpace(IAxDualAppsReceiver receiver) {
+        if (AxDualAppsService.get() != null) {
+            AxDualAppsService.get().clearDualSpace(receiver);
+        }
+    }
+
+    @Override
+    public int installDualApp(String packageName, int callingUid) {
+        return AxDualAppsService.get() != null ? AxDualAppsService.get().installApp(packageName, callingUid) : 0;
+    }
+
+    @Override
+    public void uninstallDualApp(String packageName, int callingUid, IAxDualAppsReceiver receiver) {
+        if (AxDualAppsService.get() != null) {
+            AxDualAppsService.get().uninstallApp(packageName, callingUid, receiver);
+        }
+    }
+
+    @Override
+    public ParceledListSlice queryRecommendedAppList(Intent intent, int flags) {
+        return AxDualAppsService.get() != null ? AxDualAppsService.get().queryRecommendedAppList(intent, flags) : null;
+    }
+
+    @Override
+    public ParceledListSlice queryAvailableAppList(Intent intent, int flags) {
+        return AxDualAppsService.get() != null ? AxDualAppsService.get().queryAvailableAppList(intent, flags) : null;
+    }
+
+    @Override
+    public List<String> queryAllowPackages() {
+        return AxDualAppsService.get() != null ? AxDualAppsService.get().queryAllowPackages() : Collections.emptyList();
+    }
+
+    @Override
+    public List<String> queryHiddenPackages() {
+        return AxDualAppsService.get() != null ? AxDualAppsService.get().queryHiddenPackages() : Collections.emptyList();
+    }
+
+    @Override
+    public boolean isAuthorityRedirectedForDualAppsProfile(String[] authorities) {
+        return AxDualAppsService.get() != null && AxDualAppsService.get().isAuthorityRedirectedForDualAppsProfile(authorities);
     }
 }

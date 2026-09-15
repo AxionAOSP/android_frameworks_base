@@ -65,6 +65,7 @@ import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.location.LocationManager;
 import android.nfc.Flags;
+import android.os.RemoteException;
 import android.provider.Settings;
 import android.util.AndroidException;
 import android.util.ArraySet;
@@ -75,6 +76,7 @@ import android.view.WindowManager.LayoutParams;
 import com.android.internal.R;
 import com.android.internal.annotations.CachedProperty;
 import com.android.internal.annotations.CachedPropertyDefaults;
+import com.android.internal.dualapps.AxDualAppsManager;
 
 import java.io.IOException;
 import java.lang.annotation.Retention;
@@ -6008,6 +6010,9 @@ public class UserManager {
     public @ColorInt int getUserBadgeColor(@UserIdInt int userId) {
         try {
             final int resourceId = mService.getUserBadgeColorResId(userId);
+            if (AxDualAppsManager.isDualAppsUserId(userId)) {
+                return mContext.getColor(resourceId);
+            }
             return Resources.getSystem().getColor(resourceId, null);
         } catch (RemoteException re) {
             throw re.rethrowFromSystemServer();
@@ -6029,6 +6034,9 @@ public class UserManager {
     public @ColorInt int getUserBadgeDarkColor(@UserIdInt int userId) {
         try {
             final int resourceId = mService.getUserBadgeDarkColorResId(userId);
+            if (AxDualAppsManager.isDualAppsUserId(userId)) {
+                return mContext.getColor(resourceId);
+            }
             return Resources.getSystem().getColor(resourceId, null);
         } catch (RemoteException re) {
             throw re.rethrowFromSystemServer();

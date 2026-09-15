@@ -137,6 +137,7 @@ import android.util.Xml;
 import android.util.proto.ProtoInputStream;
 import android.util.proto.ProtoOutputStream;
 import android.util.proto.ProtoUtils;
+import com.android.server.axdualapps.AxDualAppsService;
 import android.view.Display;
 import android.view.View;
 import android.widget.RemoteViews;
@@ -6027,6 +6028,10 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
             // If the policy manager is not available on the device we deny it all.
             if (mDevicePolicyManagerInternal == null) {
                 return false;
+            }
+
+            if (AxDualAppsService.get() != null && AxDualAppsService.get().isWidgetProviderWhiteListed(packageName, profileId)) {
+                return true;
             }
 
             List<String> crossProfilePackages = mDevicePolicyManagerInternal

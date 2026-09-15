@@ -129,6 +129,8 @@ import com.android.server.pm.permission.LegacyPermissionManagerInternal;
 import com.android.server.pm.permission.PermissionAllowlist;
 import com.android.server.pm.verify.domain.DomainVerificationShell;
 
+import com.android.server.axdualapps.AxDualAppsService;
+
 import libcore.io.IoUtils;
 import libcore.io.Streams;
 import libcore.util.HexEncoding;
@@ -1590,6 +1592,10 @@ class PackageManagerShellCommand extends ShellCommand {
                 pw.println("Failure [user " + requestUserId + " doesn't exist]");
                 return 1;
             }
+            if (AxDualAppsService.get() != null && AxDualAppsService.get().isDualAppsUserId(requestUserId)) {
+                pw.println("Failure [Unable to install on cloned user]");
+                return 1;
+            }
         }
 
         final boolean isStreaming = params.sessionParams.dataLoaderParams != null;
@@ -1631,6 +1637,10 @@ class PackageManagerShellCommand extends ShellCommand {
             } else {
                 setParamsSize(params, args);
             }
+        }
+
+        if (AxDualAppsService.get() != null && AxDualAppsService.get().blockInstall(params.userId, args, pw)) {
+            return 1;
         }
 
         final int sessionId = doCreateSession(params.sessionParams,
@@ -2025,6 +2035,11 @@ class PackageManagerShellCommand extends ShellCommand {
         }
         final int translatedUserId =
                 translateUserId(userId, UserHandle.USER_NULL, "runInstallExisting");
+
+        if (AxDualAppsService.get() != null && AxDualAppsService.get().isDualAppsUserId(translatedUserId)) {
+            pw.println("Failure [Unable to install on cloned user]");
+            return 1;
+        }
 
         int installReason = PackageManager.INSTALL_REASON_UNKNOWN;
         try {

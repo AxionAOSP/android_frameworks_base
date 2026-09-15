@@ -122,6 +122,7 @@ import com.android.internal.app.chooser.ChooserTargetInfo;
 import com.android.internal.app.chooser.DisplayResolveInfo;
 import com.android.internal.app.chooser.TargetInfo;
 import com.android.internal.content.PackageMonitor;
+import com.android.internal.dualapps.AxDualAppsManager;
 import com.android.internal.logging.MetricsLogger;
 import com.android.internal.logging.nano.MetricsProto;
 import com.android.internal.util.LatencyTracker;
@@ -1302,7 +1303,15 @@ public class ResolverActivity extends Activity implements
         // between cross-profile preferred activities.
         if (hasCloneProfile() && !mMultiProfilePagerAdapter
                 .getCurrentUserHandle().equals(mWorkProfileUserHandle)) {
-            mAlwaysButton.setEnabled(false);
+            boolean enabled = false;
+            if (hasValidSelection && AxDualAppsManager.get() != null) {
+                enabled = AxDualAppsManager.get().shouldShowAlwaysButton(
+                        mMultiProfilePagerAdapter.getActiveListAdapter().resolveInfoForPosition(checkedPos, filtered),
+                        getLaunchedFromPackage(),
+                        getIntent(),
+                        mCloneProfileUserHandle);
+            }
+            mAlwaysButton.setEnabled(enabled);
             return;
         }
         boolean enabled = false;

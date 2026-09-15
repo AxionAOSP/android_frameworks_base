@@ -26,6 +26,7 @@ import android.annotation.FloatRange;
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.app.ActivityThread;
+import android.content.pm.PackageManager;
 import android.content.res.XmlResourceParser;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
@@ -34,7 +35,6 @@ import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.Printer;
 import android.util.proto.ProtoOutputStream;
-
 
 import java.text.Collator;
 import java.util.Comparator;

@@ -24,6 +24,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 
 import com.android.internal.annotations.Immutable;
+import com.android.internal.util.AnnotationValidations;
 import com.android.internal.util.DataClass;
 
 /**
@@ -38,7 +39,7 @@ public final class RuntimeAppOpAccessMessage implements Parcelable {
     /** Uid of package for which runtime app op access message was collected */
     private final @IntRange(from = 0L) int mUid;
     /** Op code of operation access which was collected */
-    private final @IntRange(from = 0L, to = AppOpsManager._NUM_OP - 1) int mOpCode;
+    private final @IntRange(from = 0L, to = 1004) int mOpCode;
     /** Name of package for which runtime app op access message was collected */
     private final @NonNull String mPackageName;
     /** Feature of package for which runtime app op access message was collected */
@@ -77,14 +78,14 @@ public final class RuntimeAppOpAccessMessage implements Parcelable {
             @NonNull String message,
             @AppOpsManager.SamplingStrategy int samplingStrategy) {
         this.mUid = uid;
-        com.android.internal.util.AnnotationValidations.validate(
+        AnnotationValidations.validate(
                 IntRange.class, null, mUid,
                 "from", 0L);
         this.mOpCode = opCode;
-        com.android.internal.util.AnnotationValidations.validate(
+        AnnotationValidations.validate(
                 IntRange.class, null, mOpCode,
                 "from", 0L,
-                "to", AppOpsManager._NUM_OP - 1);
+                "to", 1004L);
         this.mPackageName = packageName;
         com.android.internal.util.AnnotationValidations.validate(
                 NonNull.class, null, mPackageName);
@@ -192,14 +193,14 @@ public final class RuntimeAppOpAccessMessage implements Parcelable {
         int samplingStrategy = in.readInt();
 
         this.mUid = uid;
-        com.android.internal.util.AnnotationValidations.validate(
+        AnnotationValidations.validate(
                 IntRange.class, null, mUid,
                 "from", 0L);
         this.mOpCode = opCode;
-        com.android.internal.util.AnnotationValidations.validate(
+        AnnotationValidations.validate(
                 IntRange.class, null, mOpCode,
                 "from", 0L,
-                "to", AppOpsManager._NUM_OP - 1);
+                "to", 1004L);
         this.mPackageName = packageName;
         com.android.internal.util.AnnotationValidations.validate(
                 NonNull.class, null, mPackageName);

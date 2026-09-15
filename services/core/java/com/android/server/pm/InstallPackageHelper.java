@@ -187,6 +187,7 @@ import com.android.server.pm.pkg.SharedLibraryWrapper;
 import com.android.server.rollback.RollbackManagerInternal;
 import com.android.server.utils.WatchedArrayMap;
 import com.android.server.utils.WatchedLongSparseArray;
+import com.android.server.axdualapps.AxDualAppsService;
 
 import dalvik.system.VMRuntime;
 
@@ -719,6 +720,12 @@ final class InstallPackageHelper {
                         }
                     }
                     if (!installAllowed) {
+                        return Pair.create(PackageManager.INSTALL_FAILED_INVALID_URI, intentSender);
+                    }
+                }
+                if (AxDualAppsService.get() != null) {
+                    boolean[] check = AxDualAppsService.get().installExistingPackageCheck(packageName, userId, callingUid);
+                    if (check[0]) {
                         return Pair.create(PackageManager.INSTALL_FAILED_INVALID_URI, intentSender);
                     }
                 }
@@ -2659,6 +2666,10 @@ final class InstallPackageHelper {
                     // Thus, updating the settings to install the app for all users.
                     final boolean isPackageExisted = installRequest.getOriginUsers() != null;
                     for (int currentUserId : allUsers) {
+                        if (AxDualAppsService.get() != null && AxDualAppsService.get().installBlocked(ps.getPackageName(), currentUserId)) {
+                            ps.setInstalled(false, currentUserId);
+                            continue;
+                        }
                         // If the app is already installed for the currentUser,
                         // keep it as installed as we might be updating the app at this place.
                         // If not currently installed, check if the currentUser is restricted by

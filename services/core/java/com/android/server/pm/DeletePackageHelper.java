@@ -71,6 +71,7 @@ import com.android.server.pm.pkg.ArchiveState;
 import com.android.server.pm.pkg.PackageStateInternal;
 import com.android.server.pm.pkg.PackageUserState;
 import com.android.server.wm.ActivityTaskManagerInternal;
+import com.android.server.axdualapps.AxDualAppsService;
 
 import dalvik.system.VMRuntime;
 
@@ -863,8 +864,12 @@ final class DeletePackageHelper {
                             UserProperties userProperties = mUserManagerInternal
                                     .getUserProperties(childId);
                             if (userProperties != null && userProperties.getDeleteAppWithParent()) {
+                                int childDeleteFlags = deleteFlags;
+                                if (AxDualAppsService.get() != null) {
+                                    childDeleteFlags = AxDualAppsService.get().adjustDeleteWithParentFlags(internalPackageName, childId, deleteFlags);
+                                }
                                 returnCodeOfChild = deletePackageX(internalPackageName, versionCode,
-                                        childId, deleteFlags, false /*removedBySystem*/);
+                                        childId, childDeleteFlags, false /*removedBySystem*/);
                                 if (returnCodeOfChild != DELETE_SUCCEEDED) {
                                     Slog.w(TAG, "Package delete failed for user " + childId
                                             + ", returnCode " + returnCodeOfChild);

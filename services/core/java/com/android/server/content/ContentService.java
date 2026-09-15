@@ -86,6 +86,7 @@ import com.android.internal.util.IndentingPrintWriter;
 import com.android.server.LocalServices;
 import com.android.server.SystemService;
 import com.android.server.pm.permission.LegacyPermissionManagerInternal;
+import com.android.server.axdualapps.AxDualAppsService;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -1406,6 +1407,11 @@ public final class ContentService extends IContentService.Stub {
             boolean allowNonFull, @CanBeALL @CanBeCURRENT @UserIdInt int userId) {
         if (userId == UserHandle.USER_CURRENT) {
             userId = ActivityManager.getCurrentUser();
+        }
+
+        if (uri != null && AxDualAppsService.get() != null
+                && AxDualAppsService.get().isAuthorityRedirectedForDualAppsProfile(uri.getAuthority(), userId)) {
+            return UserHandle.USER_SYSTEM;
         }
 
         if (userId == UserHandle.USER_ALL) {

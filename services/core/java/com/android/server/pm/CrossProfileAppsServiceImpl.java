@@ -69,6 +69,8 @@ import com.android.server.LocalServices;
 import com.android.server.pm.permission.PermissionManagerService;
 import com.android.server.wm.ActivityTaskManagerInternal;
 
+import com.android.server.axdualapps.AxDualAppsService;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -370,6 +372,9 @@ public class CrossProfileAppsServiceImpl extends ICrossProfileApps.Stub {
     }
 
     private boolean isPackageEnabled(String packageName, @UserIdInt int userId) {
+        if (AxDualAppsService.get() != null && AxDualAppsService.get().skipCrossProfileAppsTarget(packageName, userId)) {
+            return false;
+        }
         final int callingUid = mInjector.getCallingUid();
         return mInjector.withCleanCallingIdentity(() -> {
             final PackageInfo info = mInjector.getPackageManagerInternal()

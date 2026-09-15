@@ -31,6 +31,7 @@ import android.webkit.WebViewProviderInfo;
 import android.webkit.WebViewProviderResponse;
 
 import com.android.modules.expresslog.Counter;
+import com.android.server.axdualapps.AxDualAppsService;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -534,6 +535,10 @@ class WebViewUpdateServiceImpl2 {
     private static boolean isInstalledAndEnabledForAllUsers(
             List<UserPackage> userPackages) {
         for (UserPackage userPackage : userPackages) {
+            if (AxDualAppsService.get() != null
+                    && userPackage.getUser().getIdentifier() == AxDualAppsService.get().getDualAppsUserId()) {
+                continue;
+            }
             if (!userPackage.isInstalledPackage() || !userPackage.isEnabledPackage()) {
                 return false;
             }

@@ -223,6 +223,7 @@ import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageStateInternal;
 import com.android.server.pm.verify.developer.DeveloperVerificationStatusInternal;
 import com.android.server.pm.verify.developer.DeveloperVerifierController;
+import com.android.server.axdualapps.AxDualAppsService;
 
 import libcore.io.IoUtils;
 import libcore.util.EmptyArray;
@@ -4250,6 +4251,10 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
         final UserHandle user;
         if ((params.installFlags & PackageManager.INSTALL_ALL_USERS) != 0) {
             user = UserHandle.ALL;
+        } else if (AxDualAppsService.get() != null
+                && AxDualAppsService.get().installRedirectToOwner(mInstallSource.mInstallerPackageName,
+                        UserHandle.getUserId(mInstallerUid), userId)) {
+            user = UserHandle.SYSTEM;
         } else {
             user = new UserHandle(userId);
         }

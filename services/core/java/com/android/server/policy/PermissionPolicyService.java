@@ -101,6 +101,8 @@ import com.android.server.wm.ActivityInterceptorCallback;
 import com.android.server.wm.ActivityInterceptorCallback.ActivityInterceptorInfo;
 import com.android.server.wm.ActivityTaskManagerInternal;
 
+import com.android.server.axdualapps.AxDualAppsService;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1020,7 +1022,8 @@ public final class PermissionPolicyService extends SystemService {
             }
 
             final int uid = pkgInfo.applicationInfo.uid;
-            if (uid == Process.ROOT_UID || uid == Process.SYSTEM_UID) {
+            if (uid == Process.ROOT_UID || uid == Process.SYSTEM_UID
+                    || (AxDualAppsService.get() != null && AxDualAppsService.get().skipSyncAppOps(mPackageManager.getUserId(), uid))) {
                 // Root and system server always pass permission checks, so don't touch their app
                 // ops to keep compatibility.
                 return;

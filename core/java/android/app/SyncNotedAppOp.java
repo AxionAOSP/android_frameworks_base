@@ -23,6 +23,7 @@ import android.annotation.TestApi;
 import android.os.Parcelable;
 
 import com.android.internal.annotations.Immutable;
+import com.android.internal.util.AnnotationValidations;
 import com.android.internal.util.DataClass;
 
 /**
@@ -49,7 +50,7 @@ public final class SyncNotedAppOp implements Parcelable {
     /** mode returned by the system on a call to note/startOp, if applicable */
     private final int mOpMode;
     /** op code of synchronous appop noted */
-    private final @IntRange(from = 0L, to = AppOpsManager._NUM_OP - 1) int mOpCode;
+    private final @IntRange(from = 0L, to = 1004) int mOpCode;
     /** attributionTag of synchronous appop noted */
     private final @Nullable String mAttributionTag;
     /**
@@ -66,10 +67,10 @@ public final class SyncNotedAppOp implements Parcelable {
     public SyncNotedAppOp(int opMode, @IntRange(from = 0L) int opCode,
             @Nullable String attributionTag, @Nullable String packageName) {
         this.mOpCode = opCode;
-        com.android.internal.util.AnnotationValidations.validate(
+        AnnotationValidations.validate(
                 IntRange.class, null, mOpCode,
                 "from", 0,
-                "to", AppOpsManager._NUM_OP - 1);
+                "to", 1004);
         this.mAttributionTag = attributionTag;
         this.mOpMode = opMode;
         this.mPackageName = packageName;
@@ -238,10 +239,10 @@ public final class SyncNotedAppOp implements Parcelable {
 
         this.mOpMode = opMode;
         this.mOpCode = opCode;
-        com.android.internal.util.AnnotationValidations.validate(
+        AnnotationValidations.validate(
                 IntRange.class, null, mOpCode,
                 "from", 0L,
-                "to", AppOpsManager._NUM_OP - 1);
+                "to", 1004L);
         this.mAttributionTag = attributionTag;
         this.mPackageName = packageName;
 

@@ -44,6 +44,8 @@ import com.android.server.pm.pkg.PackageStateInternal;
 import com.android.server.pm.verify.domain.DomainVerificationManagerInternal;
 import com.android.server.pm.verify.domain.DomainVerificationUtils;
 
+import com.android.server.axdualapps.AxDualAppsService;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -392,6 +394,10 @@ public class CrossProfileIntentResolverEngine {
             List<CrossProfileDomainInfo> crossProfileCandidates, boolean areWebInstantAppsDisabled,
             boolean addInstant, boolean sortResult,
             Function<String, PackageStateInternal> pkgSettingFunction) {
+
+        if (AxDualAppsService.get() != null) {
+            AxDualAppsService.get().overrideCombineActivitiesResult(userId, candidates, crossProfileCandidates);
+        }
 
         if (shouldSkipCurrentProfile(computer, intent, resolvedType, userId)) {
             /*
