@@ -26,6 +26,7 @@ import android.annotation.IntDef;
 import android.os.Trace;
 
 import com.android.internal.annotations.GuardedBy;
+import com.android.server.am.AxMemoryStatusReporter;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -118,6 +119,7 @@ public final class LowMemDetector {
                 // got an actual PSI event? let's update lowmem info
                 synchronized (mPressureStateLock) {
                     mPressureState = newPressureState;
+                    AxMemoryStatusReporter.getInstance().updatePsi(newPressureState);
                 }
             }
         }

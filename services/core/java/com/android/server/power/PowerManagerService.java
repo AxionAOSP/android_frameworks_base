@@ -155,6 +155,7 @@ import com.android.server.power.batterysaver.BatterySaverStateMachine;
 import com.android.server.power.batterysaver.BatterySavingStats;
 import com.android.server.power.feature.PowerManagerFlags;
 import com.android.server.wm.WindowManagerInternal;
+import com.android.server.am.AxMemoryStatusReporter;
 
 import dalvik.annotation.optimization.NeverCompile;
 
@@ -2589,6 +2590,7 @@ public final class PowerManagerService extends SystemService
                 mLastGlobalWakeTime = eventTime;
                 mLastGlobalWakeReason = reason;
                 mLastGlobalWakeTimeRealtime = mClock.elapsedRealtime();
+                AxMemoryStatusReporter.getInstance().silentKillSystemui();
                 break;
 
             case WAKEFULNESS_DREAMING:

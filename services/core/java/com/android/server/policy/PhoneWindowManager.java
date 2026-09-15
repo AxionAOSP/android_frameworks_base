@@ -261,6 +261,8 @@ import com.android.server.gesture.shake.ShakeGestureImpl;
 import com.android.server.gesture.threefinger.NtGestureImpl;
 import com.android.server.GestureLauncherService;
 import com.android.server.IAxPcModeService;
+import com.android.server.am.AxMemoryManager;
+import com.android.server.am.AxUsageManager;
 import com.android.server.LocalServices;
 import com.android.server.SystemServiceManager;
 import com.android.server.UiThread;
@@ -6263,6 +6265,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mRequestedOrSleepingDefaultDisplay = true;
         mIsGoingToSleep = true;
         setPendingSleepingGroup(displayGroupId);
+        AxUsageManager.getInstance().setScreenState(true);
 
         if (mKeyguardDelegate != null) {
             if (com.android.server.power.feature.flags.Flags.extraLoggingSeparateTimeout()) {
@@ -6339,6 +6342,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mIsGoingToSleep = false;
         setPendingWakingUpGroup(displayGroupId);
         mDefaultDisplayPolicy.setAwake(true);
+        AxMemoryManager.getInstance().releaseMemoryAtScreenOn();
 
         // Since goToSleep performs these functions synchronously, we must
         // do the same here.  We cannot post this work to a handler because

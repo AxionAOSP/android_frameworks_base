@@ -6522,6 +6522,11 @@ public class ActivityTaskManagerService extends IActivityTaskManager.Stub {
     final class LocalService extends ActivityTaskManagerInternal {
 
         @Override
+        public void startPreferredApps() {
+            mTaskSupervisor.startPreferredApps();
+        }
+
+        @Override
         public boolean isHandoffEnabledForTask(int taskId) {
             if (!android.companion.Flags.enableTaskContinuity()) {
                 return false;

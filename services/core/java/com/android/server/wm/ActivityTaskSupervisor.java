@@ -158,12 +158,14 @@ import com.android.internal.R;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.content.ReferrerIntent;
+import com.android.internal.os.BackgroundThread;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.server.LocalServices;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.am.AppBackgroundManager;
+import com.android.server.am.AxUsageManager;
 import com.android.server.am.HostingRecord;
 import com.android.server.am.UserState;
 import com.android.server.companion.virtual.VirtualDeviceManagerInternal;
@@ -2054,6 +2056,32 @@ public class ActivityTaskSupervisor implements RecentTasks.Callbacks {
         final Message m = PooledLambda.obtainMessage(
                 ActivityManagerInternal::killProcessesForRemovedTask, mService.mAmInternal,
                 procsToKill);
+        mService.mH.sendMessage(m);
+    }
+
+    public void startPreferredApps() {
+        BackgroundThread.getExecutor().execute(this::preforkPreferredApps);
+    }
+
+    private boolean isMemoryTrimCritical() {
+        try {
+            return ActivityManager.getService().getMemoryTrimLevel() >= 3;
+        } catch (RemoteException e) {
+            return true;
+        }
+    }
+
+    private void preforkPreferredApps() {
+        if (isMemoryTrimCritical()) {
+            return;
+        }
+        ArrayList<String> apps = AxUsageManager.getInstance().getHighUsedPackageList(false);
+        if (apps == null || apps.isEmpty()) {
+            return;
+        }
+        Bundle bParams = new Bundle();
+        bParams.putStringArrayList("start_empty_apps", apps);
+        final Message m = PooledLambda.obtainMessage(ActivityManagerInternal::startActivityAsUserEmpty, mService.mAmInternal, bParams);
         mService.mH.sendMessage(m);
     }
 

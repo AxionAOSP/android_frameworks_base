@@ -59,6 +59,7 @@ import static android.hardware.biometrics.BiometricFaceConstants.FACE_ERROR_UNAB
 import static android.hardware.biometrics.BiometricFaceConstants.FACE_ERROR_USER_CANCELED;
 import static android.hardware.biometrics.BiometricFaceConstants.FACE_ERROR_VENDOR;
 
+import com.android.internal.memory.AxMemoryManager;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
@@ -274,6 +275,7 @@ public class FaceManager implements BiometricAuthenticator {
                 useHandler(handler);
                 final long operationId = crypto != null ? crypto.getOpId() : 0;
                 Trace.beginSection("FaceManager#authenticate");
+                AxMemoryManager.killProcessOnFaceAuthStart();
                 final long authId = mService.authenticate(
                         mToken, operationId, new FaceServiceReceiver(faceCallback), options);
                 if (cancel != null) {

@@ -158,6 +158,7 @@ import android.util.Slog;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 
+import com.android.server.am.AxUsageManager;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.content.F2fsUtils;
 import com.android.internal.pm.parsing.PackageParser2;
@@ -497,6 +498,7 @@ final class InstallPackageHelper {
             @NonNull PackageSetting pkgSetting, @Nullable PackageSetting oldPkgSetting,
             ReconciledPackage reconciledPkg) {
         final String pkgName = pkg.getPackageName();
+        AxUsageManager.getInstance().addNewPackages(pkgName);
         final InstallRequest request = reconciledPkg.mInstallRequest;
         final AndroidPackage oldPkg = request.getScanRequestOldPackage();
         final int scanFlags = request.getScanFlags();
@@ -2196,6 +2198,7 @@ final class InstallPackageHelper {
             removedInfo.mIsExternal = oldPackageState.isExternalStorage();
             removedInfo.mRemovedPackageVersionCode = oldPackageState.getVersionCode();
             request.setRemovedInfo(removedInfo);
+            AxUsageManager.getInstance().setUpdatingPackage(ps.getPackageName());
 
             sysPkg = oldPackageState.isSystem();
             if (sysPkg) {

@@ -130,6 +130,7 @@ java_library_static {
         ":ax_dragonite_server_sources",
         ":ax_km_server_sources",
         ":ax_sandbox_server_sources",
+        ":ax_memory_server_sources",
         ":services.core.protologsrc",
         ":platform-compat-config",
         ":platform-compat-overrides",

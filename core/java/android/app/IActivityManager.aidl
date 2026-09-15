@@ -1122,4 +1122,6 @@ interface IActivityManager {
     int sceneBoostAcquire(int sceneId, in Bundle data);
     void sceneBoostRelease(int handle);
     boolean isSceneIdExist(int sceneId);
+    void killProcessOnFaceAuthStart();
+    long releaseMemory(int minAdj, int maxCount);
 }

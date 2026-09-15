@@ -105,6 +105,7 @@ import com.android.internal.util.QuickSelect;
 import com.android.server.am.LowMemDetector.MemFactor;
 import com.android.server.power.stats.BatteryStatsImpl;
 import com.android.server.utils.PriorityDump;
+import com.android.server.am.AxUsageManager;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
@@ -910,6 +911,9 @@ public class AppProfiler {
                     + " state=" + ProcessList.makeProcStateString(procState));
         }
         profile.setLastPss(pss);
+        if (proc.processName != null) {
+            AxUsageManager.getInstance().setLastCachedPss(proc.processName, pss);
+        }
         profile.setLastSwapPss(swapPss);
         if (procState >= ActivityManager.PROCESS_STATE_HOME) {
             profile.setLastCachedPss(pss);
@@ -974,6 +978,9 @@ public class AppProfiler {
                     + " state=" + ProcessList.makeProcStateString(procState));
         }
         profile.setLastRss(rss);
+        if (proc.processName != null) {
+            AxUsageManager.getInstance().setLastCachedPss(proc.processName, rss);
+        }
         if (procState >= ActivityManager.PROCESS_STATE_HOME) {
             profile.setLastCachedRss(rss);
         }

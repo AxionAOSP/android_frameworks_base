@@ -237,6 +237,7 @@ import com.android.internal.notification.SystemNotificationChannels;
 import com.android.internal.os.SomeArgs;
 import com.android.internal.os.TimeoutRecord;
 import com.android.internal.os.TransferPipe;
+import com.android.server.am.AxProcessManager;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.DumpUtils;
 import com.android.internal.util.FastPrintWriter;
@@ -5640,6 +5641,9 @@ public final class ActiveServices {
         }
 
         mAm.mHandler.removeCallbacks(r.restarter);
+        if (AxProcessManager.getInstance().checkDelayRestartService(this.mAm, r)) {
+            return;
+        }
         mAm.mHandler.postAtTime(r.restarter, r.nextRestartTime);
         r.nextRestartTime = now + r.restartDelay;
         Slog.w(TAG, scheduling + " restart of crashed service "

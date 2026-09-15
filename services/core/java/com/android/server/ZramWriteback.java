@@ -25,6 +25,7 @@ import android.content.Context;
 import android.os.FileUtils;
 import android.os.SystemProperties;
 import android.util.Slog;
+import com.android.server.am.AxMemoryManager;
 
 import java.io.File;
 import java.io.IOException;
@@ -150,6 +151,8 @@ public final class ZramWriteback extends JobService {
                 public void run() {
                     markAndFlushPages();
                     schedNextWriteback(ZramWriteback.this);
+                    AxMemoryManager.getInstance().loadProcessMemory("com.android.systemui");
+                    AxMemoryManager.getInstance().loadProcessMemory("com.android.launcher3");
                     jobFinished(params, false);
                 }
             }.start();

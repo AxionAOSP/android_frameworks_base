@@ -69,6 +69,7 @@ import static com.android.internal.util.FrameworkStatsLog.APP_START_OCCURRED__PA
 import static com.android.server.am.MemoryStatUtil.MemoryStat;
 import static com.android.server.am.MemoryStatUtil.readMemoryStatFromFilesystem;
 import static com.android.server.am.ProcessList.INVALID_ADJ;
+import com.android.server.am.AxMemoryStatusReporter;
 import static com.android.server.wm.ActivityTaskManagerDebugConfig.DEBUG_METRICS;
 import static com.android.server.wm.ActivityTaskManagerDebugConfig.TAG_ATM;
 import static com.android.server.wm.ActivityTaskManagerDebugConfig.TAG_WITH_CLASS_NAME;
@@ -1346,6 +1347,9 @@ class ActivityMetricsLogger {
         EventLog.writeEvent(WM_ACTIVITY_LAUNCH_TIME,
                 info.userId, info.activityRecordIdHashCode, info.launchedActivityShortComponentName,
                 info.windowsDrawnDelayMs);
+        if (info.packageName != null) {
+            AxMemoryStatusReporter.getInstance().getAppColdTime(info.packageName, info.type, info.windowsDrawnDelayMs);
+        }
 
         StringBuilder sb = mStringBuilder;
         sb.setLength(0);

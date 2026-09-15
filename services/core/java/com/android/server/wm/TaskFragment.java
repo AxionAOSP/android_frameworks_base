@@ -108,6 +108,10 @@ import com.android.internal.util.ToBooleanFunction;
 import com.android.server.am.HostingRecord;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.window.flags.Flags;
+import com.android.server.am.AxMemoryManager;
+import com.android.server.am.AxUsageManager;
+import com.android.server.am.AxProcessManager;
+import com.android.server.am.AxMemoryStatusReporter;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -1778,6 +1782,13 @@ class TaskFragment extends WindowContainer<WindowContainer> {
             ProtoLog.v(WM_DEBUG_STATES, "Moving to RESUMED: %s (in existing)", next);
 
             next.setState(RESUMED, "resumeTopActivity");
+            if (next.packageName != null) {
+                AxUsageManager.getInstance().updateLaunchTime(next.packageName);
+                AxMemoryManager.getInstance().tuneMemoryParam(next.packageName);
+                AxMemoryStatusReporter.getInstance().getBackgroundProcesses(next.packageName);
+                AxMemoryManager.getInstance().setHighPressureScene(next.packageName);
+                AxProcessManager.getInstance().updateTopApp(next.packageName);
+            }
 
             // Activity should also be visible if set mLaunchTaskBehind to true (see
             // ActivityRecord#shouldBeVisibleIgnoringKeyguard()).
@@ -1972,6 +1983,9 @@ class TaskFragment extends WindowContainer<WindowContainer> {
                 // be completed by the order of activity paused from clients.
                 completePause(false, resuming);
             }
+        }
+        if (mResumedActivity != null && mResumedActivity.packageName != null) {
+            AxUsageManager.getInstance().updateDuration(mResumedActivity.packageName);
         }
         ActivityRecord prev = mResumedActivity;
 

@@ -377,6 +377,7 @@ public abstract class ProcessRecordInternal {
     private static final boolean TRACE_OOM_ADJ = false;
 
     public final String processName;
+    public boolean isForkedFromHighUsed = false;
     private String mTrackName;
 
     /**

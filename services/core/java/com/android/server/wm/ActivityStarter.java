@@ -133,6 +133,7 @@ import android.util.Pools.SynchronizedPool;
 import android.util.Slog;
 import android.widget.Toast;
 import android.window.RemoteTransition;
+import com.android.server.am.AxMemoryManager;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.HeavyWeightSwitcherActivity;
@@ -1054,6 +1055,9 @@ class ActivityStarter {
         NeededUriGrants intentGrants = request.intentGrants;
         String resolvedType = request.resolvedType;
         ActivityInfo aInfo = request.activityInfo;
+        if (aInfo != null && aInfo.packageName != null && AxMemoryManager.getInstance().isCameraPackage(aInfo.packageName)) {
+            AxMemoryManager.getInstance().boostCamera(false);
+        }
         ResolveInfo rInfo = request.resolveInfo;
         final IVoiceInteractionSession voiceSession = request.voiceSession;
         final IBinder resultTo = request.resultTo;

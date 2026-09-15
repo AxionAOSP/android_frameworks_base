@@ -56,6 +56,7 @@ import com.android.server.pm.parsing.PackageCacher;
 import com.android.server.pm.permission.PermissionManagerServiceInternal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageStateInternal;
+import com.android.server.am.AxUsageManager;
 
 import java.io.File;
 import java.util.Collections;
@@ -156,6 +157,9 @@ final class RemovePackageHelper {
 
     @GuardedBy("mPm.mInstallLock")
     private void removePackageLI(String packageName, boolean chatty) {
+        if (packageName != null) {
+            AxUsageManager.getInstance().removePackage(packageName);
+        }
         if (DEBUG_INSTALL) {
             if (chatty) {
                 Log.d(TAG, "Removing package " + packageName);

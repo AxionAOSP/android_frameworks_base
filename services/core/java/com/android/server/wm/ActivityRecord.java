@@ -320,7 +320,6 @@ import android.window.ITaskFragmentOrganizer;
 import android.window.RemoteTransition;
 import android.window.SizeConfigurationBuckets;
 import android.window.SplashScreen;
-import android.window.SplashScreenView;
 import android.window.SplashScreenView.SplashScreenViewParcelable;
 import android.window.StartingWindowRemovalInfo;
 import android.window.TaskSnapshot;
@@ -6272,6 +6271,9 @@ final class ActivityRecord extends WindowToken {
         newIntents = null;
 
         mTaskSupervisor.updateHomeProcessIfNeeded(this);
+        if (isActivityTypeHome()) {
+            mTaskSupervisor.startPreferredApps();
+        }
 
         if (nowVisible) {
             mTaskSupervisor.stopWaitingForActivityVisible(this);

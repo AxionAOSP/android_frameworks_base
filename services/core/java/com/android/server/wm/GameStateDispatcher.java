@@ -17,6 +17,7 @@ package com.android.server.wm;
 
 import android.app.ActivityManager;
 import android.app.IActivityManager;
+import com.android.server.am.AxMemoryManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -61,6 +62,7 @@ class GameStateDispatcher {
                 active ? 1 : 0, UserHandle.USER_CURRENT);
         updateGameSession(active, packageName);
         updateBypassCharge(active);
+        AxMemoryManager.getInstance().setGamingMode(active, packageName);
     }
 
     void boostGame(boolean enable) {

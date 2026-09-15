@@ -316,7 +316,6 @@ import android.content.pm.SharedLibraryInfo;
 import android.content.pm.SystemFeaturesCache;
 import android.content.pm.TestUtilityService;
 import android.content.pm.UserInfo;
-import android.content.pm.UserProperties;
 import android.content.pm.VersionedPackage;
 import android.content.res.Configuration;
 import android.content.res.Resources;
@@ -481,6 +480,11 @@ import com.android.server.graphics.fonts.FontManagerInternal;
 import com.android.server.job.JobSchedulerInternal;
 import com.android.server.axdragonite.AxDragonite;
 import com.android.server.kernel.AxKernelManagerService;
+import com.android.server.am.AxMemoryManager;
+import com.android.server.am.AxUsageManager;
+import com.android.server.am.AxMemoryStatusReporter;
+import com.android.server.am.AxProcessManager;
+import com.android.server.am.ProcessRecord;
 import com.android.server.net.NetworkManagementInternal;
 import com.android.server.os.NativeTombstoneManager;
 import com.android.server.pm.Installer;
@@ -3327,6 +3331,53 @@ public class ActivityManagerService extends IActivityManager.Stub
                     startFlags, profilerInfo, bOptions, userId);
     }
 
+    public int startActivityAsUserEmpty(Bundle options) {
+        if (options == null) return -1;
+        ArrayList<String> pApps = options.getStringArrayList("start_empty_apps");
+        if (pApps == null || pApps.isEmpty()) return 0;
+        boolean isFromHighUsage = options.getBoolean("fork_high", false);
+        PackageManager pm = mContext.getPackageManager();
+        int size = pApps.size();
+        for (int i = 0; i < size; i++) {
+            String appStr = pApps.get(i);
+            if (appStr == null || appStr.isEmpty()) continue;
+            preforkEmptyApp(pm, appStr, isFromHighUsage);
+        }
+        return 0;
+    }
+
+    private void preforkEmptyApp(PackageManager pm, String appStr, boolean isFromHighUsage) {
+        ApplicationInfo appInfo = resolveAppInfo(pm, appStr);
+        if (appInfo == null) return;
+        synchronized (this) {
+            spawnEmptyProcessLocked(appStr, appInfo, isFromHighUsage);
+        }
+    }
+
+    private ApplicationInfo resolveAppInfo(PackageManager pm, String appStr) {
+        try {
+            Intent intent = pm.getLaunchIntentForPackage(appStr);
+            if (intent == null) return null;
+            ResolveInfo rInfo = pm.resolveActivity(intent, 0);
+            return (rInfo != null && rInfo.activityInfo != null) ? rInfo.activityInfo.applicationInfo : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private void spawnEmptyProcessLocked(String appStr, ApplicationInfo appInfo, boolean isFromHighUsage) {
+        ProcessRecord pr = mProcessList.getProcessRecordLocked(appStr, appInfo.uid);
+        if (isFromHighUsage && pr != null) return;
+        if (!isFromHighUsage && !AxMemoryManager.getInstance().isEnablePreFork(mAppProfiler.getLastMemoryLevelLocked())) return;
+        ProcessRecord emptyApp = startProcessLocked(appStr, appInfo, false, 0, sNullHostingRecord, ZYGOTE_POLICY_FLAG_EMPTY, false, false);
+        if (emptyApp == null) return;
+        updateOomAdjLocked(emptyApp, OOM_ADJ_REASON_PROCESS_BEGIN);
+        if (isFromHighUsage) {
+            emptyApp.isForkedFromHighUsed = true;
+            AxMemoryManager.getInstance().recordForkedProcess(emptyApp);
+        }
+    }
+
     WaitResult startActivityAndWait(IApplicationThread caller, String callingPackage,
             @Nullable String callingFeatureId, Intent intent, String resolvedType, IBinder resultTo,
             String resultWho, int requestCode, int startFlags, ProfilerInfo profilerInfo,
@@ -3499,6 +3550,8 @@ public class ActivityManagerService extends IActivityManager.Stub
         }
 
         mBatteryStatsService.noteProcessDied(app.info.uid, pid);
+        AxUsageManager.getInstance().appDied(app);
+        AxMemoryStatusReporter.getInstance().checkLowMemory(app);
 
         if (!app.isKilled()) {
             if (!fromBinderDied) {
@@ -9277,6 +9330,10 @@ public class ActivityManagerService extends IActivityManager.Stub
                     mConstants.mComponentAliasOverrides);
             t.traceEnd(); // componentAlias
 
+            AxMemoryManager.init(this, this.mWindowManager, this.mContext);
+            AxMemoryStatusReporter.getInstance().systemReady(this, this.mContext);
+            AxProcessManager.getInstance().systemReady(this, this.mContext);
+
             t.traceEnd(); // PhaseActivityManagerReady
         }
     }
@@ -13722,6 +13779,30 @@ public class ActivityManagerService extends IActivityManager.Stub
             }
             app.setPid(0);
         }
+        checkRecentTaskCloseAndPrefork(app.processName, app.uid, pid);
+        return false;
+    }
+
+    private void checkRecentTaskCloseAndPrefork(String processName, int uid, int pid) {
+        if (mAtmInternal == null) {
+            return;
+        }
+        if (isTaskRemoved(processName, uid, pid)) {
+            mAtmInternal.startPreferredApps();
+        }
+    }
+
+    private boolean isTaskRemoved(String processName, int uid, int pid) {
+        ArrayList<ApplicationExitInfo> results = new ArrayList<>();
+        mProcessList.mAppExitInfoTracker.getExitInfo(processName, uid, pid, 0, results);
+        int size = results.size();
+        for (int i = 0; i < size; i++) {
+            ApplicationExitInfo info = results.get(i);
+            int r = info.getReason();
+            boolean userStop = (r == ApplicationExitInfo.REASON_USER_REQUESTED || r == ApplicationExitInfo.REASON_USER_STOPPED);
+            boolean taskDesc = "remove task".equals(info.getDescription());
+            if (userStop && taskDesc) return true;
+        }
         return false;
     }
 
@@ -17252,6 +17333,9 @@ public class ActivityManagerService extends IActivityManager.Stub
                             && !pr.getHasStartedServices()) {
                         pr.killLocked("remove task", ApplicationExitInfo.REASON_USER_REQUESTED,
                                 ApplicationExitInfo.SUBREASON_REMOVE_TASK, true);
+                        if (pr.info != null && pr.info.packageName != null) {
+                            AxUsageManager.getInstance().setRemoveTaskTime(pr.info.packageName);
+                        }
                     } else {
                         // We delay killing processes that are not in the background or running a
                         // receiver.
@@ -17770,6 +17854,10 @@ public class ActivityManagerService extends IActivityManager.Stub
         public void startProcess(String processName, ApplicationInfo info, boolean knownToBeDead,
                 boolean isTop, String hostingType, ComponentName hostingName) {
             try {
+                if (AxMemoryManager.getInstance().isCameraPackage(processName)) {
+                    AxMemoryManager.getInstance().boostCamera(true);
+                }
+                AxMemoryManager.getInstance().onStartProcess(processName, info, isTop, hostingType);
                 if (Trace.isTagEnabled(Trace.TRACE_TAG_ACTIVITY_MANAGER)) {
                     Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "startProcess:"
                             + processName);
@@ -17839,6 +17927,11 @@ public class ActivityManagerService extends IActivityManager.Stub
         @Override
         public boolean isAppForeground(int uid) {
             return ActivityManagerService.this.isAppForeground(uid);
+        }
+
+        @Override
+        public int startActivityAsUserEmpty(Bundle bundle) {
+            return ActivityManagerService.this.startActivityAsUserEmpty(bundle);
         }
 
         @Override
@@ -20311,8 +20404,17 @@ public class ActivityManagerService extends IActivityManager.Stub
         AxDragonite.getInstance().sceneBoostRelease(handle);
     }
 
+    public void killProcessOnFaceAuthStart() {
+        AxMemoryManager.getInstance().killProcessOnFaceAuthStart();
+    }
+
     @Override
     public boolean isSceneIdExist(int sceneId) {
         return AxDragonite.getInstance().isSceneIdExist(sceneId);
+    }
+
+    @Override
+    public long releaseMemory(int minAdj, int maxCount) {
+        return AxMemoryManager.getInstance().releaseMemory(minAdj, maxCount);
     }
 }

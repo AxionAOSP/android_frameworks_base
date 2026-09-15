@@ -59,6 +59,7 @@ static const size_t kPageMask = ~(kPageSize - 1);
 
 #define COMPACT_ACTION_FILE_FLAG 1
 #define COMPACT_ACTION_ANON_FLAG 2
+#define COMPACT_ACTION_POPULATE_FLAG 4
 
 using VmaToAdviseFunc = std::function<int(const Vma&)>;
 using android::base::unique_fd;
@@ -410,6 +411,11 @@ static int64_t compactProcess(int pid, VmaToAdviseFunc vmaToAdviseFunc) {
 
 // Compact process using process_madvise syscall
 static void compactProcess(int pid, int compactionFlags) {
+    if (compactionFlags & COMPACT_ACTION_POPULATE_FLAG) {
+        compactProcess(pid, [](const Vma&) { return MADV_WILLNEED; });
+        return;
+    }
+
     if ((compactionFlags & (COMPACT_ACTION_ANON_FLAG | COMPACT_ACTION_FILE_FLAG)) == 0) return;
 
     bool compactAnon = compactionFlags & COMPACT_ACTION_ANON_FLAG;
@@ -431,6 +437,9 @@ static void compactProcess(int pid, int compactionFlags) {
 }
 
 static std::string profileFromCompactionFlags(int compactionFlags) {
+    if (compactionFlags & COMPACT_ACTION_POPULATE_FLAG)
+        return "CompactPopulate";
+
     const bool compactAnon = compactionFlags & COMPACT_ACTION_ANON_FLAG;
     const bool compactFile = compactionFlags & COMPACT_ACTION_FILE_FLAG;
 

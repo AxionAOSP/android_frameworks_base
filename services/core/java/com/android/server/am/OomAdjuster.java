@@ -107,6 +107,7 @@ import static com.android.server.am.ProcessList.TAG_PROCESS_OBSERVERS;
 import static com.android.server.am.ProcessList.UNKNOWN_ADJ;
 import static com.android.server.am.ProcessList.VISIBLE_APP_ADJ;
 import static com.android.server.am.ProcessList.VISIBLE_APP_MAX_ADJ;
+import com.android.server.am.AxMemoryManager;
 import static com.android.server.am.psc.PlatformCompatCache.CACHED_COMPAT_CHANGE_USE_SHORT_FGS_USAGE_INTERACTION_TIME;
 import static com.android.server.wm.ActivityTaskManagerDebugConfig.DEBUG_SWITCH;
 import static com.android.server.wm.WindowProcessController.ACTIVITY_STATE_FLAG_IS_PAUSING_OR_PAUSED;
@@ -2111,6 +2112,20 @@ public abstract class OomAdjuster {
                     appBgManager.startUnfreezeService(app,
                             AppBackgroundManager.DEPEND_LAUNCH_UNFREEZE);
                 }
+            }
+        }
+
+        if (state.isForkedFromHighUsed) {
+            AxMemoryManager.getInstance().setForkProcAdj(state);
+        } else if (AxMemoryManager.getInstance().isEnableOptHighUsed(state)) {
+            int targetAdj = AxMemoryManager.getInstance().getTargetAdj(state);
+            if (state.getCurAdj() > targetAdj && targetAdj != -1) {
+                state.setCurAdj(targetAdj);
+            }
+        } else if (AxMemoryManager.getInstance().isEnableOptFgServiceAdj(state)) {
+            int targetAdj2 = AxMemoryManager.getInstance().getOptFgServiceAdj(state);
+            if (targetAdj2 != -1) {
+                state.setCurAdj(targetAdj2);
             }
         }
 

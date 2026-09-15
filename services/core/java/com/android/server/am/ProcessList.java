@@ -152,6 +152,7 @@ import com.android.server.am.ActivityManagerService.ProcessChangeItem;
 import com.android.server.am.psc.PlatformCompatCache;
 import com.android.server.am.psc.ProcessRecordInternal;
 import com.android.server.am.psc.UidRecordInternal;
+import com.android.server.am.AxMemoryStatusReporter;
 import com.android.server.compat.PlatformCompat;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageStateInternal;
@@ -384,6 +385,8 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
     static final byte LMK_START_MONITORING = 9; // Start monitoring if delayed earlier
     static final byte LMK_BOOT_COMPLETED = 10;
     static final byte LMK_PROCS_PRIO = 11;  // Batch option for LMK_PROCPRIO
+    static final byte LMK_CHECK_KILL_OPTI_PROC = 13;
+    static final byte LMK_SET_CAMERA_TOP = 14;
 
     // Low Memory Killer Daemon command codes.
     // These must be kept in sync with async_event_type definitions in lmkd.h
@@ -1717,6 +1720,38 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
         writeLmkd(buf, null);
     }
 
+    public static boolean updateLmkProps() {
+        ByteBuffer buf = ByteBuffer.allocate(4);
+        ByteBuffer repl = ByteBuffer.allocate(8);
+        buf.putInt(LMK_UPDATE_PROPS);
+        repl.putInt(LMK_UPDATE_PROPS);
+        repl.rewind();
+        if (writeLmkd(buf, repl) && repl.getInt() == LMK_UPDATE_PROPS) {
+            return repl.getInt() == 0;
+        }
+        return false;
+    }
+
+    public static void setCameraTop(int isCameraTop) {
+        ByteBuffer buf = ByteBuffer.allocate(8);
+        buf.putInt(LMK_SET_CAMERA_TOP);
+        buf.putInt(isCameraTop);
+        writeLmkd(buf, null);
+    }
+
+    public static Integer checkLmkdKillOptiProc(int pid) {
+        ByteBuffer buf = ByteBuffer.allocate(8);
+        ByteBuffer repl = ByteBuffer.allocate(8);
+        buf.putInt(LMK_CHECK_KILL_OPTI_PROC);
+        buf.putInt(pid);
+        repl.putInt(LMK_CHECK_KILL_OPTI_PROC);
+        repl.rewind();
+        if (writeLmkd(buf, repl) && repl.getInt() == LMK_CHECK_KILL_OPTI_PROC) {
+            return Integer.valueOf(repl.getInt());
+        }
+        return Integer.valueOf(-1);
+    }
+
     private static boolean writeLmkd(ByteBuffer buf, ByteBuffer repl) {
         if (!sLmkdConnection.isConnected()) {
             // try to connect immediately and then keep retrying
@@ -3006,6 +3041,7 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
         }
         dispatchProcessStarted(app, pid);
         checkSlow(app.getStartTime(), "startProcess: done updating pids map");
+        AxMemoryStatusReporter.getInstance().updateColdStart(app);
         return true;
     }
 

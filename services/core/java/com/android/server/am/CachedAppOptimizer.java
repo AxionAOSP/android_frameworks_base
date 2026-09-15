@@ -262,6 +262,7 @@ public class CachedAppOptimizer {
     // Keeps these flags in sync with services/core/jni/com_android_server_am_CachedAppOptimizer.cpp
     private static final int COMPACT_ACTION_FILE_FLAG = 1;
     private static final int COMPACT_ACTION_ANON_FLAG = 2;
+    private static final int COMPACT_ACTION_POPULATE_FLAG = 4;
 
     private static final String ATRACE_COMPACTION_TRACK = "Compaction";
     public static final String ATRACE_FREEZER_TRACK = "Freezer";
@@ -332,7 +333,8 @@ public class CachedAppOptimizer {
         NONE, // No compaction
         SOME, // File compaction
         ANON, // Anon compaction
-        FULL // File+anon compaction
+        FULL, // File+anon compaction
+        POPULATE // Populate memory
     }
 
     // This indicates who initiated the compaction request
@@ -1506,6 +1508,9 @@ public class CachedAppOptimizer {
      * features enabled and swap usage.
      */
     CompactProfile resolveCompactionProfile(CompactProfile profile) {
+        if (profile == CompactProfile.POPULATE) {
+            return profile;
+        }
         if (profile == CompactProfile.FULL) {
             double swapFreePercent = getFreeSwapPercent();
             // Downgrade compaction under swap memory pressure
@@ -1548,6 +1553,8 @@ public class CachedAppOptimizer {
             return COMPACT_ACTION_FILE_FLAG;
         } else if (profile == CompactProfile.ANON) {
             return COMPACT_ACTION_ANON_FLAG;
+        } else if (profile == CompactProfile.POPULATE) {
+            return COMPACT_ACTION_POPULATE_FLAG;
         }
         return 0;
     }
@@ -1832,10 +1839,12 @@ public class CachedAppOptimizer {
                                 long memFreed = anonRssSavings - zramConsumed;
                                 long totalCpuTimeMillis = deltaCpuTimeNanos / 1000000;
                                 long origAnonRss = rssBefore[RSS_ANON_INDEX];
-                                mCompactStatsManager.logFullCompactionPerformed(compactSource, name,
+                                 mCompactStatsManager.logFullCompactionPerformed(compactSource, name,
                                         anonRssSavings, zramConsumed, memFreed, origAnonRss,
                                         totalCpuTimeMillis, rssAfter, procState, newOomAdj,
                                         oomAdjReason, proc.uid, pid, !forceCompaction);
+                                break;
+                            case POPULATE:
                                 break;
                             default:
                                 // We likely missed adding this category, it needs to be added
@@ -2250,6 +2259,8 @@ public class CachedAppOptimizer {
                 compactProcess(pid, COMPACT_ACTION_FILE_FLAG);
             } else if (profile == CompactProfile.ANON) {
                 compactProcess(pid, COMPACT_ACTION_ANON_FLAG);
+            } else if (profile == CompactProfile.POPULATE) {
+                compactProcess(pid, COMPACT_ACTION_POPULATE_FLAG);
             }
             mPidCompacting = -1;
         }
