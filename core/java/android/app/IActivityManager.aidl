@@ -66,6 +66,7 @@ import android.graphics.Point;
 import android.graphics.Rect;
 import android.net.Uri;
 import com.android.internal.dualapps.IAxDualAppsReceiver;
+import com.android.internal.dexopt.IAxUserStartDexoptStatusHandler;
 import com.android.internal.kernel.AxKernelControl;
 import com.android.internal.kernel.AxKernelMetrics;
 import android.os.Bundle;
@@ -1138,4 +1139,9 @@ interface IActivityManager {
     List<String> queryAllowPackages();
     List<String> queryHiddenPackages();
     boolean isAuthorityRedirectedForDualAppsProfile(in String[] authorities);
+
+    void connectUserDexopt(in IAxUserStartDexoptStatusHandler handler);
+    void disconnectUserDexopt();
+    List<String> getPackagesToBeOptimized();
+    void performUserDexopt();
 }

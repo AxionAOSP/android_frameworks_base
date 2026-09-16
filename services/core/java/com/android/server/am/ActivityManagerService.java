@@ -422,6 +422,7 @@ import com.android.internal.app.SystemUserHomeActivity;
 import com.android.internal.app.procstats.ProcessState;
 import com.android.internal.app.procstats.ProcessStats;
 import com.android.internal.content.InstallLocationUtils;
+import com.android.internal.dexopt.IAxUserStartDexoptStatusHandler;
 import com.android.internal.kernel.AxKernelControl;
 import com.android.internal.kernel.AxKernelMetrics;
 import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
@@ -487,6 +488,7 @@ import com.android.server.am.AxProcessManager;
 import com.android.server.am.ProcessRecord;
 import com.android.server.net.NetworkManagementInternal;
 import com.android.server.os.NativeTombstoneManager;
+import com.android.server.pm.AxDexoptManagerImpl;
 import com.android.server.pm.Installer;
 import com.android.server.pm.SaferIntentUtils;
 import com.android.server.pm.UserManagerInternal;
@@ -20484,5 +20486,25 @@ public class ActivityManagerService extends IActivityManager.Stub
     @Override
     public boolean isAuthorityRedirectedForDualAppsProfile(String[] authorities) {
         return AxDualAppsService.get() != null && AxDualAppsService.get().isAuthorityRedirectedForDualAppsProfile(authorities);
+    }
+
+    @Override
+    public void connectUserDexopt(IAxUserStartDexoptStatusHandler handler) {
+        AxDexoptManagerImpl.getInstance().connectUserDexopt(handler);
+    }
+
+    @Override
+    public void disconnectUserDexopt() {
+        AxDexoptManagerImpl.getInstance().disconnectUserDexopt();
+    }
+
+    @Override
+    public List<String> getPackagesToBeOptimized() {
+        return AxDexoptManagerImpl.getInstance().getPackagesToBeOptimized();
+    }
+
+    @Override
+    public void performUserDexopt() {
+        AxDexoptManagerImpl.getInstance().performUserDexopt();
     }
 }

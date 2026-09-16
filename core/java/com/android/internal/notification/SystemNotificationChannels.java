@@ -67,6 +67,8 @@ public class SystemNotificationChannels {
      */
     @Deprecated public static final String SYSTEM_CHANGES_DEPRECATED = "SYSTEM_CHANGES";
     public static final String SYSTEM_CHANGES = "SYSTEM_CHANGES_ALERTS";
+    public static final String SYSTEM_DEXOPT = "SYSTEM_DEXOPT";
+    public static final String SYSTEM_DEXOPT_OTA = "SYSTEM_DEXOPT_OTA";
     public static final String ACCESSIBILITY_MAGNIFICATION = "ACCESSIBILITY_MAGNIFICATION";
     public static final String ACCESSIBILITY_HEARING_DEVICE = "ACCESSIBILITY_HEARING_DEVICE";
     public static final String ACCESSIBILITY_SECURITY_POLICY = "ACCESSIBILITY_SECURITY_POLICY";
@@ -203,6 +205,19 @@ public class SystemNotificationChannels {
                 .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                 .build());
         channelsList.add(systemChanges);
+
+        final NotificationChannel dexopt = new NotificationChannel(
+                SYSTEM_DEXOPT,
+                context.getString(R.string.notification_channel_dexopt),
+                NotificationManager.IMPORTANCE_LOW);
+        dexopt.setBlockable(true);
+        channelsList.add(dexopt);
+
+        final NotificationChannel dexoptOta = new NotificationChannel(
+                SYSTEM_DEXOPT_OTA,
+                context.getString(R.string.notification_channel_dexopt),
+                NotificationManager.IMPORTANCE_HIGH);
+        channelsList.add(dexoptOta);
 
         final NotificationChannel newFeaturePrompt = new NotificationChannel(
                 ACCESSIBILITY_MAGNIFICATION,

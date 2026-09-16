@@ -4149,6 +4149,11 @@
   <java-symbol type="string" name="notification_channel_usb" />
   <java-symbol type="string" name="notification_channel_heavy_weight_app" />
   <java-symbol type="string" name="notification_channel_system_changes" />
+  <java-symbol type="string" name="notification_channel_dexopt" />
+  <java-symbol type="string" name="dexopt_notification_title" />
+  <java-symbol type="string" name="dexopt_notification_progress" />
+  <java-symbol type="string" name="dexopt_notification_complete" />
+  <java-symbol type="string" name="dexopt_notification_error" />
   <java-symbol type="string" name="notification_channel_accessibility_magnification" />
   <java-symbol type="string" name="notification_channel_accessibility_hearing_device" />
   <java-symbol type="string" name="notification_channel_accessibility_security_policy" />

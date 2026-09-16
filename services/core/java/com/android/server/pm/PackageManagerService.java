@@ -220,6 +220,7 @@ import com.android.server.art.model.DeleteResult;
 import com.android.server.compat.CompatChange;
 import com.android.server.compat.PlatformCompat;
 import com.android.server.crashrecovery.CrashRecoveryAdaptor;
+import com.android.server.pm.AxDexoptManagerImpl;
 import com.android.server.pm.Installer.InstallerException;
 import com.android.server.pm.Settings.VersionInfo;
 import com.android.server.pm.dex.ArtManagerService;
@@ -3054,6 +3055,7 @@ public class PackageManagerService implements PackageSender, TestUtilityService 
     }
 
     private void notifyPackageUseInternal(String packageName, int reason) {
+        AxDexoptManagerImpl.getInstance().notifyPackageUse(packageName, reason);
         long time = System.currentTimeMillis();
         synchronized (mLock) {
             final PackageSetting pkgSetting = mSettings.getPackageLPr(packageName);
@@ -4469,6 +4471,8 @@ public class PackageManagerService implements PackageSender, TestUtilityService 
         if (dexUseManager != null) {
             dexUseManager.systemReady();
         }
+
+        AxDexoptManagerImpl.getInstance().systemReady(mContext, this);
 
         PackageMetrics.logInvalidationMetrics();
     }

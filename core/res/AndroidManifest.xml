@@ -10076,6 +10076,10 @@
                  android:permission="android.permission.BIND_JOB_SERVICE" >
         </service>
 
+        <service android:name="com.android.server.pm.AxCompensateDexoptJobService"
+                 android:permission="android.permission.BIND_JOB_SERVICE" >
+        </service>
+
         <service android:name="com.android.server.companion.datatransfer.contextsync.CallMetadataSyncInCallService"
                  android:permission="android.permission.BIND_INCALL_SERVICE"
                  android:enabled="@bool/config_enableContextSyncInCall"

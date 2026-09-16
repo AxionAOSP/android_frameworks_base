@@ -124,6 +124,7 @@ import com.android.server.SystemConfig;
 import com.android.server.art.ArtManagerLocal;
 import com.android.server.art.ReasonMapping;
 import com.android.server.art.model.DexoptParams;
+import com.android.server.pm.AxDexoptManagerImpl;
 import com.android.server.pm.PackageManagerShellCommandDataLoader.Metadata;
 import com.android.server.pm.permission.LegacyPermissionManagerInternal;
 import com.android.server.pm.permission.PermissionAllowlist;
@@ -412,6 +413,8 @@ class PackageManagerShellCommand extends ShellCommand {
                     return runSetDeveloperVerificationResult();
                 case "clear-developer-verification-result":
                     return runClearDeveloperVerificationResult();
+                case "ax-compensate-dexopt-job":
+                    return runAxCompensateDexoptCommand();
                 default: {
                     if (ART_SERVICE_COMMANDS.contains(cmd)) {
                         return runArtServiceCommand();
@@ -5363,5 +5366,22 @@ class PackageManagerShellCommand extends ShellCommand {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    private int runAxCompensateDexoptCommand() {
+        PrintWriter pw = getOutPrintWriter();
+        String opt = getNextOption();
+        if (opt == null) {
+            pw.println("Error: must specify an option (--enable or --disable)");
+            return -1;
+        }
+        boolean disable = "--disable".equals(opt);
+        if (!disable && !"--enable".equals(opt)) {
+            pw.println("Error: unknown option " + opt);
+            return -1;
+        }
+        AxDexoptManagerImpl.getInstance().disableCompensateDexoptByCmd(disable);
+        pw.println("Compensate dexopt job disabled: " + disable);
+        return 0;
     }
 }
