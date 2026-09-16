@@ -19,6 +19,7 @@ package com.android.systemui.keyguard.dagger;
 import android.app.IActivityTaskManager;
 import android.app.trust.TrustManager;
 import android.content.Context;
+import android.content.res.Resources;
 import android.os.PowerManager;
 
 import com.android.internal.jank.InteractionJankMonitor;
@@ -45,6 +46,7 @@ import com.android.systemui.communal.domain.interactor.CommunalSettingsInteracto
 import com.android.systemui.communal.ui.viewmodel.CommunalTransitionViewModel;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Application;
+import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.dagger.qualifiers.UiBackground;
 import com.android.systemui.dreams.DreamOverlayStateController;
 import com.android.systemui.dreams.ui.viewmodel.DreamViewModel;
@@ -252,8 +254,8 @@ public interface KeyguardModule {
     /** */
     @Provides
     @SysUISingleton
-    static BlurConfig provideBlurConfig(SecureSettings secureSettings) {
-        return new BlurConfig(0.0f, BlurConfig.MAX_BLUR_RADIUS_PX, secureSettings);
+    static BlurConfig provideBlurConfig(@Main Resources resources, SecureSettings secureSettings) {
+        return new BlurConfig(resources, secureSettings);
     }
 
     /** */
