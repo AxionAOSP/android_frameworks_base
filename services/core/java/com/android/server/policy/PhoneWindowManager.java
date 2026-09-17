@@ -713,8 +713,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private Action mAppSwitchPressAction;
     private Action mAppSwitchLongPressAction;
     private Action mEdgeLongSwipeAction;
-    private Action mShakeAction;
-    private Action mThreeFingersSwipeAction;
+    private Action mShakeAction = Action.NOTHING;
+    private Action mThreeFingersSwipeAction = Action.NOTHING;
 
     // support for activating the lock screen while the screen is on
     private HashSet<Integer> mAllowLockscreenWhenOnDisplays = new HashSet<>();
@@ -1100,6 +1100,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     UserHandle.USER_ALL);
             resolver.registerContentObserver(Settings.Secure.getUriFor(
                     "torch_power_button_turn_off"), false, this,
+                    UserHandle.USER_ALL);
+            resolver.registerContentObserver(Settings.Secure.getUriFor(
+                    "shake_gestures_enabled"), false, this,
                     UserHandle.USER_ALL);
             resolver.registerContentObserver(Settings.Secure.getUriFor(
                     "shake_gestures_action"), false, this,
@@ -3382,6 +3385,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         mAppSwitchLongPressAction = Action.fromIntSafe(res.getInteger(
                 org.lineageos.platform.internal.R.integer.config_longPressOnAppSwitchBehavior));
         mEdgeLongSwipeAction = Action.NOTHING;
+        mShakeAction = Action.NOTHING;
+        mThreeFingersSwipeAction = Action.NOTHING;
 
         mBackLongPressAction = Action.fromSettings(resolver,
                 LineageSettings.System.KEY_BACK_LONG_PRESS_ACTION,
@@ -6882,8 +6887,10 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 KeyEvent event = new KeyEvent(now, now, KeyEvent.ACTION_DOWN,
                         KeyEvent.KEYCODE_SYSRQ, 0, 0, KeyCharacterMap.VIRTUAL_KEYBOARD, 0,
                         KeyEvent.FLAG_FROM_SYSTEM, InputDevice.SOURCE_TOUCHSCREEN);
-                performKeyAction(mShakeAction, event);
-                performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, "Shake Gesture");
+                mHandler.post(() -> {
+                    performKeyAction(mShakeAction, event);
+                    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, "Shake Gesture");
+                });
             }
         });
 
@@ -6897,9 +6904,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         KeyEvent event = new KeyEvent(now, now, KeyEvent.ACTION_DOWN,
                                 KeyEvent.KEYCODE_SYSRQ, 0, 0, KeyCharacterMap.VIRTUAL_KEYBOARD, 0,
                                 KeyEvent.FLAG_FROM_SYSTEM, InputDevice.SOURCE_TOUCHSCREEN);
-                        performKeyAction(mThreeFingersSwipeAction, event);
-                        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS,
-                                "Three Fingers Swipe");
+                        mHandler.post(() -> {
+                            performKeyAction(mThreeFingersSwipeAction, event);
+                            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS,
+                                    "Three Fingers Swipe");
+                        });
                     }
                 });
     }
