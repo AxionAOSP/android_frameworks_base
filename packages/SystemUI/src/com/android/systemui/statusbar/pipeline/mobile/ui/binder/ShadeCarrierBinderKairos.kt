@@ -58,10 +58,6 @@ object ShadeCarrierBinderKairos {
                 override fun setTextAppearance(resId: Int) {
                     carrierTextView.setTextAppearance(resId)
                 }
-
-                override fun setTextColor(color: Int) {
-                    carrierTextView.setTextColor(color)
-                }
             }
         return binding to job
     }

@@ -21,8 +21,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 
 /** View model for an action that should appear in the top app bar of [DefaultEditTileGrid]. */
 data class EditTopBarActionViewModel(
-    val icon: ImageVector? = null,
+    val icon: ImageVector,
     @StringRes val labelId: Int,
     val onClick: () -> Unit,
-    val showAsText: Boolean = false,
 )

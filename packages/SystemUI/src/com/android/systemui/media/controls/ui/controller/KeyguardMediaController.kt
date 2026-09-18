@@ -39,7 +39,7 @@ import com.android.systemui.media.controls.ui.view.MediaHostState
 import com.android.systemui.media.dagger.MediaModule.KEYGUARD
 import com.android.systemui.media.remedia.shared.flag.MediaControlsInComposeFlag
 import com.android.systemui.plugins.statusbar.StatusBarStateController
-import com.android.systemui.qs.ax.ui.keyguard.AxKeyguardMediaContent
+import com.android.systemui.qs.ax.ui.media.AxKeyguardMediaContent
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.statusbar.StatusBarState

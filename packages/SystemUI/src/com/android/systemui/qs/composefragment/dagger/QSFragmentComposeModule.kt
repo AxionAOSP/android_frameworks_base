@@ -20,7 +20,7 @@ import android.content.Context
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.log.table.TableLogBuffer
 import com.android.systemui.log.table.TableLogBufferFactory
-import com.android.systemui.qs.ax.shared.AxQsMediaPolicy
+import com.android.systemui.qs.ax.domain.AxQsMediaPolicy
 import com.android.systemui.qs.flags.QSComposeFragment
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.util.Utils

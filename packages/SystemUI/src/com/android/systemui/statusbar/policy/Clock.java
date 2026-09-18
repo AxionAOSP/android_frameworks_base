@@ -171,6 +171,8 @@ public class Clock extends TextView implements
         }
 
         setIncludeFontPadding(false);
+        setUseBoundsForWidth(true);
+        setShiftDrawingOffsetForStartOverhang(true);
     }
 
     @Override

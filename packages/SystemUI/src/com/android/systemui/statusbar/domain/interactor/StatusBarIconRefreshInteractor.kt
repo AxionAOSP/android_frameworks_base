@@ -48,17 +48,9 @@ constructor(
     private val configurationListener =
         object : ConfigurationListener {
             override fun onDensityOrFontScaleChanged() {
-                refreshIconGroups()
-            }
-
-            override fun onThemeChanged() {
-                refreshIconGroups()
+                statusBarIconController.refreshIconGroups(displayId)
             }
         }
-
-    private fun refreshIconGroups() {
-        statusBarIconController.refreshIconGroups(displayId)
-    }
 
     override fun start() {
         statusBarConfigurationController.addCallback(configurationListener)

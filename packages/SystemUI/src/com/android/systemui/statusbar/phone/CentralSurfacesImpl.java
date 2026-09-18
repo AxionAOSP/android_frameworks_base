@@ -158,6 +158,7 @@ import com.android.systemui.plugins.statusbar.StatusBarStateController;
 import com.android.systemui.power.domain.interactor.PowerInteractor;
 import com.android.systemui.qs.QSFragmentLegacy;
 import com.android.systemui.qs.QSPanelController;
+import com.android.systemui.qs.ax.fragment.AxQsFragmentCompose;
 import com.android.systemui.qs.composefragment.QSFragmentCompose;
 import com.android.systemui.qs.flags.QSComposeFragment;
 import com.android.systemui.res.R;
@@ -1491,7 +1492,7 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
     protected QS createDefaultQSFragment() {
         Class<? extends QS> klass;
         if (QSComposeFragment.isEnabled()) {
-            klass = QSFragmentCompose.class;
+            klass = AxQsFragmentCompose.class;
         } else {
             klass = QSFragmentLegacy.class;
         }

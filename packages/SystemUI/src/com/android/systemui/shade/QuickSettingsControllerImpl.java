@@ -80,7 +80,7 @@ import com.android.systemui.mistouch.domain.interactor.MistouchInteractor;
 import com.android.systemui.plugins.FalsingManager;
 import com.android.systemui.plugins.qs.QS;
 import com.android.systemui.qs.ax.domain.AxQsShadePolicy;
-import com.android.systemui.qs.ax.shared.AxQsMediaPolicy;
+import com.android.systemui.qs.ax.domain.AxQsMediaPolicy;
 import com.android.systemui.qs.flags.QSComposeFragment;
 import com.android.systemui.res.R;
 import com.android.systemui.scene.shared.flag.SceneContainerFlag;

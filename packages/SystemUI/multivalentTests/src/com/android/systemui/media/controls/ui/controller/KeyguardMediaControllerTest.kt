@@ -43,7 +43,7 @@ import com.android.systemui.media.remedia.ui.viewmodel.mediaFalsingSystem
 import com.android.systemui.axdynamicbar.domain.AxDynamicBarSettings
 import com.android.systemui.keyguard.data.repository.KeyguardClockRepository
 import com.android.systemui.plugins.statusbar.StatusBarStateController
-import com.android.systemui.qs.ax.ui.keyguard.AxKeyguardMediaContent
+import com.android.systemui.qs.ax.ui.media.AxKeyguardMediaContent
 import com.android.systemui.statusbar.StatusBarState
 import kotlinx.coroutines.flow.MutableStateFlow
 import com.android.systemui.statusbar.SysuiStatusBarStateController
