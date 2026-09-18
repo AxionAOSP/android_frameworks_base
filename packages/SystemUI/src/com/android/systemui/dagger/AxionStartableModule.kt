@@ -38,6 +38,7 @@ import com.android.systemui.statusbar.phone.PhoneStatusBarPolicyExt
 import com.android.systemui.statusbar.policy.NetworkSpeedController
 import com.android.systemui.usb.UsbModePickerDialogDelegate
 import com.android.systemui.ax.boost.AxDragoniteStartablesModule
+import com.android.systemui.qs.ax.AxSystemUIStartablesModule
 import com.axion.applocker.AxAppLockerHelper
 import dagger.Binds
 import dagger.Module
@@ -47,7 +48,7 @@ import dagger.multibindings.IntoMap
 import dagger.multibindings.IntoSet
 import dagger.multibindings.StringKey
 
-@Module(includes = [StartAxPlatformModule::class, StartMistouchPreventionModule::class, AxDragoniteStartablesModule::class])
+@Module(includes = [StartAxPlatformModule::class, StartMistouchPreventionModule::class, AxDragoniteStartablesModule::class, AxSystemUIStartablesModule::class])
 abstract class AxionStartableModule {
     @Binds
     @IntoMap
