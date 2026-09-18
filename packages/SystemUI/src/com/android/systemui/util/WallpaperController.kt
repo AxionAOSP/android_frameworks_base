@@ -19,13 +19,17 @@ package com.android.systemui.util
 import android.app.WallpaperManager
 import android.util.Log
 import android.view.View
+import com.android.systemui.Dumpable
 import com.android.systemui.dagger.SysUISingleton
+import com.android.systemui.dump.DumpManager
 import com.android.systemui.shared.clocks.DepthWallpaperProvider
 import com.android.systemui.wallpapers.data.repository.WallpaperRepository
+import java.io.PrintWriter
 import javax.inject.Inject
 import kotlin.math.max
 
 private const val TAG = "WallpaperController"
+private const val DEBUG = false
 
 /**
  * Controller for wallpaper-related logic.
@@ -38,7 +42,24 @@ class WallpaperController
 constructor(
     private val wallpaperManager: WallpaperManager,
     private val wallpaperRepository: WallpaperRepository,
-) {
+    private val dumpManager: DumpManager,
+) : Dumpable {
+
+    init {
+        dumpManager.registerNormalDumpable(TAG, this)
+    }
+
+    override fun dump(pw: PrintWriter, args: Array<out String>) {
+        pw.println("WallpaperController:")
+        pw.println("  wallpaperZoomDisabled=$wallpaperZoomDisabled")
+        pw.println("  launcherZoomEnabled=$launcherZoomEnabled")
+        pw.println("  screenOnZoomOut=$screenOnZoomOut")
+        pw.println("  launcherAnimationZoomOut=$launcherAnimationZoomOut")
+        pw.println("  launcherDepthZoomOut=$launcherDepthZoomOut")
+        pw.println("  notificationShadeZoomOut=$notificationShadeZoomOut")
+        pw.println("  unfoldTransitionZoomOut=$unfoldTransitionZoomOut")
+        DepthWallpaperProvider.dump(pw)
+    }
 
     var rootView: View? = null
         set(value) {
@@ -71,6 +92,7 @@ constructor(
     }
 
     fun setScreenOnZoom(zoomOut: Float) {
+        if (DEBUG) Log.d(TAG, "setScreenOnZoom: zoomOut=$zoomOut")
         screenOnZoomOut = zoomOut
         updateZoom()
     }
@@ -95,6 +117,7 @@ constructor(
     fun setWallpaperZoomDisabled(disabled: Boolean) {
         if (wallpaperZoomDisabled == disabled) return
 
+        if (DEBUG) Log.d(TAG, "setWallpaperZoomDisabled: disabled=$disabled")
         wallpaperZoomDisabled = disabled
         updateZoom()
     }
@@ -114,6 +137,9 @@ constructor(
                 max(max(shadeZoomOut, launcherZoomOut), screenOnZoomOut)
             }
         val zoomActive = zoomOut > 0f
+        if (DEBUG) {
+            Log.d(TAG, "updateZoom: zoomOut=$zoomOut, zoomActive=$zoomActive, disabled=$wallpaperZoomDisabled, screenOn=$screenOnZoomOut")
+        }
         if (zoomActive) {
             DepthWallpaperProvider.setWallpaperZoomActive(true)
         }
