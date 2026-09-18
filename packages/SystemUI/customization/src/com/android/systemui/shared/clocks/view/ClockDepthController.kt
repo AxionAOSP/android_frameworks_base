@@ -13,9 +13,11 @@ import android.graphics.RectF
 import android.graphics.Region
 import android.provider.Settings
 import android.util.DisplayMetrics
+import android.util.Log
 import android.view.View
 import com.android.app.animation.Interpolators
 import com.android.systemui.shared.clocks.DepthWallpaperProvider
+import java.io.PrintWriter
 import kotlin.math.ceil
 import kotlin.math.floor
 
@@ -103,6 +105,7 @@ class ClockDepthController(private val view: View) {
             this@ClockDepthController.pathAspect = pathAspect
             depthActive = path != null && !path.isEmpty
             pathDirty = true
+            if (DEBUG) Log.d(TAG, "onDepthDataChanged: hasPath=${path != null}, aspect=$pathAspect, active=$depthActive, visible=$depthVisible, zoomActive=$wallpaperZoomActive")
 
             if (!depthVisible) {
                 view.postInvalidateOnAnimation()
@@ -113,7 +116,7 @@ class ClockDepthController(private val view: View) {
                 hideDepth()
                 return
             }
-            if (depthActive && !wasActive) {
+            if (depthActive && (!wasActive || maskAlpha < 1f)) {
                 animateReveal()
             } else if (!depthActive && wasActive) {
                 animateHide()
@@ -125,13 +128,14 @@ class ClockDepthController(private val view: View) {
         override fun onWallpaperZoomActiveChanged(active: Boolean) {
             if (wallpaperZoomActive == active) return
             wallpaperZoomActive = active
+            if (DEBUG) Log.d(TAG, "onWallpaperZoomActiveChanged: active=$active, disabled=$wallpaperZoomDisabled")
             if (wallpaperZoomDisabled) return
             if (active) {
                 hideDepth()
                 return
             }
 
-            pathDirty = true
+            resetTransformCache()
             if (depthActive && depthVisible) {
                 animateReveal()
             } else {
@@ -194,12 +198,7 @@ class ClockDepthController(private val view: View) {
 
     fun shouldApplyDepth(): Boolean {
         val path = subjectPath
-        return depthActive &&
-            depthVisible &&
-            path != null &&
-            !path.isEmpty &&
-            maskAlpha > 0f &&
-            !isZoomEffectActive()
+        return enabled && depthActive && depthVisible && path != null && !path.isEmpty && !isZoomEffectActive()
     }
 
     fun drawWithDepth(canvas: Canvas, drawSuper: (Canvas) -> Unit) {
@@ -337,6 +336,10 @@ class ClockDepthController(private val view: View) {
             }
         }
 
+        if (!depthSuppressed && maskAlpha < 1f && maskAnimator == null) {
+            animateReveal()
+        }
+
         if (revealProgress >= 1f && maskAlpha >= 1f) {
             canvas.save()
             canvas.clipOutPath(transformedPath)
@@ -431,7 +434,31 @@ class ClockDepthController(private val view: View) {
         pathDirty = true
     }
 
+    fun dump(pw: PrintWriter) {
+        pw.println("ClockDepthController:")
+        pw.println("  enabled=$enabled")
+        pw.println("  depthActive=$depthActive")
+        pw.println("  depthVisible=$depthVisible")
+        pw.println("  depthSuppressed=$depthSuppressed")
+        pw.println("  maskAlpha=$maskAlpha")
+        pw.println("  revealProgress=$revealProgress")
+        pw.println("  wallpaperZoomActive=$wallpaperZoomActive")
+        pw.println("  wallpaperZoomDisabled=$wallpaperZoomDisabled")
+        pw.println("  isZoomEffectActive=${isZoomEffectActive()}")
+        pw.println("  shouldApplyDepth=${shouldApplyDepth()}")
+        pw.println("  cachedZoom=$cachedZoom")
+        pw.println("  cachedScreen=${cachedScreenW}x${cachedScreenH}")
+        pw.println("  viewLocation=($cachedViewX, $cachedViewY)")
+        pw.println("  viewScale=($cachedViewScaleX, $cachedViewScaleY)")
+        pw.println("  pathBounds=$pathBounds")
+        pw.println("  layerRect=$layerRect")
+        pw.println("  pathAspect=$pathAspect")
+        pw.println("  maskAnimatorRunning=${maskAnimator?.isRunning}")
+    }
+
     private companion object {
+        const val TAG = "ClockDepthController"
+        const val DEBUG = false
         const val REVEAL_DURATION = 600L
         const val REVEAL_MIN_SCALE = 0.97f
         const val PARALLAX_PX = 24f

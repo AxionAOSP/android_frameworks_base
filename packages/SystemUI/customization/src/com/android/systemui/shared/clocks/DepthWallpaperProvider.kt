@@ -25,6 +25,7 @@ import android.provider.Settings
 import android.util.Base64
 import android.util.Log
 import com.android.axion.util.DisplayUtils
+import java.io.PrintWriter
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicInteger
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger
 object DepthWallpaperProvider {
 
     private const val TAG = "DepthWallpaperProvider"
+    private const val DEBUG = false
     private const val SETTING_DEPTH_MASK = "ax_depth_subject_mask"
     private const val SETTING_DEPTH_ENABLED = "ax_depth_clock_enabled"
     private const val SETTING_DISABLE_ZOOM = "pref_disable_wallpaper_zoom"
@@ -116,6 +118,7 @@ object DepthWallpaperProvider {
     fun setWallpaperZoomActive(active: Boolean) {
         if (wallpaperZoomActive == active) return
 
+        if (DEBUG) Log.d(TAG, "setWallpaperZoomActive: active=$active")
         wallpaperZoomActive = active
         for (listener in listeners.keys.toList()) {
             listener.onWallpaperZoomActiveChanged(active)
@@ -137,6 +140,7 @@ object DepthWallpaperProvider {
                                 liveInfo.component.packageName == EFFECTS_PACKAGE &&
                                     liveInfo.component.className.endsWith(MAGIC_PORTRAIT_SERVICE)
                             )
+                if (DEBUG) Log.d(TAG, "refreshAsync: generation=$generation, enabled=$enabled, listeners=${registrations.size}")
                 val paths =
                     if (enabled) {
                         registrations.values
@@ -186,6 +190,7 @@ object DepthWallpaperProvider {
                 val disabled = Settings.Secure.getInt(cr, SETTING_DISABLE_ZOOM, 0) == 1
                 if (wallpaperZoomDisabled == disabled) return@Thread
                 wallpaperZoomDisabled = disabled
+                if (DEBUG) Log.d(TAG, "refreshZoomDisabled: disabled=$disabled")
                 handler.post {
                     for (listener in listeners.keys.toList()) {
                         listener.onWallpaperZoomDisabledChanged(disabled)
@@ -223,6 +228,7 @@ object DepthWallpaperProvider {
             val path = Path()
             path.fillType = Path.FillType.WINDING
 
+            var totalPoints = 0
             for (c in 0 until numContours) {
                 if (buf.remaining() < 2) break
                 val numPoints = buf.short.toInt() and 0xFFFF
@@ -234,12 +240,35 @@ object DepthWallpaperProvider {
                     if (p == 0) path.moveTo(x, y) else path.lineTo(x, y)
                 }
                 path.close()
+                totalPoints += numPoints
             }
 
+            if (DEBUG) Log.d(TAG, "decodePath: ${extractW}x$extractH, contours=$numContours, points=$totalPoints")
             Pair(path, extractW.toFloat() / extractH)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to decode depth path", e)
             null
+        }
+    }
+
+    fun dump(pw: PrintWriter) {
+        pw.println("DepthWallpaperProvider:")
+        pw.println("  isEnabled=$isEnabled")
+        pw.println("  registered=$registered")
+        pw.println("  wallpaperZoomActive=$wallpaperZoomActive")
+        pw.println("  wallpaperZoomDisabled=$wallpaperZoomDisabled")
+        pw.println("  listeners=${listeners.size}")
+        pw.println("  generation=${refreshGeneration.get()}")
+        val cr = contentResolver
+        if (cr != null) {
+            val enabled = Settings.Secure.getInt(cr, SETTING_DEPTH_ENABLED, 0)
+            val disabledZoom = Settings.Secure.getInt(cr, SETTING_DISABLE_ZOOM, 0)
+            pw.println("  Settings: enabled=$enabled, disabledZoom=$disabledZoom")
+            DisplayUtils.DisplayLayout.values().forEach { layout ->
+                val name = layout.getSettingName(SETTING_DEPTH_MASK)
+                val raw = Settings.Secure.getString(cr, name)
+                pw.println("    $name: len=${raw?.length ?: 0}")
+            }
         }
     }
 
