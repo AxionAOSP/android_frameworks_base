@@ -186,6 +186,13 @@ constructor(
     private fun updateReconnect() {
         bgScope.launch {
             delay(RECONNECT_COOLDOWN)
+            RECONNECT_COOLDOWN = when (RECONNECT_COOLDOWN) {
+                2.seconds -> 5.seconds
+                5.seconds -> 10.seconds
+                10.seconds -> 15.seconds
+                15.seconds -> 30.seconds
+                else -> RECONNECT_COOLDOWN
+            }
             canAttemptReconnect.set(true)
         }
     }
@@ -479,7 +486,7 @@ constructor(
 
     private companion object {
         private const val BASE_TORCH_LEVEL = 1
-        private val RECONNECT_COOLDOWN = 30.seconds
+        private var RECONNECT_COOLDOWN = 2.seconds
         private val RECONNECT_TIMEOUT = 2.seconds
     }
 }
