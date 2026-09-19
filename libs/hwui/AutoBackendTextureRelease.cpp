@@ -59,7 +59,8 @@ AutoBackendTextureRelease::AutoBackendTextureRelease(GrDirectContext* context,
                                                              backendFormat,
                                                              false);
     } else if (backend == GrBackendApi::kVulkan) {
-        if (axion::graphics::MediaBufferConverter::isConversionEnabled() &&
+        if (!createProtectedImage &&
+            axion::graphics::MediaBufferConverter::isConversionEnabled() &&
             axion::graphics::MediaBufferConverter::isMediaOrHdrBuffer(desc)) {
             AHardwareBuffer* converted =
                     axion::graphics::MediaBufferConverter::convertToRgba8888(buffer);
