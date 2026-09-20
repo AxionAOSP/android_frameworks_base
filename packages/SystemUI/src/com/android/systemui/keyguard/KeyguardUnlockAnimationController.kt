@@ -100,7 +100,7 @@ const val DISMISS_AMOUNT_EXIT_KEYGUARD_THRESHOLD = 0.3f
  * from a tap on the unlock icon, or from the bouncer. This is not relevant if the lockscreen is
  * swiped away via a touch gesture, or when it's flinging expanded/collapsed after a swipe.
  */
-const val UNLOCK_ANIMATION_DURATION_MS = 300L
+const val UNLOCK_ANIMATION_DURATION_MS = 633L
 
 /**
  * If there are two different wallpapers on home and lock screen, duration and delay of the lock

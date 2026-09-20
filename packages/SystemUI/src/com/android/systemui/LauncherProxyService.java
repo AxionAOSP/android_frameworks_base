@@ -560,12 +560,6 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
                     mWallpaperControllerLazy.get().setLauncherAnimationZoom(zoomOut));
         }
 
-        @Override
-        public void setLauncherDepthWallpaperZoom(float zoomOut) {
-            verifyCallerAndClearCallingIdentityPostMain("setLauncherDepthWallpaperZoom", () ->
-                    mWallpaperControllerLazy.get().setLauncherDepthZoom(zoomOut));
-        }
-
         private void onShadeExpansionGesture(MotionEvent event, String reason) {
             if (!SceneContainerFlag.isEnabled()) {
                 return;
@@ -1238,7 +1232,6 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
     private void clearLauncherWallpaperZoom() {
         WallpaperController wallpaperController = mWallpaperControllerLazy.get();
         wallpaperController.setLauncherAnimationZoom(0f);
-        wallpaperController.setLauncherDepthZoom(0f);
     }
 
     /**

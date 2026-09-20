@@ -67,8 +67,12 @@ constructor(
         scope.launch {
             transitionInteractor.startedKeyguardTransitionStep.collect {
                 scrimLogger.d(TAG, "listenForStartedKeyguardTransitionStep", it)
+                val isWakeFromAodOrDozing =
+                    it.from == KeyguardState.AOD || it.from == KeyguardState.DOZING
                 val animationDuration =
-                    if (it.to == KeyguardState.AOD && isLastSleepDueToFold) {
+                    if (isWakeFromAodOrDozing) {
+                        0L
+                    } else if (it.to == KeyguardState.AOD && isLastSleepDueToFold) {
                         // Do not animate the scrim when folding as we want to cover the screen
                         // with the scrim immediately while displays are switching.
                         // This is needed to play the fold to AOD animation which starts with

@@ -17,19 +17,13 @@
 package com.android.systemui.util
 
 import android.app.WallpaperManager
-import android.util.Log
 import android.view.View
-import com.android.systemui.Dumpable
+import androidx.annotation.VisibleForTesting
 import com.android.systemui.dagger.SysUISingleton
-import com.android.systemui.dump.DumpManager
-import com.android.systemui.shared.clocks.DepthWallpaperProvider
+import com.android.systemui.wallpapers.AxWallpaperZoomController
+import com.android.systemui.wallpapers.WallpaperZoomOwner
 import com.android.systemui.wallpapers.data.repository.WallpaperRepository
-import java.io.PrintWriter
 import javax.inject.Inject
-import kotlin.math.max
-
-private const val TAG = "WallpaperController"
-private const val DEBUG = false
 
 /**
  * Controller for wallpaper-related logic.
@@ -40,127 +34,52 @@ private const val DEBUG = false
 class WallpaperController
 @Inject
 constructor(
-    private val wallpaperManager: WallpaperManager,
     private val wallpaperRepository: WallpaperRepository,
-    private val dumpManager: DumpManager,
-) : Dumpable {
+    private val axWallpaperZoomController: AxWallpaperZoomController,
+) {
 
-    init {
-        dumpManager.registerNormalDumpable(TAG, this)
-    }
-
-    override fun dump(pw: PrintWriter, args: Array<out String>) {
-        pw.println("WallpaperController:")
-        pw.println("  wallpaperZoomDisabled=$wallpaperZoomDisabled")
-        pw.println("  launcherZoomEnabled=$launcherZoomEnabled")
-        pw.println("  screenOnZoomOut=$screenOnZoomOut")
-        pw.println("  launcherAnimationZoomOut=$launcherAnimationZoomOut")
-        pw.println("  launcherDepthZoomOut=$launcherDepthZoomOut")
-        pw.println("  notificationShadeZoomOut=$notificationShadeZoomOut")
-        pw.println("  unfoldTransitionZoomOut=$unfoldTransitionZoomOut")
-        DepthWallpaperProvider.dump(pw)
-    }
+    @VisibleForTesting
+    constructor(
+        wallpaperManager: WallpaperManager,
+        wallpaperRepository: WallpaperRepository,
+    ) : this(
+        wallpaperRepository,
+        AxWallpaperZoomController(wallpaperManager, wallpaperRepository, null)
+    )
 
     var rootView: View? = null
         set(value) {
             field = value
             wallpaperRepository.rootView = value
-            updateZoom()
+            axWallpaperZoomController.onRootViewSet(value)
         }
-
-    private var notificationShadeZoomOut: Float = 0f
-    private var unfoldTransitionZoomOut: Float = 0f
-    private var screenOnZoomOut: Float = 0f
-    private var launcherAnimationZoomOut: Float = 0f
-    private var launcherDepthZoomOut: Float = 0f
-    private var launcherZoomEnabled = true
-    private var wallpaperZoomDisabled = false
 
     private val shouldUseDefaultUnfoldTransition: Boolean
         get() = wallpaperRepository.wallpaperInfo.value?.shouldUseDefaultUnfoldTransition() ?: true
 
     fun setNotificationShadeZoom(zoomOut: Float) {
-        notificationShadeZoomOut = zoomOut
-        updateZoom()
+        axWallpaperZoomController.setZoom(
+            WallpaperZoomOwner.NOTIFICATION_SHADE,
+            zoomOut,
+            "notificationShade",
+        )
     }
 
     fun setUnfoldTransitionZoom(zoomOut: Float) {
         if (shouldUseDefaultUnfoldTransition) {
-            unfoldTransitionZoomOut = zoomOut
-            updateZoom()
+            axWallpaperZoomController.setZoom(
+                WallpaperZoomOwner.UNFOLD,
+                zoomOut,
+                "unfold",
+            )
         }
-    }
-
-    fun setScreenOnZoom(zoomOut: Float) {
-        if (DEBUG) Log.d(TAG, "setScreenOnZoom: zoomOut=$zoomOut")
-        screenOnZoomOut = zoomOut
-        updateZoom()
     }
 
     fun setLauncherAnimationZoom(zoomOut: Float) {
-        launcherAnimationZoomOut = zoomOut.coerceIn(0f, 1f)
-        updateZoom()
+        axWallpaperZoomController.setLauncherWallpaperZoom(zoomOut)
     }
 
-    fun setLauncherDepthZoom(zoomOut: Float) {
-        launcherDepthZoomOut = zoomOut.coerceIn(0f, 1f)
-        updateZoom()
-    }
-
-    fun setLauncherZoomEnabled(enabled: Boolean) {
-        if (launcherZoomEnabled == enabled) return
-
-        launcherZoomEnabled = enabled
-        updateZoom()
-    }
-
-    fun setWallpaperZoomDisabled(disabled: Boolean) {
-        if (wallpaperZoomDisabled == disabled) return
-
-        if (DEBUG) Log.d(TAG, "setWallpaperZoomDisabled: disabled=$disabled")
-        wallpaperZoomDisabled = disabled
-        updateZoom()
-    }
-
-    private fun updateZoom() {
-        val shadeZoomOut = max(notificationShadeZoomOut, unfoldTransitionZoomOut)
-        val launcherZoomOut =
-            if (launcherZoomEnabled) {
-                max(launcherAnimationZoomOut, launcherDepthZoomOut)
-            } else {
-                0f
-            }
-        val zoomOut =
-            if (wallpaperZoomDisabled) {
-                1f
-            } else {
-                max(max(shadeZoomOut, launcherZoomOut), screenOnZoomOut)
-            }
-        val zoomActive = zoomOut > 0f
-        if (DEBUG) {
-            Log.d(TAG, "updateZoom: zoomOut=$zoomOut, zoomActive=$zoomActive, disabled=$wallpaperZoomDisabled, screenOn=$screenOnZoomOut")
-        }
-        if (zoomActive) {
-            DepthWallpaperProvider.setWallpaperZoomActive(true)
-        }
-        if (setWallpaperZoom(zoomOut) && !zoomActive) {
-            DepthWallpaperProvider.setWallpaperZoomActive(false)
-        }
-    }
-
-    private fun setWallpaperZoom(zoomOut: Float): Boolean {
-        val root = rootView ?: return false
-        return try {
-            if (root.isAttachedToWindow && root.windowToken != null) {
-                wallpaperManager.setWallpaperZoomOut(root.windowToken, zoomOut)
-                true
-            } else {
-                Log.i(TAG, "Won't set zoom. Window not attached $root")
-                false
-            }
-        } catch (e: IllegalArgumentException) {
-            Log.w(TAG, "Can't set zoom. Window is gone: ${rootView?.windowToken}", e)
-            false
-        }
+    fun setWallpaperZoom(zoomOut: Float): Boolean {
+        return axWallpaperZoomController.applyWallpaperZoom(zoomOut)
     }
 }
