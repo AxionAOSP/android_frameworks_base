@@ -42,6 +42,7 @@ android_library {
         "monet",
         "ax_compose",
         "ax_utils",
+        "ax_customization",
         "axquicklook-client",
         "kotlin-stdlib",
         "kotlinx-coroutines-android",
@@ -77,7 +78,6 @@ android_library {
         "kotlinx_coroutines_android",
     ],
     resource_dirs: ["res"],
-    asset_dirs: ["assets"],
     min_sdk_version: "current",
     plugins: ["dagger2-compiler"],
     kotlincflags: [

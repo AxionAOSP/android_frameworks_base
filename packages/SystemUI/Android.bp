@@ -524,6 +524,7 @@ android_library {
         "axquicklook-client",
         "ax_compose",
         "ax_blur",
+        "ax_customization",
         "ax_dragonite",
         "SystemUI-res",
         "WifiTrackerLib",

@@ -207,7 +207,5 @@ interface ISystemUiProxy {
 
     oneway void setLauncherWallpaperZoom(float zoomOut) = 63;
 
-    oneway void setLauncherDepthWallpaperZoom(float zoomOut) = 64;
-
-    // Next id = 65
+    // Next id = 64
 }

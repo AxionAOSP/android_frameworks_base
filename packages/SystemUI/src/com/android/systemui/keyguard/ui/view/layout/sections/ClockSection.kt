@@ -31,7 +31,7 @@ import androidx.constraintlayout.widget.ConstraintSet.TOP
 import androidx.constraintlayout.widget.ConstraintSet.VISIBLE
 import androidx.constraintlayout.widget.ConstraintSet.MATCH_CONSTRAINT
 import androidx.constraintlayout.widget.ConstraintSet.WRAP_CONTENT
-import com.android.systemui.customization.R as custR
+import com.android.axion.customization.R as custR
 import com.android.systemui.customization.clocks.R as clocksR
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.keyguard.domain.interactor.KeyguardBlueprintInteractor
