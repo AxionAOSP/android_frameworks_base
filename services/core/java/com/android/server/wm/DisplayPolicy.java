@@ -16,6 +16,7 @@
 
 package com.android.server.wm;
 
+import com.android.internal.dragonite.AxDragoniteConstants;
 import com.android.server.axdragonite.AxDragonite;
 
 import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
@@ -1549,7 +1550,7 @@ public class DisplayPolicy {
     }
 
     void onDisplayInfoChanged(DisplayInfo info) {
-        AxDragonite.getInstance().sceneBoostAcquire(AxDragonite.SCENE_ROTATION, null);
+        AxDragonite.getInstance().sceneBoostAcquire(AxDragoniteConstants.SCENE_ROTATION, null);
         if (!CLIENT_TRANSIENT) {
             mSystemGestures.onDisplayInfoChanged(info);
         }

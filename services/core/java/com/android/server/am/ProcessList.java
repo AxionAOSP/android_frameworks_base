@@ -3010,7 +3010,8 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
         mService.reportUidInfoMessageLocked(TAG, buf.toString(), app.getStartUid());
         synchronized (mProcLock) {
             app.setPid(pid);
-            AxDragonite.getInstance().onProcessStarted(pid, app.info.packageName, app.processName, app.uid);
+            final boolean isTopApp = app.getHostingRecord() != null && app.getHostingRecord().isTopApp();
+            AxDragonite.getInstance().onProcessStarted(pid, app.info.packageName, app.processName, app.uid, isTopApp);
             app.setUsingWrapper(usingWrapper);
             app.setPendingStart(false);
         }

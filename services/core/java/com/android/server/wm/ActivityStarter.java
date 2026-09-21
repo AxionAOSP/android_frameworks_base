@@ -1995,8 +1995,9 @@ class ActivityStarter {
                 voiceSession, voiceInteractor, balVerdict, realCallingUid);
 
         if (r != null && r.info != null && r.info.applicationInfo != null) {
+            final int targetPid = (r.app != null) ? r.app.getPid() : -1;
             AxDragonite.getInstance().onActivityStart(r.packageName, r.shortComponentName,
-                    r.info.applicationInfo.uid, r.app == null);
+                    r.info.applicationInfo.uid, r.app == null, targetPid);
         }
 
         computeLaunchingTaskFlags();

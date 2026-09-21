@@ -16,6 +16,7 @@
 
 package com.android.server.wm;
 
+import com.android.internal.dragonite.AxDragoniteConstants;
 import com.android.server.axdragonite.AxDragonite;
 
 import static android.app.ActivityManager.LOCK_TASK_MODE_NONE;
@@ -6600,7 +6601,7 @@ final class ActivityRecord extends WindowToken {
 
     /** Called when the windows associated app window container are drawn. */
     private void onWindowsDrawn() {
-        AxDragonite.getInstance().sceneBoostAcquire(AxDragonite.SCENE_APP_LAUNCH_WARM, null);
+        AxDragonite.getInstance().onWindowsDrawn(this.packageName, this.app != null ? this.app.getPid() : -1);
         final TransitionInfoSnapshot info = mTaskSupervisor
                 .getActivityMetricsLogger().notifyWindowsDrawn(this);
         final boolean validInfo = info != null;
