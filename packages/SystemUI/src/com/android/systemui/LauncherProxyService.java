@@ -555,9 +555,9 @@ public class LauncherProxyService implements CallbackController<LauncherProxyLis
         }
 
         @Override
-        public void setLauncherWallpaperZoom(float zoomOut) {
+        public void setLauncherWallpaperZoom(int owner, float zoomOut) {
             verifyCallerAndClearCallingIdentityPostMain("setLauncherWallpaperZoom", () ->
-                    mWallpaperControllerLazy.get().setLauncherAnimationZoom(zoomOut));
+                    mWallpaperControllerLazy.get().setLauncherWallpaperZoom(owner, zoomOut));
         }
 
         private void onShadeExpansionGesture(MotionEvent event, String reason) {

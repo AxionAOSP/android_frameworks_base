@@ -205,7 +205,8 @@ interface ISystemUiProxy {
      */
     oneway void forceStopPackage(String packageName, int userId) = 62;
 
-    oneway void setLauncherWallpaperZoom(float zoomOut) = 63;
+    const int WP_ZOOM_APP_ZOOM = 4;
+    const int WP_ZOOM_BASE_DEPTH = 5;
 
-    // Next id = 64
+    oneway void setLauncherWallpaperZoom(int owner, float zoomOut) = 63;
 }

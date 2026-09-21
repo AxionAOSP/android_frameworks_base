@@ -75,6 +75,14 @@ constructor(
         }
     }
 
+    fun setLauncherWallpaperZoom(ownerId: Int, zoomOut: Float) {
+        axWallpaperZoomController.setLauncherWallpaperZoom(ownerId, zoomOut)
+    }
+
+    fun setLauncherWallpaperZoom(zoomOut: Float) {
+        axWallpaperZoomController.setLauncherWallpaperZoom(zoomOut)
+    }
+
     fun setLauncherAnimationZoom(zoomOut: Float) {
         axWallpaperZoomController.setLauncherWallpaperZoom(zoomOut)
     }
