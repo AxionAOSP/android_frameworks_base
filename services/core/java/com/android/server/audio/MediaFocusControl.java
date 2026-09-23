@@ -22,7 +22,6 @@ import static android.media.audio.Flags.audioFocusDesktop;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.AppOpsManager;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.media.AudioAttributes;
 import android.media.AudioFocusInfo;
@@ -32,7 +31,6 @@ import android.media.IAudioFocusDispatcher;
 import android.media.MediaMetrics;
 import android.media.audiopolicy.AudioPolicy;
 import android.media.audiopolicy.IAudioPolicyCallback;
-import android.database.ContentObserver;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Handler;
@@ -41,8 +39,6 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
-import android.os.UserHandle;
-import android.provider.Settings;
 import android.util.Log;
 
 import com.android.internal.annotations.GuardedBy;
@@ -103,17 +99,6 @@ public class MediaFocusControl implements PlayerFocusEnforcer {
     private final @NonNull PlayerFocusEnforcer mFocusEnforcer;
     private boolean mMultiAudioFocusEnabled = false;
 
-    private final ContentObserver mMultiAudioFocusObserver = new ContentObserver(
-            new Handler(Looper.getMainLooper())) {
-        @Override
-        public void onChange(boolean selfChange) {
-            final ContentResolver cr = mContext.getContentResolver();
-            mMultiAudioFocusEnabled = Settings.System.getIntForUser(cr,
-                    Settings.System.MULTI_AUDIO_FOCUS_ENABLED, 0, cr.getUserId()) != 0;
-            Log.i(TAG, "Multi audio focus " + (mMultiAudioFocusEnabled ? "enabled" : "disabled"));
-        }
-    };
-
     boolean isMultiAudioFocusEnabled() {
         return mMultiAudioFocusEnabled;
     }
@@ -128,20 +113,12 @@ public class MediaFocusControl implements PlayerFocusEnforcer {
         mContext = cntxt;
         mAppOps = (AppOpsManager)mContext.getSystemService(Context.APP_OPS_SERVICE);
         mFocusEnforcer = pfe;
-        final ContentResolver cr = mContext.getContentResolver();
 
-        boolean multiAudioFocusEnabledDefault =
-                audioFocusDesktop()
-                        && mContext.getResources()
-                                .getBoolean(
-                                        com.android.internal.R.bool
-                                                .config_multi_audio_focus_enabled_default);
-        mMultiAudioFocusEnabled = Settings.System.getIntForUser(cr,
-                Settings.System.MULTI_AUDIO_FOCUS_ENABLED,
-                multiAudioFocusEnabledDefault ? 1 : 0, cr.getUserId()) != 0;
-        cr.registerContentObserver(
-                Settings.System.getUriFor(Settings.System.MULTI_AUDIO_FOCUS_ENABLED),
-                false, mMultiAudioFocusObserver, UserHandle.USER_ALL);
+        mMultiAudioFocusEnabled = audioFocusDesktop()
+                && mContext.getResources()
+                        .getBoolean(
+                                com.android.internal.R.bool
+                                        .config_multi_audio_focus_enabled_default);
         initFocusThreading();
     }
 
@@ -430,23 +407,12 @@ public class MediaFocusControl implements PlayerFocusEnforcer {
 
         // Also handle focus restoration for apps in the multi-focus list.
         if (mMultiAudioFocusEnabled && !mMultiAudioFocusList.isEmpty()) {
-            if (audioFocusDesktop()) {
-                final boolean canReassignAudioFocus = canReassignAudioFocus();
-                for (FocusRequester multifr : mMultiAudioFocusList) {
-                    // Check if the requester needs its focus restored. This is true if:
-                    //  - focus can be reassigned (e.g. no call) AND it had a transient loss,
-                    //  - OR it's a locked focus owner.
-                    if ((canReassignAudioFocus
-                            && multifr.toAudioFocusInfo().isLossReceivedTransient())
-                            || isLockedFocusOwner(multifr)) {
-                        multifr.handleFocusGain(AudioManager.AUDIOFOCUS_GAIN);
-                    }
-                }
-            } else {
-                for (FocusRequester multifr : mMultiAudioFocusList) {
-                    if (isLockedFocusOwner(multifr) || mFocusStack.empty()) {
-                        multifr.handleFocusGain(AudioManager.AUDIOFOCUS_GAIN);
-                    }
+            final boolean canReassignAudioFocus = canReassignAudioFocus();
+            for (FocusRequester multifr : mMultiAudioFocusList) {
+                if ((canReassignAudioFocus
+                        && multifr.toAudioFocusInfo().isLossReceivedTransient())
+                        || isLockedFocusOwner(multifr)) {
+                    multifr.handleFocusGain(AudioManager.AUDIOFOCUS_GAIN);
                 }
             }
         }
@@ -1184,9 +1150,6 @@ public class MediaFocusControl implements PlayerFocusEnforcer {
             IAudioFocusDispatcher fd, @NonNull String clientId, @NonNull String callingPackageName,
             int flags, int sdk, boolean forceDuck, int testUid,
             boolean permissionOverridesCheck) {
-        if (mMultiAudioFocusEnabled) {
-            return AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
-        }
         new MediaMetrics.Item(mMetricsId)
                 .setUid(Binder.getCallingUid())
                 .set(MediaMetrics.Property.CALLING_PACKAGE, callingPackageName)
@@ -1321,31 +1284,35 @@ public class MediaFocusControl implements PlayerFocusEnforcer {
             final FocusRequester nfr = new FocusRequester(aa, focusChangeHint, flags, fd, cb,
                     clientId, afdh, callingPackageName, uid, this, sdk, mEventLogger);
 
-            if (mMultiAudioFocusEnabled
-                    && (focusChangeHint == AudioManager.AUDIOFOCUS_GAIN)) {
-                if (enteringRingOrCall) {
-                    if (!mMultiAudioFocusList.isEmpty()) {
-                        for (FocusRequester multifr : mMultiAudioFocusList) {
-                            multifr.handleFocusLossFromGain(focusChangeHint, nfr, forceDuck);
-                        }
+            final int usage = aa.getUsage();
+            final boolean isMediaOrGame = usage == AudioAttributes.USAGE_MEDIA
+                    || usage == AudioAttributes.USAGE_GAME
+                    || usage == AudioAttributes.USAGE_UNKNOWN;
+            final boolean isMultiFocusEligible = mMultiAudioFocusEnabled
+                    && !enteringRingOrCall
+                    && (focusChangeHint == AudioManager.AUDIOFOCUS_GAIN
+                            || (isMediaOrGame && (focusChangeHint == AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+                                    || focusChangeHint == AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)));
+
+            if (isMultiFocusEligible) {
+                Iterator<FocusRequester> listIterator = mMultiAudioFocusList.iterator();
+                while (listIterator.hasNext()) {
+                    FocusRequester multifr = listIterator.next();
+                    if (multifr.hasSameUid(uid) || multifr.hasSameClient(clientId)) {
+                        listIterator.remove();
+                        multifr.release();
                     }
-                } else {
-                    boolean needAdd = true;
-                    if (!mMultiAudioFocusList.isEmpty()) {
-                        for (FocusRequester multifr : mMultiAudioFocusList) {
-                            if (multifr.getClientUid() == Binder.getCallingUid()) {
-                                needAdd = false;
-                                break;
-                            }
-                        }
+                }
+                mMultiAudioFocusList.add(nfr);
+                nfr.handleFocusGainFromRequest(AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
+                notifyExtPolicyFocusGrant_syncAf(nfr.toAudioFocusInfo(),
+                        AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
+                return AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
+            } else if (mMultiAudioFocusEnabled && enteringRingOrCall) {
+                if (!mMultiAudioFocusList.isEmpty()) {
+                    for (FocusRequester multifr : mMultiAudioFocusList) {
+                        multifr.handleFocusLossFromGain(focusChangeHint, nfr, forceDuck);
                     }
-                    if (needAdd) {
-                        mMultiAudioFocusList.add(nfr);
-                    }
-                    nfr.handleFocusGainFromRequest(AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
-                    notifyExtPolicyFocusGrant_syncAf(nfr.toAudioFocusInfo(),
-                            AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
-                    return AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
                 }
             }
 
@@ -1563,21 +1530,26 @@ public class MediaFocusControl implements PlayerFocusEnforcer {
     }
 
     public void updateMultiAudioFocus(boolean enabled) {
+        if (mMultiAudioFocusEnabled == enabled) {
+            return;
+        }
         Log.d(TAG, "updateMultiAudioFocus( " + enabled + " )");
         mMultiAudioFocusEnabled = enabled;
-        final ContentResolver cr = mContext.getContentResolver();
-        Settings.System.putIntForUser(cr,
-                Settings.System.MULTI_AUDIO_FOCUS_ENABLED, enabled ? 1 : 0, cr.getUserId());
-        if (!mFocusStack.isEmpty()) {
-            final FocusRequester fr = mFocusStack.peek();
-            fr.handleFocusLoss(AudioManager.AUDIOFOCUS_LOSS, null, false);
-        }
-        if (!enabled) {
-            if (!mMultiAudioFocusList.isEmpty()) {
-                for (FocusRequester multifr : mMultiAudioFocusList) {
-                    multifr.handleFocusLoss(AudioManager.AUDIOFOCUS_LOSS, null, false);
+        synchronized (mAudioFocusLock) {
+            if (enabled) {
+                if (!mFocusStack.isEmpty()) {
+                    FocusRequester fr = mFocusStack.peek();
+                    if (!mMultiAudioFocusList.contains(fr)) {
+                        mMultiAudioFocusList.add(fr);
+                    }
                 }
-                mMultiAudioFocusList.clear();
+            } else {
+                if (!mMultiAudioFocusList.isEmpty()) {
+                    for (FocusRequester multifr : mMultiAudioFocusList) {
+                        multifr.handleFocusLoss(AudioManager.AUDIOFOCUS_LOSS, null, false);
+                    }
+                    mMultiAudioFocusList.clear();
+                }
             }
         }
     }

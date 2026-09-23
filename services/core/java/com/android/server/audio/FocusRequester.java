@@ -492,8 +492,7 @@ public class FocusRequester {
                 Log.v(TAG, "not ducking uid " + this.mCallingUid + " - flags");
                 return false;
             }
-            if (!forceDuck && !mFocusController.isMultiAudioFocusEnabled()
-                    && (MediaFocusControl.ENFORCE_DUCKING_FOR_NEW
+            if (!forceDuck && (MediaFocusControl.ENFORCE_DUCKING_FOR_NEW
                     && this.getSdkTarget() <= MediaFocusControl.DUCKING_IN_APP_SDK_LEVEL)) {
                 // legacy behavior, apps used to be notified when they should be ducking
                 Log.v(TAG, "not ducking uid " + this.mCallingUid + " - old SDK");
