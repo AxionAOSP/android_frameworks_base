@@ -241,6 +241,7 @@ import android.window.WindowProviderService;
 import android.window.WindowTokenClientController;
 
 import com.android.internal.R;
+import com.android.internal.animation.ActivityAnimations;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.app.IVoiceInteractor;
@@ -8199,9 +8200,7 @@ public final class ActivityThread extends ClientTransactionHandler
 
         if (!Process.isIsolated()) {
             try {
-                if (AnimationUtils.sPerfAnimEnabled) {
-                    AnimationUtils.ActivityAnimations.preload();
-                }
+                ActivityAnimations.preload();
             } catch (Exception e) {
                 Slog.e(TAG, "Failed to preload animations", e);
             }
