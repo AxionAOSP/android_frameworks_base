@@ -15,6 +15,13 @@
 -->
 
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="install_details_heading">INSTALL DETAILS</string>
+    <string name="installed_app_details_heading">INSTALLED APP</string>
+    <string name="install_details_size">Package size</string>
+    <string name="installed_details_size">Installed size</string>
+    <string name="install_size_unavailable">Unavailable</string>
+    <string name="install_details_version">Version</string>
+    <string name="install_target_sdk">Targets %1$s</string>
     <!-- [CHAR LIMIT=25] -->
     <string name="app_name">Package installer</string>
 

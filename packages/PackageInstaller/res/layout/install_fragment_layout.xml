@@ -31,22 +31,22 @@
         <include layout="@layout/app_snippet_layout" />
 
         <ProgressBar
-            android:id="@+id/indeterminate_progress_bar"
-            android:indeterminate="true"
-            android:layout_height="wrap_content"
-            android:layout_width="match_parent"
-            android:layout_marginTop="@dimen/dialog_inter_element_margin"
-            android:paddingVertical="@dimen/indeterminate_progress_bar_padding"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:visibility="gone" />
-
-        <ProgressBar
             android:id="@+id/progress_bar"
             android:layout_height="wrap_content"
             android:layout_width="match_parent"
             android:layout_marginTop="@dimen/progress_bar_margin_top"
             android:max="100"
             android:paddingVertical="4dp"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:visibility="gone" />
+
+        <ProgressBar
+            android:id="@+id/indeterminate_progress_bar"
+            android:indeterminate="true"
+            android:layout_height="wrap_content"
+            android:layout_width="match_parent"
+            android:layout_marginTop="@dimen/dialog_inter_element_margin"
+            android:paddingVertical="@dimen/indeterminate_progress_bar_padding"
             style="?android:attr/progressBarStyleHorizontal"
             android:visibility="gone" />
 

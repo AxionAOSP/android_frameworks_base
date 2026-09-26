@@ -22,6 +22,8 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
 import com.android.packageinstaller.v2.model.InstallAborted.Companion.ABORT_REASON_INTERNAL_ERROR
 import com.android.packageinstaller.v2.model.InstallAborted.Companion.ABORT_REASON_POLICY
 
@@ -45,6 +47,16 @@ class InstallStaging : InstallStage(STAGE_STAGING)
 
 class InstallReady : InstallStage(STAGE_READY)
 
+@Parcelize
+data class PackageMetadata(
+    val packageName: String,
+    val targetSdkVersion: Int,
+    val sizeBytes: Long,
+    val newVersionName: String?,
+    val currentVersionName: String?,
+    val targetSdkLabel: String
+) : Parcelable
+
 data class InstallUserActionRequired(
     val actionReason: Int,
     val appSnippet: PackageUtil.AppSnippet? = null,
@@ -53,6 +65,7 @@ data class InstallUserActionRequired(
     val requestedUpdateOwnerPackageName: CharSequence? = null,
     val unknownSourcePackageName: String? = null,
     val verificationInfo: PackageInstaller.DeveloperVerificationUserConfirmationInfo? = null,
+    val packageMetadata: PackageMetadata? = null,
 ) : InstallStage(STAGE_USER_ACTION_REQUIRED) {
 
     val appIcon: Drawable?
@@ -106,6 +119,7 @@ data class InstallSuccess(
      * the newly installed / updated app if a launchable activity exists.
      */
     val resultIntent: Intent? = null,
+    val packageMetadata: PackageMetadata? = null,
 ) : InstallStage(STAGE_SUCCESS) {
 
     val appIcon: Drawable?

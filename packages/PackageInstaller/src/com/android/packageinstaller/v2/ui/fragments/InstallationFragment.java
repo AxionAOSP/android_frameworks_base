@@ -85,6 +85,17 @@ public class InstallationFragment extends DialogFragment {
     private TextView mInstallWithoutVerifyingTextView = null;
     private TextView mMoreDetailsExpandedTextView = null;
 
+    private TextView mMetadataPackageId = null;
+    private TextView mMetadataSectionTitle = null;
+    private View mMetadataGridContainer = null;
+    private TextView mMetadataSize = null;
+    private TextView mMetadataSizeLabel = null;
+    private TextView mMetadataTargetSdk = null;
+    private View mMetadataVersionContainer = null;
+    private TextView mMetadataCurrentVersion = null;
+    private TextView mMetadataNewVersion = null;
+    private ImageView mVersionArrow = null;
+
     @Override
     public void onAttach(@NonNull Context context) {
         super.onAttach(context);
@@ -115,6 +126,17 @@ public class InstallationFragment extends DialogFragment {
         mInstallWithoutVerifyingTextView = dialogView.requireViewById(
                 R.id.install_without_verifying_text);
         mMoreDetailsExpandedTextView = dialogView.requireViewById(R.id.more_details_expanded_text);
+
+        mMetadataPackageId = dialogView.findViewById(R.id.metadata_package_id);
+        mMetadataSectionTitle = dialogView.findViewById(R.id.metadata_section_title);
+        mMetadataGridContainer = dialogView.findViewById(R.id.metadata_grid_container);
+        mMetadataSize = dialogView.findViewById(R.id.metadata_size);
+        mMetadataSizeLabel = dialogView.findViewById(R.id.metadata_size_label);
+        mMetadataTargetSdk = dialogView.findViewById(R.id.metadata_target_sdk);
+        mMetadataVersionContainer = dialogView.findViewById(R.id.metadata_version_container);
+        mMetadataCurrentVersion = dialogView.findViewById(R.id.metadata_current_version);
+        mMetadataNewVersion = dialogView.findViewById(R.id.metadata_new_version);
+        mVersionArrow = dialogView.findViewById(R.id.version_arrow);
 
         String title = getString(R.string.title_install_staging);
         mDialog = UiUtil.getAlertDialog(requireContext(), title, dialogView,
@@ -178,6 +200,17 @@ public class InstallationFragment extends DialogFragment {
         final InstallStage installStage = getCurrentInstallStage();
         Log.i(LOG_TAG, "updateUI " + LOG_TAG + "\n" + installStage.getStageCode());
 
+        try {
+            android.transition.TransitionSet transitionSet = new android.transition.TransitionSet()
+                .addTransition(new android.transition.ChangeBounds())
+                .addTransition(new android.transition.Fade())
+                .setDuration(350)
+                .setInterpolator(new android.view.animation.PathInterpolator(0.2f, 1f, 0.4f, 1f));
+            android.transition.TransitionManager.beginDelayedTransition((android.view.ViewGroup) mDialog.getWindow().getDecorView(), transitionSet);
+        } catch (Exception e) {
+            Log.e(LOG_TAG, "Failed to apply TransitionManager", e);
+        }
+
         this.setCancelable(true);
 
         // When A11y is enabled, if there are no buttons in some cases E.g. installing,
@@ -197,6 +230,9 @@ public class InstallationFragment extends DialogFragment {
         // hide the more details layout by default
         mMoreDetailsClickableLayout.setVisibility(View.GONE);
         mMoreDetailsExpandedLayout.setVisibility(View.GONE);
+
+        if (mMetadataPackageId != null) mMetadataPackageId.setVisibility(View.GONE);
+        if (mMetadataGridContainer != null) mMetadataGridContainer.setVisibility(View.GONE);
 
         // Reset the paddings of the custom view panel
         final int paddingHorizontal = mCustomViewPanel.getPaddingStart();
@@ -360,9 +396,9 @@ public class InstallationFragment extends DialogFragment {
 
     private void updateInstallInstallingUI(Dialog dialog, InstallInstalling installStage) {
         mCustomMessageTextView.setVisibility(View.GONE);
-        mProgressBar.setVisibility(View.GONE);
 
         mAppSnippet.setVisibility(View.VISIBLE);
+        mProgressBar.setVisibility(View.GONE);
         mIndeterminateProgressBar.setVisibility(View.VISIBLE);
 
         // Update the padding of the custom view panel
@@ -441,6 +477,8 @@ public class InstallationFragment extends DialogFragment {
         // Set the app icon and label
         mAppIcon.setImageDrawable(installStage.getAppIcon());
         mAppLabelTextView.setText(installStage.getAppLabel());
+        bindPackageMetadata(installStage.getPackageMetadata(), installStage.isAppUpdating(),
+                true);
 
         // Set the title
         final int titleResId = installStage.isAppUpdating()
@@ -615,6 +653,8 @@ public class InstallationFragment extends DialogFragment {
 
         mAppSnippet.setVisibility(View.VISIBLE);
 
+        bindTechnicalMetadata(installStage);
+
         // Set the app icon and label
         mAppIcon.setImageDrawable(installStage.getAppIcon());
         mAppLabelTextView.setText(installStage.getAppLabel());
@@ -687,11 +727,117 @@ public class InstallationFragment extends DialogFragment {
         }
     }
 
+    private void bindTechnicalMetadata(InstallUserActionRequired stage) {
+        bindPackageMetadata(stage.getPackageMetadata(), stage.isAppUpdating(),
+                false);
+    }
+
+    private void bindPackageMetadata(
+            com.android.packageinstaller.v2.model.PackageMetadata metadata,
+            boolean isAppUpdating, boolean isInstalled) {
+        if (metadata == null) {
+            if (mMetadataPackageId != null) mMetadataPackageId.setVisibility(View.GONE);
+            if (mMetadataGridContainer != null) mMetadataGridContainer.setVisibility(View.GONE);
+            return;
+        }
+
+        if (mMetadataSectionTitle != null) {
+            mMetadataSectionTitle.setText(isInstalled
+                    ? R.string.installed_app_details_heading
+                    : R.string.install_details_heading);
+        }
+
+        if (mMetadataPackageId != null) {
+            mMetadataPackageId.setText(metadata.getPackageName());
+            mMetadataPackageId.setVisibility(View.VISIBLE);
+        }
+
+        if (mMetadataSizeLabel != null) {
+            mMetadataSizeLabel.setText(isInstalled
+                    ? R.string.installed_details_size
+                    : R.string.install_details_size);
+        }
+
+        if (mMetadataGridContainer != null) {
+            mMetadataGridContainer.setVisibility(View.VISIBLE);
+
+            try {
+                float density = requireContext().getResources().getDisplayMetrics().density;
+                android.util.TypedValue typedValue = new android.util.TypedValue();
+                requireContext().getTheme().resolveAttribute(android.R.attr.colorAccent, typedValue, true);
+                int colorAccent = typedValue.data;
+                int tintedBackground = android.graphics.Color.argb(18,
+                        android.graphics.Color.red(colorAccent),
+                        android.graphics.Color.green(colorAccent),
+                        android.graphics.Color.blue(colorAccent));
+                int outline = android.graphics.Color.argb(36,
+                        android.graphics.Color.red(colorAccent),
+                        android.graphics.Color.green(colorAccent),
+                        android.graphics.Color.blue(colorAccent));
+
+                android.graphics.drawable.GradientDrawable capsuleDrawable = new android.graphics.drawable.GradientDrawable();
+                capsuleDrawable.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                capsuleDrawable.setCornerRadius(density * 22);
+                capsuleDrawable.setColor(tintedBackground);
+                capsuleDrawable.setStroke(Math.max(1, (int) (density + 0.5f)), outline);
+                mMetadataGridContainer.setBackground(capsuleDrawable);
+            } catch (Exception e) {
+                Log.e(LOG_TAG, "Failed to apply dynamic Monet capsule background", e);
+            }
+        }
+
+        if (mMetadataSize != null) {
+            if (metadata.getSizeBytes() > 0) {
+                mMetadataSize.setText(android.text.format.Formatter.formatFileSize(requireContext(), metadata.getSizeBytes()));
+                mMetadataSize.setVisibility(View.VISIBLE);
+            } else {
+                mMetadataSize.setText(R.string.install_size_unavailable);
+                mMetadataSize.setVisibility(View.VISIBLE);
+            }
+        }
+
+        if (mMetadataVersionContainer != null) {
+            if (isAppUpdating && !isInstalled) {
+                if (mMetadataCurrentVersion != null) {
+                    mMetadataCurrentVersion.setText(metadata.getCurrentVersionName() != null
+                            ? "v" + metadata.getCurrentVersionName() : "N/A");
+                    mMetadataCurrentVersion.setVisibility(View.VISIBLE);
+                }
+                if (mVersionArrow != null) {
+                    mVersionArrow.setVisibility(View.VISIBLE);
+                }
+                if (mMetadataNewVersion != null) {
+                    mMetadataNewVersion.setText(metadata.getNewVersionName() == null
+                            ? "—"
+                            : "v" + metadata.getNewVersionName());
+                }
+            } else {
+                if (mMetadataCurrentVersion != null) {
+                    mMetadataCurrentVersion.setVisibility(View.GONE);
+                }
+                if (mVersionArrow != null) {
+                    mVersionArrow.setVisibility(View.GONE);
+                }
+                if (mMetadataNewVersion != null) {
+                    mMetadataNewVersion.setText(metadata.getNewVersionName() == null
+                            ? "—"
+                            : "v" + metadata.getNewVersionName());
+                }
+            }
+        }
+
+        if (mMetadataTargetSdk != null) {
+            mMetadataTargetSdk.setText(getString(R.string.install_target_sdk,
+                    metadata.getTargetSdkLabel()));
+        }
+    }
+
     /**
      * Set the progress of the progress bar
      */
     public void setProgress(int progress) {
         if (mProgressBar != null) {
+            mProgressBar.setVisibility(View.VISIBLE);
             mProgressBar.setProgress(progress);
         }
     }
@@ -700,7 +846,6 @@ public class InstallationFragment extends DialogFragment {
             InstallVerificationFailure installStage) {
         mAppSnippet.setVisibility(View.GONE);
         mCustomMessageTextView.setVisibility(View.VISIBLE);
-        mIndeterminateProgressBar.setVisibility(View.GONE);
         mProgressBar.setVisibility(View.GONE);
         // Disable clicking outside of the dialog
         this.setCancelable(false);
@@ -746,7 +891,6 @@ public class InstallationFragment extends DialogFragment {
             InstallUserActionRequired installStage) {
         mAppSnippet.setVisibility(View.VISIBLE);
         mCustomMessageTextView.setVisibility(View.VISIBLE);
-        mIndeterminateProgressBar.setVisibility(View.GONE);
         mProgressBar.setVisibility(View.GONE);
         // Disable clicking outside of the dialog
         this.setCancelable(false);

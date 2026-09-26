@@ -138,6 +138,7 @@ class InstallRepository(private val context: Context) : EventResultPersister.Eve
      * PackageInfo of the app being installed on device.
      */
     private var newPackageInfo: PackageInfo? = null
+    private var installPackageMetadata: PackageMetadata? = null
     private var wasUserConfirmationTriggeredByPia = false
 
     /**
@@ -734,9 +735,11 @@ class InstallRepository(private val context: Context) : EventResultPersister.Eve
         isAppUpdating = isAppUpdating(newPackageInfo)
         val (existingUpdateOwner, requestedUpdateOwner) =
             getUpdateOwners(newPackageInfo, userActionReason, isAppUpdating)
+        val metadata = resolvePackageMetadata(newPackageInfo!!, packageUri)
+        installPackageMetadata = metadata
 
         return InstallUserActionRequired(USER_ACTION_REASON_INSTALL_CONFIRMATION, appSnippet,
-            isAppUpdating, existingUpdateOwner, requestedUpdateOwner)
+            isAppUpdating, existingUpdateOwner, requestedUpdateOwner, packageMetadata = metadata)
     }
 
     /**
@@ -751,9 +754,96 @@ class InstallRepository(private val context: Context) : EventResultPersister.Eve
         isAppUpdating = isAppUpdating(newPackageInfo)
         val (existingUpdateOwner, requestedUpdateOwner) =
             getUpdateOwners(newPackageInfo, userActionReason, isAppUpdating)
+        val metadata = resolvePackageMetadata(newPackageInfo!!, intent.data)
+        installPackageMetadata = metadata
 
         return InstallUserActionRequired(USER_ACTION_REASON_INSTALL_CONFIRMATION, appSnippet,
-            isAppUpdating, existingUpdateOwner, requestedUpdateOwner)
+            isAppUpdating, existingUpdateOwner, requestedUpdateOwner, packageMetadata = metadata)
+    }
+
+    private fun resolvePackageMetadata(
+        pkgInfo: PackageInfo,
+        packageUri: Uri?,
+        useInstalledApkSize: Boolean = false,
+    ): PackageMetadata {
+        val packageName = pkgInfo.packageName ?: ""
+        val targetSdkVersion = pkgInfo.applicationInfo?.targetSdkVersion ?: 0
+        val newVersionName = pkgInfo.versionName
+
+        val currentVersionName = try {
+            packageManager.getPackageInfo(packageName, 0).versionName?.takeIf { it.isNotEmpty() }
+        } catch (_: PackageManager.NameNotFoundException) {
+            null
+        }
+
+        var sizeBytes = 0L
+        val sessionInfo = if (stagedSessionId != SessionInfo.INVALID_ID) {
+            packageInstaller.getSessionInfo(stagedSessionId)
+        } else if (sessionId != SessionInfo.INVALID_ID) {
+            packageInstaller.getSessionInfo(sessionId)
+        } else {
+            null
+        }
+
+        if (sessionInfo != null) {
+            if (sessionInfo.resolvedBaseApkPath != null) {
+                val file = File(sessionInfo.resolvedBaseApkPath)
+                if (file.exists()) {
+                    sizeBytes = file.length()
+                }
+            }
+            if (sizeBytes == 0L) {
+                sizeBytes = sessionInfo.sizeBytes
+            }
+        } else if (packageUri != null) {
+            when (packageUri.scheme) {
+                ContentResolver.SCHEME_FILE -> {
+                    val file = packageUri.path?.let { File(it) }
+                    if (file != null && file.exists()) {
+                        sizeBytes = file.length()
+                    }
+                }
+                ContentResolver.SCHEME_CONTENT -> {
+                    try {
+                        context.contentResolver.openAssetFileDescriptor(packageUri, "r")?.use { fd ->
+                            sizeBytes = fd.length
+                        }
+                    } catch (ignored: Exception) {
+                    }
+                }
+            }
+        }
+
+        if (sizeBytes <= 0L && useInstalledApkSize) {
+            try {
+                val installedAppInfo = packageManager.getApplicationInfo(packageName, 0)
+                sizeBytes = File(installedAppInfo.sourceDir)
+                    .takeIf { it.exists() }
+                    ?.length() ?: 0L
+            } catch (_: PackageManager.NameNotFoundException) {
+            }
+        }
+
+        val targetSdkLabel = "Android ${getAndroidVersionName(targetSdkVersion)} (API $targetSdkVersion)"
+
+        return PackageMetadata(
+            packageName = packageName,
+            targetSdkVersion = targetSdkVersion,
+            sizeBytes = sizeBytes,
+            newVersionName = newVersionName,
+            currentVersionName = currentVersionName,
+            targetSdkLabel = targetSdkLabel
+        )
+    }
+
+    private fun getAndroidVersionName(api: Int): String = when (api) {
+        35 -> "15"
+        34 -> "14"
+        33 -> "13"
+        32 -> "12L"
+        31 -> "12"
+        30 -> "11"
+        else -> "SDK $api"
     }
 
     private fun getUpdateOwners(
@@ -1124,7 +1214,16 @@ class InstallRepository(private val context: Context) : EventResultPersister.Eve
                 appSnippet,
                 shouldReturnResult,
                 isAppUpdating,
-                resultIntent
+                resultIntent,
+                packageMetadata = installPackageMetadata?.takeIf { it.sizeBytes > 0L }
+                    ?: newPackageInfo?.let {
+                        resolvePackageMetadata(
+                            it,
+                            packageUri = null,
+                            useInstalledApkSize = true,
+                        )
+                    }
+                    ?: installPackageMetadata
             )
         } else {
             // TODO (b/346655018): Use INSTALL_FAILED_ABORTED legacyCode in the condition
