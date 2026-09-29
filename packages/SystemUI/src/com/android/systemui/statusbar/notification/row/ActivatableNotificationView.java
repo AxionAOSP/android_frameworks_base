@@ -936,6 +936,9 @@ public abstract class ActivatableNotificationView extends ExpandableOutlineView 
         }
 
         mOnKeyguard = onKeyguard;
+        if (!onKeyguard) {
+            mAxBlurTransitionVisible = false;
+        }
         updateAxBlurEnabled();
         if (notificationRowTransparency()) {
             updateBackgroundTint();

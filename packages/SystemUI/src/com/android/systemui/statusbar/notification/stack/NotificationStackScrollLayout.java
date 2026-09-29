@@ -629,6 +629,7 @@ public class NotificationStackScrollLayout
     private boolean mSuppressHeightUpdates;
     private boolean mIsOnLockscreen;
     private boolean mKeepAxBlurDuringFade;
+    private final Runnable mResetKeepAxBlurRunnable = () -> setKeepAxBlurDuringFade(false);
 
     /** Pass splitShadeStateController to view and update split shade */
     public void passSplitShadeStateController(SplitShadeStateController splitShadeStateController) {
@@ -1758,7 +1759,8 @@ public class NotificationStackScrollLayout
         float previousAlpha = getAlpha();
         super.setAlpha(alpha);
         if (mKeepAxBlurDuringFade
-                && (alpha <= 0f || (previousAlpha < 1f && alpha >= 1f))) {
+                && (alpha <= 0f || alpha >= 1f)) {
+            removeCallbacks(mResetKeepAxBlurRunnable);
             setKeepAxBlurDuringFade(false);
         }
         if (Trace.isEnabled()) {
@@ -5693,6 +5695,11 @@ public class NotificationStackScrollLayout
         mQsExpansionFraction = qsExpansionFraction;
         updateUseRoundedRectClipping();
 
+        if (mQsExpansionFraction > 0f && !mIsOnLockscreen && mKeepAxBlurDuringFade) {
+            removeCallbacks(mResetKeepAxBlurRunnable);
+            setKeepAxBlurDuringFade(false);
+        }
+
         // If notifications are scrolled,
         // clear out scrollY by the time we push notifications offscreen
         if (getOwnScrollY() > 0) {
@@ -5782,7 +5789,10 @@ public class NotificationStackScrollLayout
         if (mIsOnLockscreen != isOnLockscreen) {
             if (mIsOnLockscreen && !isOnLockscreen && getAlpha() > 0f) {
                 setKeepAxBlurDuringFade(true);
+                removeCallbacks(mResetKeepAxBlurRunnable);
+                postDelayed(mResetKeepAxBlurRunnable, 500);
             } else if (isOnLockscreen) {
+                removeCallbacks(mResetKeepAxBlurRunnable);
                 setKeepAxBlurDuringFade(false);
             }
             mIsOnLockscreen = isOnLockscreen;
