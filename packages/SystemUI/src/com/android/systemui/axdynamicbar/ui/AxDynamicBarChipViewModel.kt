@@ -11,6 +11,8 @@ import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.statusbar.KeyguardIndicationController
 import com.android.systemui.statusbar.pipeline.battery.domain.interactor.BatteryInteractor
 import com.android.systemui.statusbar.policy.BatteryController
+import com.android.systemui.media.remedia.ui.viewmodel.MediaViewModel
+import com.android.systemui.qs.ax.ui.viewmodel.AxMediaViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,7 +22,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlin.math.roundToInt
 
@@ -69,7 +73,18 @@ constructor(
     val keyguardExpansion: AxDynamicBarKeyguardExpansion,
     val statusBarExpansion: AxDynamicBarStatusBarExpansion,
     private val keyguardIndicationController: KeyguardIndicationController,
+    val axMediaViewModel: AxMediaViewModel,
+    val mediaViewModelFactory: MediaViewModel.Factory,
 ) {
+    init {
+        combine(statusBarExpansion.isExpanded, keyguardExpansion.isExpanded) { sbExpanded, kgExpanded ->
+            sbExpanded || kgExpanded
+        }
+            .distinctUntilChanged()
+            .onEach { axMediaViewModel.setDynamicBarExpanded(it) }
+            .launchIn(applicationScope)
+    }
+
     val isLowUdfps: StateFlow<Boolean> =
         udfpsOverlayInteractor.udfpsOverlayParams
             .map { params ->

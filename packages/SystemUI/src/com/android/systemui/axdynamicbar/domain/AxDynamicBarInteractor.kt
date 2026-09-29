@@ -104,7 +104,7 @@ constructor(
             scheduleAutoDismiss(it, if (it.isRinging) 30_000L else 5_000L)
         }
 
-        repository.media.onMediaSessionLost = { repository.media.clear() }
+        repository.media.setOnMediaSessionLost { repository.media.clear() }
 
         repository.biometric.onBiometricUnlock = { scheduleAutoDismiss(it) }
 
@@ -119,22 +119,6 @@ constructor(
         applicationScope.launch {
             repository.notification.notificationFlow.collect { notification ->
                 repository.notification.coalesceNotification(notification)
-            }
-        }
-
-        applicationScope.launch {
-            combine(
-                _uiState.map { state ->
-                    state.shouldShow &&
-                        state.events.any { it is IslandEvent.Media && it.isPlaying && it.duration > 0L }
-                },
-                _isPanelExpanded,
-                qsExpansion.map { it > 0f },
-            ) { mediaActive, panelExpanded, qsOpen ->
-                mediaActive && !panelExpanded && !qsOpen
-            }.distinctUntilChanged().collect { needsPolling ->
-                if (needsPolling) repository.media.startProgressPolling()
-                else repository.media.stopProgressPolling()
             }
         }
 
@@ -411,8 +395,6 @@ constructor(
             expandable?.activityTransitionController(Cuj.CUJ_SHADE_APP_LAUNCH_FROM_MEDIA_PLAYER),
         )
     }
-
-    override fun seekTo(position: Long) = repository.media.seekTo(position)
 
     override fun setRingerMode(mode: Int) = repository.system.setRingerMode(mode)
 

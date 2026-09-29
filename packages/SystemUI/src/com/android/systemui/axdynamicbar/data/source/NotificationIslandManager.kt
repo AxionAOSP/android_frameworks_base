@@ -183,6 +183,13 @@ constructor(
             }
 
             override fun onNotificationPosted(sbn: StatusBarNotification) {
+                if (isMediaNotification(sbn)) {
+                    _promotedOngoingEvents.value =
+                        _promotedOngoingEvents.value.filter { it.sbn.key != sbn.key }
+                    _notificationEvents.value =
+                        _notificationEvents.value.filter { it.sbn.key != sbn.key }
+                    return
+                }
                 val pkg = sbn.packageName ?: return
                 val extras = sbn.notification?.extras ?: return
 
@@ -761,7 +768,19 @@ constructor(
     private fun String.matchesMaterial(set: MaterialIconSet): Boolean =
         set.patterns.any { this.contains(it) }
 
+    private fun isMediaNotification(sbn: StatusBarNotification): Boolean {
+        val notification = sbn.notification ?: return false
+        if (notification.isMediaNotification()) return true
+        if (notification.category == Notification.CATEGORY_TRANSPORT) return true
+        val extras = notification.extras
+        if (extras != null && extras.containsKey(Notification.EXTRA_MEDIA_SESSION)) return true
+        val activePkg = activeMediaPackageProvider?.invoke()
+        if (!activePkg.isNullOrEmpty() && sbn.packageName == activePkg) return true
+        return false
+    }
+
     private fun isPromotable(sbn: StatusBarNotification, extras: Bundle): Boolean {
+        if (isMediaNotification(sbn)) return false
         val notification = sbn.notification ?: return false
 
         if (notification.flags and Notification.FLAG_PROMOTED_ONGOING != 0) return true
@@ -770,6 +789,7 @@ constructor(
     }
 
     private fun handlePromotedOngoing(sbn: StatusBarNotification, extras: Bundle, pkg: String) {
+        if (isMediaNotification(sbn)) return
         val shortCritical =
             try {
                 sbn.notification?.shortCriticalText?.toString() ?: ""

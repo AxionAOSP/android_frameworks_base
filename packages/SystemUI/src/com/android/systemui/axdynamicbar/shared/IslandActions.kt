@@ -34,7 +34,6 @@ interface IslandActions {
     fun togglePlayPause()
     fun skipNext()
     fun skipPrev()
-    fun seekTo(position: Long)
     fun sendCustomAction(action: String)
     fun openMediaOutputSwitcher()
     fun openMediaApp(expandable: Expandable? = null)

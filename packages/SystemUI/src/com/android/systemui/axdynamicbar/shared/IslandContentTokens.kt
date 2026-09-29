@@ -452,13 +452,6 @@ internal fun ExpressivePillButton(
     }
 }
 
-internal data class MediaProgress(val progress: Float, val positionMs: Long)
-
-@Composable
-internal fun rememberMediaProgress(event: IslandEvent.Media): MediaProgress {
-    return MediaProgress(event.progress, event.position)
-}
-
 internal fun formatElapsedTime(ms: Long): String {
     val secs = (ms / 1000).coerceAtLeast(0)
     return "%02d:%02d".format(secs / 60, secs % 60)
@@ -511,9 +504,6 @@ internal fun Drawable.toScaledBitmap(sizeDp: Dp): ImageBitmap {
 
 internal fun chipProgressFor(event: IslandEvent): Float? =
     when (event) {
-        is IslandEvent.Media ->
-            if (event.duration > 0) (event.position.toFloat() / event.duration).coerceIn(0f, 1f)
-            else null
         is IslandEvent.PromotedOngoing ->
             if (event.progress >= 0f) event.progress.coerceIn(0f, 1f) else null
         is IslandEvent.Notification ->
@@ -525,7 +515,7 @@ internal fun chipProgressFor(event: IslandEvent): Float? =
 
 internal fun iconKeyFor(event: IslandEvent): Any =
     when (event) {
-        is IslandEvent.Media -> "${event.packageName}|${event.track}|${event.artist}|${event.duration}"
+        is IslandEvent.Media -> "${event.packageName}|${event.track}|${event.artist}"
         is IslandEvent.Notification -> event.appIcon?.hashCode() ?: "notif_default"
         is IslandEvent.AppSwitch -> {
             val app = event.previousApp ?: event.recentApps.firstOrNull()

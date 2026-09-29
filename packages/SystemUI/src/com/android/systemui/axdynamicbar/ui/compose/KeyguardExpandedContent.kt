@@ -418,63 +418,6 @@ private fun KeyguardMediaPanel(event: IslandEvent.Media, interactor: IslandActio
                     }
                 }
 
-                if (event.duration > 0L) {
-                    Spacer(Modifier.height(SpaceMd))
-                    val mediaProgress = rememberMediaProgress(event)
-                    var isSeeking by remember { mutableStateOf(false) }
-                    var seekProgress by remember { mutableFloatStateOf(mediaProgress.progress) }
-                    if (!isSeeking) seekProgress = mediaProgress.progress
-                    val displayMs =
-                        if (isSeeking) (seekProgress * event.duration).toLong()
-                        else mediaProgress.positionMs
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(SpaceSection)
-                            .pointerInput("tap") {
-                                detectTapGestures { offset ->
-                                    val f = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
-                                    seekProgress = f
-                                    interactor.seekTo((f * event.duration).toLong())
-                                }
-                            }
-                            .pointerInput("drag") {
-                                detectHorizontalDragGestures(
-                                    onDragStart = { offset ->
-                                        isSeeking = true
-                                        seekProgress = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
-                                    },
-                                    onDragEnd = {
-                                        isSeeking = false
-                                        interactor.seekTo((seekProgress * event.duration).toLong())
-                                    },
-                                    onDragCancel = { isSeeking = false },
-                                    onHorizontalDrag = { change, _ ->
-                                        seekProgress = (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
-                                        change.consume()
-                                    },
-                                )
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        LinearWavyProgressIndicator(
-                            progress = { seekProgress },
-                            modifier = Modifier.fillMaxWidth(),
-                            color = colors.accent,
-                            trackColor = colors.accent.copy(alpha = AlphaSubtle),
-                            amplitude = { if (event.isPlaying) 1f else 0f },
-                        )
-                    }
-                    Spacer(Modifier.height(SpaceXs))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(formatElapsedTime(displayMs), color = OnCardSecondary, style = MaterialTheme.typography.labelSmall)
-                        Text(formatElapsedTime(event.duration), color = OnCardSecondary, style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-
                 Spacer(Modifier.height(SpaceMd))
 
                 Row(

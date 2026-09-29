@@ -5,8 +5,6 @@ package com.android.systemui.axdynamicbar.ui.compose
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,23 +28,17 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,92 +50,9 @@ import com.android.systemui.axdynamicbar.model.IslandEvent
 import com.android.systemui.axdynamicbar.shared.*
 import com.android.systemui.res.R
 
-private val AlbumArtSize = 80.dp
 private val PlayPauseSize = 56.dp
 private val ControlButtonSize = 44.dp
 private val ControlIconSize = 22.dp
-
-@Composable
-internal fun MediaCard(event: IslandEvent.Media, interactor: IslandActions) {
-    val colors = rememberMediaColors(event)
-    val accent = colors.accent
-
-    Surface(
-        modifier = Modifier.fillMaxWidth().border(1.dp, CardBorderBrush, ShapeCard),
-        shape = ShapeCard,
-        color = CardBg,
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            MediaLaunchExpandable(interactor, ShapeCard) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(SpaceXxl),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(SpaceXxl),
-                ) {
-                    event.albumArt?.let { art ->
-                        Image(
-                            bitmap = art.toScaledBitmap(AlbumArtSize),
-                            contentDescription = null,
-                            modifier = Modifier.size(AlbumArtSize).clip(ShapeLg),
-                            contentScale = ContentScale.Crop,
-                        )
-                    } ?: Box(
-                        modifier = Modifier
-                            .size(AlbumArtSize)
-                            .clip(ShapeLg)
-                            .background(accent.copy(alpha = AlphaFaint)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Filled.MusicNote, null, tint = accent, modifier = Modifier.size(36.dp))
-                    }
-
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(SpaceXs),
-                    ) {
-                        Text(
-                            event.track.ifEmpty { stringResource(R.string.ax_dynamic_bar_now_playing) },
-                            color = OnCardText,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (event.artist.isNotEmpty()) {
-                            Text(
-                                event.artist,
-                                color = accent,
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                    event.appIcon?.let { icon ->
-                        Image(
-                            bitmap = icon.toScaledBitmap(SizeIconSm),
-                            contentDescription = null,
-                            modifier = Modifier.size(SizeIconSm).clip(ShapeXs),
-                            colorFilter = ColorFilter.tint(OnCardText),
-                        )
-                    }
-                }
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(accent.copy(alpha = AlphaFaint))
-                    .padding(horizontal = SpaceXxl, vertical = SpaceLg),
-                verticalArrangement = Arrangement.spacedBy(SpaceLg),
-            ) {
-                if (event.duration > 0L) {
-                    MediaSeekBar(event, interactor, accent)
-                }
-                MediaControls(event, interactor, accent)
-            }
-        }
-    }
-}
 
 @Composable
 internal fun MediaExpanded(
@@ -216,9 +125,6 @@ internal fun MediaExpanded(
         }
 
         MediaControls(event, interactor, accent)
-        if (event.duration > 0L) {
-            MediaSeekBar(event, interactor, accent)
-        }
     }
 }
 
@@ -309,71 +215,6 @@ private fun MediaControls(
         }
 
         MediaEndActionButton(event, interactor, accent, tonalBg)
-    }
-}
-
-@Composable
-private fun MediaSeekBar(
-    event: IslandEvent.Media,
-    interactor: IslandActions,
-    accent: Color,
-) {
-    val mediaProgress = rememberMediaProgress(event)
-    val clamped = mediaProgress.progress
-    var isSeeking by remember { mutableStateOf(false) }
-    var seekProgress by remember { mutableFloatStateOf(clamped) }
-    if (!isSeeking) seekProgress = clamped
-    val displayMs =
-        if (isSeeking) (seekProgress * event.duration).toLong()
-        else mediaProgress.positionMs
-
-    Column(verticalArrangement = Arrangement.spacedBy(SpaceXs)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(formatElapsedTime(displayMs), color = SubtleGray, style = MaterialTheme.typography.labelSmall)
-            Text(formatElapsedTime(event.duration), color = SubtleGray, style = MaterialTheme.typography.labelSmall)
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(SizeSeekHeight)
-                .pointerInput("tap") {
-                    detectTapGestures { offset ->
-                        val fraction = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
-                        seekProgress = fraction
-                        interactor.seekTo((fraction * event.duration).toLong())
-                    }
-                }
-                .pointerInput("drag") {
-                    detectHorizontalDragGestures(
-                        onDragStart = { offset ->
-                            isSeeking = true
-                            seekProgress = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
-                        },
-                        onDragEnd = {
-                            isSeeking = false
-                            interactor.seekTo((seekProgress * event.duration).toLong())
-                        },
-                        onDragCancel = { isSeeking = false },
-                        onHorizontalDrag = { change, _ ->
-                            seekProgress =
-                                (change.position.x / size.width.toFloat()).coerceIn(0f, 1f)
-                            change.consume()
-                        },
-                    )
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            LinearWavyProgressIndicator(
-                progress = { seekProgress },
-                modifier = Modifier.fillMaxWidth(),
-                color = accent,
-                trackColor = accent.copy(alpha = AlphaSubtle),
-                amplitude = { if (event.isPlaying) 1f else 0f },
-            )
-        }
     }
 }
 
