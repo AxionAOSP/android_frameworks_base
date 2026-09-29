@@ -255,6 +255,9 @@ void RenderThread::requireVkContext() {
 void RenderThread::initGrContextOptions(GrContextOptions& options) {
     options.fPreferExternalImagesOverES3 = true;
     options.fDisableDistanceFieldPaths = true;
+    if (android::base::GetBoolProperty(PROPERTY_USE_OPENGL_FOR_MEDIA, false)) {
+        options.fDisableTessellationPathRenderer = true;
+    }
     if (android::base::GetBoolProperty(PROPERTY_REDUCE_OPS_TASK_SPLITTING, true)) {
         options.fReduceOpsTaskSplitting = GrContextOptions::Enable::kYes;
     } else {

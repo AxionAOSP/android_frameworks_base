@@ -134,9 +134,10 @@ void AutoBackendTextureRelease::makeImage(AHardwareBuffer* buffer,
         return;
     }
     mOriginalBuffer = buffer;
+    mDataspace = dataspace;
     if (mConvertedBuffer) {
-        axion::graphics::MediaBufferConverter::convertToRgba8888(mOriginalBuffer,
-                                                                 mConvertedBuffer);
+        axion::graphics::MediaBufferConverter::convertToRgba8888(
+                mOriginalBuffer, mConvertedBuffer, static_cast<int32_t>(dataspace));
     }
     AHardwareBuffer* bufferToUse = mConvertedBuffer ? mConvertedBuffer : buffer;
     AHardwareBuffer_Desc desc;
@@ -154,8 +155,8 @@ void AutoBackendTextureRelease::makeImage(AHardwareBuffer* buffer,
 
 void AutoBackendTextureRelease::newBufferContent(GrDirectContext* context) {
     if (mConvertedBuffer && mOriginalBuffer) {
-        axion::graphics::MediaBufferConverter::convertToRgba8888(mOriginalBuffer,
-                                                                 mConvertedBuffer);
+        axion::graphics::MediaBufferConverter::convertToRgba8888(
+                mOriginalBuffer, mConvertedBuffer, static_cast<int32_t>(mDataspace));
     }
     if (mBackendTexture.isValid()) {
         mUpdateProc(mImageCtx, context);
