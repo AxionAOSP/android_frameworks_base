@@ -4103,6 +4103,11 @@ public final class NotificationPanelViewController implements
                                 || ((openShadeWithoutHun || mAnimatingOnDown) && hAbs > touchSlop))
                                 && hAbs > Math.abs(x - mInitialExpandX)) {
                             cancelHeightAnimator();
+                            if (mPanelClosedOnDown && mQsController.isOpenQsEvent(event)) {
+                                mQsController.setExpandImmediate(true);
+                                setShowShelfOnly(true);
+                                mQsController.setListening(true);
+                            }
                             startExpandMotion(x, y, true /* startTracking */, mExpandedHeight);
                             mShadeLog.v("NotificationPanelViewController MotionEvent"
                                     + " intercepted: startExpandMotion");

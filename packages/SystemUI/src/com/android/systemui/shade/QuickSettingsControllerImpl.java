@@ -1818,10 +1818,11 @@ public class QuickSettingsControllerImpl implements QuickSettingsController, Dum
             mConflictingExpansionGesture = false;
             maybeResetEarlyExpansion();
         }
-        if (action == MotionEvent.ACTION_DOWN && isFullyCollapsed && isExpansionEnabled()) {
+        if ((action == MotionEvent.ACTION_DOWN || (action == MotionEvent.ACTION_MOVE && !isTracking()))
+                && isFullyCollapsed && isExpansionEnabled()) {
             mTwoFingerExpandPossible = true;
         }
-        if (mTwoFingerExpandPossible && isOpenQsEvent(event) && isInStatusBar) {
+        if (mTwoFingerExpandPossible && isOpenQsEvent(event) && (isInStatusBar || mInitialTouchY < mStatusBarMinHeight)) {
             mMetricsLogger.count(COUNTER_PANEL_OPEN_QS, 1);
             if (mQs != null) {
                 mQs.setForceQsEvent(true);
