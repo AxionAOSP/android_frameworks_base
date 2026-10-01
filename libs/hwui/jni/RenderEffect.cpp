@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <algorithm>
+
 #include "Bitmap.h"
 #include "ColorFilter.h"
 #include "GraphicsJNI.h"
@@ -23,6 +25,8 @@
 #include "utils/Blur.h"
 
 using namespace android::uirenderer;
+
+static constexpr float kMaxHwuiBlurSigma = 28.0f;
 
 static jlong createOffsetEffect(
     JNIEnv* env,
@@ -39,10 +43,12 @@ static jlong createOffsetEffect(
 static jlong createBlurEffect(JNIEnv* env , jobject, jfloat radiusX,
         jfloat radiusY, jlong inputFilterHandle, jint edgeTreatment) {
     auto* inputImageFilter = reinterpret_cast<SkImageFilter*>(inputFilterHandle);
+    const float sigmaX = std::min(kMaxHwuiBlurSigma, Blur::convertRadiusToSigma(radiusX));
+    const float sigmaY = std::min(kMaxHwuiBlurSigma, Blur::convertRadiusToSigma(radiusY));
     sk_sp<SkImageFilter> blurFilter =
             SkImageFilters::Blur(
-                    Blur::convertRadiusToSigma(radiusX),
-                    Blur::convertRadiusToSigma(radiusY),
+                    sigmaX,
+                    sigmaY,
                     static_cast<SkTileMode>(edgeTreatment),
                     sk_ref_sp(inputImageFilter),
                     nullptr);
