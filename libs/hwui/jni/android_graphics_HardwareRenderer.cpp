@@ -16,6 +16,7 @@
 
 #define ATRACE_TAG ATRACE_TAG_VIEW
 
+#include <AxHwuiMedia.h>
 #include <FrameInfo.h>
 #include <GraphicsJNI.h>
 #include <Picture.h>
@@ -286,6 +287,21 @@ static void android_view_ThreadedRenderer_setIsLowRam(JNIEnv* env, jobject clazz
 static void android_view_ThreadedRenderer_setIsSystemOrPersistent(JNIEnv* env, jobject clazz,
                                                                   jboolean isSystemOrPersistent) {
     Properties::setIsSystemOrPersistent(isSystemOrPersistent);
+}
+
+static void android_view_ThreadedRenderer_setPackageName(JNIEnv* env, jobject clazz,
+                                                         jstring packageName) {
+    if (packageName == nullptr) {
+        AxHwuiMedia::setPackageName("");
+        return;
+    }
+
+    const char* packageNameChars = env->GetStringUTFChars(packageName, nullptr);
+    if (packageNameChars == nullptr) {
+        return;
+    }
+    AxHwuiMedia::setPackageName(packageNameChars);
+    env->ReleaseStringUTFChars(packageName, packageNameChars);
 }
 
 static int android_view_ThreadedRenderer_syncAndDrawFrame(JNIEnv* env, jobject clazz,
@@ -1007,6 +1023,8 @@ static const JNINativeMethod gMethods[] = {
         {"nSetIsLowRam", "(Z)V", (void*)android_view_ThreadedRenderer_setIsLowRam},
         {"nSetIsSystemOrPersistent", "(Z)V",
          (void*)android_view_ThreadedRenderer_setIsSystemOrPersistent},
+        {"nSetPackageName", "(Ljava/lang/String;)V",
+         (void*)android_view_ThreadedRenderer_setPackageName},
         {"nSyncAndDrawFrame", "(J[JI)I", (void*)android_view_ThreadedRenderer_syncAndDrawFrame},
         {"nDestroy", "(JJ)V", (void*)android_view_ThreadedRenderer_destroy},
         {"nRegisterAnimatingRenderNode", "(JJ)V",

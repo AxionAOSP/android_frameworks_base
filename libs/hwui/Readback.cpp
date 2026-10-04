@@ -16,8 +16,6 @@
 
 #include "Readback.h"
 
-#include <ax_graphics/MediaBufferConverter.h>
-
 #include <SkBitmap.h>
 #include <SkBlendMode.h>
 #include <SkCanvas.h>
@@ -111,22 +109,9 @@ void Readback::copySurfaceInto(ANativeWindow* window, const std::shared_ptr<Copy
         dataspace = AHardwareBuffer_getDataSpace(sourceBuffer.get());
     }
 
-    AHardwareBuffer* bufferToUse = sourceBuffer.get();
-    UniqueAHardwareBuffer convertedBuffer;
-    if (axion::graphics::MediaBufferConverter::isConversionEnabled() &&
-        axion::graphics::MediaBufferConverter::isMediaOrHdrBuffer(description, dataspace)) {
-        AHardwareBuffer* converted =
-                axion::graphics::MediaBufferConverter::convertToRgba8888(sourceBuffer.get());
-        if (converted) {
-            convertedBuffer.reset(converted);
-            bufferToUse = converted;
-        }
-    }
-
-    const android_dataspace targetDataspace =
-            convertedBuffer ? HAL_DATASPACE_V0_SRGB : static_cast<android_dataspace>(dataspace);
-    sk_sp<SkColorSpace> colorSpace = DataSpaceToColorSpace(targetDataspace);
-    sk_sp<SkImage> image = SkImages::DeferredFromAHardwareBuffer(bufferToUse,
+    sk_sp<SkColorSpace> colorSpace =
+            DataSpaceToColorSpace(static_cast<android_dataspace>(dataspace));
+    sk_sp<SkImage> image = SkImages::DeferredFromAHardwareBuffer(sourceBuffer.get(),
                                                                  kPremul_SkAlphaType, colorSpace);
 
     if (!image.get()) {

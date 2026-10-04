@@ -1306,6 +1306,7 @@ public class HardwareRenderer {
     /** @hide */
     public static void setPackageName(String packageName) {
         ProcessInitializer.sInstance.setPackageName(packageName);
+        nSetPackageName(packageName);
     }
 
     /**
@@ -1642,6 +1643,8 @@ public class HardwareRenderer {
     private static native void nSetIsLowRam(boolean isLowRam);
 
     private static native void nSetIsSystemOrPersistent(boolean isSystemOrPersistent);
+
+    private static native void nSetPackageName(String packageName);
 
     private static native int nSyncAndDrawFrame(long nativeProxy, long[] frameInfo, int size);
 
