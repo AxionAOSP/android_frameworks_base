@@ -45,6 +45,7 @@ import androidx.annotation.NonNull;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.systemui.dagger.qualifiers.LongRunning;
 import com.android.systemui.settings.UserTracker;
+import com.android.systemui.shared.clocks.DepthWallpaperProvider;
 import com.android.systemui.util.concurrency.DelayableExecutor;
 import com.android.systemui.utils.windowmanager.WindowManagerProvider;
 
@@ -481,6 +482,7 @@ public class ImageWallpaper extends WallpaperService {
         public void onOffsetsChanged(float xOffset, float yOffset,
                 float xOffsetStep, float yOffsetStep,
                 int xPixelOffset, int yPixelOffset) {
+            DepthWallpaperProvider.INSTANCE.setWallpaperOffset(xOffset);
             final int pages;
             if (xOffsetStep > 0 && xOffsetStep <= 1) {
                 pages = Math.round(1 / xOffsetStep) + 1;
