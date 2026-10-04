@@ -116,8 +116,7 @@ void Readback::copySurfaceInto(ANativeWindow* window, const std::shared_ptr<Copy
     if (axion::graphics::MediaBufferConverter::isConversionEnabled() &&
         axion::graphics::MediaBufferConverter::isMediaOrHdrBuffer(description, dataspace)) {
         AHardwareBuffer* converted =
-                axion::graphics::MediaBufferConverter::convertToRgba8888(
-                        sourceBuffer.get(), nullptr, dataspace);
+                axion::graphics::MediaBufferConverter::convertToRgba8888(sourceBuffer.get());
         if (converted) {
             convertedBuffer.reset(converted);
             bufferToUse = converted;

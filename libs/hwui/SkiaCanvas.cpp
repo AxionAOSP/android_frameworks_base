@@ -16,9 +16,7 @@
 
 #include "SkiaCanvas.h"
 
-#if defined(__ANDROID__)
 #include <ax_graphics/MediaBufferConverter.h>
-#endif
 
 #include <SkAndroidFrameworkUtils.h>
 #include <SkAnimatedImage.h>
@@ -611,9 +609,7 @@ void SkiaCanvas::drawMesh(const Mesh& mesh, sk_sp<SkBlender> blender, const Pain
 bool SkiaCanvas::useGainmapShader(Bitmap& bitmap) {
     // If the bitmap doesn't have a gainmap, don't use the gainmap shader
     if (!bitmap.hasGainmap()) return false;
-#if defined(__ANDROID__)
     if (axion::graphics::MediaBufferConverter::isConversionEnabled()) return false;
-#endif
 
     // If we don't have an owned canvas, then we're either hardware accelerated or drawing
     // to a picture - use the gainmap shader out of caution. Ideally a picture canvas would

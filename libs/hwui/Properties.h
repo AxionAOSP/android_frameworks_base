@@ -237,11 +237,6 @@ enum DebugLevel {
 #define PROPERTY_SKIP_EGLMANAGER_TELEMETRY "debug.hwui.skip_eglmanager_telemetry"
 
 /**
- * Enables OpenGL ES fallback for media/video decoding and buffer conversion on Vulkan.
- */
-#define PROPERTY_USE_OPENGL_FOR_MEDIA "persist.sys.vk_use_ogl_for_media"
-
-/**
  * Property for font reading library.
  */
 #define PROPERTY_SKTYPEFACE_BACKEND "debug.hwui.text.backend"

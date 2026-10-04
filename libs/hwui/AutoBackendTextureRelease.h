@@ -65,7 +65,6 @@ private:
 
     AHardwareBuffer* mConvertedBuffer = nullptr;
     AHardwareBuffer* mOriginalBuffer = nullptr;
-    android_dataspace mDataspace = HAL_DATASPACE_UNKNOWN;
     GrBackendTexture mBackendTexture;
     GrAHardwareBufferUtils::DeleteImageProc mDeleteProc;
     GrAHardwareBufferUtils::UpdateImageProc mUpdateProc;
