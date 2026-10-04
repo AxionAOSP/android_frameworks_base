@@ -159,6 +159,7 @@ android_library {
     },
     static_libs: [
         "android.gui.boxshadow-java",
+        "ax_dragonite",
         "//frameworks/base/packages/SystemUI/aconfig:com_android_systemui_flags_lib",
         "//frameworks/libs/systemui:com_android_systemui_shared_flags_lib",
         "//frameworks/libs/systemui:iconloader_base",
