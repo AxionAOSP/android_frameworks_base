@@ -27,7 +27,6 @@ import android.view.SurfaceControl;
 import android.view.View;
 import android.window.SplashScreenView;
 
-import com.android.axion.dragonite.AxDragonite;
 import com.android.internal.jank.InteractionJankMonitor;
 import com.android.wm.shell.R;
 import com.android.wm.shell.shared.TransactionPool;
@@ -126,20 +125,17 @@ public class SplashScreenExitAnimation implements Animator.AnimatorListener {
 
     @Override
     public void onAnimationStart(Animator animation) {
-        AxDragonite.onSplashScreenExit();
         InteractionJankMonitor.getInstance().begin(mSplashScreenView, CUJ_SPLASHSCREEN_EXIT_ANIM);
     }
 
     @Override
     public void onAnimationEnd(Animator animation) {
-        AxDragonite.onSplashScreenExitEnd();
         reset();
         InteractionJankMonitor.getInstance().end(CUJ_SPLASHSCREEN_EXIT_ANIM);
     }
 
     @Override
     public void onAnimationCancel(Animator animation) {
-        AxDragonite.onSplashScreenExitEnd();
         reset();
         InteractionJankMonitor.getInstance().cancel(CUJ_SPLASHSCREEN_EXIT_ANIM);
     }
