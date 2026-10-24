@@ -18,10 +18,13 @@ package com.android.systemui.shade
 
 import android.graphics.Point
 import android.hardware.display.AmbientDisplayConfiguration
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import android.view.GestureDetector
 import android.view.MotionEvent
+import android.view.ViewConfiguration
 import com.android.systemui.Dumpable
 import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dock.DockManager
@@ -65,6 +68,8 @@ constructor(
     private var doubleTapEnabled = false
     private var singleTapEnabled = false
     private var doubleTapEnabledNative = false
+    private val handler = Handler(Looper.getMainLooper())
+    private var pendingSingleTap: Runnable? = null
 
     init {
         val tunable = Tunable { key: String?, value: String? ->
@@ -95,16 +100,45 @@ constructor(
 
     fun onSingleTapUp(x: Float, y: Float): Boolean {
         val isNotDocked = !dockManager.isDocked
+        val doubleTapToWakeEnabled = doubleTapEnabled || doubleTapEnabledNative
         shadeLogger.logSingleTapUp(statusBarStateController.isDozing, singleTapEnabled, isNotDocked)
-        if (statusBarStateController.isDozing && singleTapEnabled && isNotDocked) {
+        if (
+            statusBarStateController.isDozing &&
+                (singleTapEnabled || doubleTapToWakeEnabled) &&
+                isNotDocked
+        ) {
             val proximityIsNotNear = !falsingManager.isProximityNear
             val isNotAFalseTap = !falsingManager.isFalseTap(LOW_PENALTY)
             shadeLogger.logSingleTapUpFalsingState(proximityIsNotNear, isNotAFalseTap)
             if (proximityIsNotNear && isNotAFalseTap) {
-                MistouchInteractor.get().handleKeyguardInteraction()
-                shadeLogger.d("Single tap handled, requesting centralSurfaces.wakeUpIfDozing")
-                dozeInteractor.setLastTapToWakePosition(Point(x.toInt(), y.toInt()))
-                powerInteractor.wakeUpIfDozing("PULSING_SINGLE_TAP", PowerManager.WAKE_REASON_TAP)
+                if (doubleTapToWakeEnabled) {
+                    // A second tap within the double tap window wins over the single tap, so
+                    // hold the single tap wake back instead of firing it on the first tap.
+                    val pending = pendingSingleTap
+                    if (pending != null) {
+                        handler.removeCallbacks(pending)
+                        pendingSingleTap = null
+                        onDoubleTapEvent(x, y)
+                        return true
+                    }
+                    if (!singleTapEnabled) {
+                        // Only the double tap should wake the device.
+                        return true
+                    }
+                    val singleTap = Runnable {
+                        pendingSingleTap = null
+                        if (statusBarStateController.isDozing) {
+                            wakeUpFromTap(x, y, "PULSING_SINGLE_TAP")
+                        }
+                    }
+                    pendingSingleTap = singleTap
+                    handler.postDelayed(
+                        singleTap,
+                        ViewConfiguration.getDoubleTapTimeout().toLong(),
+                    )
+                } else {
+                    wakeUpFromTap(x, y, "PULSING_SINGLE_TAP")
+                }
             }
 
             return true
@@ -112,6 +146,13 @@ constructor(
 
         shadeLogger.d("onSingleTapUp event ignored")
         return false
+    }
+
+    private fun wakeUpFromTap(x: Float, y: Float, details: String) {
+        MistouchInteractor.get().handleKeyguardInteraction()
+        shadeLogger.d("Tap handled, requesting centralSurfaces.wakeUpIfDozing")
+        dozeInteractor.setLastTapToWakePosition(Point(x.toInt(), y.toInt()))
+        powerInteractor.wakeUpIfDozing(details, PowerManager.WAKE_REASON_TAP)
     }
 
     /**
@@ -135,6 +176,10 @@ constructor(
                 !falsingManager.isProximityNear &&
                 !falsingManager.isFalseDoubleTap
         ) {
+            pendingSingleTap?.let {
+                handler.removeCallbacks(it)
+                pendingSingleTap = null
+            }
             MistouchInteractor.get().handleKeyguardInteraction()
             dozeInteractor.setLastTapToWakePosition(Point(x.toInt(), y.toInt()))
             powerInteractor.wakeUpIfDozing("PULSING_DOUBLE_TAP", PowerManager.WAKE_REASON_TAP)
