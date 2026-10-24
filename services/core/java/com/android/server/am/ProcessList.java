@@ -4441,6 +4441,7 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
                 || r.isHomeProcess()
                 || r.isPreviousProcess()
                 || r.hasVisibleActivities()
+                || (r.mServices != null && r.mServices.hasForegroundServices())
                 || r.getHasTopUi()
                 || r.getHasOverlayUi()
                 || r.getScheduleLikeTopApp()
