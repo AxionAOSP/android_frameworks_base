@@ -47,17 +47,28 @@ constructor(
 
             when (val dataIcon = data.icon) {
                 is MobileDataTileIcon.SignalIcon -> {
-                    val signalDrawable = SignalDrawable(context, handler)
-                    signalDrawable.setLevel(dataIcon.level)
-                    icon = Icon.Loaded(signalDrawable, contentDescription = null)
+                    val level = dataIcon.level and 0xff
+                    val numLevels = (dataIcon.level shr 8) and 0xff
+                    val themed = com.android.systemui.statusbar.connectivity.ThemeIconController
+                        .getThemedQsSignalIcon(context, level, if (numLevels > 0) numLevels else 4)
+                    if (themed != null) {
+                        icon = Icon.Loaded(themed, contentDescription = null)
+                    } else {
+                        val signalDrawable = SignalDrawable(context, handler)
+                        signalDrawable.setLevel(dataIcon.level)
+                        icon = Icon.Loaded(signalDrawable, contentDescription = null)
+                    }
                 }
 
                 is MobileDataTileIcon.ResourceIcon -> {
+                    val resId = dataIcon.resourceIcon.resId
+                    val themed = com.android.systemui.statusbar.connectivity.ThemeIconController
+                        .getThemedQsIcon(context, resId)
                     icon =
                         Icon.Loaded(
-                            resources.getDrawable(dataIcon.resourceIcon.resId, theme),
+                            themed ?: resources.getDrawable(resId, theme),
                             contentDescription = null,
-                            dataIcon.resourceIcon.resId,
+                            resId,
                         )
                 }
             }

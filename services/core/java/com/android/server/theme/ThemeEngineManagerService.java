@@ -469,13 +469,31 @@ public class ThemeEngineManagerService extends SystemService {
     }
 
     @Nullable
-    private String getThemePackageForResource(@NonNull String resourceName) {
-        String category = mResourceCategoryCache.get(resourceName);
+    private String getFirstCategoryPackage(String... keys) {
+        for (String key : keys) {
+            String pkg = mCategoryThemes.get(key);
+            if (pkg != null && !pkg.isEmpty()) return pkg;
+        }
+        return null;
+    }
 
+    @Nullable
+    private String getThemePackageForResource(@NonNull String resourceName) {
+        if (resourceName.startsWith("ic_signal_cellular_")) {
+            String sigPkg = getFirstCategoryPackage(
+                    "signal", "android.theme.customization.signal_icon", "statusbar_signal");
+            if (sigPkg != null) return sigPkg;
+        } else if (resourceName.startsWith("ic_wifi_signal_")
+                || resourceName.startsWith("ic_qs_wifi_")) {
+            String wifiPkg = getFirstCategoryPackage(
+                    "wifi", "android.theme.customization.wifi_icon", "statusbar_wifi");
+            if (wifiPkg != null) return wifiPkg;
+        }
+
+        String category = mResourceCategoryCache.get(resourceName);
         if (category != null && mCategoryThemes.containsKey(category)) {
             return mCategoryThemes.get(category);
         }
-
         if (category != null) {
             String aliasCategory = "statusbar_" + category;
             if (mCategoryThemes.containsKey(aliasCategory)) {
@@ -483,14 +501,16 @@ public class ThemeEngineManagerService extends SystemService {
             }
         }
 
-        if (mActiveSystemThemeIcons != null) {
-            if (category == null || mSystemThemeIconTargets.isEmpty()
-                    || mSystemThemeIconTargets.contains(category)) {
-                return mActiveSystemThemeIcons;
-            }
-            if (category != null
-                    && mSystemThemeIconTargets.contains("statusbar_" + category)) {
-                return mActiveSystemThemeIcons;
+        String[] packCandidates = {
+            getFirstCategoryPackage("android.theme.customization.icon_pack.systemui", "systemui"),
+            getFirstCategoryPackage("android.theme.customization.icon_pack.android", "android"),
+            mActiveSystemThemeIcons
+        };
+        for (String pkg : packCandidates) {
+            if (pkg == null || pkg.isEmpty()) continue;
+            Resources res = getThemeResources(pkg);
+            if (res != null && res.getIdentifier(resourceName, "drawable", pkg) != 0) {
+                return pkg;
             }
         }
 
@@ -792,7 +812,7 @@ public class ThemeEngineManagerService extends SystemService {
             if (themeResources == null) return null;
 
             Set<String> targets = mTargetArrayCache.get(themePackage);
-            if (targets != null && !targets.contains(resourceName)) {
+            if (targets != null && !targets.isEmpty() && !targets.contains(resourceName)) {
                 return null;
             }
 
@@ -817,24 +837,10 @@ public class ThemeEngineManagerService extends SystemService {
         public boolean isTargetedResource(String resourceName) {
             if (resourceName == null) return false;
             synchronized (ThemeEngineManagerService.this) {
-                String category = mResourceCategoryCache.get(resourceName);
-
-                if (category != null && mCategoryThemes.containsKey(category)) {
-                    String pkgName = mCategoryThemes.get(category);
-                    Set<String> targets = mTargetArrayCache.get(pkgName);
-                    return targets != null && targets.contains(resourceName);
-                }
-
-                if (mActiveSystemThemeIcons == null) return false;
-
-                Set<String> targets = mTargetArrayCache.get(mActiveSystemThemeIcons);
-                if (targets == null || !targets.contains(resourceName)) return false;
-
-                if (category != null && !mSystemThemeIconTargets.isEmpty()) {
-                    return mSystemThemeIconTargets.contains(category);
-                }
-
-                return !mSystemThemeIconTargets.isEmpty();
+                String pkg = getThemePackageForResource(resourceName);
+                if (pkg == null) return false;
+                Resources res = getThemeResources(pkg);
+                return res != null && res.getIdentifier(resourceName, "drawable", pkg) != 0;
             }
         }
 

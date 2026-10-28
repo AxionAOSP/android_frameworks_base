@@ -97,6 +97,16 @@ sealed interface InternetTileModel {
 data class SignalIcon(val state: Int) : QSTile.Icon() {
 
     override fun getDrawable(context: Context): Drawable {
+        val level = state and 0xff
+        val numLevels = (state shr 8) and 0xff
+        val empty = ((state shr 16) and 0xff) != 0
+        if (!empty && numLevels > 0) {
+            val themed = com.android.systemui.statusbar.connectivity.ThemeIconController
+                .getThemedQsSignalIcon(context, level, numLevels)
+            if (themed != null) {
+                return themed
+            }
+        }
         val d = SignalDrawable(context)
         d.setLevel(state)
         return d

@@ -738,6 +738,16 @@ public abstract class QSTileImpl<TState extends State> implements QSTile, Lifecy
         }
 
         @Override
+        public Drawable getDrawable(Context context) {
+            Drawable themed = com.android.systemui.statusbar.connectivity.ThemeIconController
+                    .getThemedQsIcon(context, mId);
+            if (themed != null) {
+                return themed;
+            }
+            return super.getDrawable(context);
+        }
+
+        @Override
         public boolean equals(Object o) {
             return o instanceof DrawableIconWithRes
                     && ((DrawableIconWithRes) o).mId == mId
@@ -779,11 +789,21 @@ public abstract class QSTileImpl<TState extends State> implements QSTile, Lifecy
 
         @Override
         public Drawable getDrawable(Context context) {
+            Drawable themed = com.android.systemui.statusbar.connectivity.ThemeIconController
+                    .getThemedQsIcon(context, mResId);
+            if (themed != null) {
+                return themed;
+            }
             return context.getDrawable(mResId);
         }
 
         @Override
         public Drawable getInvisibleDrawable(Context context) {
+            Drawable themed = com.android.systemui.statusbar.connectivity.ThemeIconController
+                    .getThemedQsIcon(context, mResId);
+            if (themed != null) {
+                return themed;
+            }
             return context.getDrawable(mResId);
         }
 

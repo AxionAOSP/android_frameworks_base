@@ -21,6 +21,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.android.systemui.statusbar.connectivity.ThemeIconController
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -74,8 +77,10 @@ private fun IconInternal(icon: Icon, modifier: Modifier, tint: Color) {
             )
         }
         is Icon.Resource -> {
-            val drawable = remember(icon.resId) {
-                ContextCompat.getDrawable(context, icon.resId)
+            val themeVer by ThemeIconController.themeVersion.collectAsStateWithLifecycle()
+            val drawable = remember(icon.resId, themeVer) {
+                ThemeIconController.getThemedQsIcon(context, icon.resId)
+                    ?: ContextCompat.getDrawable(context, icon.resId)
             }
             if (drawable != null) {
                 Image(

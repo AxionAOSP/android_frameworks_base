@@ -52,6 +52,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.android.systemui.statusbar.connectivity.ThemeIconController
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -244,14 +246,16 @@ fun SmallTileContent(
     animateToEnd: Boolean = false,
 ) {
     val context = LocalContext.current
-    val icon = iconProvider(context)
+    val themeVer by ThemeIconController.themeVersion.collectAsStateWithLifecycle()
+    val icon = remember(iconProvider, context, themeVer) { iconProvider(context) }
     val animatedColor by animateColorAsState(color, label = "QSTileIconColor")
     val iconModifier = modifier.size({ size().roundToPx() }, { size().roundToPx() })
     val loadedDrawable =
-        remember(icon, context) {
+        remember(icon, context, themeVer) {
             when (icon) {
                 is Icon.Loaded -> icon.drawable
-                is Icon.Resource -> context.getDrawable(icon.resId)
+                is Icon.Resource -> ThemeIconController.getThemedQsIcon(context, icon.resId)
+                    ?: context.getDrawable(icon.resId)
             }
         }
     if (loadedDrawable is Animatable) {
