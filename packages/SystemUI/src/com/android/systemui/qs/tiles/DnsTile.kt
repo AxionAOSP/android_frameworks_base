@@ -26,6 +26,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.internal.logging.MetricsLogger
+import com.android.systemui.Prefs
 import com.android.systemui.animation.Expandable
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.dagger.qualifiers.Main
@@ -70,6 +71,14 @@ constructor(
     ) {
 
     private var icon: QSTile.Icon? = null
+    private var lastSavedMode: String? = null
+
+    private fun rememberActiveMode(mode: String?) {
+        if ((mode == MODE_HOSTNAME || mode == MODE_AUTO) && mode != lastSavedMode) {
+            lastSavedMode = mode
+            Prefs.putString(mContext, PREF_LAST_ACTIVE_DNS_MODE, mode)
+        }
+    }
 
     init {
         lifecycleScope.launch {
@@ -79,7 +88,10 @@ constructor(
                         Settings.Global.PRIVATE_DNS_MODE,
                         Settings.Global.PRIVATE_DNS_SPECIFIER,
                     )
-                    .collect { refreshState() }
+                    .collect {
+                        rememberActiveMode(currentMode())
+                        refreshState()
+                    }
             }
         }
     }
@@ -91,18 +103,17 @@ constructor(
     }
 
     override fun handleClick(expandable: Expandable?) {
-        val next = when (currentMode()) {
-            MODE_HOSTNAME -> MODE_OFF
-            MODE_AUTO -> {
-                ensureHostname()
-                MODE_HOSTNAME
+        val mode = currentMode()
+        val next = when (mode) {
+            MODE_HOSTNAME, MODE_AUTO -> {
+                rememberActiveMode(mode)
+                MODE_OFF
             }
-            else -> MODE_AUTO
+            else -> resolveRestoreMode()
         }
         globalSettings.putString(Settings.Global.PRIVATE_DNS_MODE, next)
         refreshState()
     }
-
     override fun getLongClickIntent(): Intent = WIRELESS_SETTINGS
 
     override fun getTileLabel(): CharSequence =
@@ -115,7 +126,10 @@ constructor(
         state.icon = icon
         state.label = mContext.getString(R.string.quick_settings_dns_label)
 
-        when (currentMode()) {
+        val mode = currentMode()
+        rememberActiveMode(mode)
+
+        when (mode) {
             MODE_HOSTNAME -> {
                 val hostname = globalSettings.getString(Settings.Global.PRIVATE_DNS_SPECIFIER)
                 val shown = if (TextUtils.isEmpty(hostname)) DEFAULT_HOSTNAME else hostname
@@ -146,13 +160,17 @@ constructor(
     private fun currentMode(): String? =
         globalSettings.getString(Settings.Global.PRIVATE_DNS_MODE)
 
-    private fun ensureHostname() {
+    private fun resolveRestoreMode(): String {
         val hostname = globalSettings.getString(Settings.Global.PRIVATE_DNS_SPECIFIER)
-        if (TextUtils.isEmpty(hostname)) {
-            globalSettings.putString(Settings.Global.PRIVATE_DNS_SPECIFIER, DEFAULT_HOSTNAME)
+        val hasHostname = !TextUtils.isEmpty(hostname)
+        val lastActive = lastSavedMode ?: Prefs.getString(mContext, PREF_LAST_ACTIVE_DNS_MODE, null)
+        return when {
+            lastActive == MODE_HOSTNAME && hasHostname -> MODE_HOSTNAME
+            lastActive == MODE_AUTO -> MODE_AUTO
+            hasHostname -> MODE_HOSTNAME
+            else -> MODE_AUTO
         }
     }
-
     companion object {
         const val TILE_SPEC: String = "dns"
 
@@ -161,5 +179,6 @@ constructor(
         private const val MODE_AUTO = "opportunistic"
         private const val MODE_HOSTNAME = "hostname"
         private const val DEFAULT_HOSTNAME = "one.one.one.one"
+        private const val PREF_LAST_ACTIVE_DNS_MODE = "dns_tile_last_active_mode"
     }
 }
