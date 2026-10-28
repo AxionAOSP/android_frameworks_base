@@ -17,6 +17,14 @@
 <resources>
     <string name="config_udfps_animation_type" translatable="false">lottie</string>
     <string name="config_udfps_icon_type" translatable="false">none</string>
+    <string name="config_udfps_custom_agsl_shader" translatable="false"></string>
+    <integer name="config_udfps_shader_duration_ms">450</integer>
+    <integer name="config_udfps_shader_cycle_ms">800</integer>
+    <integer name="config_udfps_shader_max_radius_dp">106</integer>
+    <integer name="config_udfps_shader_peak_amplitude">40</integer>
+    <integer name="config_udfps_shader_start_ripples_dp">13</integer>
+    <integer name="config_udfps_shader_end_ripples_dp">30</integer>
+    <integer name="config_udfps_shader_chromatic_offset_dp">2</integer>
 
     <!-- Charging info current divider, if needed -->
     <integer name="config_currentInfoDivider" translatable="false">1000</integer>

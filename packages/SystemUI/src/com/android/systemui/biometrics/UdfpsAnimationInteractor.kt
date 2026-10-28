@@ -15,7 +15,13 @@
  */
 package com.android.systemui.biometrics
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.res.Resources
+import android.app.WallpaperManager
+import android.graphics.Bitmap
 import android.graphics.drawable.AnimationDrawable
 import android.graphics.drawable.Drawable
 import android.database.ContentObserver
@@ -33,6 +39,7 @@ import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.res.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -45,6 +52,16 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 
+data class UdfpsShaderConfig(
+    val activeDurationSec: Float = 0.45f,
+    val cycleDurationMs: Long = 800L,
+    val maxRadiusDp: Float = 106f,
+    val peakAmplitude: Float = 40f,
+    val startRipplesDp: Float = 13f,
+    val endRipplesDp: Float = 30f,
+    val chromaticOffsetDp: Float = 2f,
+)
+
 data class UdfpsAnimationUiState(
     val isVisible: Boolean = false,
     val sensorType: Int = FingerprintSensorProperties.TYPE_UDFPS_OPTICAL,
@@ -53,7 +70,11 @@ data class UdfpsAnimationUiState(
     val themeSeq: Int = 0,
     val activeOverlayPackage: String = "",
     val animType: String = "lottie",
+    val isShaderMode: Boolean = false,
     val preloadedDrawable: Drawable? = null,
+    val preloadedWallpaper: Bitmap? = null,
+    val preloadedShader: WaterRippleShader? = null,
+    val shaderConfig: UdfpsShaderConfig = UdfpsShaderConfig(),
 )
 
 @SysUISingleton
@@ -71,6 +92,11 @@ class UdfpsAnimationInteractor @Inject constructor(
     private var preloadJob: Job? = null
     private var cachedDrawablePkg: String? = null
     private var cachedDrawable: Drawable? = null
+    private var cachedShaderPkg: String? = null
+    private var cachedShader: WaterRippleShader? = null
+    private var cachedShaderConfig: UdfpsShaderConfig = UdfpsShaderConfig()
+    private var cachedWallpaperId: Int = -1
+    private var cachedWallpaperBitmap: Bitmap? = null
 
     init {
         refreshResourcesAsync(forceReloadDrawable = true)
@@ -87,7 +113,19 @@ class UdfpsAnimationInteractor @Inject constructor(
                 UserHandle.USER_ALL
             )
         }
-
+        runCatching {
+            context.registerReceiver(
+                object : BroadcastReceiver() {
+                    override fun onReceive(ctx: Context?, intent: Intent?) {
+                        if (_uiState.value.isShaderMode) {
+                            refreshWallpaperOnlyAsync()
+                        }
+                    }
+                },
+                IntentFilter(Intent.ACTION_WALLPAPER_CHANGED),
+                Context.RECEIVER_EXPORTED
+            )
+        }
         combine(
             udfpsOverlayInteractor.isFingerDown,
             deviceEntryUdfpsInteractor.isListeningForUdfps,
@@ -123,6 +161,67 @@ class UdfpsAnimationInteractor @Inject constructor(
         refreshResourcesAsync(forceReloadDrawable = true)
     }
 
+    private fun resolveOverlayString(res: Resources?, pkg: String, name: String, fallbackResId: Int): String? {
+        if (res != null && pkg.isNotEmpty()) {
+            val id = res.getIdentifier(name, "string", pkg)
+            if (id != 0) {
+                runCatching { return res.getString(id) }
+            }
+        }
+        return runCatching { context.resources.getString(fallbackResId) }.getOrNull()
+    }
+
+    private fun resolveOverlayInt(res: Resources?, pkg: String, name: String, fallbackResId: Int, defaultVal: Int): Int {
+        if (res != null && pkg.isNotEmpty()) {
+            val id = res.getIdentifier(name, "integer", pkg)
+            if (id != 0) {
+                runCatching { return res.getInteger(id) }
+            }
+        }
+        return runCatching { context.resources.getInteger(fallbackResId) }.getOrDefault(defaultVal)
+    }
+
+    private fun loadWallpaperCached(): Bitmap? {
+        return runCatching {
+            val wm = WallpaperManager.getInstance(context) ?: return cachedWallpaperBitmap
+            val lockId = wm.getWallpaperId(WallpaperManager.FLAG_LOCK)
+            val flag = if (lockId > 0) WallpaperManager.FLAG_LOCK else WallpaperManager.FLAG_SYSTEM
+            val wpId = if (lockId > 0) lockId else wm.getWallpaperId(WallpaperManager.FLAG_SYSTEM)
+            val existing = cachedWallpaperBitmap
+            if (wpId == cachedWallpaperId && existing != null && !existing.isRecycled) {
+                existing
+            } else {
+                val raw = wm.getBitmapAsUser(UserHandle.USER_CURRENT, false, flag, true)
+                if (raw != null && !raw.isRecycled && raw.width > 0 && raw.height > 0) {
+                    val tw = (raw.width * 0.5f).toInt().coerceAtLeast(1)
+                    val th = (raw.height * 0.5f).toInt().coerceAtLeast(1)
+                    val scaled = Bitmap.createScaledBitmap(raw, tw, th, true)
+                    if (scaled !== raw && !raw.isRecycled) {
+                        raw.recycle()
+                    }
+                    wm.forgetLoadedWallpaper()
+                    val old = cachedWallpaperBitmap
+                    cachedWallpaperBitmap = scaled
+                    cachedWallpaperId = wpId
+                    if (old != null && old !== scaled && !old.isRecycled) {
+                        old.recycle()
+                    }
+                    scaled
+                } else existing
+            }
+        }.getOrDefault(cachedWallpaperBitmap)
+    }
+
+    private fun refreshWallpaperOnlyAsync() {
+        preloadJob?.cancel()
+        preloadJob = scope.launch(Dispatchers.IO) {
+            val wallpaper = loadWallpaperCached()
+            val dm = context.resources.displayMetrics
+            cachedShader?.setBackgroundBitmap(wallpaper, dm.widthPixels, dm.heightPixels)
+            _uiState.update { it.copy(preloadedWallpaper = wallpaper) }
+        }
+    }
+
     private fun refreshResourcesAsync(forceReloadDrawable: Boolean) {
         preloadJob?.cancel()
         preloadJob = scope.launch(Dispatchers.IO) {
@@ -136,7 +235,9 @@ class UdfpsAnimationInteractor @Inject constructor(
             } else {
                 context.resources.getString(R.string.config_udfps_animation_type)
             }
-            val needsDrawable = type == MODE_DRAWABLE
+            val shaderMode = type == MODE_WATER_RIPPLE || type == MODE_SHADER ||
+                pkg.contains("udfps_animation.water") || pkg.contains("udfps_animation.shader")
+            val needsDrawable = shaderMode || type == MODE_DRAWABLE
 
             val drawable: Drawable? = if (needsDrawable) {
                 if (!forceReloadDrawable && pkg == cachedDrawablePkg && cachedDrawable != null) {
@@ -166,18 +267,71 @@ class UdfpsAnimationInteractor @Inject constructor(
                 null
             }
 
+            val wallpaper: Bitmap?
+            val shader: WaterRippleShader?
+            val sConfig: UdfpsShaderConfig
+            if (shaderMode) {
+                wallpaper = loadWallpaperCached()
+                if (!forceReloadDrawable && pkg == cachedShaderPkg && cachedShader != null) {
+                    shader = cachedShader
+                    sConfig = cachedShaderConfig
+                } else {
+                    val customAgsl = resolveOverlayString(
+                        overlayRes, pkg, "config_udfps_custom_agsl_shader", R.string.config_udfps_custom_agsl_shader
+                    )
+                    shader = runCatching { WaterRippleShader(customAgsl) }.getOrElse { WaterRippleShader() }
+                    sConfig = UdfpsShaderConfig(
+                        activeDurationSec = (
+                            resolveOverlayInt(overlayRes, pkg, "config_udfps_shader_duration_ms", R.integer.config_udfps_shader_duration_ms, 450) / 1000f
+                        ).coerceAtLeast(0.1f),
+                        cycleDurationMs = resolveOverlayInt(
+                            overlayRes, pkg, "config_udfps_shader_cycle_ms", R.integer.config_udfps_shader_cycle_ms, 800
+                        ).toLong().coerceAtLeast(200L),
+                        maxRadiusDp = resolveOverlayInt(
+                            overlayRes, pkg, "config_udfps_shader_max_radius_dp", R.integer.config_udfps_shader_max_radius_dp, 106
+                        ).toFloat(),
+                        peakAmplitude = resolveOverlayInt(
+                            overlayRes, pkg, "config_udfps_shader_peak_amplitude", R.integer.config_udfps_shader_peak_amplitude, 40
+                        ).toFloat(),
+                        startRipplesDp = resolveOverlayInt(
+                            overlayRes, pkg, "config_udfps_shader_start_ripples_dp", R.integer.config_udfps_shader_start_ripples_dp, 13
+                        ).toFloat(),
+                        endRipplesDp = resolveOverlayInt(
+                            overlayRes, pkg, "config_udfps_shader_end_ripples_dp", R.integer.config_udfps_shader_end_ripples_dp, 30
+                        ).toFloat(),
+                        chromaticOffsetDp = resolveOverlayInt(
+                            overlayRes, pkg, "config_udfps_shader_chromatic_offset_dp", R.integer.config_udfps_shader_chromatic_offset_dp, 2
+                        ).toFloat(),
+                    )
+                    val dm = context.resources.displayMetrics
+                    shader.setBackgroundBitmap(wallpaper, dm.widthPixels, dm.heightPixels)
+                    cachedShaderPkg = pkg
+                    cachedShader = shader
+                    cachedShaderConfig = sConfig
+                }
+            } else {
+                wallpaper = null
+                shader = null
+                sConfig = UdfpsShaderConfig()
+                cachedShaderPkg = null
+                cachedShader = null
+            }
+
             _uiState.update {
                 it.copy(
                     themeSeq = if (forceReloadDrawable) it.themeSeq + 1 else it.themeSeq,
                     activeOverlayPackage = pkg,
                     animType = type,
-                    preloadedDrawable = drawable
+                    isShaderMode = shaderMode,
+                    preloadedDrawable = drawable,
+                    preloadedWallpaper = wallpaper,
+                    preloadedShader = shader,
+                    shaderConfig = sConfig
                 )
             }
             updatePosition(lastOverlayParams)
         }
     }
-
     private fun updateVisibility(visible: Boolean) {
         if (visible) {
             hideJob?.cancel()
@@ -203,6 +357,9 @@ class UdfpsAnimationInteractor @Inject constructor(
 
     private fun currentAnimationSize(): Int {
         val state = _uiState.value
+        if (state.isShaderMode) {
+            return (360f * context.resources.displayMetrics.density).toInt()
+        }
         val sizeRes =
             if (state.animType == MODE_DRAWABLE) {
                 R.dimen.udfps_animation_drawable_size
@@ -238,6 +395,8 @@ class UdfpsAnimationInteractor @Inject constructor(
 
     companion object {
         private const val MODE_DRAWABLE = "drawable"
+        private const val MODE_WATER_RIPPLE = "water_ripple"
+        private const val MODE_SHADER = "shader"
         private const val MIN_PLAY_DURATION_MS = 500L
     }
 }
