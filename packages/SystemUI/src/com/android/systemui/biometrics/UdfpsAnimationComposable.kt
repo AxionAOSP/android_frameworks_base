@@ -15,20 +15,22 @@
  */
 package com.android.systemui.biometrics
 
+import android.graphics.drawable.Animatable
+import android.graphics.drawable.AnimationDrawable
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import com.android.compose.ui.graphics.painter.rememberDrawablePainter
+import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
@@ -41,8 +43,8 @@ fun UdfpsAnimation(
     state: UdfpsAnimationUiState,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val animType = context.resources.getString(R.string.config_udfps_animation_type)
+    val animType = state.animType
+    val preloadedDrawable = state.preloadedDrawable
 
     val animationSizeDp = with(LocalDensity.current) {
         state.animationSize.toDp()
@@ -50,29 +52,35 @@ fun UdfpsAnimation(
 
     AnimatedVisibility(
         visible = state.isVisible,
-        enter = fadeIn(),
+        enter = EnterTransition.None,
         exit = fadeOut(),
         modifier = modifier
     ) {
         Box(
-            modifier = Modifier.size(animationSizeDp)
+            modifier = Modifier.size(animationSizeDp),
+            contentAlignment = Alignment.Center
         ) {
             if (animType == "drawable") {
-                val drawable = remember(context) { context.getDrawable(R.drawable.udfps_animation) }
-                androidx.compose.runtime.DisposableEffect(drawable) {
-                    val animatable = drawable as? android.graphics.drawable.Animatable
-                    animatable?.start()
-                    onDispose {
+                val drawable = preloadedDrawable
+                if (drawable != null) {
+                    DisposableEffect(drawable) {
+                        val animDrawable = drawable as? AnimationDrawable
+                        val animatable = drawable as? Animatable
                         animatable?.stop()
+                        animDrawable?.selectDrawable(0)
+                        animatable?.start()
+                        onDispose {
+                            animatable?.stop()
+                        }
                     }
+                    val painter = rememberDrawablePainter(drawable)
+                    Image(
+                        painter = painter,
+                        contentDescription = null,
+                        modifier = Modifier.size(animationSizeDp),
+                        contentScale = ContentScale.Fit
+                    )
                 }
-                val painter = rememberDrawablePainter(drawable)
-                Image(
-                    painter = painter,
-                    contentDescription = null,
-                    modifier = Modifier.size(animationSizeDp),
-                    contentScale = ContentScale.Fit
-                )
             } else {
                 val compositionResult = rememberLottieComposition(
                     LottieCompositionSpec.RawRes(R.raw.nt_udfps_lockscreen_fp_scanning)

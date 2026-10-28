@@ -20,6 +20,7 @@ import com.android.systemui.dagger.SysUISingleton
 import com.android.systemui.dagger.qualifiers.Application
 import com.android.systemui.deviceentry.domain.interactor.DeviceEntryUdfpsInteractor
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import javax.inject.Inject
@@ -28,18 +29,22 @@ import javax.inject.Inject
 class UdfpsAnimationStartable @Inject constructor(
     @Application private val scope: CoroutineScope,
     private val deviceEntryUdfpsInteractor: DeviceEntryUdfpsInteractor,
+    private val udfpsAnimationInteractor: UdfpsAnimationInteractor,
     private val udfpsAnimationHost: UdfpsAnimationHost,
 ) : CoreStartable {
 
     override fun start() {
-        deviceEntryUdfpsInteractor.isListeningForUdfps
-            .onEach { isListening ->
-                if (isListening) {
-                    udfpsAnimationHost.attach()
-                } else {
-                    udfpsAnimationHost.detach()
-                }
+        combine(
+            deviceEntryUdfpsInteractor.isListeningForUdfps,
+            udfpsAnimationInteractor.uiState,
+        ) { isListening, uiState ->
+            isListening || uiState.isVisible
+        }.onEach { shouldAttach ->
+            if (shouldAttach) {
+                udfpsAnimationHost.attach()
+            } else {
+                udfpsAnimationHost.detach()
             }
-            .launchIn(scope)
+        }.launchIn(scope)
     }
 }
