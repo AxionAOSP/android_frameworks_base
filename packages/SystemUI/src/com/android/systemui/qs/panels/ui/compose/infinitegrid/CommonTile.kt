@@ -247,7 +247,7 @@ fun SmallTileContent(
 ) {
     val context = LocalContext.current
     val themeVer by ThemeIconController.themeVersion.collectAsStateWithLifecycle()
-    val icon = remember(iconProvider, context, themeVer) { iconProvider(context) }
+    val icon = iconProvider(context)
     val animatedColor by animateColorAsState(color, label = "QSTileIconColor")
     val iconModifier = modifier.size({ size().roundToPx() }, { size().roundToPx() })
     val loadedDrawable =

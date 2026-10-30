@@ -526,7 +526,7 @@ object ThemeIconController {
             return null
         }
 
-        val candidates = (QS_ICON_CANDIDATES[entryName] ?: emptyList()) + entryName
+        val candidates = (listOf(entryName) + (QS_ICON_CANDIDATES[entryName] ?: emptyList())).distinct()
         val raw = loadDrawableFromPackages(context, qsPkgs, candidates.distinct())
         if (raw == null) {
             missingQsResIds.add(resId)
