@@ -18,6 +18,7 @@
 package com.android.systemui.statusbar.policy
 
 import android.content.Context
+import android.os.PowerManager
 import android.util.Log
 
 import com.android.internal.policy.SystemBarUtils
@@ -84,18 +85,27 @@ class BurnInProtectionController @Inject constructor(
         loadResources()
     }
 
-    private fun loadResources()  {
+    private fun loadResources() {
         with(context.resources) {
-            maxStatusBarOffsetX = minOf(
-                getDimensionPixelSize(R.dimen.status_bar_padding_start),
-                getDimensionPixelSize(R.dimen.status_bar_padding_end),
-                getDimensionPixelSize(R.dimen.status_bar_offset_max_x)
-            ) / 2
-            maxStatusBarOffsetY = minOf(
+            val paddingStart = getDimensionPixelSize(R.dimen.status_bar_padding_start)
+            val paddingEnd = getDimensionPixelSize(R.dimen.status_bar_padding_end)
+            val maxOffsetX = getDimensionPixelSize(R.dimen.status_bar_offset_max_x)
+            maxStatusBarOffsetX =
+                if (paddingStart > 0 && paddingEnd > 0) {
+                    minOf(paddingStart, paddingEnd, maxOffsetX) / 2
+                } else {
+                    maxOffsetX / 2
+                }
+            val statusBarHeightDiff =
                 SystemBarUtils.getStatusBarHeight(context) -
-                getDimensionPixelSize(com.android.internal.R.dimen.status_bar_height_default),
-                getDimensionPixelSize(R.dimen.status_bar_offset_max_y)
-            ) / 2
+                    getDimensionPixelSize(com.android.internal.R.dimen.status_bar_height_default)
+            val maxOffsetY = getDimensionPixelSize(R.dimen.status_bar_offset_max_y)
+            maxStatusBarOffsetY =
+                if (statusBarHeightDiff > 0) {
+                    minOf(statusBarHeightDiff, maxOffsetY) / 2
+                } else {
+                    maxOffsetY / 2
+                }
         }
         calculateNavBarMaxOffset()
         logD {
@@ -129,6 +139,14 @@ class BurnInProtectionController @Inject constructor(
 
     fun setPhoneStatusBarView(phoneStatusBarView: PhoneStatusBarView?) {
         this.phoneStatusBarView = phoneStatusBarView
+        if (phoneStatusBarView != null) {
+            phoneStatusBarView.offsetStatusBar(statusBarOffset)
+            if (shiftJob?.isActive != true &&
+                context.getSystemService(PowerManager::class.java)?.isInteractive == true
+            ) {
+                startShiftTimer()
+            }
+        }
     }
 
     fun startShiftTimer() {
@@ -157,9 +175,11 @@ class BurnInProtectionController @Inject constructor(
     }
 
     private fun getBurnInOffset(maxOffset: Int): Int {
+        if (maxOffset <= 0) return 0
         val amplitude = maxOffset.toFloat()
-        val period = amplitude * 2
-        val mult = if ((shiftCounter / period) % 2 == 0f) 1 else -1
+        val periodInt = maxOffset * 2
+        val period = periodInt.toFloat()
+        val mult = if ((shiftCounter / periodInt) % 2 == 0) 1 else -1
         return mult * Math.round(zigzag(shiftCounter.toFloat(), amplitude, period))
     }
 
