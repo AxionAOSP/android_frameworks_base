@@ -1108,6 +1108,7 @@ interface IActivityManager {
     List<String> getSandboxEnabledSpoofSettings(String packageName, int userId);
     String getSandboxSpoofedSetting(String callingPackage, String settingName, int userId);
     String getSpoofPifConfig();
+    String getSpoofPifSpoofPhotos();
     String getSpoofGamePropsConfig();
     String getSpoofTrickyStoreTarget();
     String getSpoofTrickyStoreKeyBox();
