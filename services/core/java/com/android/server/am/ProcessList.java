@@ -4457,11 +4457,6 @@ public final class ProcessList implements ProcessStateController.ProcessLruUpdat
         return topApp != null ? topApp.getPid() : -1;
     }
 
-    public String axGetTopAppPackageName() {
-        final ProcessRecord topApp = mService.getTopApp();
-        return topApp != null && topApp.info != null ? topApp.info.packageName : null;
-    }
-
     /**
      * Iterate the whole LRU list, invoke the given {@code callback} with each of the ProcessRecord
      * in that list.

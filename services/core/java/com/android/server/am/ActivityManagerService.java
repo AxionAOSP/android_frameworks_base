@@ -9188,6 +9188,13 @@ public class ActivityManagerService extends IActivityManager.Stub
         mAxKernelManager.systemReady();
         t.traceEnd();
 
+        t.traceBegin("AxDragonite.setProcessList");
+        IAxDragonite dragonite = LocalServices.getService(IAxDragonite.class);
+        if (dragonite != null) {
+            dragonite.setProcessList(mProcessList);
+        }
+        t.traceEnd();
+
         t.traceBegin("AppBackgroundManager.systemReady");
         mAppBackgroundManager.systemReady();
         t.traceEnd();
