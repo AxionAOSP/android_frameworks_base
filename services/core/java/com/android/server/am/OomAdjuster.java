@@ -516,7 +516,8 @@ public abstract class OomAdjuster {
         mProcessGroupHandler = new Handler(adjusterThread.getLooper(), msg -> {
             final int group = msg.what;
             final ProcessRecord app = (ProcessRecord) msg.obj;
-            setProcessGroup(app.getPid(), group, app.processName);
+            setProcessGroup(app.getPid(),
+                    AxOomAdjusterHelper.getProcessGroup(app.processName, group), app.processName);
             mService.mPhantomProcessList.setProcessGroupForPhantomProcessOfApp(app, group);
             return true;
         });
