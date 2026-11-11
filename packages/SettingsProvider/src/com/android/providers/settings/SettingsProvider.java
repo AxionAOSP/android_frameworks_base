@@ -627,6 +627,9 @@ public class SettingsProvider extends ContentProvider {
     }
 
     private String getSpoofedValue(String name) {
+        if (UserHandle.getAppId(Binder.getCallingUid()) < Process.FIRST_APPLICATION_UID) {
+            return null;
+        }
         String callingPackage = getCallingPackage();
         if (callingPackage == null) return null;
 
