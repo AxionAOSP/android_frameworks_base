@@ -532,6 +532,11 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
             // stopping state or removed by the time the message is processed
             Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "convert_state_to_bytes");
             ensureGroupStateLoadedLocked(userId, false /* enforceUserUnlockingOrUnlocked */);
+            if (!mLoadedUserIds.get(userId)) {
+                // Never persist state that was not loaded: it would overwrite the saved widgets.
+                Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
+                return true;
+            }
             userIdToBytesMapping = saveStateToByteArrayLocked(userId);
             Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
         }
@@ -1156,6 +1161,12 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
         if (enforceUserUnlockingOrUnlocked && isProfileWithLockedParent(userId)) {
             throw new IllegalStateException(
                     "Profile " + userId + " must have unlocked parent");
+        }
+        if (!enforceUserUnlockingOrUnlocked && !isUserRunningAndUnlocked(userId)) {
+            // Credential-locked: PackageManager only returns direct-boot-aware receivers, so
+            // loading now would drop every other provider (and its widgets) and mark the user
+            // loaded, so handleUserUnlocked() would never retry. Wait for the unlock.
+            return;
         }
         final int[] profileIds = mSecurityPolicy.getEnabledGroupProfileIds(userId);
 
@@ -6751,6 +6762,10 @@ class AppWidgetServiceImpl extends IAppWidgetService.Stub implements WidgetBacku
                 // stopping state or removed by the time the message is processed
                 Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, "convert_state_and_io");
                 ensureGroupStateLoadedLocked(mUserId, false /* enforceUserUnlockingOrUnlocked */ );
+                if (!mLoadedUserIds.get(mUserId)) {
+                    Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
+                    return;
+                }
                 saveStateLocked(mUserId);
                 Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);
             }
