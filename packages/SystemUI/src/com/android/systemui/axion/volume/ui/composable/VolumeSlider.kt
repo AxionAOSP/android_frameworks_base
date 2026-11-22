@@ -102,37 +102,40 @@ fun SliderColumn(
         label = "iconAlpha"
     )
 
-    VolumeSlider(
-        value = if (muted) valueRange.start else stream.sliderLevel(),
-        valueRange = valueRange,
-        onValueChange = { viewModel.setVolume(stream.streamType, it) },
-        onOverscroll = { viewModel.setOverscrollOffset(it) },
-        touchWidth = touchWidth,
-        stepDistance = 1f,
-        modifier = modifier,
-        hapticsViewModelFactory = viewModel.sliderHapticsViewModelFactory,
-        contentDescription = stream.streamInfo.label,
-        icon = {
-            Icon(
-                painter = painterResource(if (muted) stream.mutedIconRes else stream.iconRes),
-                contentDescription = stream.streamInfo.label,
-                modifier = Modifier
-                    .size(iconSize)
-                    .graphicsLayer { alpha = iconAlpha },
-            )
-        },
-        onIconClick = { viewModel.toggleMute(stream.streamType) },
-        showPercentage = showPercentage,
-        onInteractionStart = {
-            viewModel.isInteracting = true
-            viewModel.setActiveStream(stream.streamType)
-            viewModel.rescheduleTimeout()
-        },
-        onInteractionEnd = {
-            viewModel.isInteracting = false
-            viewModel.rescheduleTimeout()
-        },
-    )
+    // SliderState keeps the valueRange it was created with; a new stream or range needs a new one.
+    key(stream.streamType, valueRange) {
+        VolumeSlider(
+            value = if (muted) valueRange.start else stream.sliderLevel(),
+            valueRange = valueRange,
+            onValueChange = { viewModel.setVolume(stream.streamType, it) },
+            onOverscroll = { viewModel.setOverscrollOffset(it) },
+            touchWidth = touchWidth,
+            stepDistance = 1f,
+            modifier = modifier,
+            hapticsViewModelFactory = viewModel.sliderHapticsViewModelFactory,
+            contentDescription = stream.streamInfo.label,
+            icon = {
+                Icon(
+                    painter = painterResource(if (muted) stream.mutedIconRes else stream.iconRes),
+                    contentDescription = stream.streamInfo.label,
+                    modifier = Modifier
+                        .size(iconSize)
+                        .graphicsLayer { alpha = iconAlpha },
+                )
+            },
+            onIconClick = { viewModel.toggleMute(stream.streamType) },
+            showPercentage = showPercentage,
+            onInteractionStart = {
+                viewModel.isInteracting = true
+                viewModel.setActiveStream(stream.streamType)
+                viewModel.rescheduleTimeout()
+            },
+            onInteractionEnd = {
+                viewModel.isInteracting = false
+                viewModel.rescheduleTimeout()
+            },
+        )
+    }
 }
 
 @Composable
